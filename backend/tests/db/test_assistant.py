@@ -1340,3 +1340,108 @@ def test_migration_0024_upgrade_guard(db_url, engine):
         command.upgrade(cfg, "head")
         with engine.begin() as conn:
             wipe(conn)
+
+
+# ------------------------------------------------------------------------------------------------ design
+# assistant-polish-followups, decision 4: Case Details read once per conversation read, next hearings in one batch
+
+
+def _details_conversation(s, world, case, answers: int) -> list[AssistantMessage]:
+    user = world.user(s, "edu_admin")
+    conv = AssistantConversation(user_id=user.id, case_id=case.id, scope=AssistantScope.CASE, title="t")
+    s.add(conv)
+    s.flush()
+    out = []
+    for i in range(answers):
+        q = AssistantMessage(conversation_id=conv.id, role=MessageRole.USER, content=f"question {i}")
+        s.add(q)
+        s.flush()
+        a = AssistantMessage(
+            conversation_id=conv.id,
+            role=MessageRole.ASSISTANT,
+            content=f"answer {i} [S1].",
+            reply_to_id=q.id,
+            mode="ollama",
+            connector="ollama",
+            outcome="answered",
+            citations=[
+                {
+                    "source_kind": "case_details",
+                    "label": "S1",
+                    "cited": True,
+                    "case_id": str(case.id),
+                    "hearings": 5,
+                    "listings": 5,
+                    "compact": False,
+                }
+            ],
+        )
+        s.add(a)
+        s.flush()
+        out += [q, a]
+    return out
+
+
+def test_case_details_read_once_per_conversation_read(world, monkeypatch):
+    calls: list[list] = []
+    real = src.case_details
+
+    def counting(session, case_ids, **kw):
+        calls.append(list(case_ids))
+        return real(session, case_ids, **kw)
+
+    monkeypatch.setattr(src, "case_details", counting)
+    with world.Session() as s:
+        case = w.claimed_case(s, world, officer=None, case_no="WP(C)/303/2026")
+        msgs = _details_conversation(s, world, case, 5)
+        s.commit()
+        user = world.user(s, "edu_admin")
+        out = svc.messages_out(s, user, msgs)
+        assert calls == [[case.id]]
+        contexts = {c["context"] for m in out for c in m["citations"]}
+        assert len(contexts) == 1 and "WP(C)/303/2026" in next(iter(contexts))
+        # no cache across calls: a second read reads again
+        svc.messages_out(s, user, msgs)
+        assert calls == [[case.id], [case.id]]
+
+
+def test_case_details_reads_next_hearings_once(world, monkeypatch):
+    from aslms.core import clock
+    from aslms.services import assistant_ollama as ollama
+    from aslms.services import next_hearing
+
+    today = clock.today_ist()
+    with world.Session() as s:
+        cases = [w.claimed_case(s, world, officer=None) for _ in range(3)]
+        cases[0].next_hearing_date = today + timedelta(days=4)
+        cases[1].next_hearing_date = today - timedelta(days=9)
+        s.commit()
+        ids = [c.id for c in cases]
+        # today's rendering: one detail-form reader per case
+        expected = []
+        for row in src.case_contexts(s, ids):
+            case = s.get(Case, row["case_id"])
+            nh = next_hearing.describe_case(s, case)
+            expected.append(
+                ollama.details_text(
+                    {
+                        **row,
+                        "hearings": [],
+                        "listings": [],
+                        "coram": (case.coram or "").strip() or None,
+                        "next_hearing": next_hearing.court_public(nh),
+                    },
+                    compact=False,
+                )
+            )
+        calls: list[tuple[int, bool]] = []
+        real = next_hearing.outs
+
+        def counting(session, rows, *, detail=False, today=None):
+            calls.append((len(rows), detail))
+            return real(session, rows, detail=detail, today=today)
+
+        monkeypatch.setattr(next_hearing, "outs", counting)
+        rows = src.case_details(s, ids, hearings=0, listings=0)
+        assert calls == [(3, False)]
+        assert [ollama.details_text(r, compact=False) for r in rows] == expected

@@ -76,3 +76,11 @@ describe("the Title Case guard over messages.ts", () => {
     expect(misplaced).toEqual([]);
   });
 });
+
+describe("the quick fact's source label (design assistant-polish-followups, decision 2)", () => {
+  it("is walked and written in Title Case", () => {
+    expect(PATHS.has("assistant.factsUsed")).toBe(true);
+    expect(T.assistant.factsUsed).toBe("Facts From the Case Record");
+    expect(isTitleCase(T.assistant.factsUsed)).toBe(true);
+  });
+});

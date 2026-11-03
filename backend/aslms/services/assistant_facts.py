@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from aslms.core import clock
 from aslms.domain.cases import AdvocateSide, Case, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
+from aslms.domain.courts import Court
 from aslms.domain.documents import Order
 
 FACTS = ("next_hearing", "parties", "advocates", "status", "last_order", "bench")
@@ -216,12 +217,19 @@ def _value(v: Any) -> Any:
     return v.value if hasattr(v, "value") else v
 
 
-def next_hearing(session: Session, case: Case, *, today: date | None = None) -> NextHearing:
-    """Decision 13 after row 199: the case's one next hearing (`next_hearing.describe_case`), in words."""
+def next_hearing(
+    session: Session, case: Case, *, today: date | None = None, public: bool = False
+) -> NextHearing:
+    """Decision 13 after row 199: the case's one next hearing (`next_hearing.describe_case`), in words. With
+    `public` (a reader who can no longer open the case; design assistant-polish-followups, decision 3) only the
+    court-public tiers (`next_hearing.court_public`): a date entered by hand or a confirmed reading is not given."""
     from aslms.services import next_hearing as one  # the shared reader (lazy: it imports the next-date rules)
 
     today = today or clock.today_ist()
-    out = one.describe_case(session, case) or {}
+    out = one.describe_case(session, case)
+    if public:
+        out = one.court_public(out)
+    out = out or {}
     order = out.get("order") or {}
     differs = out.get("differs") or {}
     nh = NextHearing(
@@ -329,7 +337,14 @@ def facts_of(session: Session, case: Case) -> dict[str, Any]:
         .order_by(CaseHearing.business_date.desc().nulls_last(), CaseHearing.purpose)
         .limit(1)
     )
+    court = (case.court_est_name or "").strip() or None
+    if court is None and case.court_id is not None:
+        row = session.get(Court, case.court_id)
+        court = row.name if row is not None else None
     return {
+        "case_no_text": (case.case_no_text or "").strip() or None,
+        "cnr": (case.cnr or "").strip() or None,
+        "court": court,
         "petitioner_summary": (case.petitioner_summary or "").strip() or None,
         "respondent_summary": (case.respondent_summary or "").strip() or None,
         "petitioners": by_role[PartyRole.PETITIONER.value],
@@ -403,6 +418,102 @@ def bench_lines(f: dict[str, Any]) -> list[str]:
     if f["bench_text"]:
         return [f"Before {f['bench_text']} [S1]."]
     return ["The court record does not name the bench yet [S1]."]
+
+
+# ------------------------------------------------------------------------------------------------ the source
+
+
+def _said(value: Any, missing: str = "not recorded") -> str:
+    return str(value) if value not in (None, "") else missing
+
+
+def _listed(names: list[str]) -> str:
+    return "; ".join(names) if names else "none listed"
+
+
+def _next_words(nh: NextHearing, today: date) -> str:
+    """The quick fact's own next-hearing words, for the facts form (every basis, the date entered by hand
+    included)."""
+    if nh.disposed:
+        if nh.disposal_date is not None:
+            return f"none listed (the case was disposed of on {plain_date(nh.disposal_date)})"
+        return "none listed (the case has been disposed of)"
+    d = nh.date
+    if d is None or nh.basis is None:
+        return "none held"
+    when = hearing_date(d, today)
+    if nh.basis == "court":
+        purpose = f", for {nh.purpose}" if nh.purpose and nh.court_date == d else ""
+        out = f"{when}{purpose} (the court's record)"
+    elif nh.basis == "around":
+        bits = ", ".join(b for b in (nh.basis_words, _of_order(nh.order_date)) if b)
+        out = f"around {when} ({bits})"
+    elif nh.basis == "order":
+        out = f"{when} (given in {_of_order(nh.order_date)})"
+    elif nh.basis == "confirmed":
+        out = f"{when} (given in {_of_order(nh.order_date)}; the reading was confirmed by a person)"
+    elif nh.corrected and nh.order_date is not None:
+        out = f"{when} (corrected by hand: the date read from {_of_order(nh.order_date)} was wrong)"
+    else:
+        out = f"{when} (entered by hand; the court has given no date)"
+    if d < today:
+        out += "; this date has passed"
+    return out
+
+
+def source_text(values: dict[str, Any], nh: NextHearing, *, today: date | None = None) -> str:
+    """Design assistant-polish-followups, decision 3: S1 of a quick fact, the facts form of the case record: every
+    value the six facts can state, from the same `facts_of` values and the same `NextHearing` the answer is built
+    from. Dates in the portal's form, names exactly as printed, values not held said in words. Pure."""
+    today = today or clock.today_ist()
+    f = values
+    pets, ress = list(f.get("petitioners") or []), list(f.get("respondents") or [])
+    lines = [
+        f"Case number: {_said(f.get('case_no_text'))}; CNR: {_said(f.get('cnr'))}; Court: {_said(f.get('court'))}",
+        f"Petitioners (as printed): {_said(f.get('petitioner_summary'))}",
+        f"Respondents (as printed): {_said(f.get('respondent_summary'))}",
+        f"Parties tab: {_plural(len(pets), 'petitioner')}, {_plural(len(ress), 'respondent')}; "
+        f"first petitioner: {pets[0] if pets else 'none listed'}; "
+        f"first respondent: {ress[0] if ress else 'none listed'}",
+        f"Advocates for the petitioners (as printed): {_said(f.get('pet_advocate'))}; "
+        f"listed: {_listed(list(f.get('pet_advocates') or []))}",
+        f"Advocates for the respondents (as printed): {_said(f.get('res_advocate'))}; "
+        f"listed: {_listed(list(f.get('res_advocates') or []))}",
+    ]
+    status = f.get("status")
+    if status == CaseStatus.PENDING.value:
+        lines.append("Status: Pending")
+    elif status == CaseStatus.DISPOSED.value:
+        on = f" on {plain_date(f['disposal_date'])}" if f.get("disposal_date") else ""
+        nature = f", {f['disposal_nature']}" if f.get("disposal_nature") else ""
+        lines.append(f"Status: Disposed of{on}{nature}")
+    else:
+        lines.append("Status: not given")
+    last = f.get("last_order")
+    if last:
+        lines.append(f"Last order: {plain_date(last['order_date'])} (No. {last['order_no']})")
+    else:
+        lines.append("Last order: none held")
+    name = f" ({f['bench_name']})" if f.get("bench_name") else ""
+    lines.append(f"Bench: {_said(f.get('coram'), 'coram not recorded')}{name}")
+    if f.get("bench_text"):
+        lines.append(f"Latest hearing's bench: {f['bench_text']}")
+    lines.append(f"Next hearing: {_next_words(nh, today)}")
+    if nh.court_date is not None:
+        purpose = f", for {nh.purpose}" if nh.purpose else ""
+        lines.append(f"Court's own record: {plain_date(nh.court_date)}{purpose}")
+    if nh.basis == "court" and nh.differs_on is not None:
+        given = f"Order of {plain_date(nh.differs_order_date)}" if nh.differs_order_date else "An order"
+        lines.append(f"{given} gives {plain_date(nh.differs_on)}")
+    return "\n".join(lines)
+
+
+def source_of(session: Session, case: Case, *, public: bool = False, today: date | None = None) -> str:
+    """The facts form of one case (decision 3), re-read now; `public` for a reader who can no longer open it."""
+    today = today or clock.today_ist()
+    return source_text(
+        facts_of(session, case), next_hearing(session, case, today=today, public=public), today=today
+    )
 
 
 # ------------------------------------------------------------------------------------------------ the answer

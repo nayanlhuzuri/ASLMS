@@ -7,6 +7,7 @@ model, re-read under the reader's sight, and stating the same next-hearing value
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import timedelta
 
@@ -312,12 +313,13 @@ def test_quick_fact_not_in_history(world, case_id):
 def test_quick_fact_rereads_under_reader(world, case_id):
     r = _ask(world, "edu_admin", "who is the judge", case_id, _conn(world))
     out = sup.read(world, "edu_admin", r)
-    assert "Coram: HON'BLE MR. JUSTICE QUOKKA" in out["citations"][0]["context"]
+    # design assistant-polish-followups, decision 3: a quick fact's S1 is the facts form ("Bench: <coram>")
+    assert "Bench: HON'BLE MR. JUSTICE QUOKKA" in out["citations"][0]["context"]
     with world.Session() as s:
         s.get(Case, case_id).coram = "HON'BLE MR. JUSTICE NUMBAT"
         s.commit()
     out = sup.read(world, "edu_admin", r)
-    assert "Coram: HON'BLE MR. JUSTICE NUMBAT" in out["citations"][0]["context"]
+    assert "Bench: HON'BLE MR. JUSTICE NUMBAT" in out["citations"][0]["context"]
     assert out["content"] == "Before HON'BLE MR. JUSTICE QUOKKA [S1]."  # the stored answer is never rewritten
     with world.Session() as s:
         s.get(Case, case_id).merged_into_case_id = w.claimed_case(s, world, officer=None).id
@@ -426,3 +428,125 @@ def _confirm(s, world, row):
     reviewer = world.user(s, "edu_admin").id
     row.reviewed_by_user_id, row.reviewed_at = reviewer, datetime.now(UTC)
     row.review_status = ReviewStatus.CONFIRMED
+
+
+# ------------------------------------------------------------------------------------------------ design
+# assistant-polish-followups, decision 3: S1 of a quick fact backs every value the answer states
+
+_DATE = re.compile(r"\b\d{2} [A-Z][a-z]{2} \d{4}\b")
+ASK = {
+    "next_hearing": "when is the next hearing",
+    "parties": "who are the parties",
+    "advocates": "who are the advocates",
+    "status": "what is the status",
+    "last_order": "when was the last order passed",
+    "bench": "which bench",
+}
+
+
+def _source_scene(world, store, case_id):
+    """The fixture case with advocate rows, a second order, no coram but a hearing's bench, no court date and a
+    date entered by hand; the manual date it carries."""
+    from aslms.domain.cases import AdvocateSide, CaseAdvocate, CaseHearing
+    from aslms.services import next_hearing
+
+    today = clock.today_ist()
+    manual_on = today + timedelta(days=11)
+    with world.Session() as s:
+        c = s.get(Case, case_id)
+        c.coram, c.next_hearing_date, c.next_purpose = None, None, None
+        for side, name in (
+            (AdvocateSide.PETITIONER, "S BANIK"),
+            (AdvocateSide.PETITIONER, "R DAS"),
+            (AdvocateSide.RESPONDENT, "SC EDU"),
+        ):
+            s.add(CaseAdvocate(case_id=c.id, side=side, name_as_listed=name))
+        s.add(
+            CaseHearing(
+                case_id=c.id,
+                business_date=today - timedelta(days=20),
+                purpose="ADMISSION",
+                bench_text="HON'BLE MRS. JUSTICE WOMBAT",
+            )
+        )
+        sup.order(
+            s, store, c, ["Heard. List in due course."], order_no="5", order_date=today - timedelta(days=20)
+        )
+        _next_date(s, c, manual_on, NextDateSource.MANUAL, ref=f"T/NXT/{uuid.uuid4().hex[:10]}")
+        next_hearing.refresh(s, [c.id])
+        assert c.next_hearing_basis.value == "manual"
+        s.commit()
+    return manual_on
+
+
+def _stated(text: str, names: list[str]) -> set[str]:
+    text = re.sub(r"\band \d+ others?\b", "", text)
+    return (
+        set(_DATE.findall(text))
+        | set(re.findall(r"\b\d+\b", _DATE.sub("", text)))
+        | {n for n in names if n in text}
+    )
+
+
+def _ask_all(world, case_id, names, facts=tuple(ASK)):
+    for fact in facts:
+        r = _ask(world, "edu_admin", ASK[fact], case_id, _conn(world))
+        msg = sup.answer(world, r)
+        assert msg.connector == "facts" and msg.model_info["facts"] == [fact], (fact, msg.model_info)
+        context = sup.read(world, "edu_admin", r)["citations"][0]["context"]
+        missing = {v for v in _stated(msg.content, names) if v not in context}
+        assert not missing, (fact, msg.content, missing, context)
+        yield fact, msg.content, context
+
+
+def test_quick_fact_source_backs_every_value(world, case_id, store):
+    manual_on = _source_scene(world, store, case_id)
+    names = [PET, RES, "MR. S BANIK, SR. ADV.", "SC, SEC. EDU.", "S BANIK", "R DAS", "SC EDU"]
+    names += ["HON'BLE MRS. JUSTICE WOMBAT", "DISMISSED"]
+    seen = dict((f, (content, ctx)) for f, content, ctx in _ask_all(world, case_id, names))
+    content, context = seen["next_hearing"]
+    assert af.plain_date(manual_on) in content and "entered by hand" in content
+    assert "entered by hand" in context
+    content, context = seen["bench"]
+    assert content == "Before HON'BLE MRS. JUSTICE WOMBAT [S1]."
+    assert "Latest hearing's bench: HON'BLE MRS. JUSTICE WOMBAT" in context
+    assert "Parties tab: 4 petitioners, 5 respondents" in seen["parties"][1]
+    assert (
+        f"Last order: {af.plain_date(clock.today_ist() - timedelta(days=20))} (No. 5)"
+        in seen["last_order"][1]
+    )
+    # the model's Case Details still never carries the date entered by hand (assistant-polish, decision 6)
+    conn = _conn(world)
+    _ask(world, "edu_admin", "what did the court direct on these matters", case_id, conn)
+    assert af.plain_date(manual_on) not in conn.fake.chats[0]["messages"][-1]["content"]
+    # disposed: the disposal date and nature are backed too
+    with world.Session() as s:
+        c = s.get(Case, case_id)
+        c.status, c.disposal_date, c.disposal_nature = (
+            CaseStatus.DISPOSED,
+            clock.today_ist() - timedelta(days=2),
+            "DISMISSED",
+        )
+        s.commit()
+    seen = dict(
+        (f, (content, ctx)) for f, content, ctx in _ask_all(world, case_id, names, ("status", "next_hearing"))
+    )
+    assert "DISMISSED" in seen["status"][0] and "Status: Disposed of on" in seen["status"][1]
+
+
+def test_quick_fact_source_hides_a_manual_date_from_a_reader_who_lost_the_case(world, case_id, store):
+    manual_on = _source_scene(world, store, case_id)
+    r = _ask(world, "edu_admin", "when is the next hearing", case_id, _conn(world))
+    assert af.plain_date(manual_on) in sup.read(world, "edu_admin", r)["citations"][0]["context"]
+    with world.Session() as s:
+        msg = s.get(AssistantMessage, r.answer_id)
+        # the asker no longer sees the case: the facts form is re-read court-public
+        user = world.user(s, "edu_admin")
+        detail = svc._details_out(s, user, dict(msg.citations[0]), set(), facts_form=True)
+        assert detail["case"]["visible"] is False
+        assert af.plain_date(manual_on) not in detail["context"]
+        assert "entered by hand" not in detail["context"] and "Next hearing: none held" in detail["context"]
+        # the same through messages_out for a reader outside the department
+        (out,) = svc.messages_out(s, world.user(s, "health_admin"), [msg])
+        assert af.plain_date(manual_on) not in out["citations"][0]["context"]
+        assert "Bench: coram not recorded" in out["citations"][0]["context"]

@@ -911,6 +911,40 @@ describe("a quick fact from the case record (design assistant-polish, decision 1
     const dialog = await screen.findByRole("dialog", { name: "Source S1" });
     expect(within(dialog).getByRole("link", { name: "Open Case Details" })).toHaveAttribute("href", "/cases/c-1/details");
   });
+
+  // design assistant-polish-followups, decision 2: no model was called, so the block is renamed and shown open
+  it("S1's dialog shows Facts From the Case Record, open, and no Text Given to the Model", async () => {
+    browserApi({ ...pageRoutes([conv()], [question(), FACT]), "GET /me": me("ollama"), "GET /assistant/status": ollamaStatus() });
+    renderWithClient(<AssistantPage />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: "Source S1: Case Details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Source S1" });
+    const summary = within(dialog).getByText("Facts From the Case Record");
+    expect(summary.closest("details")).toHaveAttribute("open");
+    expect(within(dialog).getByText("Case number: WP(C)/1/2026; Status: pending")).toBeVisible();
+    expect(within(dialog).queryByText("Text Given to the Model")).toBeNull();
+  });
+
+  it("Sources of This Answer of a quick fact uses the same label", async () => {
+    browserApi({ ...pageRoutes([conv()], [question(), FACT]), "GET /me": me("ollama"), "GET /assistant/status": ollamaStatus() });
+    renderWithClient(<AssistantPage />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: "Sources (1)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Sources of This Answer" });
+    expect(within(dialog).getByText("Facts From the Case Record").closest("details")).toHaveAttribute("open");
+    expect(within(dialog).queryByText("Text Given to the Model")).toBeNull();
+  });
+
+  it("a local-model answer's dialog still shows Text Given to the Model, collapsed", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: /^Source S2:/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Source S2" });
+    expect(within(dialog).getByText("Text Given to the Model").closest("details")).not.toHaveAttribute("open");
+    expect(within(dialog).queryByText("Facts From the Case Record")).toBeNull();
+  });
 });
 
 describe("noteText (design assistant-polish, decision 17)", () => {

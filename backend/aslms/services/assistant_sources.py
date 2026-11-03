@@ -199,9 +199,16 @@ def case_contexts(session: Session, case_ids: list[uuid.UUID]) -> list[dict[str,
     """The court-public facts of each case (decisions 3 and 12), in the order of `case_ids`: the keyword arguments
     of the connector's `CaseContext` (this module imports no connector). Nothing internal: no owner, custody,
     stage, note, recommendation or `ref_no`."""
+    return _contexts(session, case_ids)[0]
+
+
+def _contexts(
+    session: Session, case_ids: list[uuid.UUID]
+) -> tuple[list[dict[str, Any]], dict[uuid.UUID, Case]]:
+    """`case_contexts` and the `Case` rows it loaded (design assistant-polish-followups, decision 4)."""
     ids = list(dict.fromkeys(case_ids))
     if not ids:
-        return []
+        return [], {}
     cases = {
         c.id: (c, court_name)
         for c, court_name in session.execute(
@@ -255,7 +262,7 @@ def case_contexts(session: Session, case_ids: list[uuid.UUID]) -> list[dict[str,
                 "next_hearing_date": c.next_hearing_date,
             }
         )
-    return out
+    return out, {cid: row for cid, (row, _) in cases.items()}
 
 
 def _v(value: Any) -> Any:
@@ -281,7 +288,7 @@ def case_details(
     in `open_ids` (the cases the asker may open); every other case gets the court-public value
     (`next_hearing.court_public`: `manual` and `confirmed` blanked, the discrepancy dropped)."""
     open_set = set(open_ids)
-    out = case_contexts(session, case_ids)
+    out, rows_by_id = _contexts(session, case_ids)
     ids = [c["case_id"] for c in out]
     if not ids:
         return out
@@ -350,16 +357,18 @@ def case_details(
                     "superseded": bool(row.superseded),
                 }
             )
+    # design assistant-polish-followups, decision 4: the next hearing of every case in one batch, in the list form
+    # (`details_text` and `next_hearing.words` never read `phrase`, `court_date` or `reported_at`)
+    nhs = next_hearing.outs(session, [rows_by_id[i] for i in ids], detail=False)
     for c in out:
         c["hearings"] = by_case_h.get(c["case_id"], [])
         c["listings"] = by_case_l.get(c["case_id"], [])
-        # design assistant-polish, decision 6: the coram, and the next date read from an order through the
-        # assistant's one next-hearing reader; a manual date is an officer's entry and is never put here
-        row = session.get(Case, c["case_id"])
+        # design assistant-polish, decision 6: the coram, from the rows `_contexts` loaded
+        row = rows_by_id[c["case_id"]]
         c["coram"] = (row.coram or "").strip() or None
         # design next-date-direct, decision 11: the case's one next hearing; a date entered by hand is an officer's
         # entry and is never given to the model (assistant-polish, decision 6)
-        nh = next_hearing.describe_case(session, row)
+        nh = nhs.get(c["case_id"])
         if c["case_id"] in open_set:
             c["next_hearing"] = nh if nh is not None and nh.get("basis") != "manual" else None
         else:

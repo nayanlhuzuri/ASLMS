@@ -3832,6 +3832,8 @@ export const T = {
     internalBadge: "Internal",
     uncited: "Other Sources Given (Not Cited)",
     textGiven: "Text Given to the Model",
+    /** design assistant-polish-followups, decision 2: the same block under a quick fact (no model was called) */
+    factsUsed: "Facts From the Case Record",
     noTextGiven: "The text is no longer available to you.",
     kinds: {
       court_order: "Court Order",

@@ -145,12 +145,14 @@ function ReadinessNotice({ status }: { status: AssistantStatus | undefined }) {
   return null;
 }
 
-/** "Text Given to the Model" under a local-model source (decision 9: re-rendered by the server at read time). */
-function TextGiven({ c }: { c: AssistantCitation }) {
+/** "Text Given to the Model" under a local-model source (decision 9: re-rendered by the server at read time). Under a
+ * quick fact (`record`) no model was called: the block reads "Facts From the Case Record" and is shown open, the
+ * evidence of every value the answer states (design assistant-polish-followups, decision 2). */
+function TextGiven({ c, record = false }: { c: AssistantCitation; record?: boolean }) {
   if (!c.label) return null;
   return (
-    <details className={s.given}>
-      <summary>{A.textGiven}</summary>
+    <details className={s.given} open={record || undefined}>
+      <summary>{record ? A.factsUsed : A.textGiven}</summary>
       {c.context ? <pre className={s.givenText}>{c.context}</pre> : <p className={s.hint}>{A.noTextGiven}</p>}
     </details>
   );
@@ -172,11 +174,13 @@ function SourceItem({
   n,
   messageId,
   currentCaseId,
+  record = false,
 }: {
   c: AssistantCitation;
   n: number;
   messageId: string;
   currentCaseId?: string | null;
+  record?: boolean;
 }) {
   const id = sourceId(messageId, c.label, n);
   const num = c.label ?? String(n);
@@ -223,7 +227,7 @@ function SourceItem({
         )}
         {other ? <span className="cno muted">{other}</span> : null}
         <Passage text={c.passage} />
-        <TextGiven c={c} />
+        <TextGiven c={c} record={record} />
       </div>
     </li>
   );
@@ -244,7 +248,7 @@ function Items({
   return (
     <ul className={s.sources} aria-label={label}>
       {items.map(({ c, n }) => (
-        <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} />
+        <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} record={isCaseRecord(m)} />
       ))}
     </ul>
   );
@@ -279,7 +283,7 @@ function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?:
       {own.length ? (
         <ul className={s.sources}>
           {own.map(({ c, n }) => (
-            <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} />
+            <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} record={isCaseRecord(m)} />
           ))}
         </ul>
       ) : null}
@@ -288,7 +292,7 @@ function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?:
           <p className={s.group}>{A.related}</p>
           <ul className={s.sources} aria-label={A.related}>
             {related.map(({ c, n }) => (
-              <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} />
+              <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} record={isCaseRecord(m)} />
             ))}
           </ul>
         </>
@@ -555,7 +559,7 @@ function SourceDialog({
           </span>
           <p className={s.sourceTitle}>{sourceWords(c)}</p>
           {court ? <Passage text={c.passage} /> : null}
-          <TextGiven c={c} />
+          <TextGiven c={c} record={isCaseRecord(m)} />
         </div>
       ) : (
         <p>{A.sourceGoneNotice}</p>

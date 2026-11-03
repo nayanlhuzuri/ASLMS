@@ -3264,3 +3264,24 @@ Row 203 `next-date-direct-followups` (design `docs/design/next-date-direct-follo
 4. The repair commands commit per page so a stop keeps the pages written and locks are held per page; running again completes an interrupted run.
 
 **Left for later**: the Overview card's "Next Date From Orders" still lists the latest open reading of any order, as information. The integrator measures how many cases the new ranking moves (design Verification 3). Run the two repair commands as in `operations.md` section 21 (quiet window, worker and scheduler stopped). Deploy: `docker compose build`, `up` with the court-data switch carried; no migration, no seed. Documents changed: `docs/design/next-date-direct.md`, `operations.md` (section 21), `backlog.md`, `CLAUDE.md`; no change to `schema.md`, `.env.example`, `ASLMS_Process_Workflows.md` or the Word guides (no table, setting or command added and the owner-facing description of a corrected date is unchanged).
+
+## Case Assistant polish follow-ups (2026-11-02)
+
+Row 202 `assistant-polish-followups` (design `docs/design/assistant-polish-followups.md`, approved 30 Oct 2026), branch `feature/assistant-polish-followups`. The four advisories of the row 198 review. No table, column, index, reference code, endpoint shape or migration; `schema.md` unchanged.
+
+**What was built**
+- `NO_ANSWER_TEXT` now reads "No answer supported by the records was found. Open Sources to see the records searched and check them yourself." Stored answers keep their old text (append-only).
+- A quick fact's source dialog and its item in "Sources of This Answer" show "Facts From the Case Record", open, in place of "Text Given to the Model" (no model was called); a model answer keeps the old block, collapsed.
+- S1 of a quick fact is the facts form of the case record, `assistant_facts.source_text(values, nh)` (pure) through `source_of`, rendered at read time under the reader's sight: case number, CNR and court; printed and listed parties and counts; printed and listed advocates; status with disposal date and nature; last order date and number; bench and the latest hearing's bench; the next hearing in the answer's own words, the court's own record and a differing order date. A reader who can no longer open the case gets `next_hearing.court_public`, so a date entered by hand or a confirmed reading is not shown.
+- `messages_out` keeps one cache per call keyed by `(case_id, compact, hearings, listings, facts_form)`, so Case Details is read once per conversation read; `assistant_sources.case_details` reads next hearings for all its cases in one `next_hearing.outs(..., detail=False)` call.
+- Tests: `test_source_text_lists_every_value` (unit); `test_quick_fact_source_backs_every_value`, `test_quick_fact_source_hides_a_manual_date_from_a_reader_who_lost_the_case`, `test_case_details_read_once_per_conversation_read`, `test_case_details_reads_next_hearings_once`; new cases in the Ollama and vitest suites and a `labels.test.ts` key.
+
+**Decisions and reasons**
+1. The "nothing found" line names the Sources button, the only place the sources now sit (decision 16 of row 198).
+2. **Deviation from the review, flagged for the owner:** the block is renamed, not hidden, so the dialog still shows the evidence behind the stated values.
+3. The model's Case Details is unchanged (still never the manual date); only the quick fact's S1 carries the wider facts form, so no extra field goes to the model.
+4. The cache lives for one `messages_out` call, so it never crosses readers or requests; the short form keeps its "Next hearing:" line.
+
+**Deviations from the design note** (its Deviations section): `facts_of` also returns `case_no_text`, `cnr` and `court`; small helpers (`today`, `public`, `source_of`); wording of a few facts-form values; `test_quick_fact_rereads_under_reader` now looks for "Bench: …"; the lost-sight test reads S1 through `_details_out`; the database test asks twice (pending, then disposed); `open_ids` of row 203 kept as merged.
+
+**Left for later**: none. The owner's browser check is in the design note's Verification. Deploy: `docker compose build api web`, bring up with the court-data switch carried; no migration. No outside-team document changed: no new command, setting, screen or process.

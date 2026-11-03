@@ -166,3 +166,28 @@ vitest (`frontend/src/components/assistant/assistant.test.tsx`):
 ## Open questions
 None. Decision 2 departs from the review's wording (rename, not hide) and is flagged for the owner's approval of this
 note.
+
+## Deviations
+Written by the developer while building (2 Nov 2026).
+1. **`facts_of` carries the first line's values.** `source_text(values, nh)` needs the case number, CNR and court for
+   its first line, which `facts_of` did not return: it now also returns `case_no_text`, `cnr` and `court`
+   (`court_est_name`, else the court's name). The answer's wording is unchanged.
+2. **Small helpers.** `source_text` takes an optional `today` (the weekday and "(today)" / "(tomorrow)" exactly as the
+   answer writes them); `assistant_facts.next_hearing` takes `public` (applies `next_hearing.court_public`); a new
+   `assistant_facts.source_of(session, case, *, public)` reads the values and renders them for `_details_out`.
+3. **Wording of values the design left open in the facts form:** a disposed case's line reads "Next hearing: none
+   listed (the case was disposed of on <date>)"; a confirmed reading adds "the reading was confirmed by a person"; a
+   passed date adds "; this date has passed"; no coram reads "Bench: coram not recorded".
+4. **`test_quick_fact_rereads_under_reader` changed two assertions.** It looked for "Coram: …" in a quick fact's S1;
+   under decision 3 that text is the facts form, so it now looks for "Bench: …" (re-read under the reader, the stored
+   answer unchanged, the merged case unavailable: all as before). The model's Case Details is unchanged and
+   `test_the_one_next_hearing_given_to_the_model_never_manual` passes as it was.
+5. **The lost-sight test reads S1 directly.** A case conversation cannot be read through the service once its asker
+   loses sight of the case (`test_case_conversation_unreadable_after_losing_case_sight`), so the test reads the
+   citation through `_details_out` with the asker's visibility set empty and through `messages_out` for a reader
+   outside the department; both carry no manual date.
+6. **The database test asks twice.** The manual date is stated only while the case is pending and the disposal date
+   and nature only once it is disposed, so `test_quick_fact_source_backs_every_value` asks the six facts on the
+   pending case and then status and next hearing again after disposing it.
+7. **Row 203 overlap:** `open_ids` was already on `case_details` (row 203 merged first); it is kept unchanged, now
+   applied to the batch `next_hearing.outs` value.

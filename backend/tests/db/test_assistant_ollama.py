@@ -751,8 +751,14 @@ def test_ollama_answer_without_valid_citation_is_no_match(world, scene):
     r = ol.ask(world, "edu_admin", "affidavit quokka", "case", conn, case=scene.a)
     msg = _msg(world, r)
     assert r.outcome == "no_match" and msg.content == NO_ANSWER_TEXT
+    # design assistant-polish-followups, decision 1: the sources open from "Sources (n)", none are listed below
+    assert NO_ANSWER_TEXT.startswith("No answer supported by the records was found. Open Sources")
     assert msg.response["message"]["content"] == "The records found do not answer this question."
     assert all(c["cited"] is False for c in msg.citations)
+
+
+def test_no_answer_text_points_to_the_sources_button():
+    assert "Sources" in NO_ANSWER_TEXT and "below" not in NO_ANSWER_TEXT
 
 
 def test_ollama_cut_short_is_marked(world, scene):

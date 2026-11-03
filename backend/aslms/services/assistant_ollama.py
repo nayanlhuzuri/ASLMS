@@ -85,7 +85,11 @@ SYSTEM_PROMPT = "\n".join(
 EARLIER_HEADER = "Earlier questions in this conversation (context only; they have been answered already):"
 HISTORY_ANSWERS = ("none", "short", "full")
 SHORT_ANSWER_CHARS = 160
-NO_ANSWER_TEXT = "No answer supported by the records was found. The sources searched are listed below; check them yourself."
+# design assistant-polish-followups, decision 1: the sources open from the answer's "Sources (n)" button
+NO_ANSWER_TEXT = (
+    "No answer supported by the records was found. "
+    "Open Sources to see the records searched and check them yourself."
+)
 CUT_SHORT_LINE = "[The answer was cut short at the length limit.]"
 TOO_BROAD = "The question is too broad to search; add more specific words."
 COURT_KINDS = ("court_order", "court_filing")

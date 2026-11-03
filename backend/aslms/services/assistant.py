@@ -1647,25 +1647,46 @@ def _internal_out(
     }
 
 
-def _details_out(session: Session, user: User, c: dict[str, Any], visible: set[uuid.UUID]) -> dict[str, Any]:
-    """A Case Details citation: the court-public facts re-read from the court tables at read time."""
+def _details_out(
+    session: Session,
+    user: User,
+    c: dict[str, Any],
+    visible: set[uuid.UUID],
+    *,
+    facts_form: bool = False,
+    cache: dict[tuple, str | None] | None = None,
+) -> dict[str, Any]:
+    """A Case Details citation: the court-public facts re-read from the court tables at read time. Design
+    `assistant-polish-followups`: for a quick fact (`facts_form`) the facts form of the case record
+    (`assistant_facts.source_text`, decision 3), re-read under the reader's sight; each distinct citation read once
+    per `messages_out` call through `cache` (decision 4), whose visibility set is the call's own."""
     case_id = _uuid(c.get("case_id"))
     case = session.get(Case, case_id) if case_id else None
     if case is None or case.merged_into_case_id is not None:
         return {**_unavailable("case_details"), "label": c.get("label"), "cited": bool(c.get("cited", True))}
     compact = bool(c.get("compact"))
     n = int(c.get("hearings") or 0)
+    listings = int(c.get("listings") or 0)
     case_visible = case.id in visible
-    # design next-date-direct-followups, decision 6: the confirmed tier only in the full form the reader may see now,
-    # so the re-rendered S1 never shows more than the model was given nor more than the reader may see
-    rows = src.case_details(
-        session,
-        [case.id],
-        hearings=n,
-        listings=int(c.get("listings") or 0),
-        open_ids=[case.id] if case_visible and not compact else [],
-    )
-    context = ollama.details_text(rows[0], compact=compact) if rows else None
+    key = (case.id, compact, n, listings, facts_form)
+    if cache is not None and key in cache:
+        context = cache[key]
+    elif facts_form:
+        # decision 3: a date entered by hand or a confirmed reading only while the reader may open the case
+        context = quick_facts.source_of(session, case, public=not case_visible)
+    else:
+        # design next-date-direct-followups, decision 6: the confirmed tier only in the full form the reader may see
+        # now, so the re-rendered S1 never shows more than the model was given nor more than the reader may see
+        rows = src.case_details(
+            session,
+            [case.id],
+            hearings=n,
+            listings=listings,
+            open_ids=[case.id] if case_visible and not compact else [],
+        )
+        context = ollama.details_text(rows[0], compact=compact) if rows else None
+    if cache is not None:
+        cache[key] = context
     return {
         "document_id": None,
         "order_id": None,
@@ -1751,13 +1772,23 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
     )
     labels = {r.code: r.label for r in session.scalars(select(RefDocType)).all()}
     openable = _document_openable_cases(session, user, visible)
+    details_cache: dict[
+        tuple, str | None
+    ] = {}  # design assistant-polish-followups, decision 4: this call only
 
     def citation_out(m: AssistantMessage, c: dict[str, Any]) -> dict[str, Any]:
         kind = c.get("source_kind") or "court_order"
         if kind in INTERNAL_KINDS:
             return _internal_out(session, user, convs.get(m.conversation_id), c, labels, note_labels)
         if kind == "case_details":
-            return _details_out(session, user, c, visible)
+            return _details_out(
+                session,
+                user,
+                c,
+                visible,
+                facts_form=m.connector == quick_facts.CONNECTOR,
+                cache=details_cache,
+            )
         extra = {
             "label": c.get("label"),
             "cited": bool(c.get("cited", True)),

@@ -5,6 +5,7 @@ No database and no model."""
 from __future__ import annotations
 
 import ast
+import re
 from datetime import date
 from pathlib import Path
 
@@ -333,3 +334,143 @@ def test_facts_module_imports_no_connector():
     assert not any(m.startswith(("aslms.integration", "aslms.services.assistant")) for m in mods), mods
     assert set(af.FACTS) == {"next_hearing", "parties", "advocates", "status", "last_order", "bench"}
     assert af.FACTS_VERSION == 1
+
+
+# ------------------------------------------------------------------------------------------------ the source (S1)
+# design assistant-polish-followups, decision 3: the facts form backs every value the six facts can state
+
+_DATE = re.compile(r"\b\d{2} [A-Z][a-z]{2} \d{4}\b")
+
+
+def _stated(text: str, names: list[str]) -> set[str]:
+    """The dates, numbers and names a line states ("and N others" is a count derived from the Parties tab count)."""
+    text = re.sub(r"\band \d+ others?\b", "", text)
+    dates = set(_DATE.findall(text))
+    numbers = set(re.findall(r"\b\d+\b", _DATE.sub("", text)))
+    return dates | numbers | {n for n in names if n in text}
+
+
+def _names(f: dict) -> list[str]:
+    keys = ("petitioner_summary", "respondent_summary", "pet_advocate", "res_advocate", "coram", "bench_name")
+    out = [f[k] for k in keys if f.get(k)]
+    if f.get("bench_text"):
+        out.append(f["bench_text"])
+    for k in ("petitioners", "respondents", "pet_advocates", "res_advocates"):
+        out += f.get(k) or []
+    if f.get("disposal_nature"):
+        out.append(f["disposal_nature"])
+    return out
+
+
+NH_CASES = {
+    "court with a differing order": _nh(
+        court=date(2026, 11, 2),
+        purpose="ADMISSION",
+        basis="court",
+        on=date(2026, 11, 2),
+        differs=date(2026, 11, 5),
+        differs_order=date(2026, 10, 15),
+    ),
+    "order": _nh(
+        court=date(2026, 10, 15), basis="order", on=date(2026, 11, 5), order_date=date(2026, 10, 15)
+    ),
+    "order, passed": _nh(basis="order", on=date(2026, 10, 1), order_date=date(2026, 9, 1)),
+    "around": _nh(basis="around", on=date(2026, 12, 1), order_date=date(2026, 10, 1), words="after 2 months"),
+    "confirmed": _nh(basis="confirmed", on=date(2026, 10, 29), order_date=date(2026, 10, 1)),
+    "manual": _nh(basis="manual", on=date(2026, 11, 9)),
+    "court, passed": _nh(basis="court", on=date(2026, 10, 15)),
+    "none": _nh(),
+    "disposed": _nh(disposed=True, disposal=date(2026, 9, 1), basis="court", on=date(2026, 11, 2)),
+}
+
+FACT_CASES = {
+    "summaries": _facts(),
+    "no summaries": _facts(petitioner_summary=None, respondent_summary=None, respondents=["R1"]),
+    "no parties": _facts(petitioner_summary=None, respondent_summary=None, petitioners=[], respondents=[]),
+    "advocate rows only": _facts(pet_advocate=None, res_advocate=None, res_advocates=[]),
+    "disposed": _facts(status="disposed", disposal_date=date(2026, 9, 1), disposal_nature="DISMISSED"),
+    "unknown status, no order, no coram": _facts(status="unknown", last_order=None, coram=None),
+    "no bench at all": _facts(coram=None, bench_text=None, bench_name=None),
+}
+
+
+@pytest.mark.parametrize("nh_name", list(NH_CASES))
+@pytest.mark.parametrize("f_name", list(FACT_CASES))
+def test_source_text_lists_every_value(nh_name, f_name):
+    f, nh = FACT_CASES[f_name], NH_CASES[nh_name]
+    if f["status"] == "disposed":
+        nh = af.NextHearing(**{**nh.__dict__, "disposed": True, "disposal_date": f["disposal_date"]})
+    text = af.source_text(f, nh, today=TODAY)
+    lines = (
+        af._next_lines(nh, TODAY)
+        + af.parties_lines(f)
+        + af.advocates_lines(f)
+        + af.status_lines(f)
+        + af.last_order_lines(f)
+        + af.bench_lines(f)
+    )
+    names = _names(f)
+    for line in lines:
+        missing = {v for v in _stated(line, names) if v not in text}
+        assert not missing, (line, missing, text)
+
+
+def test_source_text_wording():
+    text = af.source_text(
+        {
+            **_facts(),
+            "case_no_text": "WP(C)/2615/2026",
+            "cnr": "GAHC010000012026",
+            "court": "Gauhati High Court",
+        },
+        NH_CASES["court with a differing order"],
+        today=TODAY,
+    )
+    assert text.splitlines() == [
+        "Case number: WP(C)/2615/2026; CNR: GAHC010000012026; Court: Gauhati High Court",
+        "Petitioners (as printed): DINAR AHMED AND 3 ORS",
+        "Respondents (as printed): THE STATE OF ASSAM AND 4 ORS",
+        "Parties tab: 4 petitioners, 5 respondents; first petitioner: DINAR AHMED; first respondent: THE STATE OF ASSAM",
+        "Advocates for the petitioners (as printed): MR. S BANIK, SR. ADV.; listed: MR. S BANIK; SR. ADV.",
+        "Advocates for the respondents (as printed): SC, SEC. EDU.; listed: SC, SEC. EDU.",
+        "Status: Pending",
+        "Last order: 15 Oct 2026 (No. 4)",
+        "Bench: HON'BLE MR. JUSTICE KALYAN RAI SURANA (Single Bench)",
+        "Latest hearing's bench: HON'BLE MR. JUSTICE OTHER",
+        "Next hearing: Monday 02 Nov 2026, for ADMISSION (the court's record)",
+        "Court's own record: 02 Nov 2026, for ADMISSION",
+        "Order of 15 Oct 2026 gives 05 Nov 2026",
+    ]
+    bare = af.source_text(
+        _facts(
+            petitioner_summary=None,
+            respondent_summary=None,
+            petitioners=[],
+            respondents=[],
+            pet_advocate=None,
+            res_advocate=None,
+            pet_advocates=[],
+            res_advocates=[],
+            status="unknown",
+            last_order=None,
+            coram=None,
+            bench_name=None,
+            bench_text=None,
+        ),
+        NH_CASES["none"],
+        today=TODAY,
+    )
+    assert bare.splitlines() == [
+        "Case number: not recorded; CNR: not recorded; Court: not recorded",
+        "Petitioners (as printed): not recorded",
+        "Respondents (as printed): not recorded",
+        "Parties tab: 0 petitioners, 0 respondents; first petitioner: none listed; first respondent: none listed",
+        "Advocates for the petitioners (as printed): not recorded; listed: none listed",
+        "Advocates for the respondents (as printed): not recorded; listed: none listed",
+        "Status: not given",
+        "Last order: none held",
+        "Bench: coram not recorded",
+        "Next hearing: none held",
+    ]
+    manual = af.source_text(_facts(), NH_CASES["manual"], today=TODAY)
+    assert "Next hearing: Monday 09 Nov 2026 (entered by hand; the court has given no date)" in manual
