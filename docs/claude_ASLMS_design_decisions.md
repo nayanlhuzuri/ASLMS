@@ -3305,3 +3305,22 @@ of the date to its source and its author.
 
 Not yet designed or built: row 218 carries both decisions to the architect. No code change in this entry.
 
+## Owner direction: a spread case refresh in place of the weekly burst (2026-11-03)
+
+The weekly sweep re-fetches every pending case's dossier each Sunday at 02:00 (about 37,000 court calls in one burst).
+On 1-3 Nov 2026 it ran late when the machine came on and held order PDFs back for about 44 hours; of 33,454 pending
+cases refreshed, 844 (2.5%) had changed, 623 of them heard in the last 30 days by the court's own record and only 9 of
+the rest with a new order.
+
+**Direction (owner, 3 Nov 2026)**: the owner proposed refreshing every claimed case and the cases in that week's cause
+lists; on the analysis above it was refined and approved as backlog row 220 `case-refresh-redesign`:
+1. Every pending claimed case refreshed once a week, spread a seventh a day.
+2. A case heard by the court's own record re-fetched at about 3, 7, 14 and 30 days after the hearing until that hearing's
+   order is stored (orders come out days after the hearing, and our stored lists do not hold every hearing).
+3. Every other pending case on a slow rolling slice, about once every 8 weeks, below order PDFs.
+4. Unchanged: the daily status check of every pending case with a re-fetch on change, first fetches, the monthly disposed
+   refresh, the refresh on claim.
+
+**Reason**: no queue build-up when the system is fully live; court calls stay near 6,000 a day, leaving most of the daily
+allowance for officers' court searches and urgent requests. To be designed after row 201; no code change in this entry.
+
