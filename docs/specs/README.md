@@ -9,7 +9,7 @@ reference file for those APIs. How the APIs actually behave, verified by live ca
 | [`napix/hc/`](napix/hc/) | Gateway stubs of the 22 **High Court** APIs (received as "High Court Case Status API") |
 | [`napix/dc/`](napix/dc/) | Gateway stubs of the 26 **District Court** APIs (received as "District Court Case Status API", 3 Nov 2026) |
 | [`pdf/`](pdf/) | The e-Committee specifications (High Court v1.0, eCourts District Court v1.3) and the NAPIX subscriber manual |
-| [`samples/`](samples/) | Decrypted answers saved from live calls (no credentials) |
+| [`samples/`](samples/) | Decrypted answers saved from live calls (no credentials); District Court samples in `samples/dc/`, caveat samples in `samples/caveat/` |
 | [`napix_field_inventory.md`](napix_field_inventory.md) | Every NAPIX field and its home in the database |
 | [`../postman/`](../postman/) | The Postman collection |
 
@@ -50,31 +50,31 @@ District Court cases are plan Phase 3, civil and criminal (owner, 3 Nov 2026).
 
 | API | Stub | Use in ASLMS |
 |---|---|---|
-| `dc-act-api` | [dc-act-api_1.0.0.json](dc/dc-act-api_1.0.0.json) | not called yet (row 222) |
-| `dc-act-master-api` | [dc-act-master-api_1.0.0.json](dc/dc-act-master-api_1.0.0.json) | not called yet (row 222) |
-| `dc-advocate-bar-reg-api` | [dc-advocate-bar-reg-api_1.0.0.json](dc/dc-advocate-bar-reg-api_1.0.0.json) | not called yet (row 222) |
-| `dc-advocate-causelist-api` | [dc-advocate-causelist-api_1.0.0.json](dc/dc-advocate-causelist-api_1.0.0.json) | not called yet (row 222) |
-| `dc-advocate-name-api` | [dc-advocate-name-api_1.0.0.json](dc/dc-advocate-name-api_1.0.0.json) | not called yet (row 222) |
-| `dc-case-number-api` | [dc-case-number-api_1.0.0.json](dc/dc-case-number-api_1.0.0.json) | not called yet (row 222) |
-| `dc-casetype-master-api` | [dc-casetype-master-api_1.0.0.json](dc/dc-casetype-master-api_1.0.0.json) | not called yet (row 222) |
-| `dc-causelist-api` | [dc-causelist-api_1.0.0.json](dc/dc-causelist-api_1.0.0.json) | not called yet (row 222) |
-| `dc-caveat-details-api` | [dc-caveat-details-api_1.0.0.json](dc/dc-caveat-details-api_1.0.0.json) | not called yet (row 222) |
-| `dc-caveat-name-api` | [dc-caveat-name-api_1.0.0.json](dc/dc-caveat-name-api_1.0.0.json) | not called yet (row 222) |
-| `dc-caveat-number-api` | [dc-caveat-number-api_1.0.0.json](dc/dc-caveat-number-api_1.0.0.json) | not called yet (row 222) |
-| `dc-cnr-api` | [dc-cnr-api_1.0.0.json](dc/dc-cnr-api_1.0.0.json) | not called yet (row 222) |
-| `dc-court-complex-api` | [dc-court-complex-api_1.0.0.json](dc/dc-court-complex-api_1.0.0.json) | not called yet (row 222) |
-| `dc-court-list-api` | [dc-court-list-api_1.0.0.json](dc/dc-court-list-api_1.0.0.json) | not called yet (row 222) |
-| `dc-current-status-api` | [dc-current-status-api_1.0.0.json](dc/dc-current-status-api_1.0.0.json) | not called yet (row 222) |
-| `dc-district-api` | [dc-district-api_1.0.0.json](dc/dc-district-api_1.0.0.json) | not called yet (row 222) |
-| `dc-filing-date-api` | [dc-filing-date-api_1.0.0.json](dc/dc-filing-date-api_1.0.0.json) | not called yet (row 222) |
-| `dc-filing-number-api` | [dc-filing-number-api_1.0.0.json](dc/dc-filing-number-api_1.0.0.json) | not called yet (row 222) |
-| `dc-fir-number-api` | [dc-fir-number-api_1.0.0.json](dc/dc-fir-number-api_1.0.0.json) | not called yet (row 222) |
-| `dc-oreder-api` | [dc-oreder-api_1.0.0.json](dc/dc-oreder-api_1.0.0.json) | not called yet (row 222) |
-| `dc-party-name-api` | [dc-party-name-api_1.0.0.json](dc/dc-party-name-api_1.0.0.json) | not called yet (row 222) |
-| `dc-police-station-master` | [dc-police-station-master_1.0.0.json](dc/dc-police-station-master_1.0.0.json) | not called yet (row 222) |
-| `dc-register-date-api` | [dc-register-date-api_1.0.0.json](dc/dc-register-date-api_1.0.0.json) | not called yet (row 222) |
-| `dc-show-business-api` | [dc-show-business-api_1.0.0.json](dc/dc-show-business-api_1.0.0.json) | not called yet (row 222) |
-| `overview` | [overview_1.0.0.json](dc/overview_1.0.0.json) | not called yet (row 222) |
-| `state-api` | [state-api_1.0.0.json](dc/state-api_1.0.0.json) | not called yet (row 222) |
+| `dc-act-api` | [dc-act-api_1.0.0.json](dc/dc-act-api_1.0.0.json) | not called yet |
+| `dc-act-master-api` | [dc-act-master-api_1.0.0.json](dc/dc-act-master-api_1.0.0.json) | not called yet |
+| `dc-advocate-bar-reg-api` | [dc-advocate-bar-reg-api_1.0.0.json](dc/dc-advocate-bar-reg-api_1.0.0.json) | not called yet |
+| `dc-advocate-causelist-api` | [dc-advocate-causelist-api_1.0.0.json](dc/dc-advocate-causelist-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-advocate-name-api` | [dc-advocate-name-api_1.0.0.json](dc/dc-advocate-name-api_1.0.0.json) | not called yet |
+| `dc-case-number-api` | [dc-case-number-api_1.0.0.json](dc/dc-case-number-api_1.0.0.json) | not called yet |
+| `dc-casetype-master-api` | [dc-casetype-master-api_1.0.0.json](dc/dc-casetype-master-api_1.0.0.json) | not called yet |
+| `dc-causelist-api` | [dc-causelist-api_1.0.0.json](dc/dc-causelist-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-caveat-details-api` | [dc-caveat-details-api_1.0.0.json](dc/dc-caveat-details-api_1.0.0.json) | not called yet |
+| `dc-caveat-name-api` | [dc-caveat-name-api_1.0.0.json](dc/dc-caveat-name-api_1.0.0.json) | called 3 Nov 2026 (row 222): no record found, fields not seen |
+| `dc-caveat-number-api` | [dc-caveat-number-api_1.0.0.json](dc/dc-caveat-number-api_1.0.0.json) | not called yet |
+| `dc-cnr-api` | [dc-cnr-api_1.0.0.json](dc/dc-cnr-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-court-complex-api` | [dc-court-complex-api_1.0.0.json](dc/dc-court-complex-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-court-list-api` | [dc-court-list-api_1.0.0.json](dc/dc-court-list-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-current-status-api` | [dc-current-status-api_1.0.0.json](dc/dc-current-status-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-district-api` | [dc-district-api_1.0.0.json](dc/dc-district-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-filing-date-api` | [dc-filing-date-api_1.0.0.json](dc/dc-filing-date-api_1.0.0.json) | not called yet |
+| `dc-filing-number-api` | [dc-filing-number-api_1.0.0.json](dc/dc-filing-number-api_1.0.0.json) | not called yet |
+| `dc-fir-number-api` | [dc-fir-number-api_1.0.0.json](dc/dc-fir-number-api_1.0.0.json) | not called yet |
+| `dc-oreder-api` | [dc-oreder-api_1.0.0.json](dc/dc-oreder-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `dc-party-name-api` | [dc-party-name-api_1.0.0.json](dc/dc-party-name-api_1.0.0.json) | not called yet |
+| `dc-police-station-master` | [dc-police-station-master_1.0.0.json](dc/dc-police-station-master_1.0.0.json) | not called yet |
+| `dc-register-date-api` | [dc-register-date-api_1.0.0.json](dc/dc-register-date-api_1.0.0.json) | not called yet |
+| `dc-show-business-api` | [dc-show-business-api_1.0.0.json](dc/dc-show-business-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
+| `overview` | [overview_1.0.0.json](dc/overview_1.0.0.json) | not called yet |
+| `state-api` | [state-api_1.0.0.json](dc/state-api_1.0.0.json) | verified live 3 Nov 2026 (row 222), not used yet |
 
 Keep the "Use in ASLMS" column in step with section 7 of the integration notes when an API is verified or taken into use.
