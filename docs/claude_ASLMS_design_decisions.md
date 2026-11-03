@@ -3370,3 +3370,12 @@ from `main` with the fix; `api`, `worker` and `scheduler` recreated with the cou
 and runs beat. Row 98 `dependency-locks` (a lock file used by both CI and the images) is what removes this class of
 failure; this hotfix makes it more urgent.
 
+## Owner: District Court scope, and two live checks run by their own agents (2026-11-03)
+
+1. **District Court scope: civil and criminal cases** (owner, 3 Nov 2026). Criminal cases, where the State is a party to
+   nearly every case, are in scope; the District Court design must size cause lists, matching and the allowance for both.
+2. **Row 222 `district-court-live-check` and row 223 `caveat-live-check` approved**, each run by its own agent beside the
+   build cycle (a live check is not a build cycle; the one-cycle-at-a-time rule is unchanged). Each works in its own
+   worktree and branch, calls NAPIX only through `backend/aslms/integration/napix/` with every call logged, and changes no
+   schema or application behaviour.
+
