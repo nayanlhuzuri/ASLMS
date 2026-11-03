@@ -3340,3 +3340,13 @@ case and date.
 **Reason**: an officer sees what happened at a hearing, not only when it was, for at most about 1,000 court calls a working
 day. No code change in this entry.
 
+## District Court API stubs filed (2026-11-03)
+
+The owner added the NAPIX gateway stubs of the District Court APIs (26 files: `dc-*` case, order, status, show business,
+cause list, advocate-wise cause list, caveat, court complex, court list, district, police station and FIR number APIs,
+with `overview` and `state`) and a copy of the High Court stubs. The District Court stubs are filed in
+`docs/specs/napix/dc/` beside `docs/specs/napix/hc/` (the High Court copy is identical to the files already held there).
+Like the High Court stubs they carry the envelope only (`dept_id`, `request_str`, `request_token`, `version`), no response
+fields; the fields are in the e-Committee eCourts specification v1.3 (`docs/specs/pdf/`) and must be confirmed by a live
+test before any code uses them. District Court cases are plan Phase 3; nothing is designed or built yet.
+

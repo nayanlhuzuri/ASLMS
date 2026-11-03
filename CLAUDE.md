@@ -7,7 +7,7 @@ A portal for Assam government departments to track their cases before the Gauhat
 - `docs/claude_ASLMS_design_decisions.md` — decision log, what is built, what is next. Append; never rewrite history.
 - `docs/DB_STANDARD.md` and `docs/schema/schema.md` — the approved database standard and design (UUID v7 keys, `ref_no`, `ref_*` code sets, no deletion of legal records, table classes, roles). Build the database from them; extend `schema.md` before any migration adds a table.
 - `docs/napix_integration_notes.md` — how the NAPIX APIs actually behave, verified by live tests (auth, encryption, errors, endpoints). Follow it exactly; it overrides the spec PDF where they differ. `docs/napix_integration_design.md` is the layer's design.
-- NAPIX specs: gateway stubs in `docs/specs/napix/hc/` (envelope only, no response fields); decrypted live samples in `docs/specs/samples/`; the Postman collection in `docs/postman/`. Check field names against the samples and the e-Committee PDF specifications; never guess NAPIX fields.
+- NAPIX specs: gateway stubs in `docs/specs/napix/hc/` (envelope only, no response fields) and, for the District Court APIs (plan Phase 3, none called live yet), `docs/specs/napix/dc/` with the specification `docs/specs/pdf/eCourts_Open_API_Specifications_NAPIX_1.3_22.04.2025-1-1-1.pdf`; decrypted live samples in `docs/specs/samples/`; the Postman collection in `docs/postman/`. Check field names against the samples and the e-Committee PDF specifications; never guess NAPIX fields.
 - `docs/Legal_Case_Monitoring_Progress_Report.docx` — how the earlier scraper-based system worked. Background only.
 
 ## Building from scratch
