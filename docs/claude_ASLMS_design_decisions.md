@@ -3324,3 +3324,19 @@ lists; on the analysis above it was refined and approved as backlog row 220 `cas
 **Reason**: no queue build-up when the system is fully live; court calls stay near 6,000 a day, leaving most of the daily
 allowance for officers' court searches and urgent requests. To be designed after row 201; no code change in this entry.
 
+## Owner direction: what happened at each new hearing, from Show Business (2026-11-03)
+
+None of the about 467,000 held hearings carries its proceedings text, because the case record gives only each hearing's
+date and purpose; NAPIX Show Business (verified live, not yet used) gives the hearing's result and a short order note for a
+case and date.
+
+**Direction (owner, 3 Nov 2026)**, backlog row 221 `show-business-new-hearings`, designed with row 220:
+1. New hearings only, found from the court's own record (a moved `last_hearing_date` in the daily status check, or a new
+   hearing date in a dossier refresh), never from the cause list alone.
+2. One call per case and hearing date, the day after the hearing, retried on a short ladder while the answer is empty, then
+   recorded as not given; never asked again once text is held. No backfill of past hearings.
+3. The text goes into the existing `case_hearings.business_text` and `short_order_text` columns.
+
+**Reason**: an officer sees what happened at a hearing, not only when it was, for at most about 1,000 court calls a working
+day. No code change in this entry.
+
