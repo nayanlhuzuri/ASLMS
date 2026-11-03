@@ -3354,7 +3354,7 @@ test before any code uses them. District Court cases are plan Phase 3; nothing i
 
 The owner states that the District Court (`dc-*`) APIs have their own limit of 1,000 calls an hour, separate from the High
 Court APIs' 1,000. So District Court work does not reduce the High Court allowance, and the NAPIX layer's quota window
-(row 59 `napix-window`: resets detected from the call log, the worker waiting for the real reset, the request slots)
+(row 47 `napix-window`: resets detected from the call log, the worker waiting for the real reset, the request slots)
 must be kept per API family, never shared. Owner-stated, not yet seen in a live test: the District Court live test
 (backlog row 222) confirms how the reset shows in the call log before the window code relies on it.
 
