@@ -2,10 +2,10 @@
 
 ```
 slug: dependency-locks
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-03
-approved_by: (pending)
+approved_by: owner on 2026-11-03
 ```
 
 ## Context

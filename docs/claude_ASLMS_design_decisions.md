@@ -3399,3 +3399,11 @@ After the scheduler outage of 3 Nov 2026 (kombu 5.7.0 installed by the image bui
 row 98 `dependency-locks` up: it is the next build after row 201, ahead of the rows approved on 30 Oct 2026. Its design
 note is written now, beside the row 201 cycle, for the owner's approval.
 
+## 2026-11-03 — Dependency locks approved (row 98 `dependency-locks`)
+
+- 2026-11-03 — dependency-locks: approved by the owner: one `backend/uv.lock` exported to hash-checked
+  `backend/requirements/image.txt` and `dev.txt`, installed by CI and the images alike with `pip check` and an import
+  check in the image build; a CI guard and a unit test for a stale lock; one refresh command `backend/tools/deps.py`;
+  `constraints-ci.txt` retired; the first deploy moves the running images back to the 27 package versions CI tests;
+  built next after row 201 (docs/design/dependency-locks.md).
+
