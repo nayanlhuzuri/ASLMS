@@ -3285,3 +3285,23 @@ Row 202 `assistant-polish-followups` (design `docs/design/assistant-polish-follo
 **Deviations from the design note** (its Deviations section): `facts_of` also returns `case_no_text`, `cnr` and `court`; small helpers (`today`, `public`, `source_of`); wording of a few facts-form values; `test_quick_fact_rereads_under_reader` now looks for "Bench: …"; the lost-sight test reads S1 through `_details_out`; the database test asks twice (pending, then disposed); `open_ids` of row 203 kept as merged.
 
 **Left for later**: none. The owner's browser check is in the design note's Verification. Deploy: `docker compose build api web`, bring up with the court-data switch carried; no migration. No outside-team document changed: no new command, setting, screen or process.
+
+## Owner decision: an entered date while a correction stands, and next-date changes in the case history (2026-11-03)
+
+Row 218 point 1 (review advisory of row 203). Today, while an officer's correction of a misread next date stands for the
+latest order, Enter Next Date is accepted and audited but has no effect on the shown date, so the officer is told it was
+saved when it was not.
+
+**Decisions (owner, 3 Nov 2026)**
+1. **Refuse (option A).** While a correction stands for the latest order, Enter Next Date is refused (409) with a plain
+   message: a correction of that date stands for this order; if the order says a different date, correct the reading
+   again. The newest entry does not replace the correction.
+2. **Every change of a case's next hearing date is shown in the case history**, so it can be pinpointed later: the old
+   and the new date, where the change came from (the court's record, the reading of an order, a confirmation, a
+   correction, an entered date), who made it and when, and the reason where one was given.
+
+**Reason**: the shown date stays tied to the court order wherever one exists, and a later reader can trace each change
+of the date to its source and its author.
+
+Not yet designed or built: row 218 carries both decisions to the architect. No code change in this entry.
+
