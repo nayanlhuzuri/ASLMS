@@ -30,8 +30,8 @@ The High Court and District Court APIs each have their own allowance of 1,000 ca
 | `hc-case-type-master-api` | [hc-case-type-master-api_1.0.0.json](hc/hc-case-type-master-api_1.0.0.json) | in use |
 | `hc-causelist-bench-api` | [hc-causelist-bench-api_1.0.0.json](hc/hc-causelist-bench-api_1.0.0.json) | in use |
 | `hc-causelist-details-api` | [hc-causelist-details-api_1.0.0.json](hc/hc-causelist-details-api_1.0.0.json) | in use |
-| `hc-caveat-details-api` | [hc-caveat-details-api_1.0.0.json](hc/hc-caveat-details-api_1.0.0.json) | live test running (row 223) |
-| `hc-caveat-name-api` | [hc-caveat-name-api_1.0.0.json](hc/hc-caveat-name-api_1.0.0.json) | live test running (row 223) |
+| `hc-caveat-details-api` | [hc-caveat-details-api_1.0.0.json](hc/hc-caveat-details-api_1.0.0.json) | verified live 3 Nov 2026 (row 223), not used yet |
+| `hc-caveat-name-api` | [hc-caveat-name-api_1.0.0.json](hc/hc-caveat-name-api_1.0.0.json) | verified live 3 Nov 2026 (row 223), not used yet |
 | `hc-cnr-api` | [hc-cnr-api_1.0.0.json](hc/hc-cnr-api_1.0.0.json) | in use |
 | `hc-current-status-api` | [hc-current-status-api_1.0.0.json](hc/hc-current-status-api_1.0.0.json) | in use |
 | `hc-district-api` | [hc-district-api_1.0.0.json](hc/hc-district-api_1.0.0.json) | in use |
