@@ -17,6 +17,10 @@ dependencies = [
   "uuid6>=2024.7",
   "pymupdf>=1.24,<2",  # design document-ocr, decision 2: 2.x loads onnxruntime layout models at import
   "celery>=5.4",
+  # kombu 5.7.0 imports `packaging` in its Redis transport without declaring it, so the scheduler failed to start
+  # (3 Nov 2026); held below 5.7 to match the CI constraints (kombu 5.6.2) until the lock file of row 98
+  "kombu>=5.4,<5.7",
+  "packaging>=24",
   "redis>=5",
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

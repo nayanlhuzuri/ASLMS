@@ -3358,3 +3358,15 @@ Court APIs' 1,000. So District Court work does not reduce the High Court allowan
 must be kept per API family, never shared. Owner-stated, not yet seen in a live test: the District Court live test
 (backlog row 222) confirms how the reset shows in the call log before the window code relies on it.
 
+## Hotfix: scheduler down after kombu 5.7.0 (2026-11-03)
+
+The backend images built at 14:20 IST for the row 202 deploy installed kombu 5.7.0 (new on PyPI; `celery>=5.4` leaves
+kombu open). Its Redis transport imports `packaging` without declaring it, so the scheduler failed at start from about
+14:45 to 15:37 IST (60 restarts; the worker and api kept running from their first start). Beat jobs did not run in that
+window. CI did not see it because it installs from `backend/constraints-ci.txt` (kombu 5.6.2).
+
+**Fix**: `backend/pyproject.toml` holds `kombu>=5.4,<5.7` (the CI version) and declares `packaging>=24`. Images rebuilt
+from `main` with the fix; `api`, `worker` and `scheduler` recreated with the court-data switch on; the scheduler starts
+and runs beat. Row 98 `dependency-locks` (a lock file used by both CI and the images) is what removes this class of
+failure; this hotfix makes it more urgent.
+
