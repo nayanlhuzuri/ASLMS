@@ -3393,3 +3393,9 @@ call was made.
 2. The proper fix is backlog row 224 `napix-window-per-family`: the window, its readers and the console figures kept per
    API family. It comes before any District Court collection is built.
 
+## Owner: dependency locks moved up (2026-11-03)
+
+After the scheduler outage of 3 Nov 2026 (kombu 5.7.0 installed by the image build, never tested by CI), the owner moved
+row 98 `dependency-locks` up: it is the next build after row 201, ahead of the rows approved on 30 Oct 2026. Its design
+note is written now, beside the row 201 cycle, for the owner's approval.
+
