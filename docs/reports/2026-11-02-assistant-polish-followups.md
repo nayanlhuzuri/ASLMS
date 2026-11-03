@@ -40,3 +40,9 @@ report, the backlog close and the push were finished on 3 Nov 2026 from the gate
 ## Load status
 At 14:19 IST on 3 Nov 2026: cause lists 671 of 671 days; 83,317 cases; 200,734 of 390,063 order PDFs stored, none
 failed; the weekly case-details refresh had about 4,660 cases left before order PDFs resume.
+
+## Deployed
+Deployed 3 Nov 2026 at 14:46 IST, after CI on `main` passed (run 41606244860: policy, backend, frontend, compose). No
+migration. Images built from the clean `main` checkout at a7f5049; `docker compose --profile monitoring up -d --wait`
+with the court-data switch on, then `api`, `worker`, `scheduler` and `web` once more with `--no-deps --force-recreate`;
+court data on in `api` and `worker`; the running `web` has the image's build ID; `portal_smoke.py` passed.
