@@ -3407,3 +3407,10 @@ note is written now, beside the row 201 cycle, for the owner's approval.
   `constraints-ci.txt` retired; the first deploy moves the running images back to the 27 package versions CI tests;
   built next after row 201 (docs/design/dependency-locks.md).
 
+
+## 2026-11-04 — Designations: "Hierarchy Order" (owner)
+The owner asked that the designation list's Order column be named for what it means. Under Administration →
+Designations the column and field now read **Hierarchy Order**, and the Add Designation form's field carries the hint
+"Lower numbers are higher in the hierarchy and listed first. Leave empty to add at the end." Only the label changed:
+`designations.sort_order` still only sets the order of the list and of every designation dropdown (lowest first, ties
+by name); it grants no rank, function or visibility. Frontend text only, no API change, no migration.

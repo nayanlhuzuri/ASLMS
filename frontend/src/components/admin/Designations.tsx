@@ -69,6 +69,7 @@ export function Designations() {
           <TextField label={T.designations.name} required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
           <TextField
             label={T.designations.order}
+            hint={T.designations.orderHint}
             type="number"
             value={draft.order}
             onChange={(e) => setDraft({ ...draft, order: e.target.value })}
