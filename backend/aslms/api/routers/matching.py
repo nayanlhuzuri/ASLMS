@@ -298,7 +298,11 @@ def unmapped_counsel_codes_page(
     )
 
 
-@router.get("/counsel-codes", response_model=schemas.CounselCodeListOut)
+@router.get(
+    "/counsel-codes",
+    response_model=schemas.CounselCodeListOut,
+    responses={400: {"model": schemas.ErrorOut}},
+)
 def list_counsel_codes(
     office: str | None = None,
     q: str | None = None,
@@ -306,12 +310,17 @@ def list_counsel_codes(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_COUNSEL_CODES)),
 ) -> schemas.CounselCodeListOut:
-    rows = matching_rules.list_counsel_codes(
-        session, caller, office=_optional_office(session, office), q=q, include_inactive=include_inactive
-    )
+    # `q`: 2 to 100 characters after trimming, else 400 `bad_q`; a blank `q` is no search (design
+    # list-search-followups, decision 2)
+    try:
+        rows = matching_rules.list_counsel_codes(
+            session, caller, office=_optional_office(session, office), q=q, include_inactive=include_inactive
+        )
+    except ListSearchError as exc:
+        raise list_error(exc) from exc
     settings = ss.current(session)
     total_all = None
-    if q:
+    if q and q.strip():
         total_all = matching_rules.count_counsel_codes(
             session, caller, office=_optional_office(session, office), include_inactive=include_inactive
         )

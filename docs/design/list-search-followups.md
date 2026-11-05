@@ -145,3 +145,9 @@ vitest (`frontend/src/components/admin/mapping.test.tsx`):
 
 ## Open questions
 None.
+
+## Deviations
+- Decision 1, `rules_fingerprint`: each row contributes `id::text || '@' || extract(epoch FROM updated_at)::text`
+  in place of `updated_at::text`, so the text does not depend on the session's `TimeZone` or `DateStyle` (the api
+  and the worker could otherwise hash the same rows differently and start a needless rescore). An empty table
+  contributes its count and an empty hash (`coalesce`). Same inputs, same guarantees.

@@ -246,6 +246,57 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes/cc-1/deactivate")).toHaveLength(1));
   });
 
+  // design list-search-followups, decision 3
+  it("deactivating a code from the row menu reloads Recommended From Cause Lists", async () => {
+    let reads = 0;
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      // the deactivated code is unmapped again on the second read
+      "GET /admin/counsel-codes/unmapped/page": () =>
+        ++reads === 1 ? page([]) : page([{ code: "SC, EDU", entries: 7, last_listed: "2026-10-09", example_case_ref: null, partial_matches: [] }]),
+      "POST /admin/counsel-codes/cc-1/deactivate": { ...code({ is_active: false }), applies_within_minutes: 15 },
+    });
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(1));
+    await screen.findByText("SC, EDU");
+    await rowAction("SC, EDU", "Deactivate");
+    const confirm = await screen.findByRole("dialog", { name: "Deactivate This Rule" });
+    await userEvent.click(within(confirm).getByRole("button", { name: "Deactivate" }));
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(2));
+    // back to the first page: no cursor
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")[1]!.path).not.toContain("cursor=");
+    expect(await within(panel).findByText("SC, EDU")).toBeInTheDocument();
+  });
+
+  it("Reactivate and an office move keep the local drop and make no extra unmapped-page request", async () => {
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [code(), code({ id: "cc-2", code: "SC, OLD", is_active: false })], total: 2 },
+      "GET /admin/counsel-codes/unmapped/page": page([]),
+      "PATCH /admin/counsel-codes/cc-1": { ...code({ office: { code: "EDU-DSE", name: "Secondary Education" } }), applies_within_minutes: 15 },
+      "POST /admin/counsel-codes/cc-2/reactivate": { ...code({ id: "cc-2", code: "SC, OLD" }), applies_within_minutes: 15 },
+    });
+    renderWithClient(<CounselCodes />);
+    await screen.findByText("SC, OLD");
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(1));
+    await rowAction("SC, EDU", "Change Office");
+    const dialog = await screen.findByRole("dialog", { name: "Change Office" });
+    await chooseOffice(within(dialog).getByRole("combobox", { name: "Office" }), "Secondary Education");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(1));
+    await rowAction("SC, OLD", "Reactivate");
+    const confirm = await screen.findByRole("dialog", { name: "Reactivate This Rule" });
+    await userEvent.click(within(confirm).getByRole("button", { name: "Reactivate" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes/cc-2/reactivate")).toHaveLength(1));
+    // the codes list is read again after each save; the panel is not
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes").length).toBeGreaterThanOrEqual(3));
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(1);
+  });
+
   it("generic rows have no menu when the root office is not among the choices", async () => {
     browserApi({
       "GET /me": deptAdmin(),

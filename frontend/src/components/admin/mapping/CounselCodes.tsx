@@ -13,7 +13,8 @@
  * weights are never sent (decision 39). A code that partly matches mappings in the caller's scope says so ("Partly
  * matches SC, EDU (EDU)"), and with exactly one such mapping its picker starts on that office; Map still sends nothing
  * until pressed (design partial-code-match, decision 16). A save starts the rescore at once (design list-search,
- * decision 41).
+ * decision 41). A deactivation reloads the panel from its first page, so the code shows there again at once (design
+ * list-search-followups, decision 3).
  */
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -96,8 +97,16 @@ export function CounselCodes() {
 
   function saved(row: CounselCode) {
     setNotice(T.mapping.rescoreStarted);
-    // the mapped code leaves the recommended panel without scanning the cause lists again
-    queryClient.setQueriesData<InfiniteData<UnmappedCodePage>>({ queryKey: UNMAPPED_KEY }, (old) => dropMapped(old, row.code));
+    if (row.is_active) {
+      // a new mapping, a reactivation or an office move: the code leaves the recommended panel without scanning the
+      // cause lists again
+      queryClient.setQueriesData<InfiniteData<UnmappedCodePage>>({ queryKey: UNMAPPED_KEY }, (old) => dropMapped(old, row.code));
+    } else {
+      // a deactivated code may be unmapped again, and only the server knows whether another mapping still covers it
+      // and where it sorts: the panel goes back to its first page (reset, not invalidate, which would refetch every
+      // loaded page; design list-search-followups, decision 3)
+      void queryClient.resetQueries({ queryKey: UNMAPPED_KEY });
+    }
     void refresh();
   }
 

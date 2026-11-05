@@ -133,3 +133,26 @@ def test_counsel_codes_total_all_with_q(api, world):  # noqa: F811
     assert edu["total"] == 2 and edu["total_all"] == 2
     # wildcards match literally
     assert api.get("/admin/counsel-codes", params={"q": "S%"}, headers=root).json()["total"] == 0
+
+
+def test_counsel_codes_bad_q_is_400(api, world):  # noqa: F811
+    """Design list-search-followups, decision 2: `q` is 2 to 100 characters after trimming; blank is no search."""
+    with world.Session() as s:
+        for code in ("SC, EDU", "SC, HEALTH"):
+            office = "HEALTH" if "HEALTH" in code else "EDU"
+            s.add(CounselCode(code=code, office_id=world.offices[office].id))
+        s.commit()
+    root = login(api, "root")
+    for q in ("a", " a ", "x" * 101):
+        r = api.get("/admin/counsel-codes", params={"q": q}, headers=root)
+        assert r.status_code == 400, q
+        assert r.json()["detail"]["code"] == "bad_q"
+    assert (
+        "at least 2"
+        in api.get("/admin/counsel-codes", params={"q": "a"}, headers=root).json()["detail"]["message"]
+    )
+    blank = api.get("/admin/counsel-codes", params={"q": "   "}, headers=root)
+    assert blank.status_code == 200
+    assert blank.json()["total"] == 2 and blank.json()["total_all"] is None
+    # exactly 100 characters is a search, not an error
+    assert api.get("/admin/counsel-codes", params={"q": "x" * 100}, headers=root).json()["total"] == 0

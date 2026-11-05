@@ -698,6 +698,8 @@ class ScoreReport:
     failed: int = 0
     settings_version: int | None = None
     job_run_id: uuid.UUID | None = None
+    # the fingerprint of the rules read just before the run loaded them (design list-search-followups, decision 1)
+    rules_fingerprint: str | None = None
 
     def add(self, other: ScoreReport) -> None:
         for k in ("cases", "scores", "recommended_new", "band_changed", "expired", "failed"):
@@ -705,7 +707,7 @@ class ScoreReport:
         self.settings_version = other.settings_version or self.settings_version
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "cases": self.cases,
             "scores": self.scores,
             "recommended_new": self.recommended_new,
@@ -714,6 +716,9 @@ class ScoreReport:
             "failed": self.failed,
             "settings_version": self.settings_version,
         }
+        if self.rules_fingerprint is not None:
+            out["rules_fingerprint"] = self.rules_fingerprint
+        return out
 
 
 def _now() -> datetime:
@@ -961,6 +966,38 @@ def last_rescore_start(session: Session) -> datetime | None:
     )
 
 
+def rules_fingerprint(session: Session) -> str:
+    """One md5 over the rule tables (design list-search-followups, decision 1): for each table in `RULE_TABLES`
+    order its row count and an md5 of every `id@updated_at` in id order. Every insert and every update changes it
+    (the `set_updated_at` trigger moves `updated_at`; nothing in these tables is deleted). `updated_at` is read as
+    epoch seconds, so the text does not depend on the session's TimeZone or DateStyle."""
+    parts = [
+        f"(SELECT count(*)::text || ':' || coalesce(md5(string_agg("
+        f"id::text || '@' || extract(epoch FROM updated_at)::text, ',' ORDER BY id)), '') "
+        f"FROM {model.__table__.name})"
+        for model in RULE_TABLES
+    ]
+    return str(session.scalar(text(f"SELECT md5(concat_ws('|', {', '.join(parts)}))")))
+
+
+def rules_dirty(session: Session) -> bool:
+    """True when the rules differ from those the latest succeeded `rescore` run used: no such run → dirty; a run
+    without a recorded fingerprint (from before design list-search-followups) → the timestamp test against its
+    start; otherwise the current fingerprint against the recorded one."""
+    latest = session.execute(
+        select(JobRun.started_at, JobRun.counters)
+        .where(JobRun.job == "rescore", JobRun.status == JobStatus.SUCCEEDED)
+        .order_by(JobRun.started_at.desc(), JobRun.id.desc())
+        .limit(1)
+    ).first()
+    if latest is None:
+        return True
+    stored = (latest.counters or {}).get("rules_fingerprint")
+    if not stored:
+        return rules_changed_since(session, latest.started_at)
+    return rules_fingerprint(session) != stored
+
+
 def rescore_all(
     session_factory: sessionmaker[Session], *, batch: int = 500, run_id: uuid.UUID | None = None
 ) -> ScoreReport:
@@ -977,6 +1014,9 @@ def rescore_all(
     status, error = JobStatus.FAILED, None
     try:
         with session_factory() as s:
+            # read before the load: a save committing in between makes the stored fingerprint older than the rules
+            # used, so the worst case is one extra rescore, never a missed one
+            total.rules_fingerprint = rules_fingerprint(s)
             rules = RuleSet.load(s)
         total.settings_version = rules.settings.version
         last_id: uuid.UUID | None = None
@@ -1033,7 +1073,7 @@ RESCORE_CLAIM_LOCK = 0x41534C4D53_0041  # "ASLMS" + 0x41
 
 def claim_rescore(session_factory: sessionmaker[Session]) -> uuid.UUID | None:
     """The single-flight claim: under `pg_advisory_xact_lock`, None when a rescore is running (started in the last
-    30 minutes) or no rule changed since the last succeeded run; otherwise a new `running` `rescore` row, committed
+    30 minutes) or the rules match those of the last succeeded run (`rules_dirty`); otherwise a new `running` `rescore` row, committed
     before the lock is released, so a second claim at the same moment sees it."""
     with session_factory() as s:
         s.execute(select(func.pg_advisory_xact_lock(RESCORE_CLAIM_LOCK)))
@@ -1046,7 +1086,7 @@ def claim_rescore(session_factory: sessionmaker[Session]) -> uuid.UUID | None:
             )
             .limit(1)
         )
-        if running is not None or not rules_changed_since(s, last_rescore_start(s)):
+        if running is not None or not rules_dirty(s):
             s.rollback()
             return None
         run = JobRun(job="rescore", run_date=today_ist())
@@ -1062,15 +1102,14 @@ def rescore_if_dirty(
     dispatch: Callable[[], Any] | None = None,
 ) -> ScoreReport | None:
     """Rescores every case when a rule, an office or the settings changed since the last succeeded run, one run at a
-    time (`claim_rescore`); None when a run is under way or nothing changed. When a rule changed while this run was
-    going, `dispatch` is called once, so the last mapping is never left for the beat."""
+    time (`claim_rescore`); None when a run is under way or nothing changed. When the rules differ from those the
+    run read (a save during the run, even one committed after the run loaded its rules), `dispatch` is called once, so the last mapping is never left for the beat."""
     run_id = claim_rescore(session_factory)
     if run_id is None:
         return None
     report = rescore_all(session_factory, batch=batch, run_id=run_id)
     with session_factory() as s:
-        started = s.scalar(select(JobRun.started_at).where(JobRun.id == run_id))
-        again = rules_changed_since(s, started)
+        again = rules_fingerprint(s) != report.rules_fingerprint
     if again and dispatch is not None:
         try:
             dispatch()

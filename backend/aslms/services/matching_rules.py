@@ -38,7 +38,7 @@ from aslms.domain.ownership import (
     RecommendationOrigin,
 )
 from aslms.domain.reference import EventType, Permission
-from aslms.services import access, matching, queue
+from aslms.services import access, list_search, matching, queue
 from aslms.services import scoring_settings as ss
 from aslms.services.audit import Actor, snapshot, write_audit
 from aslms.services.case_filters import LIKE_ESCAPE, like_escape
@@ -321,9 +321,11 @@ def _counsel_codes_stmt(
         )
     if office is not None:
         stmt = stmt.where(or_(Office.id == office.id, Office.path.like(office.path + "/%")))
-    if q:
+    # 2 to 100 characters or `ListSearchError("bad_q")`; blank is no search (design list-search-followups, decision 2)
+    query = list_search.parse(q)
+    if query is not None:
         # LIKE wildcards in the search match literally (design list-search, decision 6)
-        needle = like_escape(matching.normalise_counsel_code(q))
+        needle = like_escape(matching.normalise_counsel_code(query.raw))
         stmt = stmt.where(CounselCode.code.ilike(f"%{needle}%", escape=LIKE_ESCAPE))
     if not include_inactive:
         stmt = stmt.where(CounselCode.is_active.is_(True))

@@ -3430,3 +3430,36 @@ retry count (3 attempts) and the batch size (250) are unchanged; a real outage s
 status item now takes about 5 minutes (3 × 90 s plus back-off), well inside the 30-minute stale-claim limit and the
 2-hour worker alert. Tests: the read timeout per API on the fake gateway; the setting's default and bounds. No
 migration. The court's slower evening answers (10 s on 1 Nov, 25 s on 2 Nov) are worth watching on System health.
+
+
+## List search follow-ups: rescore fingerprint, counsel-code search check, unmapped reload (2026-11-05)
+
+Row 201 `list-search-followups` (design `docs/design/list-search-followups.md`), the three advisories of the row 175
+review. No migration, no new command, setting or screen.
+
+**Built**
+1. **Rescore dirty test by a fingerprint of the rules** (`services/matching.py`: `rules_fingerprint`, `rules_dirty`,
+   used by `claim_rescore`). One md5 over the rule tables (`RULE_TABLES`): per table the row count and an md5 of each
+   `id@updated_at` in id order. `rescore_all` reads it just before `RuleSet.load` and stores it in the run's
+   `job_runs.counters.rules_fingerprint`. A run is dirty when the current fingerprint differs from the last succeeded
+   run's. A save whose transaction began before a rescore claimed its run but committed after the rules were loaded is
+   now picked up (one dispatched follow-up run) instead of waiting for an unrelated change. Worst case is one extra
+   rescore, never a missed one. A last run with no stored fingerprint (before this change) falls back to the old
+   timestamp test, so the first run after deploy writes it.
+2. **`GET /admin/counsel-codes` checks `q`**: 2 to 100 characters after trimming, else 400 `bad_q` (decision 6 of the
+   list-search design); a blank `q` is no search and `total_all` stays null. The 400 is in the OpenAPI entry.
+3. **Deactivating a counsel code reloads Recommended From Cause Lists**: `saved()` in `CounselCodes.tsx` now
+   invalidates the unmapped-codes query after a Deactivate (Reactivate and office moves make no extra request; mapping a
+   code still drops it from the panel without a request).
+
+**Deviation from the design**: the fingerprint's per-row text is `id::text || '@' || extract(epoch FROM updated_at)::text`
+in place of `updated_at::text`, so it does not depend on the session's `TimeZone` or `DateStyle` (api and worker could
+otherwise hash the same rows differently and start a needless rescore). An empty table contributes its count and an
+empty hash.
+
+**Tests**: `tests/db/test_rescore_on_save.py` (fingerprint cases), `tests/db/test_api_matching.py` (bad_q, blank q),
+`mapping.test.tsx` (deactivate reloads the unmapped page).
+
+**Left for later**: nothing new. The owner's browser check (Department Mapping, deactivate a code that appears in cause
+lists; it shows at once) is in the design's Verification. Deploy: `docker compose build api web`, bring up carrying the
+court-data switch. No outside-team document changed: no new command, setting, screen or process.
