@@ -31,3 +31,6 @@ None added.
 
 ## Load status (`aslms queue-status`, tail)
 order_pdf done 201,080, pending 189,821, skipped 3; status_batch done 2,458, pending 6, running 2, skipped 7.
+
+## Deployed
+5 Nov 2026 at 14:52 IST. Images built from clean `main` at c8cbc97 (14:27; the later commit ed78ccd is documents only); CI run 41998336593 green (changes, policy, backend, frontend, compose, ci-ok). `up -d --wait` with the court-data switch on, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. Switch on in `api` and `worker`; web build ID matches the image (`MUg9OwY5DhqUxOhqh4Axt`); `rules_fingerprint` present in the running API; portal smoke passed. No migration. Verification 3 and 4 of the design (after deploy) are the owner's.
