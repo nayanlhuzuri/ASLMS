@@ -3463,3 +3463,13 @@ empty hash.
 **Left for later**: nothing new. The owner's browser check (Department Mapping, deactivate a code that appears in cause
 lists; it shows at once) is in the design's Verification. Deploy: `docker compose build api web`, bring up carrying the
 court-data switch. No outside-team document changed: no new command, setting, screen or process.
+
+## 2026-11-05 — District Court allowance: ASLMS is its only user (owner)
+Answering open question 2 of the District Court live check (row 222, report `docs/reports/2026-11-03-district-court-live-check.md`):
+nothing outside ASLMS uses the NAPIX subscription, for District Court or High Court calls. The 1,000 District Court
+calls an hour are ASLMS's alone, and the design of row 224 (`napix-window-per-family`) and of the District Court
+collection need keep no reserve for an outside user. The first District Court call of 3 Nov read 998, not 999. The
+caveat check that ran just before used High Court APIs (`hc-caveat-*`, High Court readings 98 to 91), so it does not
+explain the missing call. The cause is open (an attempt of our own that left no call-log row, or the gateway's own
+counting) and matters only by one call; row 224's live reading of the District Court reset will show it.
+Also: backlog rows 221 and 225 had unescaped `|` in their text, which split the table; escaped, no wording changed.
