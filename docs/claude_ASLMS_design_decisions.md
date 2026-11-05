@@ -3414,3 +3414,19 @@ Designations the column and field now read **Hierarchy Order**, and the Add Desi
 "Lower numbers are higher in the hierarchy and listed first. Leave empty to add at the end." Only the label changed:
 `designations.sort_order` still only sets the order of the list and of every designation dropdown (lowest first, ties
 by name); it grants no rank, function or visibility. Frontend text only, no API change, no migration.
+
+## 2026-11-05 — Hotfix: Current Status gets its own 90 s timeout (owner)
+**Problem.** The daily status check (`status-daily`, 20:00 IST) ran instead at about 10:00 on 4 and 5 Nov, as the
+catch-up after the host had been off at 20:00. In the daytime the gateway took 26–40 s and more to answer a
+250-CNR Current Status call (10–26 s in the evening runs of 28 Oct–2 Nov), past the 40 s `NAPIX_TIMEOUT_SECONDS`:
+on 5 Nov every one of 103 calls between 10:00 and 12:10 timed out. Each timeout is a `NapixUnavailable`, so after
+five in a row the runner's fault pause (safety-fixes, decision 8) stopped every lane for 5 minutes, and the whole
+collection fell to about 50 calls an hour. Every other API answered in 1–2 s. Nothing was lost (0 permanent failures).
+**Decision (owner, 5 Nov 2026: "just increasing the time limit").** Current Status alone waits longer: new setting
+`NAPIX_STATUS_TIMEOUT_SECONDS`, default 90, allowed 40 to 300, applied by the client to
+`hc-current-status-api/currentStatus` through `NapixClient(api_timeouts=…)` (built in `from_settings`), so the daily
+check, System health's Test now and `aslms napix-check` all use it. Every other API keeps 40 s. The fault pause, the
+retry count (3 attempts) and the batch size (250) are unchanged; a real outage still pauses the runner. Worst case one
+status item now takes about 5 minutes (3 × 90 s plus back-off), well inside the 30-minute stale-claim limit and the
+2-hour worker alert. Tests: the read timeout per API on the fake gateway; the setting's default and bounds. No
+migration. The court's slower evening answers (10 s on 1 Nov, 25 s on 2 Nov) are worth watching on System health.

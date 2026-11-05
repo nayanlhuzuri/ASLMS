@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # 7 Oct 2026: 300 ok, 350 -> 414, 400+ -> 405); 250 leaves margin. The spec's maximum is 500.
     napix_status_batch: int = Field(250, ge=1, le=300)
     napix_timeout_seconds: float = 40.0
+    # Current Status alone (250 CNRs a call) may wait longer: the gateway took 12-26 s in the evening and 31-40 s
+    # in the daytime, so a catch-up run after the host was off at 20:00 timed out at 40 s (live, 4-5 Nov 2026)
+    napix_status_timeout_seconds: float = Field(90.0, ge=40, le=300)
     napix_token_ttl_seconds: int = 3300  # when the token response carries no expires_in (manual: one hour)
     # user court searches (design cases-api, decision 13): refused below this remaining hourly quota, at most
     # this many per user per hour, and the whole request (retries included) within this many seconds

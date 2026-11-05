@@ -100,6 +100,8 @@ PRINT_R_NAME = re.compile(r"\[status\]\s*=>\s*([A-Z_]+)")
 RATE_LIMIT_NUMBER = re.compile(r"(\d+)\s*;?\s*$")
 # the `error` of a token renewal's 401 step (`ok` false, `http_status` 401, no family; api-health-checker-followups)
 RENEWED = "HTTP 401: the token had expired; it was renewed and the call repeated"
+# the one API given `NAPIX_STATUS_TIMEOUT_SECONDS` in place of `NAPIX_TIMEOUT_SECONDS` (= hc.API["current_status"])
+CURRENT_STATUS_API = "hc-current-status-api/currentStatus"
 
 
 @dataclass
@@ -403,6 +405,7 @@ class NapixClient:
         transport: httpx.AsyncBaseTransport | None = None,
         max_attempts: int = 3,
         backoff_base: float = 2.0,
+        api_timeouts: Mapping[str, float] | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.client_id, self.client_secret, self.dept_id = client_id, client_secret, dept_id
@@ -412,6 +415,8 @@ class NapixClient:
         self.on_call = on_call
         self.limiter = RateLimiter(rate_limit_per_min, rate_window_seconds, rate_zero_wait_seconds)
         self.max_attempts, self.backoff_base = max_attempts, backoff_base
+        # api_path -> seconds, in place of `timeout` for that API (Current Status: NAPIX_STATUS_TIMEOUT_SECONDS)
+        self.api_timeouts = dict(api_timeouts or {})
         self._transport = transport
         self._http: httpx.AsyncClient | None = None
         self.last_token_request: TokenRenewal | None = None
@@ -438,6 +443,7 @@ class NapixClient:
             rate_zero_wait_seconds=float(s.napix_window_probe_seconds),
             token_ttl_seconds=s.napix_token_ttl_seconds,
             token_cache=TokenCache(s.redis_url),
+            api_timeouts={CURRENT_STATUS_API: s.napix_status_timeout_seconds},
         )
         kwargs.update(overrides)
         return cls(**kwargs)
@@ -607,10 +613,11 @@ class NapixClient:
                 # the four parameters travel in the query string for GET and POST alike (verified live, 1 Oct:
                 # Current Status answers 400 "required API parameters are missing" to a form or JSON body)
                 qs = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in query.items())
+                timeout = self.api_timeouts.get(api_path, httpx.USE_CLIENT_DEFAULT)
                 if method.upper() == "POST":
-                    r = await self.http.post(f"{url}?{qs}", headers=headers)
+                    r = await self.http.post(f"{url}?{qs}", headers=headers, timeout=timeout)
                 else:
-                    r = await self.http.get(f"{url}?{qs}", headers=headers)
+                    r = await self.http.get(f"{url}?{qs}", headers=headers, timeout=timeout)
             except httpx.HTTPError as e:
                 raise NapixUnavailable(f"NAPIX {api_path}: {e}", api=api_path) from e
             result.http_status = r.status_code

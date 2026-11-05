@@ -1,6 +1,6 @@
 # NAPIX High Court API — Integration Notes (verified by live tests)
 
-Last updated: 2026-11-03 (the two caveat APIs verified live, row 223; the District Court APIs added in §10, 11 `dc-*` APIs called live, row 222); 2026-10-01 (live run of `aslms napix-check`, 14 APIs verified). Source: live calls from Postman and from the backend against the NAPIX gateway, plus the High Court Open API Specification v1.0 (`docs/specs/`). Where this file and the spec PDF disagree, **this file wins**: it records what the live service actually accepted.
+Last updated: 2026-11-05 (Current Status answer times and its own 90 s timeout, §7 table); 2026-11-03 (the two caveat APIs verified live, row 223; the District Court APIs added in §10, 11 `dc-*` APIs called live, row 222); 2026-10-01 (live run of `aslms napix-check`, 14 APIs verified). Source: live calls from Postman and from the backend against the NAPIX gateway, plus the High Court Open API Specification v1.0 (`docs/specs/`). Where this file and the spec PDF disagree, **this file wins**: it records what the live service actually accepted.
 
 Status legend: ✅ verified live · ⚠️ from the spec, not yet verified live
 
@@ -117,7 +117,7 @@ ORDER BY called_at;
 | Cause List Details | GET `/hc-causelist-details-api/causelistdetails` | `est_code|causelist_date|bench_id` | ✅ **list metadata, not case rows**: `case{n}.bench, bench_id, causelist_id, cause_list_type` (one row per list the bench published; `cause_list_type` is space-padded) |
 | Show Cause List | GET `/hc-show-causelist-api/showcauselist` | `est_code|bench_id|causelist_id|causelist_date` | ✅ the list PDF as a Base64 JSON string (280 KB for a Lawazima list) |
 | Search by CNR | GET `/hc-cnr-api/CNR` | `cino` | ✅ the full dossier (70 field paths; `/hc-cnr-api/cnr` is a gateway 404) |
-| Current Status | POST `/hc-current-status-api/currentStatus` **with the parameters in the query string** | `cino` (comma-separated; the spec says max 500 but **the gateway refuses more than ~300**: live probe 7 Oct 2026, 300 ok, 350 → HTTP 414 URI too long, 400–500 → HTTP 405; `NAPIX_STATUS_BATCH=250`) | ✅ `cases{n}.…` one block per CNR (24 fields) |
+| Current Status | POST `/hc-current-status-api/currentStatus` **with the parameters in the query string** | `cino` (comma-separated; the spec says max 500 but **the gateway refuses more than ~300**: live probe 7 Oct 2026, 300 ok, 350 → HTTP 414 URI too long, 400–500 → HTTP 405; `NAPIX_STATUS_BATCH=250`). **Slow:** a 250-CNR call took 10–26 s in the evening (20:00–22:00 IST, 28 Oct–2 Nov 2026) but 26–40 s and more in the daytime (10:00–13:00, 4–5 Nov), so it has its own read timeout, `NAPIX_STATUS_TIMEOUT_SECONDS` (default 90 s); every other API keeps `NAPIX_TIMEOUT_SECONDS` (40 s) | ✅ `cases{n}.…` one block per CNR (24 fields) |
 | Show Order | GET `/hc-order-api/order` | `cino|order_no|order_date` | ✅ the order PDF as a Base64 JSON string |
 | Show Business | GET `/hc-show-business-api/showBusiness` | `cino|business_date` | ✅ `desgname, case_number, business_date, business, short_order_det` |
 | Search by Case Number | GET `/hc-case-search-api/casesearch` | `est_code|case_type|reg_no|reg_year` (`case_type` = the master's numeric code, `case_type_id` in a dossier) | ✅ `establishment_name, casenos.case{n}.…` |

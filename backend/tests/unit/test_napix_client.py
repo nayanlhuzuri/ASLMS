@@ -16,8 +16,16 @@ from aslms.core.errors import (
     NapixProtocolError,
     NapixUnavailable,
 )
-from aslms.integration.napix.client import RENEWED, NapixClient, RateLimiter, TokenCache, nested_list
-from tests.unit.conftest import Gateway
+from aslms.integration.napix.client import (
+    CURRENT_STATUS_API,
+    RENEWED,
+    NapixClient,
+    RateLimiter,
+    TokenCache,
+    nested_list,
+)
+from aslms.integration.napix.crypto import NapixCrypto
+from tests.unit.conftest import KEY, Gateway
 
 
 async def test_get_roundtrip_token_and_hook(client: NapixClient, gateway: Gateway, calls) -> None:
@@ -355,3 +363,42 @@ def test_signature_mismatches_are_warned_at_most_once_per_api_per_period(monkeyp
         client_module._warn_mismatch(api)
     assert [w["api"] for w in warnings] == ["hc-order-api/order", "hc-order-api/order", "hc-cnr-api/CNR"]
     assert warnings[1]["mismatches_since_last_warning"] == 2
+
+
+async def test_current_status_alone_waits_its_own_timeout(gateway: Gateway) -> None:
+    """Current Status reads with `api_timeouts` (90 s from settings); every other API keeps `timeout` (40 s)."""
+    seen: dict[str, float] = {}
+
+    def record(p, q, r):
+        seen[p] = r.extensions["timeout"]["read"]
+        return gateway.envelope({"ok": True})
+
+    gateway.responses.extend([record, record])
+    client = NapixClient(
+        base_url="https://gw.test/nic/ecourts",
+        client_id="key-test",
+        client_secret="secret-test",
+        dept_id="dept-test",
+        crypto=NapixCrypto(KEY),
+        transport=httpx.MockTransport(gateway.handle),
+        timeout=40.0,
+        api_timeouts={CURRENT_STATUS_API: 90.0},
+    )
+    async with client:
+        await client.call(CURRENT_STATUS_API, {"cino": "GAHC010000012026"}, "POST")
+        await client.call("hc-cnr-api/CNR", {"cino": "GAHC010000012026"})
+    assert seen == {CURRENT_STATUS_API: 90.0, "hc-cnr-api/CNR": 40.0}
+
+
+def test_current_status_timeout_setting() -> None:
+    """The constant names the High Court wrapper's Current Status path; the setting defaults to 90 s, 40 to 300."""
+    import pydantic
+
+    from aslms.core.config import Settings
+    from aslms.integration.napix.hc import API
+
+    assert CURRENT_STATUS_API == API["current_status"]
+    assert Settings.model_fields["napix_status_timeout_seconds"].default == 90.0
+    for bad in (39, 301):
+        with pytest.raises(pydantic.ValidationError):
+            Settings(napix_status_timeout_seconds=bad)
