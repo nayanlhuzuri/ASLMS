@@ -399,3 +399,34 @@ Deploy (the main session's, not run by the team agents; no migration, no backup 
 None. For the owner's attention at approval (not blocking): decision 4 moves the running images back to the tested
 versions (27 packages, among them fastapi 0.162.0 to 0.142.2 and python-dateutil 4.0.0 to 2.9.0.post0), and an upgrade
 to current releases becomes a separate refresh row.
+
+## Deviations
+- Decision 1, the export header: `deps.py` runs `uv export --no-header` and writes its own first line, "Generated from
+  backend/uv.lock by `python tools/deps.py lock` ... Do not edit by hand.", so the file names its refresh command and
+  does not carry uv's command line. uv's output is taken with LF line ends (`.gitattributes` already keeps LF), and
+  `deps.py check` compares those bytes with the committed files.
+- Decision 2: uv 0.13.7 (current on 5 Nov 2026), so the `dev` extra says `uv>=0.13.7`. Decision 3: setuptools 84.2.1
+  (current); it builds the wheel (image) and the editable install (`.venv`) alone with `--no-build-isolation`.
+- Decision 4: the first lock also holds `async-timeout` 5.0.1, which redis needs only on Python below 3.11.3 (marker
+  `python_full_version < '3.11.3'`). The Windows freeze could not name it, and none of the image, CI or the `.venv`
+  installs it. After the one-off constraints were removed, two plain `deps.py lock` runs left `uv.lock` byte-identical.
+- Decision 4, the owner's attention figure: measured on 5 Nov 2026 against the current `aslms-api:latest` (rebuilt
+  since 3 Nov, so newer than the Context table, e.g. psycopg 3.3.8 and sqlalchemy 2.1.8), the locked image changes 28
+  package versions back to the tested set and adds two packages: `setuptools` 84.2.1 (the `build` group) and `six`
+  1.17.0, which python-dateutil 2.9.0.post0 needs and 4.0.0 had dropped. Nothing else changes; the new image's
+  `pip freeze` equals the Linux lines of `image.txt`.
+- Decision 6: the import smoke needed no setting beyond `APP_ENV=test`; no placeholder was added.
+- Decision 8, `sync`: the markers are read with the installed `packaging`, or pip's own vendored copy when it is
+  absent, so the script stays standard library plus pip. `sync --check` names a half-removed `~name` folder as a note
+  but does not fail on it, since it is not an installed package and pip cannot remove it (the `.venv` holds
+  `~slms-3.0.0a0.dist-info`; delete the folder by hand). The first `sync` in the `.venv` added `setuptools` (and `uv`,
+  installed just before to make the first lock), changed no version of `constraints-ci.txt` and removed nothing.
+- Decision 9: `required-environments` worked as written over the allowed Pythons; no narrowing. `actions/setup-python`
+  lists 3.12.15 for ubuntu 22.04, 24.04 and 26.04, so CI asks for exactly `"3.12.15"`.
+- Tests: two beyond the design, `test_a_failed_uv_lock_writes_no_export` and
+  `test_sync_check_reports_and_fails_on_a_difference` (`test_deps_tool.py`).
+- Hosting guide: `ASLMS_Hosting_Guide.docx` regenerated as 1.3 with the revision row; `toc.json` (contents page
+  numbers from a rendered PDF) was not refreshed, as no PDF renderer is installed here. The Software Documentation does
+  not describe how the backend image installs its packages, so it is unchanged.
+- Decision 15: the pinned gitleaks found nothing in `uv.lock`, the exports or `tools/deps.py`; `.gitleaks.toml` is
+  unchanged.

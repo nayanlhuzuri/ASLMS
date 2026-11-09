@@ -17,9 +17,10 @@ dependencies = [
   "uuid6>=2024.7",
   "pymupdf>=1.24,<2",  # design document-ocr, decision 2: 2.x loads onnxruntime layout models at import
   "celery>=5.4",
-  # kombu 5.7.0 imports `packaging` in its Redis transport without declaring it, so the scheduler failed to start
-  # (3 Nov 2026); held below 5.7 to match the CI constraints (kombu 5.6.2) until the lock file of row 98
-  "kombu>=5.4,<5.7",
+  "kombu>=5.4",
+  # kombu 5.7.0's Redis transport imports `packaging` without declaring it, so the scheduler failed to start
+  # (3 Nov 2026). Declared here so the image set (requirements/image.txt) keeps it; CI's dev set has it through pytest
+  # and would hide its absence (design dependency-locks, decision 11)
   "packaging>=24",
   "redis>=5",
   "fastapi>=0.115",
@@ -33,8 +34,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "pyyaml>=6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "pyyaml>=6", "uv>=0.13.7"]
 redis = ["redis>=5"]
+
+[dependency-groups]
+# the build backend, locked and hash-checked so both installs run with --no-build-isolation (design dependency-locks,
+# decision 3); [build-system] requires stays for a build with isolation
+build = ["setuptools>=68"]
 
 [project.scripts]
 aslms = "aslms.cli.main:app"
@@ -45,6 +51,15 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["aslms*"]
+
+[tool.uv]
+# design dependency-locks, decisions 1 and 9: one universal lock (uv.lock) for the image and CI (Linux x86_64, Python
+# 3.12) and the development .venv (Windows AMD64, Python 3.13). Refresh it only with `python tools/deps.py lock`.
+environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+required-environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
 
 [tool.ruff]
 line-length = 110

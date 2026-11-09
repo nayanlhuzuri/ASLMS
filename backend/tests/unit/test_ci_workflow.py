@@ -98,15 +98,17 @@ def _dockerfile_from(path: Path) -> str:
 
 
 def test_python_version_matches_the_backend_image(ci):
+    # design dependency-locks, decision 9: exactly the image's version
     image = _dockerfile_from(ROOT / "backend" / "Dockerfile")  # python:3.12.15-slim
-    major_minor = ".".join(re.search(r":(\d+\.\d+)", image).group(1).split(".")[:2])
-    assert str(_with(ci, "backend", "actions/setup-python")["python-version"]) == major_minor
+    version = re.search(r":(\d+\.\d+\.\d+)", image).group(1)
+    assert str(_with(ci, "backend", "actions/setup-python")["python-version"]) == version
 
 
-def test_node_major_matches_the_portal_image(ci):
+def test_node_version_matches_the_portal_image(ci):
+    # design dependency-locks, decision 13: exactly the image's version
     image = _dockerfile_from(ROOT / "frontend" / "Dockerfile")  # node:22.23.3-alpine
-    major = re.search(r":(\d+)", image).group(1)
-    assert str(_with(ci, "frontend", "actions/setup-node")["node-version"]) == major
+    version = re.search(r":(\d+\.\d+\.\d+)", image).group(1)
+    assert str(_with(ci, "frontend", "actions/setup-node")["node-version"]) == version
 
 
 def test_postgres_service_matches_compose(ci):
@@ -119,7 +121,17 @@ def test_backend_requires_the_database(ci):
     assert env["ASLMS_TEST_REQUIRE_DB"] == "1"
     assert env["ASLMS_TEST_DATABASE_URL"].endswith("@127.0.0.1:5432/aslms_test")
     runs = " ".join(s.get("run", "") for s in _steps(ci, "backend"))
-    assert "-c backend/constraints-ci.txt" in runs and (ROOT / "backend" / "constraints-ci.txt").is_file()
+    # design dependency-locks, decisions 5 and 7: only the lock, hash-checked, then the guard
+    assert "pip install --require-hashes --only-binary :all: -r backend/requirements/dev.txt" in runs
+    assert "pip install --no-deps --no-build-isolation -e backend" in runs
+    assert "pip check" in runs
+    assert "-c backend/" not in runs and "[dev,redis]" not in runs
+    guard = next(s for s in _steps(ci, "backend") if s.get("name") == "Lock up to date")
+    assert guard["run"] == "python backend/tools/deps.py check"
+    assert (
+        _with(ci, "backend", "actions/setup-python")["cache-dependency-path"]
+        == "backend/requirements/dev.txt"
+    )
     assert "ruff check ." in runs and "ruff format --check ." in runs and "pytest -q" in runs
 
 

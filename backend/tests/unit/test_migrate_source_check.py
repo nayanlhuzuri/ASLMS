@@ -1,6 +1,7 @@
 """`migrate` refuses an image built from other code than ./backend (design `followups-oct`, decision 26): identical
 trees pass; a migration only in the source, or a changed package file, stops with exit 5 naming both newest
-migrations; a missing source tree continues with the note; `__pycache__` and `*.pyc` are ignored."""
+migrations; a missing source tree continues with the note; `__pycache__` and `*.pyc` are ignored. Design
+`dependency-locks`, decision 12: the lock export `requirements/image.txt` is the third comparison."""
 
 from __future__ import annotations
 
@@ -12,8 +13,10 @@ from typer.testing import CliRunner
 from aslms.cli.main import app
 from aslms.services import source_check
 
+LOCK = "kombu==5.6.2 ; sys_platform == 'linux' \\\n    --hash=sha256:" + "a" * 64 + "\n"
 
-def _tree(root: Path, heads=("0021", "0022")) -> Path:
+
+def _tree(root: Path, heads=("0021", "0022"), lock: str | None = LOCK) -> Path:
     (root / "aslms" / "services").mkdir(parents=True)
     (root / "aslms" / "__init__.py").write_text("")
     (root / "aslms" / "services" / "ops.py").write_text("X = 1\n")
@@ -22,13 +25,35 @@ def _tree(root: Path, heads=("0021", "0022")) -> Path:
     (root / "migrations" / "env.py").write_text("# env\n")
     for head in heads:
         (versions / f"{head}_step.py").write_text(f"revision = '{head}'\n")
+    if lock is not None:
+        (root / "requirements").mkdir()
+        (root / "requirements" / "image.txt").write_text(lock)
     return root
 
 
-def test_identical_trees_pass(tmp_path):
+def test_identical_trees_and_locks_pass(tmp_path):
     image, src = _tree(tmp_path / "app"), _tree(tmp_path / "src")
     check = source_check.image_matches_source(image, src)
     assert check.ok and "0022" in check.message
+
+
+def test_a_lock_only_difference_is_exit_5(tmp_path):
+    image = _tree(tmp_path / "app")
+    src = _tree(tmp_path / "src", lock=LOCK.replace("5.6.2", "5.7.0"))
+    check = source_check.image_matches_source(image, src)
+    assert not check.ok
+    assert "dependency lock differs" in check.message
+    assert "aslms package" not in check.message and "migrations differ" not in check.message
+    assert "docker compose --profile ops build migrate" in check.message
+
+
+def test_an_image_without_a_lock_file_is_old(tmp_path):
+    image, src = _tree(tmp_path / "app", lock=None), _tree(tmp_path / "src")
+    check = source_check.image_matches_source(image, src)
+    assert not check.ok and "dependency lock differs" in check.message
+    # neither side has one: still an image from before the lock
+    image, src = _tree(tmp_path / "app2", lock=None), _tree(tmp_path / "src2", lock=None)
+    assert not source_check.image_matches_source(image, src).ok
 
 
 def test_a_migration_only_in_the_source_is_exit_5_with_both_heads(tmp_path):

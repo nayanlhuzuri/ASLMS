@@ -3473,3 +3473,43 @@ caveat check that ran just before used High Court APIs (`hc-caveat-*`, High Cour
 explain the missing call. The cause is open (an attempt of our own that left no call-log row, or the gateway's own
 counting) and matters only by one call; row 224's live reading of the District Court reset will show it.
 Also: backlog rows 221 and 225 had unescaped `|` in their text, which split the table; escaped, no wording changed.
+
+## Dependency locks: one Python lock for CI and the images (2026-11-09)
+Backlog row 98, design `docs/design/dependency-locks.md` (approved by the owner 3 Nov 2026), branch
+`feature/dependency-locks`, after the scheduler outage of 3 Nov (kombu 5.7.0 in an image CI never tested).
+
+**What was built.** No migration, no table, no API, no screen.
+- `backend/uv.lock`: one universal lock (Linux and Windows) of the versions CI tests, with every sha256. It is exported,
+  never edited, to `backend/requirements/image.txt` (runtime, the `redis` extra and the `build` group) and
+  `backend/requirements/dev.txt` (the same plus the `dev` extra), each line `name==version` with every hash.
+- `backend/tools/deps.py` with `lock`, `check` and `sync`: `lock` refreshes the lock and both exports (a failed `uv lock`
+  writes no export); `check` fails when the committed files differ from `pyproject.toml`; `sync` brings the `.venv` to
+  `dev.txt` (`sync --check` reports only).
+- `backend/Dockerfile` installs `image.txt` hash-checked and wheels only before the code, then the project with
+  `--no-deps --no-build-isolation`, then `pip check` and an import smoke of what each service starts from.
+- CI installs `dev.txt` the same way on Python 3.12.15, runs a "Lock up to date" step (`deps.py check`), and the frontend
+  job's Node is pinned to 22.23.3, the image's version. `backend/constraints-ci.txt` is retired and the `kombu` cap
+  lifted (the lock holds 5.6.2); `packaging` stays declared.
+- `aslms ops migrate`'s source check (`source_check.py`) also compares `requirements/image.txt` with `./backend`: a
+  different lock, or an image built before the lock existed, adds "dependency lock differs" to the exit-5 message.
+- Runbook `docs/operations.md` sections 6, 8, 16 and 19 corrected and new section 23 "Dependencies and the lock".
+  Hosting guide regenerated as 1.3 with a revision row.
+- Tests: `test_dependency_lock.py`, `test_deps_tool.py`, and updates to `test_ci_workflow.py` and
+  `test_migrate_source_check.py`.
+
+**Decisions and reasons.** One lock used by both CI and the images, so CI tests exactly the versions that run in
+production (`image.txt` is a tested subset of `dev.txt`); hashes and wheels only so a release cannot move by itself; the
+import smoke catches an undeclared import such as the one in kombu 5.7.0. The frontend was already locked
+(`package-lock.json`, `npm ci`); only the Node version in CI was aligned.
+
+**Deviations from the design (all recorded in the design note's Deviations).** `deps.py` writes its own first line in
+the exports instead of uv's header; uv 0.13.7 and setuptools 84.2.1 are the pinned versions; the lock also holds
+`async-timeout` (needed by redis only below Python 3.11.3, installed nowhere); measured against the current image the
+lock moves 28 package versions back to the tested set and adds `setuptools` and `six`; `sync --check` notes but does not
+fail on a half-removed `~name` folder; two tests beyond the design.
+
+**Left for later.** `docs/hosting-guide/toc.json` (contents page numbers) was not refreshed because no PDF renderer is
+installed here: backlog row 226. After merge the images must be rebuilt (`docker compose build`) to run the locked
+versions; no migration. The Software Documentation and the process workflows do not describe dependency installation,
+so they are unchanged.
+

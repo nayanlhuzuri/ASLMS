@@ -132,8 +132,8 @@ function cover() {
     ["Title", "ASLMS Hosting Guide"],
     ["Owner", "Government of Assam"],
     ["Audience", "System administrators of the data centre that hosts ASLMS"],
-    ["Version", "1.2"],
-    ["Date", "2 November 2026"],
+    ["Version", "1.3"],
+    ["Date", "5 November 2026"],
     ["Status", "Draft for review with the data centre"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -174,6 +174,7 @@ function documentControl() {
     ["1.0", "27 October 2026", "First issue. Part 1: the one-VM pilot (the plan for the pilot), its preparation on Rocky Linux 9, deployment, Case Assistant, installer, backups, updates and operation. Part 2: full hosting for about 1,000 users and moving from one VM to many, after the pilot is approved."],
     ["1.1", "28 October 2026", "Session time-out (backlog row 169) merged and in service: the session settings in Annexure B no longer carry a condition, and the retired refresh-token setting is removed from the sign-in settings. The local Case Assistant model (backlog row 188) merged and in service: chapter 6 checked against the runbook and `.env.example` (where Ollama runs, the preflight checks, every `ASSISTANT_OLLAMA_*` setting with its default, the `aslms assistant` commands), and the row 188 conditions removed throughout (sections 2.3 and 5, chapter 6, the checklist and Annexures B to D)."],
     ["1.2", "2 November 2026", "Cause-list days nobody asked for (backlog row 200): the 04:15 sweep added to the scheduled jobs (9.6) and to the runs to keep away from, the catch-up at the scheduler's start, and the setting `CAUSELIST_CATCHUP_DAYS` in Annexure B."],
+    ["1.3", "5 November 2026", "Dependency locks (backlog row 98): the backend images install exactly the hashed dependency lock that the tests run on, and `migrate` (section 8.2) also refuses an image whose dependency lock differs from the release's code."],
   ], [1400, 2200, CW - 3600]));
   add(table(["Source in the ASLMS repository (branch main)", "Used for"], [
     ["`docs/operations.md` (the operations runbook)", "Installation, upgrades, backups, restore, certificates, monitoring, PgBouncer, troubleshooting"],
@@ -836,7 +837,7 @@ function s8() {
     "Keep the previous release's file and images (about 30 GB) until the new release has run cleanly for a few days.",
   ]));
   add(NOTE("Existing guard: `migrate` refuses an image built from other code", [
-    "Runbook section 6 (design followups-oct, decision 26): `aslms ops migrate` compares the code in its image with `./backend` (mounted read-only) and stops with **exit 5** (\"this image was built from other code than ./backend\") before any backup or connection; there is no override. With images loaded by `docker load` and no source tree, it prints \"migrate: no source tree to compare\" and continues. The code folder and the images must always come from the same release.",
+    "Runbook section 6 (design followups-oct, decision 26): `aslms ops migrate` compares the code in its image with `./backend` (mounted read-only) and stops with **exit 5** (\"this image was built from other code than ./backend\") before any backup or connection; there is no override. Since backlog row 98 (design dependency-locks) it also compares the dependency lock the image installed its libraries from (`requirements/image.txt`) with the one in `./backend`: a different lock, or an image built before the lock existed, adds \"dependency lock differs\" to the same exit-5 message. With images loaded by `docker load` and no source tree, it prints \"migrate: no source tree to compare\" and continues. The code folder and the images must always come from the same release.",
   ]));
 
   add(H2("8.3 Updating the pilot in two steps (planned, rows 192 and 193)"));

@@ -178,7 +178,16 @@ read-only into `migrate` at `/src`. Before any backup or connection check, `aslm
 image was built from other code than ./backend (image migrations up to 0022, ./backend up to 0023; aslms package
 differs). Build it: `docker compose build && docker compose --profile ops build migrate`, then run migrate again."
 There is no override. When there is no source tree (a pilot loaded with `docker load`), it prints "migrate: no source
-tree to compare; this image's newest migration is 00NN" and continues. `aslms ops restore` is not gated.
+tree to compare; this image's newest migration is 00NN" and continues. `aslms ops restore` is not gated. Since row 98
+(design dependency-locks, decision 12) it also compares the dependency lock the image installed from
+(`/app/requirements/image.txt`) with `./backend/requirements/image.txt`: a difference, or an image built before the
+lock (which has no such file), adds "dependency lock differs" to the same exit-5 message.
+
+**The images install exactly the lock** (design dependency-locks; section 23). The backend Dockerfile installs
+`requirements/image.txt` (hash-checked, wheels only) and nothing else, then runs `pip check` and an import of what
+each service starts from; a broken or undeclared dependency stops `docker compose build` and the running images stay
+as they were. A lock refresh is deployed by this same procedure (or, without a migration, by the build and the
+recreate of the app services): no extra step.
 
 **The document store must be writable by uid 10001** (design pre-pilot-hardening, decision 3). `init` runs
 `aslms ops store-check` right after preflight: it creates `/data/store` when missing and writes and removes a probe
@@ -218,7 +227,9 @@ is needed, WAL archiving with point-in-time recovery is a follow-up.
 
 ## 8. Images and an offline host (decision 21)
 
-Every image is pinned (`compose.yml`, the two Dockerfiles). The backup image's `pg_dump` is PostgreSQL 16, matching
+Every image is pinned (`compose.yml`, the two Dockerfiles), and so is everything inside the ASLMS images: the backend
+installs only the hashed lock export `backend/requirements/image.txt` and the portal only `frontend/package-lock.json`
+through `npm ci` (section 23). The backup image's `pg_dump` is PostgreSQL 16, matching
 the server's major version; keep them together. To supply a host without registry access:
 
 ```
@@ -354,6 +365,13 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
 - **The proxy restarts:** `docker compose logs proxy`. A missing `fullchain.pem` / `privkey.pem` is named there.
 
 ## 16. Development
+
+**Staying in step with the lock** (section 23). After any change to `backend/uv.lock` (a pull, a merge, a branch
+switch), run `python tools/deps.py sync` in `backend/` with the `.venv`'s Python: it installs exactly
+`requirements/dev.txt` (hash-checked), the project in editable mode, and removes anything the lock does not name;
+`python tools/deps.py sync --check` only lists the differences. `pytest -q` fails `test_installed_versions_match_the_lock`
+on a stale `.venv` and names the command. For the portal, run `npm ci` in `frontend/` (never `npm install` to stay in
+step); `npm install <pkg>@<version>` is only for a deliberate upgrade that commits the changed `package-lock.json`.
 
 A developer's `.env` keeps `APP_ENV=dev`, `COMPOSE_PATH_SEPARATOR=:` and `COMPOSE_FILE=compose.yml:compose.dev.yml` (Docker on Windows separates the files with `;` unless `COMPOSE_PATH_SEPARATOR=:` is set). The override publishes postgres (`127.0.0.1:5433`), api
 (`127.0.0.1:8000`, with `/docs`) and web (`http://localhost:3000`) on loopback only. The proxy starts only with
@@ -643,9 +661,9 @@ writes no `.env`; only `web` is started.
 |---|---|---|
 | `changes` | Whether anything outside the docs-only list changed (design notes, reports, audits, team docs, backlog, decisions log, `README.md`, `CLAUDE.md`, top-level `docs/*.docx`). | Rarely red; a git error. |
 | `policy` | `repo_policy.py tree` and `range` (or `history` on a first push); gitleaks on the pushed commits; actionlint. | A forbidden file or value was committed (stop: see below), or a workflow error. |
-| `backend` | ruff check, ruff format, pytest against a `postgres:16.15` service with `ASLMS_TEST_REQUIRE_DB=1`, installed with the development versions in `backend/constraints-ci.txt` (refresh it with `pip freeze --exclude-editable` when the `.venv` is upgraded). The JUnit report is an artifact (7 days). | A lint or test failure; open the JUnit artifact or the step log. |
-| `frontend` | `npm ci`, lint, typecheck, test, build, and `gen:api` leaving no diff. | A portal failure, or `openapi.json` and `schema.d.ts` out of step. |
-| `compose` | `docker compose config`, every image built (profiles included), `web` started, `portal_smoke.py`, `promtool test rules`. The web log is an artifact on failure. | An image does not build, a page does not render, or an alert rule test fails. |
+| `backend` | ruff check, ruff format, pytest against a `postgres:16.15` service with `ASLMS_TEST_REQUIRE_DB=1`, installed exactly from the lock (`backend/requirements/dev.txt`, hash-checked, wheels only, then `pip check`) on Python 3.12.15 (the image's), and the step "Lock up to date" (`python backend/tools/deps.py check`). The JUnit report is an artifact (7 days). | A lint or test failure; open the JUnit artifact or the step log. "Lock up to date" red: `pyproject.toml` changed without `python tools/deps.py lock`, or an export was edited by hand; the step names the file and the fix (section 23). |
+| `frontend` | Node 22.23.3 (the image's), `npm ci`, lint, typecheck, test, build, and `gen:api` leaving no diff. | A portal failure, or `openapi.json` and `schema.d.ts` out of step. |
+| `compose` | `docker compose config`, every image built (profiles included; the backend images with `pip check` and the import smoke), `web` started, `portal_smoke.py`, `promtool test rules`. The web log is an artifact on failure. | An image does not build, a page does not render, or an alert rule test fails. |
 | `ci-ok` | Every job passed or was skipped. | Look at the job that failed. |
 
 A docs-only push runs `changes`, `policy` and `ci-ok` only. A red run on `main` stops the integrator's next merge.
@@ -814,6 +832,51 @@ for"; it happens when the backdated load ends before the daily cycle's first run
 
 Check after a deploy: `select job, status, counters from job_runs where job in ('lists-catchup','causelist-gap-sweep')
 order by started_at desc limit 5`.
+
+## 23. Dependencies and the lock
+
+Design [dependency-locks](design/dependency-locks.md) (backlog row 98). Before it the image resolved open `>=` ranges at
+every build while CI tested a hand-made freeze, and on 3 Nov 2026 a newly released kombu stopped the scheduler.
+
+**The files** (all in `backend/`, all committed):
+- `uv.lock`: the one lock, made by uv for Linux and Windows and every Python the project allows (`requires-python
+  >=3.11`), with the sha256 of every distribution file. Never edited by hand.
+- `requirements/image.txt`: the runtime dependencies, the `redis` extra and the `build` group (setuptools), exported
+  from the lock with every hash. The Dockerfile installs it and keeps it at `/app/requirements/image.txt`, which
+  `migrate` compares (section 6).
+- `requirements/dev.txt`: the same plus the `dev` extra (pytest, ruff, PyYAML, uv). CI and the `.venv` install it.
+  `image.txt` is inside it at the same versions (tested), so CI tests exactly the versions the images run.
+- `tools/deps.py`: the one command for the lock and the `.venv`. It is not in the image. It runs uv as `python -m uv`;
+  uv is pinned through the lock itself (the `dev` extra) and is never in a running image.
+
+**Refreshing the lock** is always `python tools/deps.py lock` in `backend/`, then committing `uv.lock` and both exports:
+- after adding or changing a requirement in `pyproject.toml`: `python tools/deps.py lock` (every other pin is kept);
+- to upgrade one package: `python tools/deps.py lock --upgrade-package NAME` (repeatable);
+- to upgrade everything: `python tools/deps.py lock --upgrade`.
+
+Then `python tools/deps.py sync` and `pytest -q`. `python tools/deps.py check` shows whether the lock matches
+`pyproject.toml` and both exports match the lock; CI runs it as "Lock up to date".
+
+**How a refresh is tested.** A refresh is an ordinary commit and gets the full CI run: `backend` installs the new
+`dev.txt` and runs ruff, the lock check and pytest; `compose` builds every backend image from the new `image.txt` with
+`pip check` and the import smoke (`aslms.cli.main`, `aslms.api.main`, `aslms.jobs.celery_app`,
+`kombu.transport.redis`, `uvicorn.loops.uvloop`). Deploying it is the normal rebuild (section 6). There is no
+automatic update: Dependabot watches the action pins only.
+
+**Platforms.** The lock covers `sys_platform == 'linux'` and `'win32'` only and requires a wheel for Linux x86_64 and
+Windows AMD64, so a refresh that picks a version without one fails at `deps.py lock`, not at a build. Installs use
+`--only-binary :all:`: nothing is built from source. Platform packages carry markers (`uvloop` on Linux only,
+`colorama` on Windows only) and pip picks the platform's wheel by hash. The image and CI run Python 3.12.15; the
+owner's `.venv` runs 3.13.
+
+**The `.venv`.** `python tools/deps.py sync` installs `requirements/dev.txt` with plain pip (no uv needed; the first
+sync brings uv in), the project with `--no-deps --no-build-isolation -e .`, uninstalls every distribution the lock
+does not name for this platform (never `pip` or `aslms`) and runs `pip check`. A half-removed package folder
+(`~name` in `site-packages`) cannot be uninstalled; it is named so that it can be deleted by hand.
+
+**The portal** is locked already: `frontend/package-lock.json` with integrity hashes and every platform's optional
+packages, installed by `npm ci` in the Dockerfile and in CI alike (`npm ci` refuses a `package.json` that disagrees
+with the lock). The browser-check image does the same with `frontend/e2e/package-lock.json`.
 
 ## Pilot go-live checklist
 

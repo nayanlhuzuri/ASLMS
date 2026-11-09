@@ -5,9 +5,11 @@ An image cannot know that a newer one exists, and `api` is stopped while `migrat
 source tree: Compose mounts `./backend` read-only into `migrate` at `/src`. `image_matches_source()` hashes the code
 the image was built from (`/app/aslms` and `/app/migrations`, the trees the Dockerfile copied and pip installed) and
 `/src/aslms` and `/src/migrations`: SHA-256 over the sorted relative paths and the file bytes, skipping `__pycache__`
-and `*.pyc` as `backend/.dockerignore` does. A difference stops `aslms ops migrate` with exit 5 before any backup or
-connection check. Without a source tree (a pilot loaded with `docker load`) it says so and lets the upgrade go on.
-There is no override: an old image never has a reason to migrate. `aslms ops restore` is not gated."""
+and `*.pyc` as `backend/.dockerignore` does. A third comparison covers the libraries (design `dependency-locks`,
+decision 12): the SHA-256 of `/app/requirements/image.txt`, the lock export the image installed from, against
+`/src/requirements/image.txt`; an image built before the lock has no such file and reads as different. A difference
+stops `aslms ops migrate` with exit 5 before any backup or connection check. Without a source tree (a pilot loaded
+with `docker load`) it says so and lets the upgrade go on. There is no override: an old image never has a reason to migrate. `aslms ops restore` is not gated."""
 
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ EXIT_MISMATCH = 5
 REBUILD = (
     "Build it: `docker compose build && docker compose --profile ops build migrate`, then run migrate again."
 )
+LOCK_EXPORT = Path("requirements") / "image.txt"  # the lock export the image installed from
 _MIGRATION = re.compile(r"^(\d{4})_.+\.py$")
 
 
@@ -45,6 +48,13 @@ def tree_digest(root: Path) -> str | None:
         h.update(p.read_bytes())
         h.update(b"\0")
     return h.hexdigest()
+
+
+def file_digest(path: Path) -> str | None:
+    """SHA-256 of one file's bytes; None when the file is missing."""
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def newest_migration(root: Path) -> str | None:
@@ -84,6 +94,9 @@ def image_matches_source(image: Path | None = None, source: Path | None = None) 
         differs.append("aslms package differs")
     if tree_digest(image / "migrations") != tree_digest(src_mig):
         differs.append("migrations differ")
+    image_lock = file_digest(image / LOCK_EXPORT)
+    if image_lock is None or image_lock != file_digest(source / LOCK_EXPORT):
+        differs.append("dependency lock differs")
     if not differs:
         return SourceCheck(True, f"migrate: the image matches ./backend (migrations up to {image_head})")
     src_head = newest_migration(src_mig) or "none"
