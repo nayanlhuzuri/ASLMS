@@ -26,3 +26,6 @@
 
 ## Load status
 - `aslms queue-status` did not answer within 120 s (database busy with the full test run); not captured.
+
+## Deployed
+9 Nov 2026 at 13:42 IST. Images built from clean `main` at ea2440b; CI run 42580709447 green (changes, policy, backend, frontend, compose, ci-ok). `up -d --wait` with the court-data switch on, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. Switch on in `api` and `worker`; web build ID matches the image (`MUg9OwY5DhqUxOhqh4Axt`, frontend unchanged); `api`, `worker` and `scheduler` run the locked versions (68 packages; celery 5.6.3, kombu 5.6.2, fastapi 0.142.2, SQLAlchemy 2.1.1, as in `requirements/image.txt`); the scheduler started; portal smoke passed; 107 court calls in the first two minutes, none failed. No migration.
