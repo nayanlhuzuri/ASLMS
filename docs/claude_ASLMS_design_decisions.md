@@ -3529,3 +3529,27 @@ one wasted request. Sharing one condition keeps the button and the key from drif
 
 **Left for later.** Nothing. Documents read outside the team (Process Workflows, operations, the two Word guides) do
 not describe this key handling, so none changed. `docs/schema/schema.md` unchanged (no data change).
+
+## 2026-11-10 — Portal colours: navy and cream with orange (owner)
+
+**Decision.** The owner chose a new palette after reviewing sample screens (Dashboard, Case Claim, Sign In): about 90%
+navy and cream, about 10% orange for what must stand out. Colours only; every position, size, spacing and layout of the
+portal stays as it is. Built as row 229 after row 228 (More About My Work fixes) and the review of row 230.
+
+**The palette of the approved sample.** Navy 900 `#0F1E3D` (side menu, sign-in panel), Navy 700 `#22386A` (ordinary
+buttons, headings), Navy 500 `#3C5A94` (links, icons), ink `#13213F` (text), grey text `#4A5570` and `#5B6580`; cream
+page `#F7F1E3`, card `#FFFBF2`, shade `#EFE6D2` (table header, hover), line `#E2D6BE`, field border `#CDBFA6`; orange
+`#F28C28` (fills, always with navy text: white on it is 2.45:1), deep orange `#B4470C` (orange words on cream, 4.85:1),
+soft orange `#FDE9D1`. Status colours keep their meanings and stay apart from orange: urgent red `#B42318` (white text
+6.57:1), due soon moves from amber to ochre `#7A5A00` on `#F5ECCB`, done green `#0B6B3A` on `#E2F0E5`.
+
+**Where orange goes.** The one main button of a page, the selected menu item's dot and the open tab's underline, counts
+that need action, the keyboard focus ring and the single most important headline tile. Never body text, large
+backgrounds, a status meaning, white text on orange, or more than one orange button on a page; row buttons stay navy.
+
+**Motion.** The sample's transitions (0.15-0.4 s, easing to a stop, no bounce; entrance rise, sliding tab underline and
+view switch, hover lift, confirmation toast, pulsing unread dot) follow the portal's existing motion tokens and its
+reduced-motion fallback. The design of row 229 says which of them the portal adopts.
+
+**Also decided.** The owner asked that the kind of defects found in More About My Work be checked on every screen: row
+230 reviews the portal and reports findings for approval before fixes.
