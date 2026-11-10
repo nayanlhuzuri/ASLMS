@@ -3607,3 +3607,19 @@ changing it is outside this row (recorded in the design note's Deviations).
 **Left for later.** The two live role checks are not yet run; their Result lines in the design note are empty and are
 filled after deploy. Documents read outside the team (Process Workflows, operations, the two Word guides) do not
 describe this behaviour, so none changed.
+
+## 2026-11-10 — Rolling nightly case refresh in place of the Sunday sweep (owner)
+
+**Decision.** The owner approved the approach of row 238 `rolling-case-refresh`: the weekly sweep becomes a rolling
+nightly refresh of the pending cases whose last full refresh is older than 7 days, a case refreshed in the last 7 days for
+any reason is skipped, and new order PDFs of pending cases go ahead of the routine refresh. Every pending case is still
+fully refreshed at least once every 7 days. The design is to be approved; it builds after row 235.
+
+**Why.** Measured on the dev stack (9-10 Nov 2026): the daily status check found 200 to 1,700 changed cases a day (under
+two hours of full refreshes), while the Sunday sweep queued about 38,000 (about 42 hours at the hourly allowance) in one
+block, repeated about 15% of cases refreshed in the previous week, and held newly found order PDFs behind it. Running
+the host around the clock would remove the late start seen this week (the host was off on Sunday, so the sweep began on
+Monday at 09:00) but not the block, the repeats or its growth with the number of pending cases.
+
+**Documentation.** The owner explains the court refresh to others: the row rewrites `docs/ASLMS_Process_Workflows.md`
+sections 2.2, 2.4 and 2.6 and the Software Documentation to match.
