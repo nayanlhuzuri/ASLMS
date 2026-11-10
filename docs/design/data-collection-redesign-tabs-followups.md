@@ -123,3 +123,9 @@ replacement of it, if row 174 has merged first).
 
 ## Open questions
 None.
+
+## Deviations
+1. **A running row's priority.** `test_fetch_details_reports_a_running_row` checks that a running dossier row keeps its
+   status, lane, person and attempts, not its priority: `queue.enqueue` already lowers a running row's priority to the
+   caller's (`LEAST`) for every caller, and changing `enqueue` is outside this row. The row is still being fetched by its
+   own run, as the item's `queue.status = running` says.

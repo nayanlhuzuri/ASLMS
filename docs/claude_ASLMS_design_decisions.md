@@ -3579,3 +3579,31 @@ office names; plain-bold case numbers in the Case Inbox (the row opens the side 
 change to design portal-workflow decision 8); case tabs folding into More at every width only if the live check shows
 overflow; four due states in the inbox; Search keeps the case number as a link. Build order unchanged: 231, 228, 232,
 233, 234, 229, 235.
+
+## Data Collection follow-ups: Collect These honest, real timeout test, live role checks (2026-11-10)
+
+**What was built.** Row 204, backend and tests only, from the advisories of the row 173 review. No table, endpoint,
+command or migration change; `schema.md` unchanged.
+- `fetch_details` in `backend/aslms/services/data_load.py` (Collect These): every case it queues is now re-queued
+  (`requeue=True`), so a case without details whose dossier row was `done` (the earlier fetch gave none) waits again. A
+  case is reported `queued` only when its row is pending after the call or running (being fetched); the audit row of
+  the request gains `already_running`, the count of queued cases whose row was already running.
+- Tests: `test_fetch_details_requeues_a_done_row_of_a_case_without_details` and
+  `test_fetch_details_reports_a_running_row` (`test_api_data_load.py`); `test_gaps_cancelled_query_raises_search_timeout`
+  (`test_data_collection_gaps.py`) drives the real statement timeout through `gaps` and `_timed`, not a patched `gaps`.
+- The design note `data-collection-redesign-tabs.md` gains "Live role checks, round 2": the Central Operator check
+  (Retry, Check the Court Connection, no System Health entry, `/system` not allowed) and the Super Administrator check
+  (`/system#calls`), with empty Result lines.
+
+**Decisions and reasons.** Decision 45 of the parent design says every listed case not being fetched is sent: the old
+call left a `done` row done yet reported it queued, so the screen promised work that never happened. The timeout test now
+covers the real `QUERY_CANCELED` path. The live role checks need a person and a signed-in browser, so the owner (or the
+integrator with the owner's go-ahead) runs them after deploy.
+
+**Deviations.** `test_fetch_details_reports_a_running_row` checks that a running row keeps its status, lane, person and
+attempts, not its priority: `queue.enqueue` already lowers a running row's priority with `LEAST` for every caller, and
+changing it is outside this row (recorded in the design note's Deviations).
+
+**Left for later.** The two live role checks are not yet run; their Result lines in the design note are empty and are
+filled after deploy. Documents read outside the team (Process Workflows, operations, the two Word guides) do not
+describe this behaviour, so none changed.

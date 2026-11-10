@@ -69,3 +69,19 @@ its all-sections state (`data-problems-all-sections`), `/data/overview`, the red
 `/data/overview` and `/data/queue`, `/data/duplicates` → `/data/problems`, and `/system` with the Court Calls section
 (`system-court-calls`). The container, the network and both images were removed afterwards; the shared stack was not
 touched.
+
+## Live role checks, round 2
+
+Design `data-collection-redesign-tabs-followups`, decision 3 (row 204). Run by the owner (or the integrator signed in
+as each type with the owner's go-ahead) at http://localhost:3000 after row 204 deploys; the scribe writes the results
+and the date here and in the decisions log. No court call except Check the Court Connection (one guarded, audited call,
+`napix.health_checked`, only with the court-data switch on).
+
+1. **Central Operator** (a login of that type with no override): on Data Collection, Problems and Fixes, Retry one
+   failed fetch and see it leave the list (audit `napix.queue_retry`); press Check the Court Connection and see the line
+   change (audit `napix.health_checked`); the side menu has no System Health entry and `/system` answers the
+   not-allowed page.
+   - Result:
+2. **Super Administrator:** `/system#calls` opens at Court Calls and shows Recent Resets, E-mail and the call log with
+   More.
+   - Result:

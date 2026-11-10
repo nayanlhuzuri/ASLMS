@@ -215,16 +215,65 @@ def test_gaps_include_documents_text(world):
         s.rollback()
 
 
-def test_gaps_slow_query_answers_503_search_timeout(world, tmp_path, monkeypatch):
-    def slow(*_a, **_k):
-        raise data_load.SearchTimeout("the data gaps took too long; try again")
+def _slow_database(monkeypatch) -> None:
+    """Design `data-collection-redesign-tabs-followups`, decision 2: `gaps`, `_timed` and the router stay as built; only
+    the database is made slow. The statement timeout drops to 50 ms (the setting's own floor is one second) and the
+    cases reader first runs `pg_sleep(0.2)`, so Postgres cancels the statement (`QUERY_CANCELED`)."""
+    reader = data_load._gap_cases
 
-    monkeypatch.setattr(data_load, "gaps", slow)
+    def short_timeout(session, _seconds):
+        session.execute(sa.text("SET LOCAL statement_timeout = 50"))
+
+    def slow_reader(session, limit, offset):
+        session.execute(sa.text("SELECT pg_sleep(0.2)"))
+        return reader(session, limit, offset)
+
+    monkeypatch.setattr(data_load, "with_timeout", short_timeout)
+    monkeypatch.setattr(data_load, "_gap_cases", slow_reader)
+
+
+def test_gaps_cancelled_query_raises_search_timeout(world, monkeypatch):
+    with world.Session() as s:
+        make_case(s)
+        s.commit()
+    with monkeypatch.context() as mp, world.Session() as s:
+        _slow_database(mp)
+        try:
+            data_load.gaps(s, CFG, "cases")
+        except data_load.SearchTimeout as exc:
+            assert str(exc) == "the data gaps took too long; try again"
+            assert (
+                getattr(getattr(exc.__cause__, "orig", None), "sqlstate", None) == "57014"
+            )  # query_canceled
+        else:  # pragma: no cover
+            raise AssertionError("a cancelled query must raise SearchTimeout")
+        s.rollback()
+    with world.Session() as s:  # the cancelled transaction left nothing behind
+        out = data_load.gaps(s, CFG, "cases")
+        assert out["total"] == 1 and len(out["items"]) == 1
+
+
+def test_gaps_slow_query_answers_503_search_timeout(world, tmp_path, monkeypatch):
+    with world.Session() as s:
+        make_case(s)
+        s.commit()
+
+    def audit_count() -> int:
+        with world.Session() as s:
+            return s.scalar(sa.select(sa.func.count()).select_from(AuditLog))
+
     api = ds.make_api(world, tmp_path)
     try:
         h = ds.login(api, "root")
-        r = api.get("/admin/data-load/gaps?kind=cases", headers=h)
+        before = audit_count()
+        with monkeypatch.context() as mp:
+            _slow_database(mp)
+            r = api.get("/admin/data-load/gaps?kind=cases", headers=h)
         assert r.status_code == 503, r.text
-        assert "search_timeout" in r.text
+        assert r.json()["detail"]["code"] == "search_timeout"
+        assert audit_count() == before  # no audit row written
+        r = api.get("/admin/data-load/gaps?kind=cases", headers=h)  # a new session, without the patches
+        assert r.status_code == 200, r.text
+        assert r.json()["total"] == 1
     finally:
         api.__exit__(None, None, None)

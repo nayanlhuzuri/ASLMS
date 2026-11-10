@@ -1848,11 +1848,16 @@ def fetch_details(
     cfg: Settings,
 ) -> list[DetailState]:
     """Decision 11: dossier rows in the request lane at priority 30 for the cases without details; cases with
-    details answer `already_held` and are queued only with `force`. One audit row."""
+    details answer `already_held` and are queued only with `force`. One audit row.
+    Design `data-collection-redesign-tabs-followups`, decision 1: every case queued here is re-queued, so a case
+    without details whose dossier row is `done` (the earlier fetch gave none) waits again; `queued` is reported only
+    when the row is pending after the call or running (being fetched, `queue.status` says so), and the audit row
+    counts the running ones as `already_running`."""
     member = _member(session, user)
     if not refs or len(refs) > DETAILS_MAX:
         raise LoadInputError("bad_input", f"between 1 and {DETAILS_MAX} cases")
     out: list[DetailState] = []
+    running = 0  # queued cases whose row was already running (being fetched)
     request_id = uuid7()  # the request's rows carry its id (row 174 review)
     for ref in dict.fromkeys(r.strip() for r in refs if r and r.strip()):
         try:
@@ -1875,12 +1880,12 @@ def fetch_details(
         if held and not force:
             out.append(DetailState(ref, case, "already_held"))
             continue
-        queue.enqueue(
+        waiting = queue.enqueue(
             session,
             FetchKind.DOSSIER,
             dref,
             REQUEST_PRIORITY,
-            requeue=held,
+            requeue=True,
             lane=FetchLane.REQUEST,
             requested_by=napix_window.user_id_of(user),
             request_ids=[str(request_id)],
@@ -1889,6 +1894,8 @@ def fetch_details(
         out.append(
             DetailState(ref, case, "queued", queue=state_of(session, row, FetchKind.DOSSIER, dref, cfg))
         )
+        if not waiting:  # with `requeue` only a running row stays out of `pending`
+            running += 1
     queued = [d for d in out if d.state == "queued"]
     write_audit(
         session,
@@ -1899,6 +1906,7 @@ def fetch_details(
         after={
             "count": len(out),
             "queued": len(queued),
+            "already_running": running,
             "force": force,
             "refs": [d.case.ref_no if d.case else d.ref for d in out],
             # the queue rows, so the request shows on Collect Now's Requests (design data-collection-redesign, 32)

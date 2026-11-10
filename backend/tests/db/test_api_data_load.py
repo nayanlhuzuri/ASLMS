@@ -401,6 +401,62 @@ def test_fetch_details_queues_request_lane(api, world):
     assert api.post("/admin/data-load/fetch-details", json={"cases": []}, headers=h).status_code == 422
 
 
+def _dossier_row(world, ref: str, status: FetchStatus, *, lane=FetchLane.LOAD, priority=41) -> None:
+    with world.Session() as s:
+        s.add(FetchQueueItem(kind=FetchKind.DOSSIER, ref=ref, status=status, lane=lane, priority=priority))
+        s.commit()
+
+
+def test_fetch_details_requeues_a_done_row_of_a_case_without_details(api, world):
+    """Design `data-collection-redesign-tabs-followups`, decision 1: a `done` dossier row of a case still without
+    details (the earlier fetch gave none) is re-queued in the request lane, and only then reported `queued`."""
+    with world.Session() as s:
+        make_case(s, cnr=CNR2)
+        s.commit()
+    _dossier_row(world, CNR2, FetchStatus.DONE)
+    r = api.post("/admin/data-load/fetch-details", json={"cases": [CNR2]}, headers=ds.login(api, "root"))
+    assert r.status_code == 200, r.text
+    (item,) = r.json()["items"]
+    assert item["state"] == "queued"
+    assert (item["queue"]["status"], item["queue"]["lane"], item["queue"]["priority"]) == (
+        "pending",
+        "request",
+        30,
+    )
+    with world.Session() as s:
+        row = s.scalar(sa.select(FetchQueueItem).where(FetchQueueItem.ref == CNR2))
+        root_id = world.user(s, "root").id
+        assert (row.status, row.lane, row.priority) == (FetchStatus.PENDING, FetchLane.REQUEST, 30)
+        assert row.requested_by == root_id and row.attempts == 0
+    (audit,) = _audits(world, "data_load.details_requested")
+    assert audit.after["count"] == 1 and audit.after["queued"] == 1 and audit.after["already_running"] == 0
+    assert audit.after["queue_refs"] == [{"kind": "dossier", "ref": CNR2}]
+
+
+def test_fetch_details_reports_a_running_row(api, world):
+    """A running dossier row is being fetched: the case reads `queued` with `queue.status == "running"`, the row is
+    left as it is and the audit row counts it in `already_running`."""
+    with world.Session() as s:
+        make_case(s, cnr=CNR2)
+        s.commit()
+    _dossier_row(world, CNR2, FetchStatus.RUNNING, lane=FetchLane.DAILY, priority=40)
+    r = api.post("/admin/data-load/fetch-details", json={"cases": [CNR2]}, headers=ds.login(api, "root"))
+    assert r.status_code == 200, r.text
+    (item,) = r.json()["items"]
+    assert item["state"] == "queued" and item["queue"]["status"] == "running"
+    with world.Session() as s:
+        row = s.scalar(sa.select(FetchQueueItem).where(FetchQueueItem.ref == CNR2))
+        # still running in its own lane for its own caller (enqueue's usual `LEAST` priority aside)
+        assert (row.status, row.lane, row.requested_by, row.attempts) == (
+            FetchStatus.RUNNING,
+            FetchLane.DAILY,
+            None,
+            0,
+        )
+    (audit,) = _audits(world, "data_load.details_requested")
+    assert audit.after["queued"] == 1 and audit.after["already_running"] == 1
+
+
 # ------------------------------------------------------------------------------------------------ the buttons
 
 
