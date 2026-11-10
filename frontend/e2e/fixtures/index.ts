@@ -133,7 +133,12 @@ function istDayPlus(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** My Work's Upcoming Hearings (design next-hearing-highlight): rows today, tomorrow and in 4 days. */
+/**
+ * My Work's Upcoming Hearings (design next-hearing-highlight): rows today, tomorrow and in 4 days. More About My Work
+ * (design dashboard-my-work-polish, uicheck): two own-case rows with names, three files (overdue, no due date, due in 5
+ * days) and six alerts (hearings today and in 4 days, a strong and a possible recommendation, a new order and a
+ * case-less ticket).
+ */
 function dashboardMe(): DashboardMe {
   const base = synthFor("/dashboard/me")!.body as DashboardMe;
   const first = base.upcoming[0]!;
@@ -144,7 +149,73 @@ function dashboardMe(): DashboardMe {
     critical: days <= 1,
     this_week: true,
   }));
-  return { ...base, upcoming };
+  const caseAt = (i: number, caseNo: string) => ({ ...first.case, id: `0192a3b4-0000-7000-8000-00000000070${i}`, case_no_text: caseNo });
+  type File = DashboardMe["files"]["items"][number];
+  type Alert = DashboardMe["alerts"]["items"][number];
+  const file = (i: number, extra: Partial<File>): File => ({
+    case: caseAt(i, `WP(C)/${2690 + i}/2025`),
+    pending_action: "parawise_comments",
+    pending_action_label: "Parawise comments",
+    since: "2026-10-01T05:30:00Z",
+    due_date: null,
+    overdue_days: 0,
+    holder_office_code: "SEC-EDU",
+    ...extra,
+  });
+  const notified = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+  const alert = (i: number, caseNo: string | null, extra: Partial<Alert>): Alert => {
+    const summary = extra.summary ?? "New order of 3 Nov 2026";
+    return {
+      id: `0192a3b4-0000-7000-8000-00000000080${i}`,
+      ref_no: `ASLMS/GOA/ALR/2026/00000${i}`,
+      kind: "new_order",
+      kind_label: "New order",
+      severity: "normal",
+      status: "open",
+      title: caseNo ? `${summary}: ${caseNo}` : summary,
+      summary,
+      due_at: null,
+      created_at: notified(i * 6),
+      notified_at: notified(i * 6),
+      case: caseNo ? caseAt(i + 5, caseNo) : null,
+      case_visible: caseNo !== null,
+      hearing_date: null,
+      band: null,
+      ...extra,
+    };
+  };
+  const printed = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+  const today = istDayPlus(0);
+  const inFour = istDayPlus(4);
+  return {
+    ...base,
+    upcoming,
+    cases: [
+      { department_code: "SEC-EDU", department_name: "Secondary Education Department", allotted_active: 1284, allotted_disposed: 96, counsel_active: null },
+      { department_code: "HEALTH", department_name: "Health and Family Welfare Department", allotted_active: 3, allotted_disposed: 0, counsel_active: null },
+    ],
+    files: {
+      held: 3,
+      with_pending_action: 3,
+      overdue: 1,
+      items: [
+        file(1, { due_date: istDayPlus(-12), overdue_days: 12 }),
+        file(2, { due_date: istDayPlus(5), pending_action: "documents", pending_action_label: "Furnish documents" }),
+        file(3, { pending_action: "other", pending_action_label: "Other - see remark" }),
+      ],
+    },
+    alerts: {
+      ...base.alerts,
+      items: [
+        alert(1, "WP(C)/2695/2025", { kind: "hearing_due", kind_label: "Hearing due", severity: "critical", summary: `Hearing on ${printed(today)}`, hearing_date: today }),
+        alert(2, "WA/123/2026", { kind: "hearing_due", kind_label: "Hearing due", severity: "high", summary: `Hearing on ${printed(inFour)}`, hearing_date: inFour }),
+        alert(3, "WP(C)/4120/2026", { kind: "recommendation", kind_label: "Recommendation", severity: "high", summary: "Strong match for SEC-EDU", band: "high" }),
+        alert(4, "CRL.A/77/2026", { kind: "recommendation", kind_label: "Recommendation", summary: "Suggested for SEC-EDU", band: "medium" }),
+        alert(5, "Cont.Cas(C)/1450/2025", { summary: "New order of 3 Nov 2026" }),
+        alert(6, null, { kind: "admin_ticket", kind_label: "Admin ticket", summary: "Admin ticket ASLMS/GOA/TKT/2026/000004 awaits your decision: Head change, SEC-EDU" }),
+      ],
+    },
+  };
 }
 
 function inboxCounts(): S["InboxCountsListOut"] {

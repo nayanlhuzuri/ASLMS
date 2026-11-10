@@ -53,6 +53,34 @@
   color: var(--accent);
 }
 
+/* design dashboard-my-work-polish, decision 14: the tone's colour as a fill or as an outline; the outline is an inset
+   ring, so the 22 px height does not change */
+.badge[data-look="solid"] {
+  background: var(--text-2);
+  color: var(--surface);
+}
+
+.badge[data-look="outline"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.badge-danger[data-look="solid"] {
+  background: var(--red-text);
+}
+
+.badge-warning[data-look="solid"] {
+  background: var(--amber);
+}
+
+.badge-success[data-look="solid"] {
+  background: var(--green);
+}
+
+.badge-info[data-look="solid"] {
+  background: var(--accent);
+}
+
 .banner {
   display: flex;
   flex-wrap: wrap;

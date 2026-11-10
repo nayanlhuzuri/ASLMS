@@ -670,6 +670,24 @@ describe("the alignment rule (decision 15)", () => {
 });
 
 describe("badges and feedback", () => {
+  it("Badge look renders data-look for a fill or an outline, and nothing without it (dashboard-my-work-polish, 14)", () => {
+    renderWithClient(
+      <>
+        <Badge tone="info" look="solid">
+          Solid
+        </Badge>
+        <Badge tone="info" look="outline">
+          Outline
+        </Badge>
+        <Badge tone="info">Plain</Badge>
+      </>,
+    );
+    expect(screen.getByTitle("Solid")).toHaveAttribute("data-look", "solid");
+    expect(screen.getByTitle("Outline")).toHaveAttribute("data-look", "outline");
+    expect(screen.getByTitle("Plain")).not.toHaveAttribute("data-look");
+    expect(screen.getByTitle("Solid").className).toBe(screen.getByTitle("Plain").className);
+  });
+
   it('ScoreBadge shows "Strong · 0.950" from band high, whatever the number', () => {
     renderWithClient(
       <>

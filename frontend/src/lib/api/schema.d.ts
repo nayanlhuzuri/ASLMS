@@ -7862,6 +7862,8 @@ export interface components {
         };
         /** DashboardAlertOut */
         DashboardAlertOut: {
+            /** Band */
+            band?: ("high" | "medium") | null;
             case: components["schemas"]["AlertCaseOut"] | null;
             /** Case Visible */
             case_visible: boolean;
@@ -7872,6 +7874,8 @@ export interface components {
             created_at: string;
             /** Due At */
             due_at: string | null;
+            /** Hearing Date */
+            hearing_date?: string | null;
             /**
              * Id
              * Format: uuid
@@ -7881,12 +7885,16 @@ export interface components {
             kind: string;
             /** Kind Label */
             kind_label: string;
+            /** Notified At */
+            notified_at: string | null;
             /** Ref No */
             ref_no: string;
             /** Severity */
             severity: string;
             /** Status */
             status: string;
+            /** Summary */
+            summary: string;
             /** Title */
             title: string;
         };
@@ -8013,6 +8021,8 @@ export interface components {
             overdue_days: number;
             /** Pending Action */
             pending_action: string;
+            /** Pending Action Label */
+            pending_action_label: string;
             /**
              * Since
              * Format: date-time
@@ -8186,6 +8196,8 @@ export interface components {
             counsel_active?: number | null;
             /** Department Code */
             department_code: string;
+            /** Department Name */
+            department_name: string;
         };
         /** DashboardPendingActionsOut */
         DashboardPendingActionsOut: {

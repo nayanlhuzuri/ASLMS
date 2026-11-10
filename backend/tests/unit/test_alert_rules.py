@@ -294,3 +294,114 @@ def test_next_date_review_and_reported_texts():
         title == "Next date reported as wrong: 20 Nov 2026 read from the order of 12 Oct 2026: WP(C)/123/2025"
     )
     assert body == "Reported by Off One, EDU: the order says four weeks"
+
+
+# ------------------------------------------------------------------ title without the case (design dashboard-my-work-polish, decision 12)
+
+
+def _ref(case: SimpleNamespace) -> dict:
+    return {"id": None, "ref_no": case.ref_no, "cnr": case.cnr, "case_no_text": case.case_no_text}
+
+
+def test_title_without_case_strips_the_printed_number():
+    case = {
+        "ref_no": "ASLMS/GHC/CASE/2025/000002",
+        "cnr": "GAHC010269532025",
+        "case_no_text": "WP(C)/2695/2025",
+    }
+    assert r.title_without_case("Hearing on 11 Nov 2026: WP(C)/2695/2025", case) == "Hearing on 11 Nov 2026"
+
+
+def test_title_without_case_strips_the_cnr_then_the_ref_no():
+    no_number = {"ref_no": "ASLMS/GHC/CASE/2026/000003", "cnr": "GAHC010000032026", "case_no_text": None}
+    assert (
+        r.title_without_case("New order of 01 Oct 2026: GAHC010000032026", no_number)
+        == "New order of 01 Oct 2026"
+    )
+    provisional = {"ref_no": "ASLMS/GHC/CASE/2026/000004", "cnr": None, "case_no_text": None}
+    assert r.title_without_case("Case assigned: ASLMS/GHC/CASE/2026/000004", provisional) == "Case assigned"
+
+
+def test_title_without_case_leaves_a_title_under_a_changed_number():
+    # raised while provisional, numbered since
+    case = {"ref_no": "ASLMS/GHC/CASE/2026/000004", "cnr": "GAHC010000042026", "case_no_text": "WP(C)/4/2026"}
+    title = "Case assigned: ASLMS/GOA/CASE/2026/000004"
+    assert r.title_without_case(title, case) == title
+
+
+def test_title_without_case_leaves_a_cut_title():
+    long_case = SimpleNamespace(case_no_text="X" * 500, cnr=None, ref_no="R")
+    title, _ = r.render_alert(AlertKind.NEW_ORDER, long_case, {"order_date": "2026-10-01"})
+    assert title.endswith("…")
+    assert r.title_without_case(title, _ref(long_case)) == title
+
+
+def test_title_without_case_leaves_a_ticket_title():
+    title, _ = r.render_alert(
+        AlertKind.ADMIN_TICKET,
+        None,
+        {"ticket_ref": "T-1", "kind_label": "Head change", "department_code": "EDU"},
+    )
+    assert r.title_without_case(title, None) == title
+    assert r.title_without_case(title, {}) == title
+
+
+def test_title_without_case_never_returns_an_empty_string():
+    case = {"ref_no": "R1", "cnr": None, "case_no_text": "WP(C)/1/2026"}
+    assert r.title_without_case(": WP(C)/1/2026", case) == ": WP(C)/1/2026"
+    assert r.title_without_case("  : WP(C)/1/2026", case) == "  : WP(C)/1/2026"
+    assert r.title_without_case("", case) == ""
+
+
+SAMPLES: list[tuple[AlertKind, dict]] = [
+    (AlertKind.HEARING_DUE, {"hearing_date": "2026-10-08", "source": "causelist", "court_no": "3"}),
+    (AlertKind.HEARING_DUE, {"hearing_date": "2026-10-08", "source": "next_date", "basis": "around"}),
+    (AlertKind.HEARING_DUE, {"hearing_date": "2026-10-08", "source": "next_date", "basis": "manual"}),
+    (AlertKind.NEXT_DATE_CHANGED, {"hearing_date": "2026-10-08", "previous_date": "2026-10-01"}),
+    (AlertKind.NEW_ORDER, {"order_no": "2", "order_date": "2026-10-01"}),
+    (AlertKind.STATUS_CHANGED, {"status": "disposed", "disposal_date": "2026-10-01"}),
+    (AlertKind.STATUS_CHANGED, {"event": "reopened", "closed_at": "2026-10-01"}),
+    (AlertKind.STATUS_CHANGED, {"status": "pending"}),
+    (AlertKind.COMPLIANCE_DUE, {"compliance_by_date": "2026-10-20"}),
+    (AlertKind.REQUEST_DUE, {"due_date": "2026-10-20", "overdue": True}),
+    (AlertKind.REQUEST_DUE, {"due_date": "2026-10-20"}),
+    (AlertKind.RECOMMENDATION, {"band": "high", "office_code": "EDU"}),
+    (AlertKind.RECOMMENDATION, {"band": "medium", "origin": "suggestion", "office_code": "EDU"}),
+    (AlertKind.OWNERSHIP, {"event": "allotted"}),
+    (AlertKind.OWNERSHIP, {"event": "case_taken_over"}),
+    (AlertKind.OWNERSHIP, {"event": "transfer_requested"}),
+    (AlertKind.OWNERSHIP, {"event": "transfer_decided"}),
+    (AlertKind.OWNERSHIP, {"event": "recommendation_closed"}),
+    (AlertKind.OWNERSHIP, {}),
+    (AlertKind.WORKFLOW, {"event": "file_received"}),
+    (AlertKind.WORKFLOW, {"event": "file_recalled"}),
+    (AlertKind.WORKFLOW, {"event": "reopened"}),
+    (AlertKind.WORKFLOW, {"event": "due", "due_date": "2026-10-20", "overdue": True}),
+    (AlertKind.WORKFLOW, {}),
+    (AlertKind.NEXT_DATE_REVIEW, {"order_date": "2026-10-12"}),
+    (AlertKind.NEXT_DATE_REVIEW, {"order_date": "2026-10-12", "hearing_date": "2026-11-20"}),
+    (AlertKind.NEW_DOCUMENT, {"doc_type_label": "Affidavit"}),
+    (AlertKind.NEW_NOTE, {"kind_label": "Hearing note", "ref_no": "N-1"}),
+    (AlertKind.NEW_NOTE, {"kind_label": "General", "supersedes_ref_no": "N-0"}),
+    (
+        AlertKind.LISTED_TOMORROW,
+        {"hearing_date": "2026-10-08", "entries": [{"court_no": "5", "item_no": "3"}]},
+    ),
+    (AlertKind.NEXT_DATE_REPORTED, {"hearing_date": "2026-11-20", "order_date": "2026-10-12"}),
+]
+
+
+def test_title_without_case_round_trip_for_every_kind_with_a_case():
+    assert {k for k, _ in SAMPLES} == set(AlertKind) - {AlertKind.ADMIN_TICKET}
+    cases = [
+        CASE,
+        SimpleNamespace(case_no_text=None, cnr="GAHC010000012025", ref_no="ASLMS/GHC/CASE/2026/000001"),
+        SimpleNamespace(case_no_text=None, cnr=None, ref_no="ASLMS/GHC/CASE/2026/000001"),
+    ]
+    for case in cases:
+        label = r.case_label(case)
+        for kind, data in SAMPLES:
+            title, _ = r.render_alert(kind, case, data)
+            summary = r.title_without_case(title, _ref(case))
+            assert summary + ": " + label == title, (kind, data, title)
+            assert summary and not summary.endswith(label)

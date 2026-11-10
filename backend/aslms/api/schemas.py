@@ -2657,6 +2657,7 @@ class DashboardIndexOut(BaseModel):
 class DashboardFileOut(BaseModel):
     case: AlertCaseOut
     pending_action: str
+    pending_action_label: str  # design dashboard-my-work-polish, decision 9
     since: datetime
     due_date: date | None
     overdue_days: int
@@ -2684,6 +2685,7 @@ class DashboardHearingsOut(BaseModel):
 
 class DashboardOwnCasesOut(BaseModel):
     department_code: str
+    department_name: str  # design dashboard-my-work-polish, decision 11
     allotted_active: int
     allotted_disposed: int
     counsel_active: int | None = None
@@ -2708,6 +2710,11 @@ class DashboardAlertOut(BaseModel):
     case: AlertCaseOut | None
     case_visible: bool  # design portal-files-alerts, decision 6
     created_at: datetime
+    # design dashboard-my-work-polish, decisions 5, 6, 8 and 12
+    summary: str
+    notified_at: datetime | None
+    hearing_date: date | None = None
+    band: Literal["high", "medium"] | None = None
 
 
 class DashboardAlertsOut(BaseModel):

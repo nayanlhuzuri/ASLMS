@@ -179,4 +179,5 @@ export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "hearing.badges.inDays": [3],
   "list.showMoreButton": [100],
   "dc.requestWhat.cases": [12],
+  "dash.overdueByBadge": [12],
 };

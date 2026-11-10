@@ -206,6 +206,26 @@ def case_label(case: Any) -> str:
     return getattr(case, "case_no_text", None) or getattr(case, "cnr", None) or getattr(case, "ref_no", "?")
 
 
+def title_without_case(title: str, case: dict[str, Any] | None) -> str:
+    """The title without its trailing ``": " + case label`` (design dashboard-my-work-polish, decision 12).
+
+    `case` is the reference dict of `calendar.case_ref` (`case_no_text`, `cnr`, `ref_no`); the candidates are tried
+    in `case_label`'s order. The title is returned whole when there is no case, when no candidate ends it (a title
+    cut at 300 characters, or one raised under a number since changed), or when stripping would leave nothing."""
+    if not case:
+        return title
+    for key in ("case_no_text", "cnr", "ref_no"):
+        label = case.get(key)
+        if not label:
+            continue
+        suffix = f": {label}"
+        if title.endswith(suffix):
+            rest = title[: -len(suffix)]
+            if rest.strip():
+                return rest
+    return title
+
+
 def _title(text: str) -> str:
     text = " ".join(text.split())
     return text if len(text) <= TITLE_MAX else text[: TITLE_MAX - 1] + "…"

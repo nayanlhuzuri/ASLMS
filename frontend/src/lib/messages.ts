@@ -1051,6 +1051,13 @@ export const T = {
     courtItem: (court: string | null, item: string | null) =>
       [court ? `Court ${court}` : null, item ? `item ${item}` : null].filter(Boolean).join(" · "),
     moreWork: "More About My Work",
+    // design dashboard-my-work-polish, decisions 5, 6, 10 and 15 (the View All link is the kit's `T.viewAll`)
+    alertCols: { type: "Type", case: "Case", what: "What Happened", raised: "Raised" },
+    alertHearingBadge: "Hearing",
+    alertRecommendationBadge: "Recommendation",
+    matchBadges: { high: "Strong Match", medium: "Possible Match" } as Record<string, string>,
+    overdueByBadge: (n: number) => `Overdue by ${plural(n, "Day", "Days")}`,
+    dueNoneLabel: "No Due Date",
     caseDetail: (caseNo: string, detail: string | null) => [caseNo, detail].filter(Boolean).join(" · "),
   },
   admin: {

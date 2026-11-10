@@ -395,6 +395,22 @@ recommended answers".
 None from the plan. Plan section 5.1 is unchanged in substance: own cases, own pending actions and own alerts, with
 links to the case inbox and the alerts.
 
+**Build deviations (developer, 10 Nov 2026).** Small choices where the note was silent or row 231 already delivered:
+- **View All (decision 2, 15).** Row 231 delivered the kit's `HeadLink` (visible words, `aria-hidden` arrow, visually
+  hidden suffix) and the one wording `T.viewAll` "View All". The three cards use them, as the owner's answer asks, so
+  no `dash.viewAll` key is added. The accessible names read "View All My Cases", "View All Cases with Me" and "View
+  All My Alerts".
+- **"Recommendation" badge text (decision 6).** Added as `dash.alertRecommendationBadge` (a label path, Title Case).
+- **`Badge look` for the other tones (decision 14).** `solid` fills with the tone's text colour: `--accent` (info),
+  `--red-text`, `--amber`, `--green`, and `--text-2` for the neutral badge, text `--surface`; `outline` is the surface
+  with a 1 px inset ring in `currentColor` for every tone. `tokens.test.ts` checks `--surface` on each of those fills
+  and `--accent` on `--surface`. Only `info` is used now.
+- **`dash.overdueByBadge` samples (decision 15).** `LABEL_FUNCTIONS` holds one argument list per path, so it carries
+  12; "Overdue by 1 Day" is checked by a dashboard vitest.
+- **`hearing_date` (Services).** Read from `data.hearing_date` as an ISO string, and also accepted as a `date` (an
+  alert raised in the same session before it is read back); anything else is `null`.
+- **The old `.alerts` list style** in `dashboard.module.css` is removed, since My Alerts is now a `DataTable`.
+
 ## Owner's answers (10 Nov 2026)
 
 All open questions answered with the recommended answers. Question 1 is settled by the owner's choice for the

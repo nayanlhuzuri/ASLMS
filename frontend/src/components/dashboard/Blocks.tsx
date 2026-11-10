@@ -15,6 +15,7 @@ import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
   AlertCase,
+  DashboardAlert,
   DashboardDepartment,
   DashboardFile,
   DashboardHearings,
@@ -28,6 +29,7 @@ import { can, canAny, canIn } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { sourceLabel, statusLabel } from "@/lib/nextDates";
+import { titleCase } from "@/lib/titleCase";
 import { DATA_READERS, navFor } from "@/lib/routes";
 
 import s from "./dashboard.module.css";
@@ -86,38 +88,56 @@ export function HearingList({ hearings, caption }: { hearings: DashboardHearings
 /**
  * The files of a block. Empty, it shows `empty` when given and otherwise nothing, so a section a design keeps hidden
  * when empty (Cases with Me under More About My Work) stays hidden (design portal-ui-kit-fixes, decision 19).
+ * The pending action is the server's label, as every other screen shows it (design dashboard-my-work-polish, decision
+ * 9). `mergedDue` (only More About My Work) folds the Overdue column into one Due column (decision 10).
  */
 function FileList({
   items,
   caption,
-  showCaption,
   empty,
+  mergedDue,
 }: {
   items: DashboardFile[];
   caption: string;
-  showCaption?: boolean;
   empty?: ReactNode;
+  mergedDue?: boolean;
 }) {
   if (items.length === 0) return empty ? <>{empty}</> : null;
   return (
     <DataTable
       caption={caption}
-      showCaption={showCaption}
       rows={items}
       rowKey={(f) => `${f.case.id}-${f.since}`}
       columns={[
         { key: "case", header: T.dash.case, primary: true, cell: (f) => <CaseRef value={f.case} /> },
-        { key: "action", header: T.dash.action, cell: (f) => f.pending_action },
-        { key: "due", header: T.dash.due, cell: (f) => formatDate(f.due_date) },
-        {
-          key: "overdue",
-          header: T.dash.overdueCol,
-          align: "right",
-          cell: (f) => (f.overdue_days > 0 ? formatNumber(f.overdue_days) : "—"),
-        },
+        { key: "action", header: T.dash.action, cell: (f) => f.pending_action_label },
+        ...(mergedDue
+          ? [{ key: "due", header: T.dash.due, cell: (f: DashboardFile) => <DueCell file={f} /> }]
+          : [
+              { key: "due", header: T.dash.due, cell: (f: DashboardFile) => formatDate(f.due_date) },
+              {
+                key: "overdue",
+                header: T.dash.overdueCol,
+                align: "right" as const,
+                cell: (f: DashboardFile) => (f.overdue_days > 0 ? formatNumber(f.overdue_days) : "—"),
+              },
+            ]),
       ]}
     />
   );
+}
+
+/** One Due cell (design dashboard-my-work-polish, decision 10): the server's `overdue_days` decides. */
+function DueCell({ file }: { file: DashboardFile }) {
+  if (file.overdue_days > 0) {
+    return (
+      <Badge tone="danger" title={formatDate(file.due_date)}>
+        {T.dash.overdueByBadge(file.overdue_days)}
+      </Badge>
+    );
+  }
+  if (!file.due_date) return <span className="muted">{T.dash.dueNoneLabel}</span>;
+  return <>{formatDate(file.due_date)}</>;
 }
 
 function Kpis({ children }: { children: ReactNode[] }) {
@@ -312,6 +332,37 @@ export function DepartmentSection({ departments }: { departments: DashboardIndex
   );
 }
 
+/** The type badge of an alert (design dashboard-my-work-polish, decisions 6 and 7): fixed meanings, never severity. */
+function AlertTypeBadge({ alert }: { alert: DashboardAlert }) {
+  if ((alert.kind === "hearing_due" || alert.kind === "listed_tomorrow") && alert.hearing_date) {
+    return <HearingDate date={alert.hearing_date} showDate={false} label={T.dash.alertHearingBadge} />;
+  }
+  if (alert.kind === "recommendation") {
+    const match = alert.band ? T.dash.matchBadges[alert.band] : undefined;
+    if (!match) return <Badge>{T.dash.alertRecommendationBadge}</Badge>;
+    return (
+      <Badge tone="info" look={alert.band === "high" ? "solid" : "outline"} title={match}>
+        {T.dash.alertRecommendationBadge}
+        <span className="visually-hidden"> {match}</span>
+      </Badge>
+    );
+  }
+  return <Badge>{titleCase(alert.kind_label)}</Badge>;
+}
+
+type OwnCases = DashboardMe["cases"][number];
+
+/** A figure column of My Cases (decision 11): right-aligned in a fixed width, so the name takes the rest. */
+function figure(key: string, header: string, value: (c: OwnCases) => number | null | undefined) {
+  return {
+    key,
+    header,
+    align: "right" as const,
+    width: "var(--lead-w)",
+    cell: (c: OwnCases) => formatNumber(value(c) ?? 0),
+  };
+}
+
 /** The personal block's other figures, folded under "More about my work": own cases, alerts, files held, drafts. */
 export function PersonalExtras({ data }: { data: DashboardMe }) {
   const n = formatNumber;
@@ -331,48 +382,92 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
           <Kpi key="drafts" label={T.dash.drafts} value={data.drafts} />,
         ]}
       </Kpis>
+      {/* design dashboard-my-work-polish, decisions 1-4: three full-width cards, each with View All in its head; the
+          tables keep their caption as their accessible name and show none, the card's heading names them */}
       {data.cases.length > 0 ? (
-        <DataTable
-          caption={T.dash.ownCases}
-          showCaption
-          rows={data.cases}
-          rowKey={(c) => c.department_code}
-          columns={[
-            { key: "department", header: T.dash.department, primary: true, cell: (c) => <span className="mono">{c.department_code}</span> },
-            { key: "allotted", header: T.dash.allotted, align: "right", cell: (c) => n(c.allotted_active) },
-            { key: "disposed", header: T.dash.disposed, align: "right", cell: (c) => n(c.allotted_disposed) },
-            ...(showCounsel
-              ? [
-                  {
-                    key: "counsel",
-                    header: T.dash.counsel,
-                    align: "right" as const,
-                    cell: (c: DashboardMe["cases"][number]) => n(c.counsel_active),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <Card
+          title={T.dash.ownCases}
+          actions={
+            <HeadLink href="/inbox/my-cases" srSuffix={T.dash.ownCases}>
+              {T.viewAll}
+            </HeadLink>
+          }
+        >
+          <DataTable
+            caption={T.dash.ownCases}
+            rows={data.cases}
+            rowKey={(c) => c.department_code}
+            columns={[
+              {
+                key: "department",
+                header: T.dash.department,
+                primary: true,
+                cell: (c) => <span title={c.department_code}>{c.department_name}</span>,
+              },
+              figure("allotted", T.dash.allotted, (c) => c.allotted_active),
+              figure("disposed", T.dash.disposed, (c) => c.allotted_disposed),
+              ...(showCounsel ? [figure("counsel", T.dash.counsel, (c) => c.counsel_active)] : []),
+            ]}
+          />
+        </Card>
       ) : null}
-      <FileList items={data.files.items} caption={T.dash.files} showCaption />
-      <div id="alerts">
-        <h3>
-          <Link href="/alerts">{T.dash.myAlerts}</Link>
-        </h3>
+      {data.files.items.length > 0 ? (
+        <Card
+          title={T.dash.files}
+          actions={
+            <HeadLink href="/inbox/with-me" srSuffix={T.dash.files}>
+              {T.viewAll}
+            </HeadLink>
+          }
+        >
+          <FileList items={data.files.items} caption={T.dash.files} mergedDue />
+        </Card>
+      ) : null}
+      <Card
+        id="alerts"
+        title={T.dash.myAlerts}
+        actions={
+          <HeadLink href="/alerts" srSuffix={T.dash.myAlerts}>
+            {T.viewAll}
+          </HeadLink>
+        }
+      >
         {data.alerts.items.length === 0 ? (
-          <EmptyState>{T.dash.noAlerts}</EmptyState>
+          <EmptyState compact>{T.dash.noAlerts}</EmptyState>
         ) : (
-          <ul className={s.alerts}>
-            {data.alerts.items.map((a) => (
-              <li key={a.id}>
-                <Badge tone={a.severity === "critical" ? "danger" : a.severity === "high" ? "warning" : undefined}>{a.kind_label}</Badge>{" "}
-                {a.title} {a.case ? <CaseLink value={a.case} visible={a.case_visible} /> : null}
-                <span className="muted"> · {formatDate(a.due_at ?? a.created_at)}</span>
-              </li>
-            ))}
-          </ul>
+          <DataTable
+            caption={T.dash.myAlerts}
+            rows={data.alerts.items}
+            rowKey={(a) => a.id}
+            columns={[
+              {
+                key: "type",
+                header: T.dash.alertCols.type,
+                width: "calc(2 * var(--lead-w))",
+                cell: (a) => <AlertTypeBadge alert={a} />,
+              },
+              {
+                key: "case",
+                header: T.dash.alertCols.case,
+                cell: (a) => (a.case ? <CaseLink value={a.case} visible={a.case_visible} /> : "—"),
+              },
+              { key: "what", header: T.dash.alertCols.what, primary: true, cell: (a) => a.summary },
+              {
+                key: "raised",
+                header: T.dash.alertCols.raised,
+                cell: (a) =>
+                  a.notified_at ? (
+                    <time dateTime={a.notified_at} title={formatDateTime(a.notified_at)}>
+                      {formatDate(a.notified_at)}
+                    </time>
+                  ) : (
+                    "—"
+                  ),
+              },
+            ]}
+          />
         )}
-      </div>
+      </Card>
     </div>
   );
 }

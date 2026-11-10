@@ -3653,3 +3653,14 @@ decision 19 as stated above. Details are in the design note's Deviations.
 **Left for later.** The integrator runs uicheck on a private network against temporary images (runbook section 16) and
 compares the listed screenshots; the owner looks at 375 and 1280 px. No follow-up row added. Documents read outside the
 team (Process Workflows, operations, the two Word guides) do not describe this behaviour, so none changed.
+
+## More About My Work, polished (2026-11-10)
+
+**Built (row 228 `dashboard-my-work-polish`, design `docs/design/dashboard-my-work-polish.md`).** The dashboard's "More About My Work" section: My Cases, Cases with Me and My Alerts as three cards on one heading style, each with a "View All" link (Case Inbox, Alerts); titles aligned with the columns; My Alerts a `DataTable` with aligned columns (type, what happened, date raised), the case number shown once, newest raised first; badge colours with fixed meanings (hearing alerts on the hearing-date bands, recommendations navy, strong solid and possible outlined); My Cases shows the department name in place of the mono code; Cases with Me has one Due column (date, Overdue by N Days, or No Due Date). Kit: Badge `look` (solid, outline) and a `HearingDate` label. No migration, no new endpoint. Additive API fields on `GET /dashboard/me`: `pending_action_label` and `department_name` on the held and membership items, and on each alert `summary` (title without its case number, from `alert_rules.title_without_case`), `notified_at`, `hearing_date` and `band` (from `dashboard.alert_extras`, no extra query). Tests: `test_dashboard.py`, `test_api_dashboard.py`, `test_alert_rules.py`, `dashboard.test.tsx`, `hearingDate.test.tsx`, `ui.test.tsx`, `tokens.test.ts`, and a uicheck state for the section.
+
+**Decisions and reasons.** The owner approved the design on 10 Nov 2026 with the recommended answers. Fixed meaning for colour so a badge says the same thing wherever it appears; the server strips the case number from the title so the client does not parse text; the row 231 `HeadLink` and `T.viewAll` reused for View All.
+
+**Deviations.** No `dash.viewAll` key (row 231 already delivered the wording); "Recommendation" badge text added as `dash.alertRecommendationBadge`; `dash.overdueByBadge` has 12 samples in `LABEL_FUNCTIONS` and "Overdue by 1 Day" is checked by a vitest; `hearing_date` is read from `data.hearing_date` as an ISO string or a date, else null; the old `.alerts` list style was removed. Details are in the design note's build deviations.
+
+**Left for later.** The integrator runs uicheck; the owner looks at 375 and 1280 px. Row 229 (navy and cream) follows. No follow-up row added. Process Workflows, operations and the two Word guides do not describe this screen, so none changed.
+

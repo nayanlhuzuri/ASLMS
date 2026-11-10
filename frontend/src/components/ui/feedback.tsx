@@ -17,9 +17,27 @@ import s from "./feedback.module.css";
 /** Red = urgent or overdue; amber = due soon; green = done or confirmed; blue (`info`) = action; none = neutral. */
 export type Tone = "danger" | "warning" | "success" | "info";
 
-export function Badge({ tone, title, children }: { tone?: Tone; title?: string; children: ReactNode }) {
+/**
+ * A badge. `look` (design dashboard-my-work-polish, decision 14) draws the tone's colour as a fill (`solid`) or as an
+ * outline on the surface (`outline`), rendered as `data-look`; without it the tone's soft ground, as before.
+ */
+export function Badge({
+  tone,
+  title,
+  look,
+  children,
+}: {
+  tone?: Tone;
+  title?: string;
+  look?: "solid" | "outline";
+  children: ReactNode;
+}) {
   return (
-    <span className={cx(s.badge, tone && s[`badge-${tone}`])} title={title ?? (typeof children === "string" ? children : undefined)}>
+    <span
+      className={cx(s.badge, tone && s[`badge-${tone}`])}
+      data-look={look}
+      title={title ?? (typeof children === "string" ? children : undefined)}
+    >
       <span className={s.badgeText}>{children}</span>
     </span>
   );

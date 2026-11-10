@@ -144,6 +144,13 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
     ["--amber", "--amber-soft"],
     ["--green", "--green-soft"],
     ["--accent", "--accent-soft"],
+    // design dashboard-my-work-polish, decision 14: a badge's tone as a fill (`look="solid"`) or an outline
+    ["--surface", "--accent"],
+    ["--accent", "--surface"],
+    ["--surface", "--text-2"],
+    ["--surface", "--red-text"],
+    ["--surface", "--amber"],
+    ["--surface", "--green"],
     // the public pages' panel (round 5): every text colour on both ends of its gradient
     ["--panel-text", "--panel-from"],
     ["--panel-text", "--panel-to"],

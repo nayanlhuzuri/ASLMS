@@ -5,6 +5,7 @@ lists, the personal and State blocks, and that nothing is written."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
@@ -14,6 +15,7 @@ from aslms.domain.cases import AdvocateSide, CaseAdvocate
 from aslms.domain.org import Office, PermissionEffect
 from aslms.domain.ownership import CounselCode, ScoreBand
 from aslms.domain.reference import OfficeKind, Permission, Role
+from aslms.domain.workflow import PENDING_ACTION_LABELS, PendingAction
 from aslms.services import alerts, calendar, dashboard, inbox
 from aslms.services.access import Forbidden
 from aslms.services.reporting_common import BadDepartment, DepartmentRequired
@@ -160,6 +162,8 @@ def test_pending_action_sections_need_track_or_reports_function(world):
         assert block["pending_actions"]["held"] == 1 and block["pending_actions"]["overdue"] == 1
         assert [i["case"]["id"] for i in block["pending_actions"]["items"]] == [case.id]
         assert block["pending_actions"]["items"][0]["overdue_days"] == 3
+        item = block["pending_actions"]["items"][0]
+        assert item["pending_action_label"] == PENDING_ACTION_LABELS[PendingAction(item["pending_action"])]
         assert block["custody_by_office"] == [
             {
                 "holder_department_code": "EDU",
@@ -240,7 +244,13 @@ def test_me_block_own_cases_files_alerts_hearings_drafts(world):
         claim(s, world, unit_case, unit="EDU-DSE")
         me = dashboard.me_block(s, world.user(s, "dse_user"))
         assert me["cases"] == [
-            {"department_code": "EDU", "allotted_active": 1, "allotted_disposed": 0, "counsel_active": None}
+            {
+                "department_code": "EDU",
+                "department_name": "Education",  # design dashboard-my-work-polish, decision 11
+                "allotted_active": 1,
+                "allotted_disposed": 0,
+                "counsel_active": None,
+            }
         ]
         assert me["hearings"]["total"] == 1 and me["hearings"]["critical"] == 1
         # standing counsel: the counsel basis
@@ -270,6 +280,11 @@ def test_me_block_own_cases_files_alerts_hearings_drafts(world):
         assert me["files"]["overdue"] == 1
         assert [i["case"]["id"] for i in me["files"]["items"]] == [first.id, second.id]
         assert me["files"]["items"][0]["overdue_days"] == 1
+        # design dashboard-my-work-polish, decision 9: the label every other screen shows
+        for item in me["files"]["items"]:
+            assert (
+                item["pending_action_label"] == PENDING_ACTION_LABELS[PendingAction(item["pending_action"])]
+            )
         assert me["drafts"] == 1
         counts = alerts.counts_for_user(s, off2)
         assert me["alerts"]["unread"] == counts["unread"] and me["alerts"]["open"] == counts["open"]
@@ -365,3 +380,140 @@ def test_attention_counts_next_dates_that_differ(world):
         ]
         assert att["next_dates_differ"] == 1
         s.rollback()
+
+
+# ------------------------------------------------------------------------------------------------ dashboard-my-work-polish
+
+
+def _alert_by_kind(items: list[dict], kind: str, **match) -> dict:
+    found = [i for i in items if i["kind"] == kind and all(i.get(k) == v for k, v in match.items())]
+    assert len(found) == 1, (kind, match, items)
+    return found[0]
+
+
+def test_me_block_alert_items_carry_summary_notified_at_band_and_hearing_date(world):
+    """Design dashboard-my-work-polish, decisions 5, 6, 8 and 12."""
+    from aslms.domain.alerts import Severity
+    from aslms.domain.reference import AlertKind, EventType
+    from aslms.services import alert_rules
+    from aslms.services import ownership as own
+    from tests.db import alerts_support as h
+
+    with world.Session() as s:
+        admin = world.user(s, "edu_admin")
+        edu = world.office(s, "EDU")
+        # a hearing alert from the date sweep
+        heard = new_case(s, next_hearing=today() + timedelta(days=2))
+        claim(s, world, heard)
+        # an engine recommendation (strong) for EDU
+        strong = new_case(s, next_hearing=today() + timedelta(days=4))
+        rec = recommend(s, world, strong, "EDU")
+        h.event(
+            s,
+            strong,
+            EventType.RECOMMENDATION_MADE,
+            {"recommendation_id": str(rec.id), "office_code": "EDU", "score": 0.95, "band": "high"},
+            scoped=True,
+        )
+        # a suggestion to EDU: a medium recommendation
+        suggested = new_case(s)
+        recommend(s, world, suggested, "HEALTH")
+        actor, health_admin = world.actor(s, "health_admin")
+        res = own.suggest(s, actor, health_admin, suggested, office_code="EDU", reason="theirs")
+        assert res.target.band == ScoreBand.MEDIUM
+        s.commit()
+        alerts.scan_events(s, now=h.now_utc())
+        alerts.sweep_dates(s)
+        # a new order and an admin ticket, raised straight to the reader
+        ordered = new_case(s)
+        claim(s, world, ordered)
+        alerts.raise_alert(
+            s,
+            case=ordered,
+            kind=AlertKind.NEW_ORDER,
+            key=f"test:new_order:{ordered.id}",
+            office=edu,
+            severity=Severity.NORMAL,
+            data={"order_no": "1", "order_date": today().isoformat()},
+            recipients=[admin],
+        )
+        alerts.raise_alert(
+            s,
+            case=None,
+            kind=AlertKind.ADMIN_TICKET,
+            key="test:ticket:1",
+            office=edu,
+            severity=Severity.NORMAL,
+            data={"ticket_ref": "TKT-1", "kind_label": "Head change", "department_code": "EDU"},
+            recipients=[admin],
+        )
+        s.commit()
+
+        items = dashboard.me_block(s, admin)["alerts"]["items"]
+        hearing = _alert_by_kind(items, "hearing_due")
+        assert hearing["case"]["id"] == heard.id
+        assert hearing["hearing_date"] == heard.next_hearing_date and hearing["band"] is None
+        engine = _alert_by_kind(items, "recommendation", band="high")
+        assert engine["case"]["id"] == strong.id and engine["hearing_date"] is None
+        medium = _alert_by_kind(items, "recommendation", band="medium")
+        assert medium["case"]["id"] == suggested.id and medium["hearing_date"] is None
+        order = _alert_by_kind(items, "new_order")
+        assert order["band"] is None and order["hearing_date"] is None
+        ticket = _alert_by_kind(items, "admin_ticket")
+        assert ticket["case"] is None and ticket["summary"] == ticket["title"]
+        for i in items:
+            assert i["notified_at"] is not None and i["summary"]
+            if i["case"] is not None:
+                label = alert_rules.case_label(SimpleNamespace(**i["case"]))
+                assert i["summary"] + ": " + label == i["title"]
+
+
+def test_me_block_alerts_newest_notice_first(world):
+    """Design dashboard-my-work-polish, decision 8: the order and the shown date are the latest notice's time."""
+    from aslms.domain.alerts import Notification, Severity
+    from aslms.domain.reference import AlertKind
+
+    with world.Session() as s:
+        admin = world.user(s, "edu_admin")
+        edu = world.office(s, "EDU")
+        older_case, newer_case = new_case(s), new_case(s)
+        claim(s, world, older_case)
+        claim(s, world, newer_case)
+        t0 = datetime.now(UTC) - timedelta(days=1)
+
+        def raise_(case, severity, at):
+            alert, changed = alerts.raise_alert(
+                s,
+                case=case,
+                kind=AlertKind.COMPLIANCE_DUE,
+                key=f"test:compliance:{case.id}",
+                office=edu,
+                severity=severity,
+                data={"compliance_by_date": (today() + timedelta(days=5)).isoformat()},
+                recipients=[admin],
+                now=at,
+            )
+            assert changed
+            # the notice's time is the database clock: put this notice at `at`
+            s.execute(
+                sa.update(Notification)
+                .where(Notification.alert_id == alert.id, Notification.created_at > at)
+                .values(created_at=at)
+            )
+
+        raise_(older_case, Severity.NORMAL, t0)
+        raise_(newer_case, Severity.NORMAL, t0 + timedelta(hours=12))
+        s.commit()
+        items = dashboard.me_block(s, admin)["alerts"]["items"]
+        ids = [i["case"]["id"] for i in items if i["kind"] == "compliance_due"]
+        assert ids == [newer_case.id, older_case.id]
+
+        raised_again = t0 + timedelta(hours=20)
+        raise_(older_case, Severity.HIGH, raised_again)
+        s.commit()
+        items = dashboard.me_block(s, admin)["alerts"]["items"]
+        mine = [i for i in items if i["kind"] == "compliance_due"]
+        assert [i["case"]["id"] for i in mine] == [older_case.id, newer_case.id]
+        assert mine[0]["notified_at"] == raised_again
+        stamps = [i["notified_at"] for i in items]
+        assert stamps == sorted(stamps, reverse=True)

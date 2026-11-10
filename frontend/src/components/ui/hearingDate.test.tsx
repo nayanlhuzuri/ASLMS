@@ -185,3 +185,39 @@ describe("HearingDate with the one next hearing", () => {
     expect(md.container).toHaveTextContent("Entered by hand; the court has given no date");
   });
 });
+
+describe("HearingDate label (design dashboard-my-work-polish, decision 13)", () => {
+  it("draws the label first, then a separator hidden from screen readers, then the band's word", () => {
+    const { container } = render(<HearingDate date="2026-10-28" showDate={false} label="Hearing" now={NOW} />);
+    const el = badge(container);
+    expect(el).toHaveTextContent(/^Hearing · Tomorrow$/);
+    expect(el).toHaveAttribute("data-band", "tomorrow");
+    expect(el.querySelector("time")).toBeNull();
+    const parts = [...el.children];
+    expect(parts[0]).toHaveTextContent(/^Hearing$/);
+    expect(parts[1]).toHaveAttribute("aria-hidden", "true");
+    expect(parts[2]).toHaveTextContent(/^Tomorrow$/);
+  });
+
+  it("keeps the band and the tone of every band", () => {
+    for (const [date, band] of [
+      ["2026-10-27", "today"],
+      ["2026-10-30", "week"],
+      ["2026-11-16", "later"],
+      ["2026-10-22", "passed"],
+    ] as const) {
+      const plain = render(<HearingDate date={date} showDate={false} now={NOW} />);
+      const labelled = render(<HearingDate date={date} showDate={false} label="Hearing" now={NOW} />);
+      expect(badge(labelled.container)).toHaveAttribute("data-band", band);
+      expect(badge(labelled.container).className).toBe(badge(plain.container).className);
+      expect(badge(labelled.container)).toHaveTextContent(`Hearing · ${badge(plain.container).textContent}`);
+    }
+  });
+
+  it("without a label renders exactly as before", () => {
+    const before = render(<HearingDate date="2026-10-28" now={NOW} />).container.innerHTML;
+    const after = render(<HearingDate date="2026-10-28" label={undefined} now={NOW} />).container.innerHTML;
+    expect(after).toBe(before);
+    expect(before).not.toContain("Hearing");
+  });
+});

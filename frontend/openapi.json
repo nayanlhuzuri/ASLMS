@@ -9645,6 +9645,21 @@
       },
       "DashboardAlertOut": {
         "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
           "case": {
             "anyOf": [
               {
@@ -9676,6 +9691,18 @@
             ],
             "title": "Due At"
           },
+          "hearing_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hearing Date"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -9689,6 +9716,18 @@
             "title": "Kind Label",
             "type": "string"
           },
+          "notified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notified At"
+          },
           "ref_no": {
             "title": "Ref No",
             "type": "string"
@@ -9699,6 +9738,10 @@
           },
           "status": {
             "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
             "type": "string"
           },
           "title": {
@@ -9717,7 +9760,9 @@
           "due_at",
           "case",
           "case_visible",
-          "created_at"
+          "created_at",
+          "summary",
+          "notified_at"
         ],
         "title": "DashboardAlertOut",
         "type": "object"
@@ -10056,6 +10101,10 @@
             "title": "Pending Action",
             "type": "string"
           },
+          "pending_action_label": {
+            "title": "Pending Action Label",
+            "type": "string"
+          },
           "since": {
             "format": "date-time",
             "title": "Since",
@@ -10065,6 +10114,7 @@
         "required": [
           "case",
           "pending_action",
+          "pending_action_label",
           "since",
           "due_date",
           "overdue_days",
@@ -10577,10 +10627,15 @@
           "department_code": {
             "title": "Department Code",
             "type": "string"
+          },
+          "department_name": {
+            "title": "Department Name",
+            "type": "string"
           }
         },
         "required": [
           "department_code",
+          "department_name",
           "allotted_active",
           "allotted_disposed"
         ],

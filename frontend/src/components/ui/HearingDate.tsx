@@ -15,6 +15,8 @@
  * - `size="sm"` (lists): the short date, and no word for the later band; `size="md"` (the case page and the modal):
  *   the weekday and date, always with the word for a future date;
  * - never truncated: the word and the date are two unbreakable parts that wrap onto a second line in a narrow cell.
+ * - `label` (design dashboard-my-work-polish, decision 13): a word drawn first as its own unbreakable part ("Hearing ·
+ *   Tomorrow" on the dashboard's alerts), then the separator hidden from screen readers, then the band's word.
  * It does not reuse `Badge`, whose text is ellipsised.
  */
 import { formatDate, weekdayDate } from "@/lib/format";
@@ -51,6 +53,7 @@ export function HearingDate({
   size = "sm",
   showDate = true,
   lines,
+  label,
   now,
 }: {
   /** A date with no basis (the calendar, the dashboard); `next` wins when given. */
@@ -65,6 +68,8 @@ export function HearingDate({
   showDate?: boolean;
   /** The muted lines under the badge (basis, discrepancy); by default in the medium size when `next` is given. */
   lines?: boolean;
+  /** A word drawn first, as its own part ("Hearing"); band, tone and `data-band` are unchanged. */
+  label?: string;
   now?: Date;
 }) {
   const fromNext = next !== undefined ? nextHearingProps(next) : null;
@@ -96,6 +101,12 @@ export function HearingDate({
       data-kind={dated && shownKind !== "firm" ? shownKind : "firm"}
       title={title}
     >
+      {label ? <span className={s.word}>{label}</span> : null}
+      {label && (lead || word || withDate) ? (
+        <span className={s.sep} aria-hidden="true">
+          {" · "}
+        </span>
+      ) : null}
       {lead || word ? (
         <span className={s.word}>
           {band === "passed" ? <WarningIcon /> : null}

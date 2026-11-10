@@ -19,6 +19,7 @@ export type DashboardMe = S["DashboardMeOut"];
 export type DashboardState = S["DashboardStateOut"];
 export type DashboardHearings = S["DashboardHearingsOut"];
 export type DashboardFile = S["DashboardFileOut"];
+export type DashboardAlert = S["DashboardAlertOut"];
 export type DashboardHeadline = S["DashboardHeadlineOut"];
 export type DashboardUpcoming = S["DashboardUpcomingOut"];
 export type DashboardMeAttention = S["DashboardMeAttentionOut"];

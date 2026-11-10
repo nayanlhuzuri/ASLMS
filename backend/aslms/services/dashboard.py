@@ -37,7 +37,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import AlertKind, Permission, Role
 from aslms.domain.workflow import PENDING_ACTION_LABELS, CaseNoteDraft, Custody, CustodyHistory, PendingAction
-from aslms.services import access, alerts, calendar, custody, inbox, next_dates, visibility
+from aslms.services import access, alert_rules, alerts, calendar, custody, inbox, next_dates, visibility
 from aslms.services.access import Forbidden, Member
 from aslms.services.offices import find_office
 from aslms.services.reporting_common import (
@@ -107,10 +107,45 @@ def file_item(held: Custody, case_: Case, office_codes: dict[uuid.UUID, str], to
     return {
         "case": calendar.case_ref(case_),
         "pending_action": PendingAction(held.pending_action).value,
+        # design dashboard-my-work-polish, decision 9: the words every other screen shows
+        "pending_action_label": PENDING_ACTION_LABELS[PendingAction(held.pending_action)],
         "since": held.since,
         "due_date": held.due_date,
         "overdue_days": (today - held.due_date).days if overdue else 0,
         "holder_office_code": office_codes.get(held.holder_office_id),
+    }
+
+
+HEARING_ALERT_KINDS = (AlertKind.HEARING_DUE.value, AlertKind.LISTED_TOMORROW.value)
+MATCH_BANDS = ("high", "medium")
+
+
+def _hearing_date(value: Any) -> date | None:
+    """`data.hearing_date` as a date; `None` when missing or malformed."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+
+
+def alert_extras(item: dict[str, Any]) -> dict[str, Any]:
+    """The dashboard's own values of an `alerts.alert_item` (design dashboard-my-work-polish, decisions 5, 6, 8
+    and 12): the title without its case number, the time of the latest notice to the reader, the hearing date of a
+    hearing alert and the band of a recommendation; all from the item itself, no query."""
+    data = item.get("data") or {}
+    kind = item["kind"]
+    band = data.get("band") if kind == AlertKind.RECOMMENDATION.value else None
+    return {
+        "summary": alert_rules.title_without_case(item["title"], item["case"]),
+        "notified_at": item.get("notified_at"),
+        "hearing_date": _hearing_date(data.get("hearing_date")) if kind in HEARING_ALERT_KINDS else None,
+        "band": band if band in MATCH_BANDS else None,
     }
 
 
@@ -242,6 +277,7 @@ def me_block(
             continue
         entry: dict[str, Any] = {
             "department_code": m.department.code,
+            "department_name": m.department.name,
             "allotted_active": _count(
                 session, inbox.claimed_stmt(session, m, m.department, case_state="active", whole=False)
             ),
@@ -299,6 +335,7 @@ def me_block(
             )
         }
         | {"created_at": item["created_at"]}
+        | alert_extras(item)
         for item in alerts.list_for_user(session, user, limit=cfg.list_size).items
     ]
 

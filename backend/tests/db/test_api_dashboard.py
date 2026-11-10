@@ -58,7 +58,13 @@ def test_dashboard_endpoints_status_codes(api, world):
     assert me.status_code == 200
     body = me.json()
     assert body["cases"] == [
-        {"department_code": "EDU", "allotted_active": 1, "allotted_disposed": 0, "counsel_active": None}
+        {
+            "department_code": "EDU",
+            "department_name": "Education",
+            "allotted_active": 1,
+            "allotted_disposed": 0,
+            "counsel_active": None,
+        }
     ]
     assert body["files"]["held"] == 1 and body["hearings"]["total"] == 1
     assert set(body["alerts"]) == {"unread", "open", "items"} and isinstance(body["drafts"], int)
@@ -111,3 +117,46 @@ def test_personal_alert_items_carry_case_visible(api, world):
     body = api.get("/dashboard/me", headers=login(api, "edu_off1")).json()
     items = body["alerts"]["items"]
     assert items and all(i["case"] is not None and i["case_visible"] is True for i in items)
+    # design dashboard-my-work-polish: the new keys are present and valid
+    for i in items:
+        assert i["summary"] and i["notified_at"] and "band" in i and "hearing_date" in i
+        assert i["summary"] != i["title"] and i["title"].startswith(i["summary"] + ": ")
+    hearing = next(i for i in items if i["kind"] == "hearing_due")
+    assert hearing["hearing_date"] == (today() + timedelta(days=1)).isoformat() and hearing["band"] is None
+
+
+def test_personal_alert_of_a_case_no_longer_open_keeps_its_summary(api, world):
+    """Design dashboard-my-work-polish: visibility unchanged; a case the reader cannot open still yields
+    `case_visible: false` with its summary, and the files and own cases carry their new labels."""
+    from aslms.services import alerts
+    from tests.db import alerts_support as h
+    from tests.db import workflow_support as w
+
+    with world.Session() as s:
+        case = w.claimed_case(s, world)
+        w.send(s, world, "edu_off1", case, "health_off", due_date=w.in_days(30))
+        s.commit()
+        case_id = case.id
+    with world.Session() as s:
+        alerts.scan_events(s, now=h.now_utc())
+        s.commit()
+    hoff = login(api, "health_off")
+    body = api.get("/dashboard/me", headers=hoff).json()
+    (held,) = body["files"]["items"]
+    assert (
+        held["pending_action"] == "parawise_comments" and held["pending_action_label"] == "Parawise comments"
+    )
+    assert all(c["department_name"] for c in body["cases"])
+    with world.Session() as s:
+        w.recall(s, world, "edu_admin", s.get(alerts.Case, case_id))
+        s.commit()
+    with world.Session() as s:
+        alerts.scan_events(s, now=h.now_utc() + timedelta(minutes=5))
+        s.commit()
+    items = api.get("/dashboard/me", headers=hoff).json()["alerts"]["items"]
+    recalled = next(
+        i for i in items if i["case"] and i["case"]["id"] == str(case_id) and "recalled" in i["title"]
+    )
+    assert recalled["case_visible"] is False
+    assert recalled["summary"] and recalled["title"].startswith(recalled["summary"] + ": ")
+    assert api.get(f"/cases/{case_id}", headers=hoff).status_code == 404

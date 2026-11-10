@@ -84,17 +84,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-.alerts {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.alerts li {
-  padding: var(--s2) 0;
-  border-bottom: 1px solid var(--border);
-}
-
 @media (max-width: 1099px) {
   .kpis,
   .kpis[data-count="4"] {

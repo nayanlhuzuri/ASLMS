@@ -244,6 +244,15 @@ const STATES: State[] = [
     },
   },
   {
+    // design dashboard-my-work-polish: the three cards of More About My Work (phones stack the tables as cards)
+    name: "/ (More About My Work open)",
+    path: "/",
+    open: async (page) => {
+      await page.getByRole("button", { name: "More About My Work" }).click();
+      await page.getByRole("table", { name: "My Alerts" }).waitFor();
+    },
+  },
+  {
     // decision 19: the phone drawer holds the same tree
     name: "/ (phone drawer: Administration open)",
     path: "/",

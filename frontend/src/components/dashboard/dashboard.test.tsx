@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardDepartment, DashboardMe, DashboardState } from "@/lib/api/types";
+import { nb } from "@/test/dates";
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, labels, makeMe, renderWithClient } from "@/test/render";
 
@@ -33,13 +34,13 @@ function department(code: string, name: string, extra: Partial<DashboardDepartme
 
 const PERSONAL: DashboardMe = {
   generated_at: "2026-10-10T04:30:00Z",
-  cases: [{ department_code: "EDU", allotted_active: 6, allotted_disposed: 2, counsel_active: null }],
+  cases: [{ department_code: "EDU", department_name: "Education", allotted_active: 6, allotted_disposed: 2, counsel_active: null }],
   files: { held: 3, with_pending_action: 2, overdue: 1, items: [] },
   alerts: {
     unread: 2,
     open: { critical: 1, high: 0, normal: 1 },
     items: [
-      { id: "a1", ref_no: "ALR-1", kind: "hearing", kind_label: "Hearing", severity: "critical", status: "open", title: "Hearing tomorrow", created_at: "2026-10-10T01:00:00Z", due_at: null, case: CASE, case_visible: true },
+      { id: "a1", ref_no: "ALR-1", kind: "hearing", kind_label: "Hearing", severity: "critical", status: "open", title: "Hearing tomorrow: WP(C)/1234/2026", summary: "Hearing tomorrow", created_at: "2026-10-10T01:00:00Z", notified_at: "2026-10-10T01:00:00Z", due_at: null, case: CASE, case_visible: true },
     ],
   },
   hearings: { total: 0, critical: 0, items: [] },
@@ -245,7 +246,7 @@ describe("dashboard", () => {
     expect(api.calls.some((c) => c.path === "/dashboard")).toBe(false);
   });
 
-  it("links the My alerts heading to /alerts and the Cases with me number to Working on, With me (case-inbox-merge, decision 13)", async () => {
+  it("links My Alerts to /alerts by View All and the Cases with me number to Working on, With me (case-inbox-merge, decision 13)", async () => {
     const hidden = { ...CASE, id: "c9", ref_no: "EDU/2026/0009", case_no_text: "WA/9/2026" };
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
@@ -256,7 +257,7 @@ describe("dashboard", () => {
           ...PERSONAL.alerts,
           items: [
             ...PERSONAL.alerts.items,
-            { id: "a2", ref_no: "ALR-2", kind: "workflow", kind_label: "File movement", severity: "normal", status: "open", title: "File recalled", created_at: "2026-10-10T02:00:00Z", due_at: null, case: hidden, case_visible: false },
+            { id: "a2", ref_no: "ALR-2", kind: "workflow", kind_label: "File movement", severity: "normal", status: "open", title: "File recalled: WA/9/2026", summary: "File recalled", created_at: "2026-10-10T02:00:00Z", notified_at: "2026-10-10T02:00:00Z", due_at: null, case: hidden, case_visible: false },
           ],
         },
       },
@@ -265,7 +266,7 @@ describe("dashboard", () => {
     await openMore();
     await screen.findByText(/File recalled/);
     const block = screen.getByRole("region", { name: "My Work" });
-    expect(within(block).getByRole("link", { name: "My Alerts" })).toHaveAttribute("href", "/alerts");
+    expect(within(block).getByRole("link", { name: "View All My Alerts" })).toHaveAttribute("href", "/alerts");
     for (const link of within(block).getAllByRole("link", { name: "Cases with Me: 3" })) expect(link).toHaveAttribute("href", "/inbox/with-me");
     // a visible case is a link; a case the reader can no longer open is text
     expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
@@ -815,5 +816,223 @@ describe("empty sections (design portal-ui-kit-fixes, decision 19)", () => {
     await openMore();
     expect(await screen.findByText(/Hearing tomorrow/)).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Cases with Me" })).toBeNull();
+  });
+});
+
+describe("More About My Work (design dashboard-my-work-polish)", () => {
+  const caseNo = (i: number) => `WP(C)/${100 + i}/2026`;
+  const caseOf = (i: number) => ({ ...CASE, id: `c${100 + i}`, ref_no: `EDU/2026/0${100 + i}`, case_no_text: caseNo(i) });
+  type Alert = DashboardMe["alerts"]["items"][number];
+  const alert = (i: number, extra: Partial<Alert>): Alert => ({
+    id: `a${i}`,
+    ref_no: `ALR-${i}`,
+    kind: "new_order",
+    kind_label: "New order",
+    severity: "normal",
+    status: "open",
+    title: `Something: ${caseNo(i)}`,
+    summary: "Something",
+    due_at: "2026-12-31T05:00:00Z",
+    created_at: "2026-11-01T04:30:00Z",
+    notified_at: `2026-11-${String(10 - i).padStart(2, "0")}T04:30:00Z`,
+    case: caseOf(i),
+    case_visible: true,
+    hearing_date: null,
+    band: null,
+    ...extra,
+  });
+  const ALERTS: Alert[] = [
+    alert(1, { kind: "hearing_due", kind_label: "Hearing due", severity: "critical", title: `Hearing on 11 Nov 2026: ${caseNo(1)}`, summary: "Hearing on 11 Nov 2026", hearing_date: "2026-11-11" }),
+    alert(2, { kind: "hearing_due", kind_label: "Hearing due", severity: "high", title: `Hearing on 11 Nov 2026: ${caseNo(2)}`, summary: "Hearing on 11 Nov 2026", hearing_date: "2026-11-11" }),
+    alert(3, { kind: "listed_tomorrow", kind_label: "Listed for tomorrow", severity: "high", title: `Hearing on 14 Nov 2026: ${caseNo(3)}`, summary: "Hearing on 14 Nov 2026", hearing_date: "2026-11-14" }),
+    alert(4, { kind: "recommendation", kind_label: "Recommendation", severity: "high", title: `Strong match for EDU: ${caseNo(4)}`, summary: "Strong match for EDU", band: "high" }),
+    alert(5, { kind: "recommendation", kind_label: "Recommendation", severity: "normal", title: `Suggested for EDU: ${caseNo(5)}`, summary: "Suggested for EDU", band: "medium" }),
+    alert(6, { kind: "compliance_due", kind_label: "Compliance due", severity: "high", title: `Compliance due 20 Nov 2026: ${caseNo(6)}`, summary: "Compliance due 20 Nov 2026" }),
+    alert(7, { kind: "admin_ticket", kind_label: "Admin ticket", title: "Admin ticket T-1 awaits your decision: Head change, EDU", summary: "Admin ticket T-1 awaits your decision: Head change, EDU", case: null, case_visible: false }),
+  ];
+  type File = DashboardMe["files"]["items"][number];
+  const file = (i: number, extra: Partial<File>): File => ({
+    case: caseOf(10 + i),
+    pending_action: "parawise_comments",
+    pending_action_label: "Parawise comments",
+    since: `2026-11-0${i}T04:30:00Z`,
+    due_date: null,
+    overdue_days: 0,
+    holder_office_code: "EDU",
+    ...extra,
+  });
+  const MINE: DashboardMe = {
+    ...PERSONAL,
+    cases: [
+      { department_code: "EDU", department_name: "Education", allotted_active: 6, allotted_disposed: 2, counsel_active: null },
+      { department_code: "HEALTH", department_name: "Health and Family Welfare", allotted_active: 1, allotted_disposed: 0, counsel_active: null },
+    ],
+    files: {
+      held: 3,
+      with_pending_action: 3,
+      overdue: 1,
+      items: [
+        file(1, { due_date: "2026-11-07", overdue_days: 3 }),
+        file(2, { due_date: "2026-11-15", pending_action: "reply", pending_action_label: "Reply" }),
+        file(3, { due_date: null }),
+      ],
+    },
+    alerts: { ...PERSONAL.alerts, items: ALERTS },
+  };
+
+  async function openMine(data: DashboardMe = MINE) {
+    // 12:00 IST on Tuesday 10 Nov 2026
+    vi.useFakeTimers({ now: new Date("2026-11-10T06:30:00Z"), toFake: ["Date"] });
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": data,
+    });
+    renderWithClient(<Dashboard />);
+    await openMore();
+    await screen.findByRole("table", { name: "My Alerts" });
+    return screen.getByRole("region", { name: "My Work" });
+  }
+
+  const card = (block: HTMLElement, name: string) => within(block).getByRole("heading", { name, level: 3 }).closest("section")!;
+
+  it("shows three cards with View All in their heads, and tables named by their hidden captions", async () => {
+    const block = await openMine();
+    const links: [string, string, string][] = [
+      ["My Cases", "View All My Cases", "/inbox/my-cases"],
+      ["Cases with Me", "View All Cases with Me", "/inbox/with-me"],
+      ["My Alerts", "View All My Alerts", "/alerts"],
+    ];
+    for (const [title, name, href] of links) {
+      const section = card(block, title);
+      expect(within(section).getByRole("link", { name })).toHaveAttribute("href", href);
+      const table = expectDataTable(within(section).getByRole("table", { name: title }));
+      expect(table.querySelector("caption")!.className).toMatch(/srCaption/);
+    }
+    // the three names differ, and the cards come in today's order
+    const headings = within(block)
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent)
+      .filter((t) => ["My Cases", "Cases with Me", "My Alerts"].includes(t ?? ""));
+    expect(headings).toEqual(["My Cases", "Cases with Me", "My Alerts"]);
+    expect(document.getElementById("alerts")?.querySelector("h3")).toHaveTextContent("My Alerts");
+  });
+
+  it("My Cases names the department, with right-aligned figures", async () => {
+    const section = card(await openMine(), "My Cases");
+    expect(within(section).getByText("Education")).toHaveAttribute("title", "EDU");
+    expect(within(section).queryByText("EDU")).toBeNull();
+    expect(section.querySelector(".mono")).toBeNull();
+    const table = within(section).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Department", "Assigned, Active", "Disposed"]);
+  });
+
+  it("Cases with Me has one Due column with an overdue badge, a date and No Due Date, and the action's label", async () => {
+    const section = card(await openMine(), "Cases with Me");
+    const table = within(section).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Case", "Pending Action", "Due"]);
+    const rows = within(table).getAllByRole("row").slice(1);
+    const overdue = within(rows[0]!).getByText("Overdue by 3 Days");
+    expect(overdue.closest("[class*=badge-danger]")).not.toBeNull();
+    expect(overdue.closest("[title]")).toHaveAttribute("title", nb("7 Nov 2026"));
+    expect(rows[1]).toHaveTextContent("15 Nov 2026");
+    expect(within(rows[2]!).getByText("No Due Date")).toHaveClass("muted");
+    expect(within(rows[0]!).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(table).queryByText("parawise_comments")).toBeNull();
+    expect(within(table).queryByText("Overdue")).toBeNull();
+  });
+
+  it("says Overdue by 1 Day for one day", async () => {
+    const section = card(
+      await openMine({ ...MINE, files: { ...MINE.files, items: [file(1, { due_date: "2026-11-09", overdue_days: 1 })] } }),
+      "Cases with Me",
+    );
+    expect(within(section).getByText("Overdue by 1 Day")).toBeInTheDocument();
+  });
+
+  it("My Alerts is a table of Type, Case, What Happened and Raised, the case number once, in the API's order", async () => {
+    const section = card(await openMine(), "My Alerts");
+    const table = within(section).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Type", "Case", "What Happened", "Raised"]);
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getAllByRole("cell")[2]!.textContent)).toEqual(ALERTS.map((a) => a.summary));
+    rows.forEach((row, i) => {
+      const number = ALERTS[i]!.case?.case_no_text;
+      if (number) expect(row.textContent!.split(number).length - 1).toBe(1);
+    });
+    // Raised is the latest notice's date, never the due time
+    const raised = within(rows[0]!).getAllByRole("cell")[3]!;
+    expect(raised.querySelector("time")).toHaveAttribute("dateTime", ALERTS[0]!.notified_at);
+    expect(raised).toHaveTextContent("9 Nov 2026");
+    expect(table).not.toHaveTextContent("31 Dec 2026");
+    // a ticket has no case
+    expect(within(rows[6]!).getAllByRole("cell")[1]).toHaveTextContent(/^—$/);
+  });
+
+  it("colours a hearing by its band, the same for critical and high, with Hearing first", async () => {
+    const section = card(await openMine(), "My Alerts");
+    const rows = within(within(section).getByRole("table")).getAllByRole("row").slice(1);
+    const tomorrow = rows[0]!.querySelector("[data-band]")!;
+    expect(tomorrow).toHaveAttribute("data-band", "tomorrow");
+    expect(tomorrow).toHaveTextContent(/^Hearing · Tomorrow$/);
+    const high = rows[1]!.querySelector("[data-band]")!;
+    expect(high.className).toBe(tomorrow.className);
+    expect(high.textContent).toBe(tomorrow.textContent);
+    const week = rows[2]!.querySelector("[data-band]")!;
+    expect(week).toHaveAttribute("data-band", "week");
+    expect(week).toHaveTextContent(/^Hearing · In 4 Days$/);
+  });
+
+  it("shows a strong recommendation solid and a possible one outlined, both blue whatever the severity", async () => {
+    const section = card(await openMine(), "My Alerts");
+    const strong = within(section).getByTitle("Strong Match");
+    const possible = within(section).getByTitle("Possible Match");
+    expect(strong).toHaveAttribute("data-look", "solid");
+    expect(possible).toHaveAttribute("data-look", "outline");
+    for (const el of [strong, possible]) {
+      expect(el.className).toMatch(/badge-info/);
+      expect(el).toHaveTextContent("Recommendation");
+    }
+    expect(strong.querySelector(".visually-hidden")).toHaveTextContent("Strong Match");
+    expect(possible.querySelector(".visually-hidden")).toHaveTextContent("Possible Match");
+  });
+
+  it("gives every other kind a neutral badge in Title Case, whatever its severity", async () => {
+    const section = card(await openMine(), "My Alerts");
+    const badge = within(section).getByTitle("Compliance Due");
+    expect(badge).toHaveTextContent(/^Compliance Due$/);
+    expect(badge.className).not.toMatch(/badge-(danger|warning|info|success)/);
+    expect(within(section).getByTitle("Admin Ticket")).toBeInTheDocument();
+    expect(within(section).queryByText("Hearing due")).toBeNull();
+  });
+
+  it("keeps My Alerts as a card with its empty state when there are none", async () => {
+    vi.useFakeTimers({ now: new Date("2026-11-10T06:30:00Z"), toFake: ["Date"] });
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": { ...MINE, alerts: { ...MINE.alerts, items: [] } },
+    });
+    renderWithClient(<Dashboard />);
+    await openMore();
+    const section = card(await screen.findByRole("region", { name: "My Work" }), "My Alerts");
+    expect(await within(section).findByText("No open alerts.")).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: "View All My Alerts" })).toHaveAttribute("href", "/alerts");
+  });
+
+  it("the department view's Pending Actions card keeps its Overdue column and shows the action's label", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education", {
+        pending_actions: { held: 1, overdue: 1, due_soon: 0, no_due_date: 0, items: [file(1, { due_date: "2026-11-07", overdue_days: 3 })] },
+      }),
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    const table = await within(block).findByRole("table", { name: "Pending Actions" });
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Case", "Pending Action", "Due", "Overdue"]);
+    expect(within(table).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(table).queryByText("parawise_comments")).toBeNull();
   });
 });
