@@ -2,10 +2,10 @@
 
 ```
 slug: portal-navy-cream
-status: proposed
+status: approved
 author: architect
 date: 2026-11-10
-approved_by:
+approved_by: owner on 2026-11-10, with the recommended answers to the open questions
 ```
 
 ## Context
@@ -629,3 +629,16 @@ approval.
 4. **Solid navy row buttons** (the sample's Claim and Accept): leave them out here, with every secondary button as navy
    text on the card (recommended, decision 3)? Or open a later row that adds a solid navy variant and picks its call
    sites.
+
+## Owner's answers (10 Nov 2026)
+
+Questions 1 to 4 answered with the recommended answers: the phone drawer stays cream; Files With Me is the one
+orange headline tile, orange only while above 0; thin marks on cream use deep orange `#B4470C`; no solid navy row
+button variant in this row. **Motion: yes** — the sample's toast, sliding view-switch pill and menu hover slide are
+left out of this row (it moves no box) and built afterwards as row 235 `portal-motion`, with its own design.
+
+**Addendum from the review of row 230 (approved by the owner).** This row also carries the colour-meaning findings:
+K7 notice tones (`info`, `success`, `warning`: one neutral info tone in place of the success green used for most
+notices), A1 alert tone by meaning in place of severity on the Alerts page and the case Alerts tab (with row 228
+point 5), and C4 one recommendation tone on every screen (strong solid navy, possible outlined). Layout findings land
+first in rows 231 to 234; the box baseline is `main` after them.

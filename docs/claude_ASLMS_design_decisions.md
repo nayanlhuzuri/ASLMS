@@ -3553,3 +3553,16 @@ reduced-motion fallback. The design of row 229 says which of them the portal ado
 
 **Also decided.** The owner asked that the kind of defects found in More About My Work be checked on every screen: row
 230 reviews the portal and reports findings for approval before fixes.
+
+## 2026-11-10 — Portal UI review approved; rows 228 and 229 approved (owner)
+
+**Decision.** The owner approved the review of row 230 (`docs/reviews/2026-11-10-portal-ui-review.md`, 59 findings) with
+the recommended answers: every High and Medium finding is fixed, Low ones where they sit in the same files; server labels
+are put in Title Case by the portal when shown (option (a): no data change, no migration); the Audit Log shows action
+names to the Auditor, with the code kept on the entry page (a change to row 41's design). The designs of rows 228
+(`dashboard-my-work-polish`) and 229 (`portal-navy-cream`) are approved with their recommended answers, and the owner
+wants the sample's motion: it becomes row 235 `portal-motion` after row 229, because row 229 moves no box.
+
+**Build order.** Row 204, then 231 `portal-ui-kit-fixes`, 228, 232 `portal-names-and-labels`, 233
+`portal-screen-fixes-work`, 234 `portal-screen-fixes-oversight`, 229 (with the colour-meaning findings K7, A1 and C4),
+235; then rows 187 and 191 and the rest of the earlier order. Design notes of 231 to 234 are written while row 204 builds.

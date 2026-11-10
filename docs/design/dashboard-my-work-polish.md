@@ -2,10 +2,10 @@
 
 ```
 slug: dashboard-my-work-polish
-status: proposed
+status: approved
 author: architect
 date: 2026-11-10
-approved_by: (pending)
+approved_by: owner on 2026-11-10, with the recommended answers to the open questions
 ```
 
 ## Context
@@ -394,3 +394,11 @@ recommended answers".
 ## Deviations
 None from the plan. Plan section 5.1 is unchanged in substance: own cases, own pending actions and own alerts, with
 links to the case inbox and the alerts.
+
+## Owner's answers (10 Nov 2026)
+
+All open questions answered with the recommended answers. Question 1 is settled by the owner's choice for the
+whole portal in the review of row 230 (K3 option (a)): server labels are put in Title Case by the portal when shown, with
+no data change, in row 232 `portal-names-and-labels`; no reference-data migration row is opened. Build order: after
+row 231 `portal-ui-kit-fixes` (this note's caption, name and title-before-badge points reuse its kit fixes K1, K2 and
+K11; where row 231 or 232 already delivers a point, this row uses it rather than building it twice).
