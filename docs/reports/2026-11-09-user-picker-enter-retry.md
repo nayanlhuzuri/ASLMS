@@ -24,3 +24,6 @@ None.
 
 ## Load status (queue-status, tail)
 masters done 1; order_pdf done 208,159, pending 184,831; status_batch done 2,916, skipped 8.
+
+## Deployed
+10 Nov 2026 at 09:15 IST. Images built from clean `main` at 3cbd4e3; CI run 42748789558 green (changes, policy, backend, frontend, compose, ci-ok). `up -d --wait` with the court-data switch on, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. Switch on in `api` and `worker`; web build ID matches the image (`voWoRgEwrG4P8IuLgy43X`); portal smoke passed. No migration.
