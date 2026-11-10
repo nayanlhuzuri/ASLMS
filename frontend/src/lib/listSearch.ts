@@ -13,7 +13,8 @@ export const CASE_MIN_CHARS = 3;
 
 /** Lower case with accents removed (NFD, combining marks dropped). */
 export function fold(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();
+  // a date's no-break spaces (design portal-ui-kit-fixes, decision 3) read as ordinary spaces
+  return text.normalize("NFD").replace(/\p{M}/gu, "").replace(/ /g, " ").toLocaleLowerCase();
 }
 
 /** Whether every word of `query` appears in at least one of `texts`; true for an empty query. */

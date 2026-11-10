@@ -7,7 +7,7 @@
  * the list the court re-issued under the same number; design court-data-freshness, decision 17) carries a "Corrected
  * list" badge with the time it was received and an "Earlier version" link that opens the version it replaced.
  */
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, EmptyState } from "@/components/ui";
 import type { CauselistBench } from "@/lib/api/types";
 import { canViewInline } from "@/lib/documents";
 import { formatDateTime } from "@/lib/format";
@@ -30,7 +30,7 @@ export function ListStrip({
   canDownload: boolean;
   onEarlier?: (listId: string) => void;
 }) {
-  if (bench.lists.length === 0) return <p className="muted">{T.causelist.noListPublished}</p>;
+  if (bench.lists.length === 0) return <EmptyState compact>{T.causelist.noListPublished}</EmptyState>;
   return (
     <section aria-label={T.causelist.lists} className="stack">
       <h2>{T.causelist.lists}</h2>

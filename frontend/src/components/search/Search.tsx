@@ -131,7 +131,7 @@ function CaseSearch({ params }: { params: Params }) {
               <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
             </>
           ) : (
-            <EmptyState>{T.search.none}</EmptyState>
+            <EmptyState title={T.search.noneTitle}>{T.search.none}</EmptyState>
           )}
         </>
       ) : null}

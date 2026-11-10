@@ -9,7 +9,8 @@
 }
 
 .table caption {
-  padding: var(--s2) 0;
+  /* design portal-ui-kit-fixes, decision 1: inset like the cells, so the caption starts where the column text starts */
+  padding: var(--s3) var(--s4) var(--s2);
   text-align: left;
   font-weight: 600;
 }
@@ -154,31 +155,44 @@
     box-shadow: var(--shadow-1);
   }
 
+  /* design portal-ui-kit-fixes, decision 6: a card row is a fixed label column and the values, left-aligned */
   .dataTable td {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--s3);
+    display: grid;
+    grid-template-columns: var(--card-label-w) minmax(0, 1fr);
+    column-gap: var(--s3);
+    align-items: baseline;
     padding: var(--s1) 0;
     border-bottom: 0;
-    text-align: right;
-    overflow-wrap: anywhere;
+    text-align: left;
+    overflow-wrap: break-word;
+  }
+
+  .dataTable td.num {
+    text-align: left;
   }
 
   .dataTable td > * {
     min-width: 0;
   }
 
-  .dataTable td:not(.primaryCell) > .cellValue {
-    flex: 1 1 auto;
+  .dataTable td > .cellValue {
+    grid-column: 2;
+    min-width: 0;
   }
 
   .dataTable td::before {
     content: attr(data-label);
-    flex: none;
+    grid-column: 1;
     color: var(--text-3);
     font-size: var(--t-xs);
     font-weight: 600;
     text-align: left;
+  }
+
+  /* design portal-ui-kit-fixes, decision 8: a cell with nothing in it draws no row on a card */
+  .dataTable td:has(> .cellValue:empty),
+  .dataTable td:has(> .cellValue > :only-child:empty) {
+    display: none;
   }
 
   .dataTable td.primaryCell,
@@ -191,6 +205,15 @@
   }
 
   .dataTable td.primaryCell::before {
+    content: none;
+  }
+
+  /* a row's action buttons name themselves: no label, the card's full width */
+  .dataTable td.actionsCell {
+    display: block;
+  }
+
+  .dataTable td.actionsCell::before {
     content: none;
   }
 
@@ -245,31 +268,44 @@
   box-shadow: var(--shadow-1);
 }
 
+/* design portal-ui-kit-fixes, decisions 6 and 8: the same declarations as the phone block (data.test.tsx compares them) */
 .dataWrap[data-stacked] .dataTable td {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--s3);
+  display: grid;
+  grid-template-columns: var(--card-label-w) minmax(0, 1fr);
+  column-gap: var(--s3);
+  align-items: baseline;
   padding: var(--s1) 0;
   border-bottom: 0;
-  text-align: right;
-  overflow-wrap: anywhere;
+  text-align: left;
+  overflow-wrap: break-word;
+}
+
+.dataWrap[data-stacked] .dataTable td.num {
+  text-align: left;
 }
 
 .dataWrap[data-stacked] .dataTable td > * {
   min-width: 0;
 }
 
-.dataWrap[data-stacked] .dataTable td:not(.primaryCell) > .cellValue {
-  flex: 1 1 auto;
+.dataWrap[data-stacked] .dataTable td > .cellValue {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .dataWrap[data-stacked] .dataTable td::before {
   content: attr(data-label);
-  flex: none;
+  grid-column: 1;
   color: var(--text-3);
   font-size: var(--t-xs);
   font-weight: 600;
   text-align: left;
+}
+
+/* design portal-ui-kit-fixes, decision 8: a cell with nothing in it draws no row on a card */
+.dataWrap[data-stacked] .dataTable td:has(> .cellValue:empty),
+.dataWrap[data-stacked] .dataTable td:has(> .cellValue > :only-child:empty) {
+  display: none;
 }
 
 .dataWrap[data-stacked] .dataTable td.primaryCell,
@@ -282,6 +318,14 @@
 }
 
 .dataWrap[data-stacked] .dataTable td.primaryCell::before {
+  content: none;
+}
+
+.dataWrap[data-stacked] .dataTable td.actionsCell {
+  display: block;
+}
+
+.dataWrap[data-stacked] .dataTable td.actionsCell::before {
   content: none;
 }
 
@@ -398,6 +442,34 @@
 
 .listTrail {
   flex: none;
+}
+
+/* ItemHead (design portal-ui-kit-fixes, decision 10): the title first, then the meta on the same line, and the badges
+   at the end of the line; the badges never shrink and move onto a line of their own when the title needs the room */
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+}
+
+.itemTitle {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.itemBadges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  margin-left: auto;
 }
 
 /* CodeBlock: monospace, scrolling sideways inside the block, never the page (design system-health-inspector, 14) */

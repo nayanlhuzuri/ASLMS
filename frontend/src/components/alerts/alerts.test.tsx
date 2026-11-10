@@ -334,3 +334,19 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
     expect(within(only).queryByRole("link", { name: "Next Dates to Enter" })).toBeNull();
   });
 });
+
+describe("the alert row's head (design portal-ui-kit-fixes, decision 13)", () => {
+  it("starts with the kind; the severity and New badges follow; the alert's reference is not shown", async () => {
+    browserApi(routes([alert()]));
+    renderWithClient(<AlertList params={{}} />);
+    const title = await screen.findByText("Hearing in three days");
+    const row = title.closest("li")!;
+    const head = row.querySelector("[data-ui='item-head']") as HTMLElement;
+    expect(head.querySelector("[data-lead]")).toBeNull();
+    expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing due");
+    const badges = head.lastElementChild as HTMLElement;
+    expect(badges.textContent).toMatch(/^High.*New/);
+    expect(row.textContent).not.toContain("ASLMS/GOA/ALR/2026/000001");
+  });
+});

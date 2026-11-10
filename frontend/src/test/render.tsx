@@ -146,7 +146,8 @@ export function expectDataTable(table: HTMLElement): HTMLElement {
     const primary = cells.filter((c) => /primaryCell/.test(c.className));
     if (primary.length !== 1) throw new Error(`a row has ${primary.length} primary cells`);
     for (const cell of cells) {
-      if (/primaryCell|hideOnPhone/.test(cell.className)) continue;
+      // an actions cell's buttons name themselves (design portal-ui-kit-fixes, build deviations)
+      if (/primaryCell|hideOnPhone|actionsCell/.test(cell.className)) continue;
       if (!cell.getAttribute("data-label")) throw new Error(`a cell has no data-label: "${cell.textContent ?? ""}"`);
     }
   }

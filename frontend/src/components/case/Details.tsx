@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from "react";
 
-import { DataTable, DefinitionList } from "@/components/ui";
+import { DataTable, DefinitionList, EmptyState } from "@/components/ui";
 import { useCase } from "@/lib/api/hooks";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -44,7 +44,7 @@ function Block({ title, data }: { title: string; data: Record<string, unknown> |
     <section className="card stack" aria-label={title}>
       <h3>{title}</h3>
       {entries.length === 0 ? (
-        <p className="muted">{T.case.none}</p>
+        <EmptyState compact>{T.case.none}</EmptyState>
       ) : (
         <DefinitionList items={entries.map(([k, v]) => [fieldLabel(k), fieldValue(v)])} />
       )}
@@ -58,7 +58,7 @@ function ListBlock({ title, rows }: { title: string; rows: Record<string, unknow
     <section className="card stack" aria-label={title}>
       <h3>{title}</h3>
       {rows.length === 0 ? (
-        <p className="muted">{T.case.none}</p>
+        <EmptyState compact>{T.case.none}</EmptyState>
       ) : (
         <DataTable
           caption={title}

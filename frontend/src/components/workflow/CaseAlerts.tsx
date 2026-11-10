@@ -12,11 +12,13 @@ import { useState } from "react";
 
 import { AnswerIt } from "@/components/alerts/AlertLink";
 import {
+  Badge,
   Button,
   CharCounter,
   ConfirmDialog,
   EmptyState,
   ErrorBanner,
+  ItemHead,
   Loading,
   Pagination,
   SelectField,
@@ -129,19 +131,36 @@ export function CaseAlerts({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{reader ? T.wf.alertsReader : T.wf.noAlerts}</EmptyState>
+          <EmptyState title={T.wf.noAlertsTitle}>{reader ? T.wf.alertsReader : T.wf.noAlerts}</EmptyState>
         ) : (
           <>
             <ul className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.wf.alertsTab}>
               {list.data.items.map((a) => (
                 <li key={a.id} className={cs.note}>
-                  <div className={cs.noteHead}>
-                    <SeverityBadge severity={a.severity} />
-                    <strong>{a.kind_label}</strong>
-                    <span>{T.wf.alertStatus[a.status] ?? a.status}</span>
-                    <span className="mono muted">{a.ref_no}</span>
-                    {a.due_at ? <span>{T.wf.dueAt(formatDateTime(a.due_at))}</span> : null}
-                  </div>
+                  {/* the kind first, then its status and due time; the severity and New badges at the end, no
+                      alert reference in sight (design portal-ui-kit-fixes, decision 13) */}
+                  <ItemHead
+                    title={<strong>{a.kind_label}</strong>}
+                    meta={
+                      <>
+                        <span className="muted">{T.wf.alertStatus[a.status] ?? a.status}</span>
+                        {a.due_at ? <span className="muted">{T.wf.dueAt(formatDateTime(a.due_at))}</span> : null}
+                      </>
+                    }
+                    badges={
+                      <>
+                        <SeverityBadge severity={a.severity} />
+                        {/* New only for an alert that reached the reader and is unread: an alert of the case sent to
+                            others has no notification of the reader's */}
+                        {a.notified_at && !a.read_at ? (
+                          <Badge tone="warning">
+                            {T.alerts.newBadge}
+                            <span className="visually-hidden"> {T.alerts.unreadHidden}</span>
+                          </Badge>
+                        ) : null}
+                      </>
+                    }
+                  />
                   <div>
                     <strong>{a.title}</strong>
                   </div>

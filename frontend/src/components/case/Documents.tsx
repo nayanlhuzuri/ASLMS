@@ -189,7 +189,7 @@ export function Documents({ caseRef }: { caseRef: string }) {
       />
       {pending ? <Loading /> : null}
       <ErrorBanner error={error} onRetry={() => all.forEach((q) => q.error && q.refetch())} />
-      {empty ? <EmptyState>{T.case.noDocuments}</EmptyState> : null}
+      {empty ? <EmptyState title={T.case.noDocumentsTitle}>{T.case.noDocuments}</EmptyState> : null}
       {GROUPS.map((g) => {
         const data = queries[g].data;
         if (!data || data.total === 0) return null;

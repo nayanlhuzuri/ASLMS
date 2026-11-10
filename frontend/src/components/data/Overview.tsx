@@ -301,7 +301,7 @@ function LeftTile({ data }: { data: DataOverview }) {
           caption={T.dc.waitingWorkTitle}
           rows={data.waiting_work}
           rowKey={(r) => r.kind}
-          empty={<p className={ds.line}>{T.dc.nothingLeft}</p>}
+          empty={<EmptyState compact>{T.dc.nothingLeft}</EmptyState>}
           columns={[
             { key: "kind", header: T.dc.cols.kind, primary: true, cell: (r) => T.dc.kinds[r.kind] ?? r.kind },
             { key: "total", header: T.dc.cols.total, align: "right", cell: (r) => n(r.total) },
@@ -369,7 +369,7 @@ function RightNow({
             <div>
               <h3>{T.dc.fetchingNow}</h3>
               {fetching.size === 0 ? (
-                <p className={ds.line}>{T.dc.nothingFetchingNote}</p>
+                <EmptyState compact>{T.dc.nothingFetchingNote}</EmptyState>
               ) : (
                 <ul className={ds.chips}>
                   {[...fetching.entries()].map(([kind, count]) => (

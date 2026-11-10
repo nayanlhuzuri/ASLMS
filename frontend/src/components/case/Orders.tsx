@@ -70,7 +70,7 @@ export function Orders({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.case.noOrders}</EmptyState>
+          <EmptyState title={T.case.noOrdersTitle}>{T.case.noOrders}</EmptyState>
         ) : (
           <>
             <div className={s.orderList}>

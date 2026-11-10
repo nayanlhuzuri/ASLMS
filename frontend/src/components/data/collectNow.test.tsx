@@ -16,6 +16,7 @@ import { resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { CollectNow } from "./CollectNow";
+import { nb } from "@/test/dates";
 
 const MANAGER: Permission[] = ["admin.data_load"];
 const OPERATOR: Permission[] = ["admin.napix_refetch", "admin.masters_sync", "reports.state"];
@@ -265,7 +266,7 @@ describe("Collect Now's cards (decisions 22, 26-29)", () => {
     const form = await screen.findByRole("form", { name: "Re-fetch a Day" });
     await userEvent.type(within(form).getByLabelText("Date"), "2025-01-06");
     await userEvent.click(within(form).getByRole("button", { name: "Re-fetch a Day" }));
-    expect(await screen.findByRole("progressbar", { name: "Cause Lists of 6 Jan 2025" })).toHaveAttribute(
+    expect(await screen.findByRole("progressbar", { name: nb("Cause Lists of 6 Jan 2025") })).toHaveAttribute(
       "aria-valuetext",
       "0 of 1 done · 1 waiting",
     );
@@ -295,7 +296,7 @@ describe("the Requests card (decisions 23, 31-32)", () => {
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings[0]).toHaveTextContent("Requests");
     expect(within(card).getByText("Cases Listed on 23 Oct 2026")).toBeInTheDocument();
-    expect(within(card).getByRole("progressbar", { name: "Cases Listed on 23 Oct 2026" })).toHaveAttribute(
+    expect(within(card).getByRole("progressbar", { name: nb("Cases Listed on 23 Oct 2026") })).toHaveAttribute(
       "aria-valuetext",
       "23 of 89 done · 1 fetching · 62 waiting · 3 failed",
     );
@@ -343,8 +344,8 @@ describe("the Requests card (decisions 23, 31-32)", () => {
     const card = await screen.findByRole("region", { name: "Requests" });
     expect(within(card).queryByRole("button", { name: "Stop Using Everything" })).toBeNull();
     await userEvent.click(within(card).getByRole("button", { name: "Show Items" }));
-    const panel = await screen.findByRole("dialog", { name: "Items: Cases Listed on 23 Oct 2026" });
-    const table = await within(panel).findByRole("table", { name: "Items: Cases Listed on 23 Oct 2026" });
+    const panel = await screen.findByRole("dialog", { name: nb("Items: Cases Listed on 23 Oct 2026") });
+    const table = await within(panel).findByRole("table", { name: nb("Items: Cases Listed on 23 Oct 2026") });
     expect(within(table).getByText("Fetching")).toBeInTheDocument();
     expect(within(table).getByText("Waiting to Retry")).toBeInTheDocument();
     expect(within(table).getByText(/Tried again at about/)).toBeInTheDocument();

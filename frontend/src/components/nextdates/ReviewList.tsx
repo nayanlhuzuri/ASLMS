@@ -78,7 +78,7 @@ export function ReviewList({ params }: { params: Params }) {
       {list.data ? (
         list.data.items.length === 0 ? (
           defaults ? (
-            <EmptyState>{T.nd.emptyDefault}</EmptyState>
+            <EmptyState title={T.nd.emptyTitle}>{T.nd.emptyDefault}</EmptyState>
           ) : (
             <NoCaseMatches params={params} list="next_dates">
               {T.nd.empty}

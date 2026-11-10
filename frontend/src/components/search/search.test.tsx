@@ -294,7 +294,7 @@ describe("court search", () => {
         unmatched: [{ type_name: "WP(C)", reg_no: "77", reg_year: "2025", pet_name: "X", res_name: "Y" }],
       }),
     );
-    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(await within(panel).findByText("1 case found; 1 new to the portal.")).toBeInTheDocument();
     expect(within(panel).queryByText(/court call/)).toBeNull(); // no call counts to users (14 Oct owner rule)
     expect(within(panel).getByText(/WP\(C\) 77\/2025 — X vs Y/)).toBeInTheDocument();
     await userEvent.click(within(panel).getByRole("button", { name: "Fetch Details" }));
@@ -345,7 +345,7 @@ describe("court search by advocate name and filing number (search-court-advocate
     await userEvent.type(within(panel).getByLabelText("Year"), "2025");
     await userEvent.selectOptions(within(panel).getByLabelText("Cases"), "both");
     await userEvent.click(within(panel).getByRole("button", { name: "Search the Court" }));
-    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(await within(panel).findByText("1 case found; 1 new to the portal.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path === "/cases/search-court")!.body).toEqual({
       kind: "advocate",
       name: "P J SAIKIA",
@@ -368,7 +368,7 @@ describe("court search by advocate name and filing number (search-court-advocate
     await userEvent.type(within(panel).getByLabelText("Filing Number"), "6780");
     await userEvent.type(within(panel).getByLabelText("Filing Year"), "2025");
     await userEvent.click(within(panel).getByRole("button", { name: "Search the Court" }));
-    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(await within(panel).findByText("1 case found; 1 new to the portal.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path === "/cases/search-court")!.body).toEqual({
       kind: "filing",
       case_type: "WP(C)",
@@ -656,7 +656,7 @@ describe("a court search the database answered (ownership-refinements, decision 
 
   it("says nothing of the kind for a court answer", async () => {
     const panel = await runCnr("court");
-    expect(await within(panel).findByText("1 case(s) found; 0 new to the portal.")).toBeInTheDocument();
+    expect(await within(panel).findByText("1 case found; 0 new to the portal.")).toBeInTheDocument();
     expect(within(panel).queryByText(/the court was not asked/)).toBeNull();
   });
 });

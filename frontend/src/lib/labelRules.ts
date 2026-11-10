@@ -178,4 +178,5 @@ export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "assistant.sourcesButton": [3],
   "hearing.badges.inDays": [3],
   "list.showMoreButton": [100],
+  "dc.requestWhat.cases": [12],
 };

@@ -68,7 +68,9 @@ export function MonthGrid({ month, items, today }: { month: string; items: Calen
   const byDate = new Map(groupByDate(items));
   return (
     <table className={s.grid}>
-      <caption>{monthLabel(month)}</caption>
+      {/* a month heading over a day grid, not a column caption: exempt from the caption-inset check (design
+          portal-ui-kit-fixes, decision 2) */}
+      <caption data-caption="heading">{monthLabel(month)}</caption>
       <thead>
         <tr>
           {T.cal.weekdays.map((day, i) => (

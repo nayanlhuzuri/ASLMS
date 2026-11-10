@@ -178,6 +178,12 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
     const first = within(list).getAllByRole("listitem")[0]!;
     expect(within(first).getByText("Under Secretary, EDU")).toHaveAttribute("title", "Author 1");
     expect(within(first).getByText("Everyone with the Case")).toBeInTheDocument();
+    // design portal-ui-kit-fixes, decision 14: the kind is the title (a <strong>, not a badge), first; the visibility
+    // badge is in the badges slot at the end
+    const head = first.querySelector("[data-ui='item-head']") as HTMLElement;
+    expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Remark");
+    expect(head.lastElementChild!.textContent).toBe("Everyone with the Case");
     expect(api.calls.find((c) => c.path.startsWith(`${BASE}/notes`))!.path).toContain("include_superseded=true");
     const kind = within(panel).getByLabelText("Kind");
     await waitFor(() => expect(within(kind).getAllByRole("option").map((o) => o.textContent)).toEqual(["All Kinds", "Office note", "Remark"]));

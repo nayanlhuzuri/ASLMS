@@ -28,6 +28,13 @@
   gap: var(--s2);
 }
 
+/* HeadLink (design portal-ui-kit-fixes, decision 20): one look for every "see all" link in a card head */
+.headLink {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .cardBody {
   padding: var(--s4) var(--s5);
 }

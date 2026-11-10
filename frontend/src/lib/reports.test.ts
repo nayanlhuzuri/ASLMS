@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { istDay } from "./format";
 import { cellText, checkPeriod, choiceOf, exportUrl, periodChoice, reportParams, scopeLabel } from "./reports";
+import { nb } from "@/test/dates";
 
 describe("periodChoice (IST dates)", () => {
   it("this month on the first is one day, on the 14th the first to the 14th", () => {
@@ -109,7 +110,7 @@ describe("cellText", () => {
   it("formats by kind", () => {
     expect(cellText(128400, "int")).toBe("1,28,400");
     expect(cellText(12, "days")).toBe("12");
-    expect(cellText("2026-10-01", "date")).toBe("1 Oct 2026");
+    expect(cellText("2026-10-01", "date")).toBe(nb("1 Oct 2026"));
     expect(cellText("WP(C)/1/2026", "text")).toBe("WP(C)/1/2026");
     expect(cellText(null, "int")).toBe("—");
     expect(cellText("", "text")).toBe("—");

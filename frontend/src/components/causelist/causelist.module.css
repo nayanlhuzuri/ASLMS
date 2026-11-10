@@ -192,6 +192,11 @@
     width: 100%;
   }
 
+  /* a block table would shrink its caption to the longest word (design portal-ui-kit-fixes, decision 2; L3) */
+  .entries caption {
+    display: block;
+  }
+
   .entries thead {
     position: absolute;
     width: 1px;
@@ -219,22 +224,32 @@
     border-bottom: 0;
   }
 
+  /* the kit's card row (design portal-ui-kit-fixes, decisions 6 and 8): a fixed label column, the value left-aligned
+     in the second, and no row for an empty value */
   .entry td[data-label] {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--s3);
+    display: grid;
+    grid-template-columns: var(--card-label-w) minmax(0, 1fr);
+    column-gap: var(--s3);
+    align-items: baseline;
+    text-align: left;
+    overflow-wrap: break-word;
   }
 
-  .entry td[data-label] > * {
+  .entry td[data-label] > .value {
+    grid-column: 2;
     min-width: 0;
   }
 
   .entry td[data-label]::before {
     content: attr(data-label);
-    flex: none;
+    grid-column: 1;
     color: var(--text-3);
     font-size: var(--t-xs);
     font-weight: 600;
+  }
+
+  .entry td[data-label]:has(> .value:empty) {
+    display: none;
   }
 
   .leadCol {

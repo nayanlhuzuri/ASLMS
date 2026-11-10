@@ -8,7 +8,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { Badge, DataTable, ErrorBanner, KvList, Loading } from "@/components/ui";
+import { Badge, DataTable, EmptyState, ErrorBanner, KvList, Loading } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { ApiCall, ApiCard, ApiDetail } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
@@ -67,7 +67,7 @@ export function ApiHistory({ apiKey, card, version }: { apiKey: string; card: Ap
               caption={T.system.recent}
               rows={d.recent}
               rowKey={(r) => `${r.called_at}-${r.duration_ms}-${r.reason}`}
-              empty={<p className={s.muted}>{T.system.noCall}</p>}
+              empty={<EmptyState compact>{T.system.noCall}</EmptyState>}
               columns={[
                 { key: "time", header: T.system.time, cell: (r) => formatDateTime(r.called_at), primary: true },
                 { key: "outcome", header: T.system.outcome, cell: (r) => (r.answered ? T.system.answered : T.system.failed) },

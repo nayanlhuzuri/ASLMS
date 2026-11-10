@@ -16,6 +16,7 @@ import {
   CharCounter,
   ConfirmDialog,
   cx,
+  EmptyState,
   ErrorBanner,
   Loading,
   Notice,
@@ -293,7 +294,7 @@ export function SendDialog({
               />
               {people.isPending ? <Loading /> : null}
               <ErrorBanner error={people.error} />
-              {people.data && items.length === 0 ? <p className="muted">{T.wf.noPeople}</p> : null}
+              {people.data && items.length === 0 ? <EmptyState compact>{T.wf.noPeople}</EmptyState> : null}
               {items.length > 0 ? (
                 <PeopleCards
                   people={items}

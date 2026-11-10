@@ -86,7 +86,7 @@ function Movement({ caseRef, detail }: { caseRef: string; detail: CaseDetail }) 
       <section aria-label={T.wf.movement} className="stack">
         <h2>{T.wf.movement}</h2>
         {legs.length === 0 ? (
-          <EmptyState>{T.wf.noLegs}</EmptyState>
+          <EmptyState title={T.wf.noLegsTitle}>{T.wf.noLegs}</EmptyState>
         ) : (
           <>
             <DataTable
@@ -179,7 +179,7 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
           {data.gaps.length > 0 ? <p className="muted">{T.wf.notRecorded(data.gaps.map(labelOf).join(", "))}</p> : null}
           <h3>{T.wf.stageHistory}</h3>
           {data.history.length === 0 ? (
-            <p className="muted">{T.wf.noStageHistory}</p>
+            <EmptyState compact>{T.wf.noStageHistory}</EmptyState>
           ) : (
             <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.wf.stageHistory}>
               {data.history.map((h) => (

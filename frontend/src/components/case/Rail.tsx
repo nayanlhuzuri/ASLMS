@@ -20,7 +20,7 @@
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
-import { Badge, Button, Collapsible, ErrorBanner, HearingDate, Loading, Notice } from "@/components/ui";
+import { Badge, Button, Collapsible, EmptyState, ErrorBanner, HearingDate, Loading, Notice } from "@/components/ui";
 import { useJourney, useLatestListing, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg, Listing } from "@/lib/api/types";
 import { cardHolder, cardSender, daysUntil, legActor, legHolder, withText } from "@/lib/cases";
@@ -247,7 +247,7 @@ export function Journey({ caseRef, journey }: { caseRef: string; journey: Return
       <ErrorBanner error={journey.error} onRetry={() => journey.refetch()} />
       {journey.data ? (
         journey.data.legs.length === 0 ? (
-          <p className="muted">{T.rail.noJourney}</p>
+          <EmptyState compact>{T.rail.noJourney}</EmptyState>
         ) : (
           <ol className={s.trail} aria-label={T.rail.journey}>
             {journey.data.legs.slice(0, 4).map((leg, i) => {

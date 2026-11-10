@@ -16,6 +16,7 @@ import { browserApi, makeMe, renderWithClient } from "@/test/render";
 
 import { CalendarRedirect } from "./CalendarRedirect";
 import { MyCalendar } from "./MyCalendar";
+import { nb } from "@/test/dates";
 
 const CASE = { id: "c1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
 
@@ -81,7 +82,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("asks /me/calendar for the month's grid and draws the three kinds in their tones", async () => {
     const api = browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
-    const grid = await screen.findByRole("table", { name: "October 2026" });
+    const grid = await screen.findByRole("table", { name: nb("October 2026") });
     const call = api.calls.find((c) => c.path.startsWith("/me/calendar"))!;
     expect(call.path).toBe("/me/calendar?from=2026-09-28&to=2026-11-01");
     const day = within(grid).getByRole("button", { name: /^Thursday, 22 October:/ });
@@ -101,7 +102,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("the legend hides a kind on screen only; the API is not asked again", async () => {
     const api = browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
-    const grid = await screen.findByRole("table", { name: "October 2026" });
+    const grid = await screen.findByRole("table", { name: nb("October 2026") });
     const legend = screen.getByRole("group", { name: "Show on the Calendar" });
     const hearings = within(legend).getByRole("button", { name: "Hearings" });
     expect(hearings).toHaveAttribute("aria-pressed", "true");
@@ -131,7 +132,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("Previous, Next and Today change the query string", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
-    await screen.findByRole("table", { name: "October 2026" });
+    await screen.findByRole("table", { name: nb("October 2026") });
     await userEvent.click(screen.getByRole("button", { name: "Previous Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2026-09");
     await userEvent.click(screen.getByRole("button", { name: "Next Month" }));
@@ -146,7 +147,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("a day fills the agenda: Hearing / Due / Confirm badges in the fixed leading column, case links and details", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
-    await screen.findByRole("table", { name: "October 2026" });
+    await screen.findByRole("table", { name: nb("October 2026") });
     const agenda = screen.getByRole("region", { name: "Agenda" });
     expect(screen.getByRole("heading", { name: "Thursday, 22 October" })).toBeInTheDocument();
     const rows = within(agenda).getAllByRole("listitem");
@@ -169,14 +170,14 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("a day with nothing says so", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-23" }} />);
-    await screen.findByRole("table", { name: "October 2026" });
+    await screen.findByRole("table", { name: nb("October 2026") });
     expect(screen.getByText("Nothing on This Day")).toBeInTheDocument();
   });
 
   it("the phone dots carry no text: every day's button has an accessible name", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10" }} />);
-    const grid = await screen.findByRole("table", { name: "October 2026" });
+    const grid = await screen.findByRole("table", { name: nb("October 2026") });
     for (const button of within(grid).getAllByRole("button")) expect(button).toHaveAccessibleName(/^\w+day, \d+ \w+: /);
     for (const ev of grid.querySelectorAll("[data-kind]")) expect(ev).toHaveAttribute("aria-hidden", "true");
     // a fixed day can be today, when its name ends with " (Today)"
@@ -187,7 +188,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
   it("the page has at most one primary button (decision 16)", async () => {
     browserApi(routes());
     const { container } = renderWithClient(<MyCalendar params={{ month: "2026-10" }} />);
-    await screen.findByRole("table", { name: "October 2026" });
+    await screen.findByRole("table", { name: nb("October 2026") });
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
   });
 });
@@ -196,7 +197,7 @@ describe("the Department hearings view (portal-ui-redesign, decision 8; question
   it("no switch for a department officer", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10" }} />);
-    await screen.findByRole("table", { name: "October 2026" });
+    await screen.findByRole("table", { name: nb("October 2026") });
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("radiogroup", { name: "Calendar View" })).toBeNull();
   });
@@ -229,7 +230,7 @@ describe("the Department hearings view (portal-ui-redesign, decision 8; question
     unmount();
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ view: "department", month: "2026-10" }} />);
-    expect(await screen.findByRole("table", { name: "October 2026" })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: nb("October 2026") })).toBeInTheDocument();
   });
 });
 

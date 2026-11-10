@@ -82,6 +82,8 @@
   --lead-w: 96px;
   --date-w: 48px;
   --icon-w: 20px;
+  /* the label column of a DataTable card row (design portal-ui-kit-fixes, decision 7) */
+  --card-label-w: 112px;
   /* design case-workspace-admin, decision 28: the case page's action rail and the user-type page's Save bar */
   --rail-w: 320px;
   --savebar-h: 64px;
@@ -297,6 +299,12 @@ dl.facts dt {
 
 dl.facts dd {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* long machine text (raw paths, error lines) may break anywhere; everything else breaks only between words (design
+   portal-ui-kit-fixes, decision 16) */
+[data-free-text] {
   overflow-wrap: anywhere;
 }
 

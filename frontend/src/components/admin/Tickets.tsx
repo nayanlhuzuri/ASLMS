@@ -80,7 +80,7 @@ export function TicketsList({ status }: { status: TicketStatus }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.tickets.empty}</EmptyState>
+          <EmptyState title={T.tickets.emptyTitle}>{T.tickets.empty}</EmptyState>
         ) : (
           <>
             <DataTable
@@ -167,7 +167,7 @@ function DocumentsSection({ ticket, onChanged }: { ticket: TicketDetail; onChang
     <section className="card stack" aria-label={T.tickets.documents}>
       <h2>{T.tickets.documents}</h2>
       {ticket.documents.length === 0 ? (
-        <p className="muted">{T.users.noDocuments}</p>
+        <EmptyState compact>{T.users.noDocuments}</EmptyState>
       ) : (
         <DataTable
           caption={T.tickets.documents}

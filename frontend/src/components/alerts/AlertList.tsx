@@ -20,6 +20,7 @@ import {
   CaseLink,
   EmptyState,
   ErrorBanner,
+  ItemHead,
   Loading,
   Pagination,
   SeverityBadge,
@@ -74,18 +75,23 @@ function AlertRow({ alert }: { alert: AlertItem }) {
   const action = useAction();
   return (
     <li className={cs.note}>
-      <div className={cs.noteHead}>
-        <SeverityBadge severity={alert.severity} />
-        <strong>{alert.kind_label}</strong>
-        <span>{T.wf.alertStatus[alert.status] ?? alert.status}</span>
-        <span className="mono muted">{alert.ref_no}</span>
-        {alert.read_at ? null : (
-          <Badge tone="warning">
-            {T.alerts.newBadge}
-            <span className="visually-hidden"> {T.alerts.unreadHidden}</span>
-          </Badge>
-        )}
-      </div>
+      {/* the kind first, then its status; the severity and New badges at the end, no alert reference in sight
+          (design portal-ui-kit-fixes, decision 13) */}
+      <ItemHead
+        title={<strong>{alert.kind_label}</strong>}
+        meta={<span className="muted">{T.wf.alertStatus[alert.status] ?? alert.status}</span>}
+        badges={
+          <>
+            <SeverityBadge severity={alert.severity} />
+            {alert.read_at ? null : (
+              <Badge tone="warning">
+                {T.alerts.newBadge}
+                <span className="visually-hidden"> {T.alerts.unreadHidden}</span>
+              </Badge>
+            )}
+          </>
+        }
+      />
       <div>
         <strong>{alert.title}</strong>
       </div>
@@ -212,7 +218,7 @@ export function AlertList({ params }: { params: Params }) {
       {list.data ? (
         list.data.items.length === 0 ? (
           defaults ? (
-            <EmptyState>{T.alerts.emptyDefault}</EmptyState>
+            <EmptyState title={T.alerts.emptyTitle}>{T.alerts.emptyDefault}</EmptyState>
           ) : (
             <NoCaseMatches params={params} list="alerts">
               {T.alerts.empty}

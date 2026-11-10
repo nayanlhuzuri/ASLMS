@@ -15,7 +15,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, Button, CheckField, EmptyState, ErrorBanner, Loading, Notice, Pagination } from "@/components/ui";
+import { Badge, Button, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, Notice, Pagination } from "@/components/ui";
 import { DraftsPanel } from "@/components/workflow/DraftsPanel";
 import { NoteComposer } from "@/components/workflow/NoteComposer";
 import { api } from "@/lib/api/client";
@@ -136,22 +136,26 @@ export function Notes({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.case.noNotes}</EmptyState>
+          <EmptyState title={T.case.noNotesTitle}>{T.case.noNotes}</EmptyState>
         ) : (
           <>
             <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.case.notes}>
               {list.data.items.map((n) => (
                 <li key={n.id} id={anchor(n.seq_no)} className={s.note}>
-                  <div className={s.noteHead}>
-                    <span id={noteRefAnchor(n.ref_no)} />
-                    <strong>{n.kind_label}</strong>
-                    <span className="mono muted">{n.ref_no}</span>
-                    <span>
-                      {[n.author.name, n.author.designation, n.author.office_code].filter(Boolean).join(", ")}
-                    </span>
-                    <span className="muted">{formatDateTime(n.created_at)}</span>
-                    <Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>
-                  </div>
+                  {/* the kind first, the author and date after it, the visibility badge at the end (design
+                      portal-ui-kit-fixes, decision 14) */}
+                  <ItemHead
+                    id={noteRefAnchor(n.ref_no)}
+                    title={<strong>{n.kind_label}</strong>}
+                    meta={
+                      <>
+                        <span className="mono muted">{n.ref_no}</span>
+                        <span>{[n.author.name, n.author.designation, n.author.office_code].filter(Boolean).join(", ")}</span>
+                        <span className="muted">{formatDateTime(n.created_at)}</span>
+                      </>
+                    }
+                    badges={<Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>}
+                  />
                   {n.supersedes ? (
                     <div className="muted">
                       <a href={`#${anchor(n.supersedes.seq_no)}`}>{T.case.corrects(n.supersedes.ref_no)}</a>

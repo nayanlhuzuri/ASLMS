@@ -949,7 +949,9 @@ function Workspace({
               {list.isPending ? (
                 <Loading lines={2} />
               ) : (list.data?.items.length ?? 0) === 0 ? (
-                <p className={s.hint}>{A.noConversations}</p>
+                <EmptyState compact title={A.noConversationsTitle}>
+                  {A.noConversations}
+                </EmptyState>
               ) : (
                 <ul className={s.conversations}>
                   {list.data!.items.map((c) => (

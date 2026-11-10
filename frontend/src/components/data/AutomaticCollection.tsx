@@ -455,7 +455,7 @@ function AllowanceCard({ data }: { data: DataLoad }) {
           <>
             <h3>{T.dc.byPersonTitle}</h3>
             {byUser.length === 0 ? (
-              <p className={ds.line}>{T.dc.noPersonCallsNote}</p>
+              <EmptyState compact>{T.dc.noPersonCallsNote}</EmptyState>
             ) : (
               <DataTable
                 caption={T.dc.byPersonTitle}

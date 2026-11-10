@@ -95,7 +95,29 @@ function EmptyIcon() {
 }
 
 /** An empty list: the icon circle, an optional title, and one line saying when items appear. */
-export function EmptyState({ title, icon, children }: { title?: ReactNode; icon?: ReactNode; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  icon,
+  children,
+  compact = false,
+}: {
+  title?: ReactNode;
+  icon?: ReactNode;
+  children?: ReactNode;
+  /**
+   * The light form for an empty list inside a card or panel (design portal-ui-kit-fixes, decisions 17 and 18): no
+   * frame, no icon, left-aligned muted text, the title (when given) in the text colour.
+   */
+  compact?: boolean;
+}) {
+  if (compact) {
+    return (
+      <div className={s.emptyCompact} data-compact="">
+        {title ? <p className={s.emptyTitle}>{title}</p> : null}
+        {children ? <div className={s.emptyText}>{children}</div> : null}
+      </div>
+    );
+  }
   return (
     <div className={s.empty}>
       <span className={s.emptyIcon}>{icon ?? <EmptyIcon />}</span>

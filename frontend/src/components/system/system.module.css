@@ -84,13 +84,6 @@
   border-left-color: var(--red);
 }
 
-.cardHead {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-width: 0;
-}
-
 .cardName {
   margin: 0;
   font-size: var(--t-md);

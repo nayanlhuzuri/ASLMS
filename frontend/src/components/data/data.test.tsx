@@ -6,6 +6,9 @@
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { Sidebar } from "@/components/shell/PortalShell";
@@ -237,6 +240,8 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     expect(within(items).getByText(/^Order 3 of .* · GAHC010000012025$/)).toBeInTheDocument();
     expect(within(items).getByText("All Court Reference Lists")).toBeInTheDocument();
     expect(within(items).getByText("NapixUnavailable: 502 Bad Gateway")).toBeInTheDocument();
+    // design portal-ui-kit-fixes, decision 16: raw error text may break anywhere, the rest of the panel only between words
+    expect(within(items).getByText("NapixUnavailable: 502 Bad Gateway")).toHaveAttribute("data-free-text");
     expect(within(items).getAllByRole("button", { name: "Retry" })).toHaveLength(1);
     await userEvent.click(within(items).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST" && c.path === "/admin/napix/queue/q-1/retry")).toBe(true));
@@ -509,5 +514,20 @@ describe("the four tabs; the old ones redirect (decisions 1-4)", () => {
     );
     expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
     expect(screen.queryByText("body")).toBeNull();
+  });
+});
+
+describe("words and numbers break only between them (design portal-ui-kit-fixes, decisions 15 and 16)", () => {
+  const css = readFileSync(join(process.cwd(), "src", "components", "data", "data.module.css"), "utf-8");
+  const globals = readFileSync(join(process.cwd(), "src", "app", "globals.css"), "utf-8");
+
+  it("the panel wraps with break-word, not anywhere", () => {
+    const panel = css.slice(css.indexOf(".panel {"), css.indexOf("}", css.indexOf(".panel {")));
+    expect(panel).toMatch(/overflow-wrap: break-word;/);
+    expect(panel).not.toMatch(/overflow-wrap: anywhere/);
+  });
+
+  it("globals.css lets long machine text marked data-free-text break anywhere", () => {
+    expect(globals).toMatch(/\[data-free-text\] \{\s*overflow-wrap: anywhere;\s*\}/);
   });
 });

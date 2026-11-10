@@ -20,6 +20,7 @@ import { DataFrame, DataIndex } from "./DataFrame";
 import { Overview } from "./Overview";
 import { courtNext } from "@/test/nextHearing";
 import { detail, finishedCase } from "@/test/collectFixtures";
+import { nb } from "@/test/dates";
 
 const COLLECT_OUT = {
   request_id: "r-1",
@@ -436,7 +437,7 @@ describe("Overview (data-collection-redesign, decisions 14-21)", () => {
     expect(within(table).getByText("Orders Dated Before January 2025")).toBeInTheDocument();
     expect(within(table).getAllByText(`${f(2978)} of ${f(9876)} stored · ${f(6898)} waiting`).length).toBeGreaterThan(0);
     expect(screen.getByText(/counted by hearing date and orders by order date/)).toBeInTheDocument();
-    expect(within(table).getByRole("button", { name: "Days of January 2025" })).toBeInTheDocument();
+    expect(within(table).getByRole("button", { name: nb("Days of January 2025") })).toBeInTheDocument();
   });
 
   it("no heading is doubled: the panel headings carry the names, the table captions stay hidden", async () => {
@@ -844,12 +845,12 @@ describe("notAskedLine (causelist-day-gap-sweep, decision 6)", () => {
       ranges: [one("2025-12-30", "2026-01-02", 4), one("2026-03-04", "2026-03-04", 1), one("2026-10-02", "2026-10-05", 4)],
       more_ranges: 0,
     });
-    expect(line).toBe("Days Not Asked For: 9 · 30 Dec 2025 to 2 Jan 2026, 4 Mar 2026, 2 Oct to 5 Oct 2026");
+    expect(line).toBe(nb("Days Not Asked For: 9 · 30 Dec 2025 to 2 Jan 2026, 4 Mar 2026, 2 Oct to 5 Oct 2026"));
   });
   it("says how many more ranges there are past the 20 shown", () => {
     const ranges = Array.from({ length: 20 }, (_, i) => one(`2026-09-${String(i + 1).padStart(2, "0")}`, `2026-09-${String(i + 1).padStart(2, "0")}`, 1));
     const line = notAskedLine({ from: "2026-09-01", to: "2026-10-27", count: 23, ranges, more_ranges: 3 })!;
-    expect(line.startsWith("Days Not Asked For: 23 · 1 Sep 2026, 2 Sep 2026")).toBe(true);
+    expect(line.startsWith(nb("Days Not Asked For: 23 · 1 Sep 2026, 2 Sep 2026"))).toBe(true);
     expect(line.endsWith(" and 3 more ranges")).toBe(true);
     expect(notAskedLine({ from: "2026-09-01", to: "2026-10-27", count: 21, ranges, more_ranges: 1 })!.endsWith(" and 1 more range")).toBe(true);
   });

@@ -30,6 +30,18 @@
  * - menu clipped (design case-inbox-simplify, decision 23): for any open `[role='menu']`, each `[role='menuitem']` must
  *   lie fully inside the viewport and be the element at its own centre (or hold it), so no scrolling box cuts it off and
  *   nothing covers it. With no menu open it costs nothing.
+ * - caption inset (design portal-ui-kit-fixes, decisions 1, 2 and 24): a visible `caption` not marked
+ *   `data-caption="heading"` starts its first line of text within 2 px of the content-box left of its table's first
+ *   visible header cell when the table is drawn as a table; when the table is a block (cards) the caption is at least
+ *   90% of the table's width, so it is never squeezed to its longest word;
+ * - date wrap (decision 24, K5): in `main#main`, a day-month-year date ("23 Oct 2026") whose text runs over more than
+ *   one line;
+ * - broken word (decision 24, DC1): in `main#main`, outside `[data-scroll-x]`, `pre`, `code`, `[data-free-text]` and
+ *   visually hidden boxes, a word of four or more letters only, or a number of four or more digits and commas, whose
+ *   text runs over more than one line (a word with a hyphen, slash or dot has legal break points and is not tested);
+ * - card row (decision 24, K6): in a table drawn as cards (a block `table` whose cells carry `data-label`), a visible
+ *   labelled cell with nothing in its value (no text, link, button, field, image or meter) is an empty row, and within
+ *   one card the values' left edges are equal within 1 px.
  */
 
 /**
@@ -48,6 +60,10 @@ export const GEOMETRY_KINDS = [
   "gutter",
   "doubled-heading",
   "menu-clipped",
+  "caption-inset",
+  "date-wrap",
+  "broken-word",
+  "card-row",
 ] as const;
 
 export interface PageFinding {
@@ -378,6 +394,136 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
       const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
       if (!at || !(at === item || item.contains(at))) {
         out.push({ kind: "menu-clipped", element: describe(item), detail: `covered or cut off: ${at ? describe(at) : "nothing"} at its centre` });
+      }
+    }
+  }
+
+  // a box hidden from sight on purpose (visually hidden, or inside such a box)
+  function hiddenBox(el: Element | null): boolean {
+    for (let cur = el; cur && cur !== document.body; cur = cur.parentElement) if (srOnly(cur)) return true;
+    return false;
+  }
+
+  /** The distinct line tops of a range's text (rects of no width are left out; 2 px apart is another line). */
+  function lineCount(range: Range): number {
+    const tops: number[] = [];
+    for (const r of Array.from(range.getClientRects())) {
+      if (r.width < 0.5 || r.height < 0.5) continue;
+      if (!tops.some((t) => Math.abs(t - r.top) <= 2)) tops.push(r.top);
+    }
+    return tops.length;
+  }
+
+  // caption inset (design portal-ui-kit-fixes, decisions 1, 2 and 24)
+  for (const cap of Array.from(document.querySelectorAll("caption"))) {
+    if (cap.getAttribute("data-caption") === "heading" || !visible(cap) || hiddenBox(cap)) continue;
+    const table = cap.closest("table");
+    if (!table || !visible(table)) continue;
+    const display = getComputedStyle(table).display;
+    if (display === "table" || display === "inline-table") {
+      const cell = Array.from(table.querySelectorAll("thead th, tbody th, tbody td")).find((c) => visible(c) && !hiddenBox(c));
+      if (!cell) continue;
+      const range = document.createRange();
+      range.selectNodeContents(cap);
+      const first = Array.from(range.getClientRects()).find((r) => r.width > 0.5);
+      if (!first) continue;
+      const cs = getComputedStyle(cell);
+      const contentLeft = cell.getBoundingClientRect().left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
+      if (Math.abs(first.left - contentLeft) > 2) {
+        out.push({
+          kind: "caption-inset",
+          element: describe(cap),
+          detail: `caption text at ${first.left.toFixed(1)}, column text at ${contentLeft.toFixed(1)}`,
+        });
+      }
+    } else {
+      const cw = cap.getBoundingClientRect().width;
+      const tw = table.getBoundingClientRect().width;
+      if (cw < 0.9 * tw) {
+        out.push({ kind: "caption-inset", element: describe(cap), detail: `caption ${cw.toFixed(1)} px wide in a ${tw.toFixed(1)} px table drawn as cards` });
+      }
+    }
+  }
+
+  // the text nodes of the page body, for the date and word rules
+  const SKIP_TEXT = "script, style, textarea, select, option, noscript";
+  function textNodes(root: Element, skip: string): Text[] {
+    const nodes: Text[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const parent = n.parentElement;
+      if (!parent || !n.textContent || !n.textContent.trim()) continue;
+      if (parent.closest(skip) || !visible(parent) || hiddenBox(parent)) continue;
+      nodes.push(n as Text);
+    }
+    return nodes;
+  }
+
+  if (main) {
+    // date wrap (decision 24, K5): a date never breaks inside itself
+    const DATE = /\d{1,2}[  ][A-Z][a-z]{2}[  ]\d{4}/g;
+    let dates = 0;
+    for (const node of textNodes(main, SKIP_TEXT)) {
+      if (dates >= 5) break;
+      for (const m of node.textContent!.matchAll(DATE)) {
+        const range = document.createRange();
+        range.setStart(node, m.index!);
+        range.setEnd(node, m.index! + m[0].length);
+        if (lineCount(range) > 1) {
+          out.push({ kind: "date-wrap", element: describe(node.parentElement!), detail: `"${m[0]}" runs over more than one line` });
+          dates += 1;
+        }
+      }
+    }
+
+    // broken word (decision 24, DC1): words and numbers break only between them
+    const EDGE = /^[("'“‘[]+|[)"'”’\],.;:!?]+$/g;
+    const WORD = /^(?:[A-Za-z]{4,}|[\d,]{4,})$/;
+    let words = 0;
+    for (const node of textNodes(main, `${SKIP_TEXT}, [data-scroll-x], pre, code, [data-free-text]`)) {
+      if (words >= 5) break;
+      for (const m of node.textContent!.matchAll(/\S+/g)) {
+        const token = m[0].replace(EDGE, "");
+        if (!WORD.test(token)) continue;
+        const start = m.index! + m[0].indexOf(token);
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, start + token.length);
+        if (lineCount(range) > 1) {
+          out.push({ kind: "broken-word", element: describe(node.parentElement!), detail: `"${token}" is broken over more than one line` });
+          words += 1;
+          if (words >= 5) break;
+        }
+      }
+    }
+  }
+
+  // card row (decision 24, K6): a card draws no empty row, and its values start at one x
+  const FILLED = "a, button, input, select, img, svg, progress, meter";
+  for (const table of Array.from(document.querySelectorAll("table"))) {
+    if (getComputedStyle(table).display !== "block" || !table.querySelector("td[data-label]") || !visible(table)) continue;
+    for (const tr of Array.from(table.querySelectorAll("tr"))) {
+      const lefts: { cell: Element; left: number }[] = [];
+      for (const td of Array.from(tr.querySelectorAll(":scope > td[data-label]"))) {
+        if (!visible(td) || hiddenBox(td)) continue;
+        if (!(td.textContent ?? "").trim() && !td.querySelector(FILLED)) {
+          out.push({ kind: "card-row", element: describe(td), detail: `an empty "${td.getAttribute("data-label")}" row on a card` });
+          continue;
+        }
+        const range = document.createRange();
+        range.selectNodeContents(td);
+        const box = range.getBoundingClientRect();
+        if (box.width > 0) lefts.push({ cell: td, left: box.left });
+      }
+      if (lefts.length > 1) {
+        const xs = lefts.map((l) => l.left);
+        if (Math.max(...xs) - Math.min(...xs) > 1) {
+          out.push({
+            kind: "card-row",
+            element: describe(tr),
+            detail: `values start at ${lefts.map((l) => `${l.cell.getAttribute("data-label")} ${l.left.toFixed(1)}`).join(", ")}`,
+          });
+        }
       }
     }
   }

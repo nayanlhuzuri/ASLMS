@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Notice, numCell, Pagination } from "@/components/ui";
+import { EmptyState, Notice, numCell, Pagination } from "@/components/ui";
 import u from "@/components/ui/data.module.css";
 import type { Report, ReportDepartment, ReportSection } from "@/lib/api/types";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -100,7 +100,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
       {rows.length === 0 ? (
         <>
           <h3>{section.title}</h3>
-          <p className="muted">{T.reports.sectionEmpty}</p>
+          <EmptyState compact>{T.reports.sectionEmpty}</EmptyState>
         </>
       ) : (
         <>

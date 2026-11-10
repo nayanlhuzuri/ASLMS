@@ -9,7 +9,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Badge, Card, CaseLink, DateChip, EmptyState, HearingDate, Kpi, Lead, ListRow, type Tone } from "@/components/ui";
+import { Badge, Card, CaseLink, DateChip, EmptyState, HeadLink, HearingDate, Kpi, Lead, ListRow, type Tone } from "@/components/ui";
 import type { DashboardHeadline, DashboardMe, DashboardMeAttention, DashboardUpcoming, Me } from "@/lib/api/types";
 import { formatDayLongYear, formatNumber, istHour } from "@/lib/format";
 import { hearingBand } from "@/lib/hearingDate";
@@ -129,7 +129,14 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
 
 export function UpcomingPanel({ items }: { items: DashboardUpcoming[] }) {
   return (
-    <Card title={T.dash.upcoming} actions={<Link href="/calendar">{T.dash.openCalendar}</Link>}>
+    <Card
+      title={T.dash.upcoming}
+      actions={
+        <HeadLink href="/calendar" srSuffix={T.dash.upcoming}>
+          {T.viewAll}
+        </HeadLink>
+      }
+    >
       {items.length === 0 ? (
         <EmptyState title={T.dash.upcomingNoneTitle}>{T.dash.upcomingNone}</EmptyState>
       ) : (

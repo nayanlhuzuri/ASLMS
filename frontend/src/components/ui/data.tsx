@@ -25,6 +25,10 @@ export interface Column<Row> {
   header: ReactNode;
   /** The label on the phone card (default: the header when it is text). */
   label?: string;
+  /**
+   * The cell's content. Return `null` when there is nothing to show: on a phone or stacked card an empty cell draws no
+   * row (design portal-ui-kit-fixes, decision 8). A cell that shows "—" (an explicit "none") keeps its row.
+   */
   cell: (row: Row) => ReactNode;
   /** A fixed width (status columns), for example `var(--lead-w)` or `120px`. */
   width?: string;
@@ -35,6 +39,12 @@ export interface Column<Row> {
   primary?: boolean;
   /** Drawn as the row's header (`<th scope="row">`), for a primary cell that names the row. */
   rowHeader?: boolean;
+  /**
+   * The row's action buttons, which name themselves: on a phone or stacked card the cell has no label and runs the
+   * card's full width, so a long button never overflows the value column (design portal-ui-kit-fixes, "Build
+   * deviations").
+   */
+  actions?: boolean;
   /**
    * A sortable column (design list-search, decision 27): its header becomes a button. `key` defaults to the column's
    * key; `value` is what a list sorted in the browser compares; `labels` names the two directions (`[asc, desc]`).
@@ -332,8 +342,13 @@ export function DataTable<Row>({
                     <Cell
                       key={c.key}
                       scope={c.rowHeader ? "row" : undefined}
-                      className={cx(c.align === "right" && s.num, c.hideOnPhone && s.hideOnPhone, c.primary && s.primaryCell)}
-                      data-label={c.hideOnPhone || c.primary ? undefined : label}
+                      className={cx(
+                        c.align === "right" && s.num,
+                        c.hideOnPhone && s.hideOnPhone,
+                        c.primary && s.primaryCell,
+                        c.actions && s.actionsCell,
+                      )}
+                      data-label={c.hideOnPhone || c.primary || c.actions ? undefined : label}
                     >
                       {/* one box per cell, so a cell of several lines stays one value on the phone card */}
                       <div className={s.cellValue}>{c.cell(row)}</div>
@@ -505,6 +520,24 @@ export function ListRow({
       <div className={s.listBody}>{children}</div>
       {trail ? <div className={s.listTrail}>{trail}</div> : null}
     </Tag>
+  );
+}
+
+/**
+ * A row or card header with the title first (design portal-ui-kit-fixes, decisions 10 and 11): the title, then the
+ * muted meta on the same line (wrapping between words), then the badges at the end of the line. The badges never
+ * shrink or truncate; when the title needs the room they move onto a line of their own. A badge leads a row only in a
+ * list that gives every row a fixed `Lead`.
+ */
+export function ItemHead({ title, meta, badges, id }: { title: ReactNode; meta?: ReactNode; badges?: ReactNode; id?: string }) {
+  return (
+    <div className={s.itemHead} data-ui="item-head" id={id}>
+      <div className={s.itemTitle}>
+        {title}
+        {meta}
+      </div>
+      {badges ? <div className={s.itemBadges}>{badges}</div> : null}
+    </div>
   );
 }
 

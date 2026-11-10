@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, HearingDate, Kpi, Loading, SelectField } from "@/components/ui";
+import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, HeadLink, HearingDate, Kpi, Loading, SelectField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
@@ -83,8 +83,22 @@ export function HearingList({ hearings, caption }: { hearings: DashboardHearings
   );
 }
 
-function FileList({ items, caption, showCaption }: { items: DashboardFile[]; caption: string; showCaption?: boolean }) {
-  if (items.length === 0) return null;
+/**
+ * The files of a block. Empty, it shows `empty` when given and otherwise nothing, so a section a design keeps hidden
+ * when empty (Cases with Me under More About My Work) stays hidden (design portal-ui-kit-fixes, decision 19).
+ */
+function FileList({
+  items,
+  caption,
+  showCaption,
+  empty,
+}: {
+  items: DashboardFile[];
+  caption: string;
+  showCaption?: boolean;
+  empty?: ReactNode;
+}) {
+  if (items.length === 0) return empty ? <>{empty}</> : null;
   return (
     <DataTable
       caption={caption}
@@ -125,7 +139,7 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
   // design portal-reports, decision 10: a link, not a gate; the Reports screen asks the API
   const reports =
     canIn(me.data, code, "reports.department") || can(me.data, "reports.state") ? (
-      <Link href={`/reports/pending-cases?department=${encodeURIComponent(code)}`}>{T.reports.departmentReports}</Link>
+      <HeadLink href={`/reports/pending-cases?department=${encodeURIComponent(code)}`}>{T.reports.departmentReports}</HeadLink>
     ) : null;
   return (
     <Block title={`${T.dash.department}: ${data.department.name}`} sub={T.dash.generated(formatDateTime(data.generated_at))} action={reports}>
@@ -222,9 +236,18 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
           ) : null}
         </Card>
       </div>
-      {pending?.items && pending.items.length > 0 ? (
+      {/* the list of overdue files, sent only to readers with the tracking function or State scope (`items` null for
+          the others, and the card hidden); empty, it says so inside the card instead of vanishing, and "none at all"
+          only when the count is 0 (design portal-ui-kit-fixes, decision 19 and Deviations) */}
+      {pending && pending.items ? (
         <Card title={T.dash.pending}>
-          <FileList items={pending.items} caption={T.dash.pending} />
+          <FileList
+            items={pending.items}
+            caption={T.dash.pending}
+            empty={
+              <EmptyState compact>{pending.held === 0 ? T.dash.noPendingActions : T.dash.noOverdueActions}</EmptyState>
+            }
+          />
         </Card>
       ) : null}
       {data.custody_by_office ? (
@@ -489,7 +512,7 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
           ) : null,
         ]}
       </Kpis>
-      {data.open === 0 ? <p className="muted">{T.dash.ticketsNone}</p> : null}
+      {data.open === 0 ? <EmptyState compact>{T.dash.ticketsNone}</EmptyState> : null}
       {kinds.length > 0 || departments.length > 0 ? (
         <div className={s.panels}>
           {kinds.length > 0 ? (

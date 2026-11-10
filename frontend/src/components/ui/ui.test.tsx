@@ -23,6 +23,7 @@ import {
   DateChip,
   Dialog,
   EmptyState,
+  HeadLink,
   FilterCard,
   FilterChip,
   Lead,
@@ -42,6 +43,7 @@ import {
   TextArea,
   TextField,
 } from "./index";
+import { nb } from "@/test/dates";
 
 beforeEach(() => {
   resetNav("/");
@@ -653,7 +655,7 @@ describe("the alignment rule (decision 15)", () => {
     expect(items[1]!.firstElementChild).toHaveAttribute("data-lead", "date");
     expect(within(items[1]!).getByText("22")).toBeInTheDocument();
     expect(within(items[1]!).getByText("Oct")).toBeInTheDocument();
-    expect(items[1]!.querySelector("time")).toHaveAttribute("title", "22 Oct 2026");
+    expect(items[1]!.querySelector("time")).toHaveAttribute("title", nb("22 Oct 2026"));
     expect(items[2]!.firstElementChild).toHaveAttribute("data-lead", "icon");
   });
 
@@ -1013,5 +1015,35 @@ describe("ProgressBar never holds more than the whole", () => {
     );
     const segs = [...screen.getByRole("progressbar", { name: "Over" }).querySelectorAll<HTMLElement>("[data-tone]")];
     expect(segs.map((s) => parseFloat(s.style.width))).toEqual([80, 20]);
+  });
+});
+
+describe("EmptyState compact and HeadLink (design portal-ui-kit-fixes, decisions 18 and 20)", () => {
+  it("the compact form has no frame and no icon, and shows its title", () => {
+    const { container } = renderWithClient(<EmptyState compact title="No Pending Actions">Nothing waiting.</EmptyState>);
+    const box = container.querySelector("[data-compact]")!;
+    expect(box).not.toBeNull();
+    expect(box.querySelector("svg")).toBeNull();
+    expect(box).toHaveTextContent("No Pending Actions");
+    expect(box).toHaveTextContent("Nothing waiting.");
+  });
+
+  it("without compact the full form is unchanged: icon circle and frame", () => {
+    const { container } = renderWithClient(<EmptyState title="Nothing">Later.</EmptyState>);
+    expect(container.querySelector("[data-compact]")).toBeNull();
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.firstElementChild!.firstElementChild!.tagName).toBe("SPAN");
+  });
+
+  it("HeadLink shows its words and a hidden arrow, and names its target for screen readers", () => {
+    renderWithClient(
+      <HeadLink href="/calendar" srSuffix="Upcoming Hearings">
+        View All
+      </HeadLink>,
+    );
+    const link = screen.getByRole("link", { name: "View All Upcoming Hearings" });
+    expect(link).toHaveAttribute("href", "/calendar");
+    const arrow = within(link).getByText("→");
+    expect(arrow).toHaveAttribute("aria-hidden", "true");
   });
 });

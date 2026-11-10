@@ -5,10 +5,11 @@
  * stack below 1100 px:
  * - Latest order: its date, kind and short text (`order_details`), the collapsible order row with the stored PDF
  *   (decision 7), the order's reading and the next-date block of portal-next-dates (decision 8: the date in use,
- *   "Waiting for you" with Confirm / Not correct, Enter next date by the `next_dates` flag), "All orders →", and the
+ *   "Waiting for you" with Confirm / Not correct, Enter next date by the `next_dates` flag), "View All" to the Orders
+ *   tab (the kit `HeadLink`, design portal-ui-kit-fixes, decision 22), and the
  *   folded "Show parties, advocates and acts" (the first petitioner and respondent with their advocates, the counsel
  *   codes and the acts, "+ n more" to Parties);
- * - Recent activity: the five latest timeline entries on the timeline rail, "Timeline →";
+ * - Recent activity: the five latest timeline entries on the timeline rail, "View All" to the Timeline tab;
  * - below, the folded "Ownership and recommendations" (today's Ownership card), and the muted "You see this case as:
  *   …" line from `access_basis`.
  * The next hearing, the file holder, the stage and the owner are in the summary header; the full custody card and the
@@ -20,7 +21,7 @@ import type { ReactNode } from "react";
 
 import { OrderRow } from "@/components/claim/OrderRow";
 import { NextDateBlock } from "@/components/nextdates/CaseNextDate";
-import { Card, Collapsible, ErrorBanner, KvList, Loading } from "@/components/ui";
+import { Card, Collapsible, EmptyState, ErrorBanner, HeadLink, KvList, Loading } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useCase } from "@/lib/api/hooks";
 import type { CaseDetail, OrderList, TimelineList } from "@/lib/api/types";
@@ -85,11 +86,18 @@ function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const reading = o ? readingLabel(o) : null;
   return (
     <section aria-label={T.case.latestOrder}>
-      <Card title={T.case.latestOrder} actions={<Link href={casePath(caseRef, "orders")}>{T.case.allOrders}</Link>}>
+      <Card
+        title={T.case.latestOrder}
+        actions={
+          <HeadLink href={casePath(caseRef, "orders")} srSuffix={T.case.ordersLink}>
+            {T.viewAll}
+          </HeadLink>
+        }
+      >
         <div className="stack">
           {list.isPending ? <Loading lines={2} /> : null}
           <ErrorBanner error={list.error} />
-          {list.data && !o ? <p className="muted">{T.case.noOrders}</p> : null}
+          {list.data && !o ? <EmptyState compact>{T.case.noOrders}</EmptyState> : null}
           {o ? (
             <>
               <div>
@@ -123,12 +131,19 @@ function RecentActivity({ caseRef }: { caseRef: string }) {
   });
   return (
     <section aria-label={T.case.recentActivity}>
-      <Card title={T.case.recentActivity} actions={<Link href={casePath(caseRef, "timeline")}>{T.case.timelineLink}</Link>}>
+      <Card
+        title={T.case.recentActivity}
+        actions={
+          <HeadLink href={casePath(caseRef, "timeline")} srSuffix={T.case.activityLink}>
+            {T.viewAll}
+          </HeadLink>
+        }
+      >
         {list.isPending ? <Loading lines={3} /> : null}
         <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
         {list.data ? (
           list.data.items.length === 0 ? (
-            <p className="muted">{T.case.noTimeline}</p>
+            <EmptyState compact>{T.case.noTimeline}</EmptyState>
           ) : (
             <ol className={s.rail} aria-label={T.case.recentActivity}>
               {list.data.items.slice(0, RECENT).map((e, i) => {

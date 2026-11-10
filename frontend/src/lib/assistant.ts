@@ -125,7 +125,12 @@ export function noteText(m: AssistantMessage): string {
         .filter((c) => c.cited !== false && c.label)
         .map((c) => T.assistant.copyRef(c.label!, c.available ? refWords(c) : T.assistant.noLongerAvailable))
     : m.citations.filter((c) => c.available && c.cited !== false).map((c, i) => T.assistant.copyRef(i + 1, refWords(c)));
-  return [m.content ?? "", refs.length ? `\n${T.assistant.copyIntro}` : "", ...refs].filter((x) => x !== "").join("\n");
+  // a note's text is stored and searched on the server: the dates' no-break spaces (design portal-ui-kit-fixes,
+  // decision 5) go back to ordinary spaces
+  return [m.content ?? "", refs.length ? `\n${T.assistant.copyIntro}` : "", ...refs]
+    .filter((x) => x !== "")
+    .join("\n")
+    .replace(/ /g, " ");
 }
 
 function refWords(c: AssistantCitation): string {

@@ -224,7 +224,7 @@ export function UsersList({ params = {}, userId }: { params?: Params; userId?: s
       <ErrorBanner error={users.error} onRetry={() => users.refetch()} />
       {users.data ? (
         users.data.items.length === 0 ? (
-          <EmptyState>{T.users.empty}</EmptyState>
+          <EmptyState title={T.users.emptyTitle}>{T.users.empty}</EmptyState>
         ) : (
           <>
             <DataTable

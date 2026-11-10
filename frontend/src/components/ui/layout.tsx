@@ -52,6 +52,21 @@ export function Card({
   );
 }
 
+/**
+ * A "see all" link in a card head (design portal-ui-kit-fixes, decisions 20 and 21): the visible words, an arrow
+ * hidden from screen readers and a visually hidden suffix, so two such links on a page have distinct names ("View All
+ * Upcoming Hearings"). Placed in a `Card`'s `actions` or a dashboard `Block`'s `action`.
+ */
+export function HeadLink({ href, children, srSuffix }: { href: string; children: ReactNode; srSuffix?: string }) {
+  return (
+    <Link href={href} className={s.headLink} data-ui="head-link">
+      {children}
+      <span aria-hidden="true"> →</span>
+      {srSuffix ? <span className="visually-hidden"> {srSuffix}</span> : null}
+    </Link>
+  );
+}
+
 /** The breadcrumb of the current path (`Dashboard / Section / Page`), inside the page above the title. */
 export function Breadcrumb() {
   const pathname = usePathname() ?? "/";

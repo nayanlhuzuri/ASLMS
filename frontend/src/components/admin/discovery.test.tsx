@@ -209,7 +209,7 @@ describe("Search by Department Names", () => {
     const dialog = screen.getByRole("dialog", { name: "Queue a Discovery Sweep" });
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.click(within(dialog).getByRole("button", { name: "Search Every Name Now" }));
-    expect(await screen.findByText("6 searches queued for 3 name(s).")).toBeInTheDocument();
+    expect(await screen.findByText("6 searches queued for 3 names.")).toBeInTheDocument();
   });
 });
 

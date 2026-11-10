@@ -16,7 +16,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useId, useState, type KeyboardEvent } from "react";
 
-import { Badge, Button, Collapsible, DateChip, EmptyState, ErrorBanner, ListRow, Loading, Notice, SelectField, SidePanel } from "@/components/ui";
+import { Badge, Button, Collapsible, DateChip, EmptyState, ErrorBanner, ItemHead, ListRow, Loading, Notice, SelectField, SidePanel } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useMe, useWorkflowCodes } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyHistory, CustodyLeg, Note, NoteList } from "@/lib/api/types";
@@ -129,13 +129,18 @@ function noteAnchor(seq: number): string {
 function NoteHead({ n }: { n: Note }) {
   const author = withText({ designation: n.author.designation, office: n.author.office_code, name: n.author.name });
   return (
-    <div className={s.noteHead}>
-      <Badge>{n.kind_label}</Badge>
-      <span className="mono muted">{n.ref_no}</span>
-      <span title={author.title}>{author.text}</span>
-      <span className="muted">{formatDateTime(n.created_at)}</span>
-      <Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>
-    </div>
+    // the kind as the title, as on the Notes tab; the visibility badge at the end (design portal-ui-kit-fixes, 14)
+    <ItemHead
+      title={<strong>{n.kind_label}</strong>}
+      meta={
+        <>
+          <span className="mono muted">{n.ref_no}</span>
+          <span title={author.title}>{author.text}</span>
+          <span className="muted">{formatDateTime(n.created_at)}</span>
+        </>
+      }
+      badges={<Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>}
+    />
   );
 }
 

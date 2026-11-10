@@ -8,6 +8,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { HearingDate } from "./index";
+import { nb } from "@/test/dates";
 
 // 12:00 IST on Tuesday 27 Oct 2026
 const NOW = new Date("2026-10-27T06:30:00Z");
@@ -145,7 +146,7 @@ describe("HearingDate with the one next hearing", () => {
     expect(el).toHaveAttribute("data-kind", "around");
     expect(el).toHaveAttribute("data-band", "week");
     expect(el).toHaveTextContent(/^Around · In 3 Days · 30 Oct 2026$/);
-    expect(el).toHaveAttribute("title", "Around 30 Oct 2026 (after 3 weeks, order of 12 Oct 2026)");
+    expect(el).toHaveAttribute("title", nb("Around 30 Oct 2026 (after 3 weeks, order of 12 Oct 2026)"));
     expect(el).not.toHaveAttribute("aria-label");
     const md = render(<HearingDate next={next} size="md" now={NOW} />);
     expect(md.container).toHaveTextContent("Around 30 Oct 2026 (after 3 weeks, order of 12 Oct 2026)");
@@ -168,7 +169,7 @@ describe("HearingDate with the one next hearing", () => {
     expect(chip).toHaveTextContent("Order Differs");
     expect(chip).toHaveAttribute(
       "title",
-      "The order of 12 Oct 2026 gives 10 Nov 2026; the court's record gives 16 Nov 2026. The court's record is used.",
+      nb("The order of 12 Oct 2026 gives 10 Nov 2026; the court's record gives 16 Nov 2026. The court's record is used."),
     );
     expect(chip).not.toHaveAttribute("aria-label");
     expect(badge(container)).toHaveAttribute("data-kind", "firm");

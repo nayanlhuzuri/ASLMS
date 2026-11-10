@@ -15,6 +15,7 @@ import {
   validate,
   type ChipTexts,
 } from "./filters";
+import { nb } from "@/test/dates";
 
 // 00:30 IST on 14 Oct 2026 is still 13 Oct in UTC: the presets follow the IST day
 const NEAR_MIDNIGHT = new Date("2026-10-13T19:00:00Z");
@@ -206,7 +207,7 @@ describe("the date field and chips", () => {
     );
     expect(chips.map((c) => c.label)).toEqual([
       "Words: ram",
-      "Cause List: 25 Sep 2026",
+      nb("Cause List: 25 Sep 2026"),
       "Next Hearing: Next 7 Days",
       "Case Type: WP(C)",
       "Year: 2025",
@@ -217,7 +218,7 @@ describe("the date field and chips", () => {
     ]);
     expect(chips[1]!.keys).toEqual(["listed", "listed_from", "listed_to"]);
     const range = chipsOf({ listed_from: "2026-10-01", listed_to: "2026-10-07", scored_for: "EDU" }, "pool", CHIPS);
-    expect(range.map((c) => c.label)).toEqual(["Cause List: 1 Oct 2026 – 7 Oct 2026", "Matched to Department: EDU"]);
+    expect(range.map((c) => c.label)).toEqual([nb("Cause List: 1 Oct 2026 – 7 Oct 2026"), "Matched to Department: EDU"]);
     // a chip read from an old name also drops it
     expect(chipsOf({ status: "disposed" }, "search", CHIPS)[0]!.keys).toEqual(["case_status", "status"]);
     expect(chipsOf({ other_office: "FIN" }, "transfers", CHIPS)[0]!.label).toBe("Other Department: FIN");

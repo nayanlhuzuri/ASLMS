@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 
-import { Badge, Button, ConfirmDialog, ErrorBanner, Loading, Notice } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, EmptyState, ErrorBanner, ItemHead, Loading, Notice } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useCaseTitle, useDrafts, useWorkflowCodes } from "@/lib/api/hooks";
 import type { Draft, DocumentItem } from "@/lib/api/types";
@@ -65,15 +65,25 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
         />
       ) : (
         <>
-          <div className={cs.noteHead}>
-            <strong>{kindLabel}</strong>
-            <Badge tone="warning">{T.wf.draftBadge}</Badge>
-            <Badge>{T.case.visibilities[draft.visibility] ?? draft.visibility}</Badge>
-            <span className="muted">{T.wf.created(formatDateTime(draft.created_at))}</span>
-            {draft.updated_at !== draft.created_at ? (
-              <span className="muted">{T.wf.updated(formatDateTime(draft.updated_at))}</span>
-            ) : null}
-          </div>
+          {/* the kind first, the dates after it, Draft and the visibility at the end (design portal-ui-kit-fixes,
+              decision 14) */}
+          <ItemHead
+            title={<strong>{kindLabel}</strong>}
+            meta={
+              <>
+                <span className="muted">{T.wf.created(formatDateTime(draft.created_at))}</span>
+                {draft.updated_at !== draft.created_at ? (
+                  <span className="muted">{T.wf.updated(formatDateTime(draft.updated_at))}</span>
+                ) : null}
+              </>
+            }
+            badges={
+              <>
+                <Badge tone="warning">{T.wf.draftBadge}</Badge>
+                <Badge>{T.case.visibilities[draft.visibility] ?? draft.visibility}</Badge>
+              </>
+            }
+          />
           {draft.supersedes ? <div className="muted">{T.case.corrects(draft.supersedes.ref_no)}</div> : null}
           <p className={cs.noteBody}>{draft.body}</p>
           {draft.documents.length > 0 ? (
@@ -142,7 +152,7 @@ export function DraftsPanel({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={drafts.error} onRetry={() => drafts.refetch()} />
       {drafts.data ? (
         drafts.data.items.length === 0 ? (
-          <p className="muted">{T.wf.noDrafts}</p>
+          <EmptyState compact>{T.wf.noDrafts}</EmptyState>
         ) : (
           <ul className="stack" style={{ listStyle: "none", padding: 0 }}>
             {drafts.data.items.map((d) => (

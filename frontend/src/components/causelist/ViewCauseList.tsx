@@ -165,7 +165,7 @@ function PdfTab({ bench, canView, canDownload }: { bench: CauselistBench; canVie
   const [chosen, setChosen] = useState(bench.lists[0]?.id ?? "");
   const list = bench.lists.find((l) => l.id === chosen) ?? bench.lists[0];
   if (!canView && !canDownload) return <Notice>{T.causelist.pdfNeedsFunction}</Notice>;
-  if (!list) return <p className="muted">{T.causelist.noListPublished}</p>;
+  if (!list) return <EmptyState compact>{T.causelist.noListPublished}</EmptyState>;
   return (
     <div className="stack">
       {bench.lists.length > 1 ? (

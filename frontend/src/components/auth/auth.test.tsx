@@ -129,7 +129,7 @@ describe("sign-in", () => {
     renderWithClient(<CodeForm />);
     await userEvent.type(screen.getByLabelText("Code"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "Verify" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("2 attempt(s) left");
+    expect(await screen.findByRole("alert")).toHaveTextContent("2 attempts left");
     expect(nav.replace).not.toHaveBeenCalled();
   });
 

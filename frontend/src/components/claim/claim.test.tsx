@@ -579,7 +579,7 @@ describe("orders in the modal", () => {
     expect(dialog.querySelectorAll("iframe")).toHaveLength(1);
     expect(dialog.querySelector("iframe")).toBe(frame);
     // an order not stored says so
-    await userEvent.click(within(dialog).getByRole("button", { name: /01 Aug 2026|1 Aug 2026/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /0?1\sAug\s2026/ }));
     expect(within(dialog).getByText(/not yet published/i)).toBeInTheDocument();
   });
 

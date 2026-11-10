@@ -44,6 +44,12 @@ const EMPTY: Record<HeldScope, string> = {
   owned: T.files.emptyDepartment,
 };
 
+const EMPTY_TITLE: Record<HeldScope, string> = {
+  me: T.files.emptyMineTitle,
+  office: T.files.emptyOfficesTitle,
+  owned: T.files.emptyDepartmentTitle,
+};
+
 const CAPTION: Record<HeldScope, string> = {
   me: T.files.captionMine,
   office: T.files.captionOffices,
@@ -218,7 +224,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
               (scope === "owned" && overdue) ? (
                 <NoCaseMatches params={params} list={listKey} />
               ) : (
-                <EmptyState>{EMPTY[scope]}</EmptyState>
+                <EmptyState title={EMPTY_TITLE[scope]}>{EMPTY[scope]}</EmptyState>
               )
             }
           />

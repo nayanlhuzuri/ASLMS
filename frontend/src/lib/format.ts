@@ -1,10 +1,15 @@
 /**
- * Dates in IST (`Asia/Kolkata`) whatever the browser's zone, written `25 Sep 2026`; numbers in the Indian grouping
- * (`1,28,400`). Month names are fixed here so every browser shows the same text. Each function takes the locale
+ * Dates in IST (`Asia/Kolkata`) whatever the browser's zone, written `25 Sep 2026` with no-break spaces (U+00A0)
+ * between day, month and year, so a date never breaks inside itself (design portal-ui-kit-fixes, decision 3);
+ * numbers in the Indian grouping (`1,28,400`). Month names are fixed here so every browser shows the same text. Each function takes the locale
  * (design portal-ui-redesign, decision 27): English keeps these fixed texts; any other locale goes through
  * `Intl.DateTimeFormat` / `Intl.NumberFormat` in IST.
  */
+import { groupDigits } from "./digits";
 import { DEFAULT_LOCALE, localeOf, type LocaleInfo } from "./i18n";
+
+/** `plural(123456, "case", "cases")` is "1,23,456 cases" (design portal-ui-kit-fixes, decision 23). */
+export { plural } from "./digits";
 
 /** A locale code or a locale; omitted, English. */
 export type LocaleArg = string | LocaleInfo;
@@ -35,6 +40,24 @@ function intlOf(locale?: LocaleArg): string | null {
 
 function intlDate(value: Date, intl: string, options: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat(intl, { timeZone: ZONE, ...options }).format(value);
+}
+
+/** The no-break space that joins a date's parts (decision 3): read as a space, never a line break. */
+export const NBSP = "\u00a0";
+
+/** Every space of a date (any Unicode space) as a no-break space. */
+function glue(text: string): string {
+  return text.replace(/\s/g, NBSP);
+}
+
+/**
+ * An `Intl` date and time with no-break spaces inside the date part; the separator before the time keeps its ordinary
+ * space, so a narrow cell may put the time on a second line but never splits the date.
+ */
+function intlDateTime(value: Date, intl: string, options: Intl.DateTimeFormatOptions): string {
+  const parts = new Intl.DateTimeFormat(intl, { timeZone: ZONE, ...options }).formatToParts(value);
+  const hour = parts.findIndex((p) => p.type === "hour");
+  return parts.map((p, i) => (hour < 0 || i < hour - 1 ? glue(p.value) : p.value)).join("");
 }
 
 interface Parts {
@@ -76,9 +99,9 @@ export function formatDate(value: string | Date | null | undefined, locale?: Loc
   const d = toDate(value);
   if (!d) return String(value);
   const intl = intlOf(locale);
-  if (intl) return intlDate(d, intl, { day: "numeric", month: "short", year: "numeric" });
+  if (intl) return glue(intlDate(d, intl, { day: "numeric", month: "short", year: "numeric" }));
   const p = istParts(d);
-  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}`;
+  return `${p.day}${NBSP}${MONTHS[p.month - 1]}${NBSP}${p.year}`;
 }
 
 export function formatDateTime(value: string | Date | null | undefined, locale?: LocaleArg): string {
@@ -87,12 +110,12 @@ export function formatDateTime(value: string | Date | null | undefined, locale?:
   if (!d) return String(value);
   const intl = intlOf(locale);
   if (intl) {
-    return intlDate(d, intl, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    return intlDateTime(d, intl, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   }
   const p = istParts(d);
   const hh = String(p.hour).padStart(2, "0");
   const mm = String(p.minute).padStart(2, "0");
-  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${hh}:${mm}`;
+  return `${p.day}${NBSP}${MONTHS[p.month - 1]}${NBSP}${p.year}, ${hh}:${mm}`;
 }
 
 /** An instant in IST to the second, `14 Oct 2026, 14:34:07` (design portal-audit-health, decision 5). */
@@ -102,7 +125,7 @@ export function formatDateTimeSeconds(value: string | Date | null | undefined, l
   if (!d) return String(value);
   const intl = intlOf(locale);
   if (intl) {
-    return intlDate(d, intl, {
+    return intlDateTime(d, intl, {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -114,7 +137,7 @@ export function formatDateTimeSeconds(value: string | Date | null | undefined, l
   }
   const p = istParts(d);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
+  return `${p.day}${NBSP}${MONTHS[p.month - 1]}${NBSP}${p.year}, ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
 }
 
 /** The IST time of an instant, `14:34` (no date). */
@@ -133,15 +156,7 @@ export function formatNumber(value: number | null | undefined, locale?: LocaleAr
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const intl = intlOf(locale);
   if (intl) return new Intl.NumberFormat(intl, { maximumFractionDigits: 20 }).format(value);
-  const negative = value < 0;
-  const [whole = "0", fraction] = Math.abs(value).toString().split(".");
-  let grouped = whole;
-  if (whole.length > 3) {
-    const last3 = whole.slice(-3);
-    const rest = whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",");
-    grouped = `${rest},${last3}`;
-  }
-  return `${negative ? "-" : ""}${grouped}${fraction ? "." + fraction : ""}`;
+  return groupDigits(value);
 }
 
 /** The day and short month of a date in IST, `{ day: "22", month: "Oct" }`, for the `DateChip` (decision 15). */
@@ -178,9 +193,9 @@ export function formatMonthYear(value: string | Date | null | undefined, locale?
   const d = toDate(value);
   if (!d) return String(value);
   const intl = intlOf(locale);
-  if (intl) return intlDate(d, intl, { month: "long", year: "numeric" });
+  if (intl) return glue(intlDate(d, intl, { month: "long", year: "numeric" }));
   const p = istParts(d);
-  return `${MONTHS_LONG[p.month - 1]} ${p.year}`;
+  return `${MONTHS_LONG[p.month - 1]}${NBSP}${p.year}`;
 }
 
 /** A day with its weekday, `Tuesday, 21 October` (My calendar's agenda heading and day names). */

@@ -108,6 +108,8 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
     ]);
     expect([TOKENS["--fast"], TOKENS["--med"], TOKENS["--slow"]]).toEqual(["150ms", "220ms", "320ms"]);
     expect([TOKENS["--lead-w"], TOKENS["--date-w"], TOKENS["--icon-w"]]).toEqual(["96px", "48px", "20px"]);
+    // design portal-ui-kit-fixes, decision 7: the card row's label column, beside the other fixed columns
+    expect(TOKENS["--card-label-w"]).toBe("112px");
   });
 
   it("no longer define the deprecated aliases (round 5 removed them)", () => {

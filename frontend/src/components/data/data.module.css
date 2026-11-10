@@ -20,7 +20,9 @@
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
-  overflow-wrap: anywhere;
+  /* design portal-ui-kit-fixes, decision 15: words and numbers break only between them, so a table column keeps
+     "October" and "1,23,456" whole; long machine text carries [data-free-text] */
+  overflow-wrap: break-word;
   animation: dc-in var(--slow) var(--ease) both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }

@@ -660,6 +660,11 @@ describe("the drafts panel", () => {
     const api = browserApi(draftRoutes({ "PATCH /notes/drafts/dr-1": draft({ body: "edited" }) }));
     renderWithClient(<Notes caseRef={REF} />);
     const panel = await screen.findByRole("region", { name: "My Drafts" });
+    // design portal-ui-kit-fixes, decision 14: the kind first, then Draft and the visibility at the end
+    const head = (await within(panel).findByText("Draft")).closest("[data-ui='item-head']") as HTMLElement;
+    expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
+    expect(head.lastElementChild!.textContent).toMatch(/^Draft/);
+    expect(head.lastElementChild!.children).toHaveLength(2);
     await userEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
     const form = within(panel).getByRole("form", { name: "Edit the Draft" });
     const text = within(form).getByLabelText("Note");
@@ -845,6 +850,26 @@ describe("the case alerts tab", () => {
     browserApi({ [`GET ${BASE}`]: detail({ access_basis: ["recommended"] }), [`GET ${BASE}/alerts`]: { items: [], total: 0 } });
     renderWithClient(<CaseAlerts caseRef={REF} />);
     expect(await screen.findByText("Alerts of this case are shown to the offices working on it.")).toBeInTheDocument();
+  });
+
+  it("each head starts with the kind, the severity and New badges follow, and no alert reference shows (design portal-ui-kit-fixes, decision 13)", async () => {
+    browserApi({
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/alerts`]: {
+        items: [alert({ notified_at: "2026-10-13T04:30:00Z" }), alert({ id: "a-2", title: "Sent to others" })],
+        total: 2,
+      },
+    });
+    renderWithClient(<CaseAlerts caseRef={REF} />);
+    const list = await screen.findByRole("list", { name: "Alerts" });
+    const items = within(list).getAllByRole("listitem");
+    const head = items[0]!.querySelector("[data-ui='item-head']") as HTMLElement;
+    expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing due");
+    expect(head.lastElementChild!.textContent).toMatch(/^Critical.*New/);
+    expect(items[0]!.textContent).not.toContain("ASLMS/GOA/ALR/2026/000001");
+    // an alert that never reached the reader is not "New" for them
+    expect(within(items[1]!.querySelector("[data-ui='item-head']") as HTMLElement).queryByText("New")).toBeNull();
   });
 
   it("Acknowledge and Done by can_act and status; the status filter is sent", async () => {

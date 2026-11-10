@@ -84,7 +84,7 @@ export function Designations() {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.length === 0 ? (
-          <EmptyState>{T.designations.empty}</EmptyState>
+          <EmptyState title={T.designations.emptyTitle}>{T.designations.empty}</EmptyState>
         ) : (
           <DataTable
             caption={T.designations.title}

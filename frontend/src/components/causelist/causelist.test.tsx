@@ -1,5 +1,8 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CauselistBench, CauselistDay, CauselistEntries, CauselistEntry, Permission } from "@/lib/api/types";
@@ -8,6 +11,7 @@ import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
 import { CauseList } from "./CauseList";
 import { courtNext } from "@/test/nextHearing";
+import { nb } from "@/test/dates";
 
 const D = "2026-10-13";
 const DAILY = "11111111-1111-4111-8111-111111111111";
@@ -566,7 +570,7 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
   it("shows the bench's printed entries paged by 100 with the page's badges, and Close leaves the page as it was", async () => {
     const api = browserApi(routes({ [`GET /causelists/${D}/entries`]: ENTRIES_100 }));
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854", view: "1854", vtab: "entries" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026" });
+    const dialog = await screen.findByRole("dialog", { name: nb("Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026") });
     expect(within(dialog).getByText("Daily List")).toBeInTheDocument();
     expect(within(dialog).getByText("Supplementary List")).toBeInTheDocument();
     const table = await within(dialog).findByRole("table", { name: "Cause-list Entries" });
@@ -647,7 +651,7 @@ describe("the original PDF without first choosing a bench (causelist-pdf-access)
     const button = await screen.findByRole("button", { name: "View Cause List" });
     await waitFor(() => expect(button).toBeEnabled());
     await userEvent.click(button);
-    return screen.findByRole("dialog", { name: "Choose a Bench · 13 Oct 2026" });
+    return screen.findByRole("dialog", { name: nb("Choose a Bench · 13 Oct 2026") });
   }
 
   function rowOf(dialog: HTMLElement, judges: string): HTMLElement {
@@ -706,7 +710,7 @@ describe("the original PDF without first choosing a bench (causelist-pdf-access)
     // the address the chooser opened: closing the modal returns to the page on All Benches
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, view: "1854", vtab: "entries" }} />);
-    const modal = await screen.findByRole("dialog", { name: "Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026" });
+    const modal = await screen.findByRole("dialog", { name: nb("Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026") });
     await userEvent.click(within(modal).getByRole("button", { name: "Close" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}`);
   });
@@ -854,5 +858,20 @@ describe("the original PDF without first choosing a bench (causelist-pdf-access)
     const causelistPaths = [...new Set(api.calls.map((c) => c.path.split("?")[0]!))].filter((p) => p.startsWith("/causelists"));
     expect(causelistPaths).toEqual(expect.arrayContaining([`/causelists/${D}`, `/causelists/${D}/entries`]));
     expect(causelistPaths.every((p) => p === `/causelists/${D}` || p === `/causelists/${D}/entries`)).toBe(true);
+  });
+});
+
+describe("the cause-list caption and card rows (design portal-ui-kit-fixes, decisions 2, 6 and 8)", () => {
+  const css = readFileSync(join(process.cwd(), "src", "components", "causelist", "causelist.module.css"), "utf-8");
+  const phone = css.slice(css.indexOf("@media (max-width: 819px)"), css.indexOf("@media (max-width: 639px)"));
+
+  it("the phone block gives the caption display: block, so it is not squeezed to its longest word (L3)", () => {
+    expect(phone).toMatch(/\.entries caption \{\s*display: block;\s*\}/);
+  });
+
+  it("a labelled card cell is the kit's two-column grid and an empty value draws no row", () => {
+    expect(phone).toMatch(/\.entry td\[data-label\] \{\s*display: grid;\s*grid-template-columns: var\(--card-label-w\) minmax\(0, 1fr\);/);
+    expect(phone).not.toMatch(/justify-content: space-between/);
+    expect(phone).toContain(".entry td[data-label]:has(> .value:empty) {");
   });
 });

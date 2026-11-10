@@ -325,7 +325,7 @@ export function CauseList({ params }: { params: Params }) {
           {held ? <ErrorBanner error={entries.error} onRetry={() => entries.refetch()} /> : null}
           {held && entries.data ? (
             entries.data.items.length === 0 ? (
-              <EmptyState>{T.causelist.noEntries}</EmptyState>
+              <EmptyState title={T.causelist.noEntriesTitle}>{T.causelist.noEntries}</EmptyState>
             ) : (
               <>
                 <EntryTable

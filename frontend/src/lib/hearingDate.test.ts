@@ -16,6 +16,7 @@ import {
   type HearingBand,
   type NextHearing,
 } from "./hearingDate";
+import { nb } from "@/test/dates";
 
 // 12:00 IST on Tuesday 27 Oct 2026
 const NOW = new Date("2026-10-27T06:30:00Z");
@@ -155,8 +156,8 @@ describe("the one next hearing in words", () => {
     expect(nextHearingProps(around)).toEqual({ date: "2026-03-11", kind: "around" });
     expect(nextHearingProps({ ...around, basis: "court", approximate: false })).toEqual({ date: "2026-03-11", kind: "firm" });
     expect(nextHearingProps(null)).toEqual({ date: null, kind: "firm" });
-    expect(aroundSentence(around)).toBe("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)");
-    expect(aroundSentence({ ...around, basis_words: null })).toBe("Around 11 Mar 2026 (order of 18 Feb 2026)");
+    expect(aroundSentence(around)).toBe(nb("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)"));
+    expect(aroundSentence({ ...around, basis_words: null })).toBe(nb("Around 11 Mar 2026 (order of 18 Feb 2026)"));
     expect(aroundSentence({ ...around, basis: "order" })).toBeNull();
   });
 
@@ -164,8 +165,8 @@ describe("the one next hearing in words", () => {
     const at = (basis: NextHearing["basis"], order: NextHearing["order"] = { ...ORDER, order_date: "2026-10-12" }) =>
       basisLine({ ...around, basis, order });
     expect(at("court", null)).toBe("From the court's records");
-    expect(at("order")).toBe("Given in the order of 12 Oct 2026");
-    expect(at("confirmed")).toBe("From the order of 12 Oct 2026");
+    expect(at("order")).toBe(nb("Given in the order of 12 Oct 2026"));
+    expect(at("confirmed")).toBe(nb("From the order of 12 Oct 2026"));
     expect(at("manual", null)).toBe("Entered by hand; the court has given no date");
     // design next-date-direct-followups, decision 1: only the server's flag makes a manual date a correction
     expect(at("manual")).toBe("Entered by hand; the court has given no date");
@@ -173,12 +174,12 @@ describe("the one next hearing in words", () => {
       "Entered by hand; the court has given no date",
     );
     expect(basisLine({ ...around, basis: "manual", order: { ...ORDER, order_date: "2026-10-12" }, corrected: true })).toBe(
-      "Corrected by hand: the date read from the order of 12 Oct 2026 was wrong",
+      nb("Corrected by hand: the date read from the order of 12 Oct 2026 was wrong"),
     );
     expect(basisLine({ ...around, basis: "manual", order: null, corrected: true })).toBe(
       "Entered by hand; the court has given no date",
     );
-    expect(at("around", ORDER)).toBe("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)");
+    expect(at("around", ORDER)).toBe(nb("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)"));
     expect(basisLine(null)).toBeNull();
   });
 
@@ -192,7 +193,7 @@ describe("the one next hearing in words", () => {
       differs: { date: "2026-11-20", order: { ...ORDER, order_date: "2026-10-12" } },
     };
     expect(differsSentence(court)).toBe(
-      "The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026. The court's record is used.",
+      nb("The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026. The court's record is used."),
     );
     expect(differsSentence(around)).toBeNull();
   });

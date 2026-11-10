@@ -190,3 +190,102 @@ test("a menu placed fixed over the page passes, and a page with no menu raises n
   await page.setContent(clipPage("<p>No menu here</p>"));
   expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "menu-clipped")).toEqual([]);
 });
+
+/**
+ * The four rules of design portal-ui-kit-fixes (decisions 24 and 33), each on a page that breaks it and one that keeps
+ * it: caption inset (and the squeeze of a caption in a table drawn as cards), date wrap, broken word and card row.
+ */
+function table(captionStyle: string): string {
+  return `<table style="border-collapse:separate;border-spacing:0;width:600px">
+      <caption style="text-align:left;${captionStyle}">To Us</caption>
+      <thead><tr><th style="padding:12px 16px;text-align:left">Case</th><th style="padding:12px 16px">From</th></tr></thead>
+      <tbody><tr><td style="padding:12px 16px">WP(C)/1/2026</td><td style="padding:12px 16px">Health</td></tr></tbody>
+    </table>`;
+}
+
+test("a caption flush with the table's edge is a caption-inset finding", async ({ page }) => {
+  await page.setContent(shell("padding:16px 24px", table("padding:8px 0")));
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "caption-inset");
+  expect(findings).toHaveLength(1);
+});
+
+test("a caption inset like the cells, or marked as a heading, passes", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      `${table("padding:12px 16px 8px")}
+       <table style="width:300px"><caption data-caption="heading" style="text-align:left">October 2026</caption>
+         <thead><tr><th style="padding:8px">Mon</th></tr></thead><tbody><tr><td style="padding:8px">1</td></tr></tbody></table>`,
+    ),
+  );
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "caption-inset")).toEqual([]);
+});
+
+test("a caption squeezed in a 60 px box of a table drawn as cards is a caption-inset finding", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      `<table style="display:block;width:300px"><caption style="display:table-caption;width:60px">Cause-list Entries</caption>
+         <tbody style="display:block"><tr style="display:block"><td data-label="Case" style="display:block">WP(C)/1/2026</td></tr></tbody></table>`,
+    ),
+  );
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "caption-inset")).toHaveLength(1);
+});
+
+test("a date broken over lines in a 40 px cell is a date-wrap finding; with no-break spaces in a wide cell it passes", async ({ page }) => {
+  await page.setContent(shell("padding:16px 24px", `<div style="width:40px">23 Oct 2026</div>`));
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "date-wrap")).toHaveLength(1);
+  await page.setContent(shell("padding:16px 24px", `<div style="width:300px">Due 23\u00a0Oct\u00a02026</div>`));
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "date-wrap")).toEqual([]);
+});
+
+test("a word broken in the middle is a broken-word finding; inside data-free-text it passes", async ({ page }) => {
+  await page.setContent(shell("padding:16px 24px", `<div style="width:30px;overflow-wrap:anywhere">October</div>`));
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "broken-word")).toHaveLength(1);
+  await page.setContent(shell("padding:16px 24px", `<div data-free-text style="width:30px;overflow-wrap:anywhere">October</div>`));
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "broken-word")).toEqual([]);
+});
+
+function cards(rows: string): string {
+  // each cell's label is drawn by ::before from data-label, as in the kit
+  return `<style>td::before { content: attr(data-label); }</style>
+    <table style="display:block;width:340px"><tbody style="display:block">${rows}</tbody></table>`;
+}
+
+const CELL = "display:grid;grid-template-columns:112px minmax(0,1fr);column-gap:12px;align-items:baseline";
+
+test("an empty labelled cell on a card is a card-row finding", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      cards(`<tr style="display:block">
+        <td data-label="Case" style="${CELL}"><div style="grid-column:2">WP(C)/1/2026</div></td>
+        <td data-label="Status" style="${CELL}"><div style="grid-column:2"></div></td></tr>`),
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "card-row");
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.detail).toContain("Status");
+});
+
+test("values starting at different x on one card are a card-row finding; one column passes", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      cards(`<tr style="display:block">
+        <td data-label="Due" style="display:flex;justify-content:space-between"><div>23 Oct 2026</div></td>
+        <td data-label="What the Order Says" style="display:flex;gap:12px"><div>Reply in two weeks</div></td></tr>`),
+    ),
+  );
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "card-row")).toHaveLength(1);
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      cards(`<tr style="display:block">
+        <td data-label="Due" style="${CELL}"><div style="grid-column:2">23 Oct 2026</div></td>
+        <td data-label="What the Order Says" style="${CELL}"><div style="grid-column:2">Reply in two weeks</div></td>
+        <td data-label="Actions" style="${CELL}"><div style="grid-column:2"><button>Confirm</button></div></td></tr>`),
+    ),
+  );
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "card-row")).toEqual([]);
+});

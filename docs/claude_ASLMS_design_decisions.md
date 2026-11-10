@@ -3623,3 +3623,33 @@ Monday at 09:00) but not the block, the repeats or its growth with the number of
 
 **Documentation.** The owner explains the court refresh to others: the row rewrites `docs/ASLMS_Process_Workflows.md`
 sections 2.2, 2.4 and 2.6 and the Software Documentation to match.
+
+## Portal UI kit fixes (2026-11-10)
+
+**What was built.** Row 231 `portal-ui-kit-fixes`, frontend only (design `docs/design/portal-ui-kit-fixes.md`, row A of
+the portal UI review, row 230). No table, endpoint, command or migration; `schema.md`, `openapi.json` and `schema.d.ts`
+unchanged.
+- Kit: table captions inset like the cells (K1, and the Cause List caption squeeze L3); dates never break inside
+  themselves (K5, no-break spaces, `lib/format.ts`); phone and stacked cards with a fixed label column, one value
+  column and no empty rows (K6); title before badge (K11, Y1, the alert and note headers); one empty-state rule (K8,
+  titles on the main lists and case tabs, compact untitled states in cards); one "View All" link form with the target
+  named for screen readers (K9); `plural()` and Indian digit grouping in the new leaf module `lib/digits.ts` (K10);
+  words and numbers break only between themselves (DC1, `break-word` with `[data-free-text]` for machine text).
+- Automatic checks: four geometry kinds in `frontend/e2e/checks.ts` (`caption-inset`, `date-wrap`, `broken-word`,
+  `card-row`) with passing and failing self-tests in `uicheck-self.spec.ts`; vitest guards for K8 (`emptyState.guard.test.ts`),
+  K10 (`messages.plural.test.ts`) and K11.
+- Review fix: the dashboard Pending Actions card follows the overdue list (shown only when the server sends `items`).
+
+**Decisions and reasons.** All five open questions answered with the recommended answers (owner, 10 Nov 2026): L3 fixed
+here; the alert-title case-number repeat (A2) goes to row 233 with a small additive `summary` on `GET /alerts`; tables
+may become cards sooner because dates no longer wrap; Title Case titles on main empty lists; visible "View All →".
+
+**Deviations.** `plural` lives in `lib/digits.ts` because `messages.ts` cannot import `format.ts` (import cycle);
+`T.case.allOrders` was in use and became a `HeadLink`; the two attachment messages keep whole phrases for the wording
+guard; Copy to Note and list search fold the no-break spaces back; a kit column option `actions` runs two button
+columns the card's full width; more `[data-free-text]` marks on System Health. The Pending Actions card deviates from
+decision 19 as stated above. Details are in the design note's Deviations.
+
+**Left for later.** The integrator runs uicheck on a private network against temporary images (runbook section 16) and
+compares the listed screenshots; the owner looks at 375 and 1280 px. No follow-up row added. Documents read outside the
+team (Process Workflows, operations, the two Word guides) do not describe this behaviour, so none changed.

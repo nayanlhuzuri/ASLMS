@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { NextDate } from "./api/types";
 import { isScannedItem, originLine, readingLabel, ruleHint, sourceLabel, statusLabel } from "./nextDates";
+import { nb } from "@/test/dates";
 
 function row(extra: Partial<NextDate> = {}): NextDate {
   return {
@@ -57,11 +58,11 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
 
   it("reads an order's six statuses in plain words (decision 11)", () => {
     expect(readingLabel({ next_date_status: "specific", next_date_found: "2026-11-20" })).toEqual({
-      date: "20 Nov 2026",
+      date: nb("20 Nov 2026"),
       words: "Date in the Order",
     });
     expect(readingLabel({ next_date_status: "period", next_date_found: "2026-10-26" })).toEqual({
-      date: "26 Oct 2026",
+      date: nb("26 Oct 2026"),
       words: "counted from the order",
     });
     expect(readingLabel({ next_date_status: "unclear", next_date_found: null })).toEqual({ date: null, words: "No Clear Date" });
@@ -72,7 +73,7 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
   });
 
   it("says where a date came from (decision 8)", () => {
-    expect(originLine(row())).toBe("Fixed in the order of 12 Oct 2026");
+    expect(originLine(row())).toBe(nb("Fixed in the order of 12 Oct 2026"));
     expect(
       originLine(
         row({
@@ -82,10 +83,10 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
           reviewed_at: "2026-10-14T05:00:00Z",
         }),
       ),
-    ).toBe("Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026");
+    ).toBe(nb("Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026"));
     expect(
       originLine(row({ source: "manual", order: null, created_by: { name: "Officer One" }, created_at: "2026-10-15T05:00:00Z" })),
-    ).toBe("Entered by Officer One on 15 Oct 2026");
+    ).toBe(nb("Entered by Officer One on 15 Oct 2026"));
     expect(originLine(row({ source: "current_status", order: null }))).toBe("From the Court Records");
   });
 

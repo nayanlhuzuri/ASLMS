@@ -22,6 +22,7 @@ import {
   Card,
   Collapsible,
   ErrorBanner,
+  ItemHead,
   Kpi,
   KvList,
   Lead,
@@ -221,16 +222,17 @@ function CourtCard({ card, onOpen }: { card: ApiCard; onOpen: () => void }) {
         onOpen();
       }}
     >
-      <div className={s.cardHead}>
-        <Lead>
-          <Badge tone={toneOf(card.status)}>{T.system.status[card.status] ?? card.status_word}</Badge>
-        </Lead>
-        <h4 className={s.cardName}>
-          <button type="button" className={s.nameButton} onClick={onOpen} aria-label={T.system.open(name)}>
-            {name}
-          </button>
-        </h4>
-      </div>
+      {/* the title first, the status badge at the top right in full (design portal-ui-kit-fixes, decision 12) */}
+      <ItemHead
+        title={
+          <h4 className={s.cardName}>
+            <button type="button" className={s.nameButton} onClick={onOpen} aria-label={T.system.open(name)}>
+              {name}
+            </button>
+          </h4>
+        }
+        badges={<Badge tone={toneOf(card.status)}>{T.system.status[card.status] ?? card.status_word}</Badge>}
+      />
       <p className={s.muted}>
         {card.last_call
           ? T.system.lastCall(formatTime(card.last_call.called_at), formatNumber(card.last_call.duration_ms))

@@ -522,7 +522,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(bands.map((b) => b.textContent)).toEqual(["Tomorrow", "In 2 Days", "In 7 Days"]);
     for (const b of bands) expect(b.querySelector("time")).toBeNull();
     expect(within(rows[0]!).getByText("Court 3 · item 14")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Calendar →" })).toHaveAttribute("href", "/calendar");
+    // design portal-ui-kit-fixes, decision 22: "View All", the target named for screen readers
+    expect(screen.getByRole("link", { name: "View All Upcoming Hearings" })).toHaveAttribute("href", "/calendar");
   });
 
   it("the view switch shows only with more than one view", async () => {
@@ -757,5 +758,62 @@ describe("Ready to Close on the dashboards (design close-case, decisions 21 and 
       "/inbox/department?department=EDU&case_status=disposed",
     );
     expect(within(block).getByRole("link", { name: "Ready to Close" }).closest("li")).toHaveTextContent("Ready to Close3");
+  });
+});
+
+describe("empty sections (design portal-ui-kit-fixes, decision 19)", () => {
+  it("the department view's Pending Actions card shows when the server sends the list, empty or not", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education", {
+        pending_actions: { held: 0, overdue: 0, due_soon: 0, no_due_date: 0, items: [] },
+      }),
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    const card = within(block).getByRole("heading", { name: "Pending Actions" }).closest("section")!;
+    const empty = within(card).getByText("No Pending Actions.").closest("[data-compact]");
+    expect(empty).not.toBeNull();
+  });
+
+  it("an empty overdue list with actions pending says none are overdue, never none pending", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education", {
+        pending_actions: { held: 40, overdue: 0, due_soon: 2, no_due_date: 1, items: [] },
+      }),
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    const card = within(block).getByRole("heading", { name: "Pending Actions" }).closest("section")!;
+    expect(within(card).getByText("No Overdue Pending Actions.")).toBeInTheDocument();
+    expect(within(block).queryByText("No Pending Actions.")).toBeNull();
+  });
+
+  it("the card stays hidden when the server sends no list (reports function without tracking)", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education"),
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).queryByRole("heading", { name: "Pending Actions" })).toBeNull();
+    expect(within(block).queryByText("No Pending Actions.")).toBeNull();
+    expect(within(block).queryByText("No Overdue Pending Actions.")).toBeNull();
+  });
+
+  it("More About My Work still hides Cases with Me when the reader holds none", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": PERSONAL,
+    });
+    renderWithClient(<Dashboard />);
+    await openMore();
+    expect(await screen.findByText(/Hearing tomorrow/)).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Cases with Me" })).toBeNull();
   });
 });

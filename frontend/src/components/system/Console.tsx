@@ -235,14 +235,14 @@ function RequestView({
           rowKey={(r) => r.name}
           columns={[
             { key: "name", header: T.system.docs.name, cell: (r) => <span className="cno">{r.name}</span>, primary: true },
-            { key: "shown", header: T.system.docs.meaning, cell: (r) => <span className={s.mono}>{r.shown}</span> },
+            { key: "shown", header: T.system.docs.meaning, cell: (r) => <span className={s.mono} data-free-text="">{r.shown}</span> },
             { key: "note", header: T.system.docs.note, cell: (r) => r.note },
           ]}
         />
       </section>
       <section className="stack" aria-label={C.headers}>
         <h3>{C.headers}</h3>
-        <KvList items={request.headers.map((h) => [h.name, <span key={h.name} className={s.mono}>{h.shown}</span>])} />
+        <KvList items={request.headers.map((h) => [h.name, <span key={h.name} className={s.mono} data-free-text="">{h.shown}</span>])} />
       </section>
       {last?.params_sha256 ? <p>{C.sameAsLast(last.params_sha256 === request.plain_sha256)}</p> : null}
       <section className="stack" aria-label={C.templates}>

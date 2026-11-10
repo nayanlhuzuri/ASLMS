@@ -43,7 +43,7 @@ export function Hearings({ caseRef }: { caseRef: string }) {
         <ErrorBanner error={hearings.error} onRetry={() => hearings.refetch()} />
         {hearings.data ? (
           hearings.data.items.length === 0 ? (
-            <EmptyState>{T.case.noHearings}</EmptyState>
+            <EmptyState title={T.case.noHearingsTitle}>{T.case.noHearings}</EmptyState>
           ) : (
             <>
               <DataTable

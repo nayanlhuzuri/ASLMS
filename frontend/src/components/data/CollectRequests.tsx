@@ -246,6 +246,8 @@ export function RequestsCard({ query }: { query: ReturnType<typeof useRequests> 
                   key: "actions",
                   header: <span className="visually-hidden">{T.dc.showItemsButton}</span>,
                   label: T.dc.showItemsButton,
+                  // the buttons name themselves: the card's full width (design portal-ui-kit-fixes, build deviations)
+                  actions: true,
                   cell: (r) => (
                     <span className={ds.rowActions}>
                       <Button variant="secondary" size="sm" onClick={() => setOpen(r)}>

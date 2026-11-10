@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "@/components/shell/PortalShell";
 import { resetNav } from "@/test/nav";
 import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
-import { routes } from "@/test/systemFixtures";
+import { routes, summary } from "@/test/systemFixtures";
 
 import { SystemHealth } from "./SystemHealth";
 
@@ -34,7 +34,7 @@ describe("the navigation entry", () => {
 });
 
 describe("the System health screen", () => {
-  it("renders the 17 cards in four groups with their badge inside a Lead", async () => {
+  it("renders the 17 cards in four groups, each title first and its badge after (design portal-ui-kit-fixes, decision 12)", async () => {
     routes();
     renderWithClient(<SystemHealth params={{}} />);
     expect(await screen.findByRole("heading", { name: "Connection and Masters" })).toBeInTheDocument();
@@ -44,13 +44,26 @@ describe("the System health screen", () => {
     const cards = screen.getAllByTestId(/^card-/);
     expect(cards).toHaveLength(17);
     for (const c of cards) {
-      const lead = c.querySelector("[data-lead='lead']");
-      expect(lead).not.toBeNull();
-      expect(lead!.textContent).toBe("Working");
+      const head = c.querySelector("[data-ui='item-head']")!;
+      expect(head).not.toBeNull();
+      expect(head.querySelector("[data-lead]")).toBeNull();
+      const title = head.querySelector("button")!;
+      const badge = within(head as HTMLElement).getByText("Working");
+      // the title button comes before the badge in DOM order
+      expect(title.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
     expect(within(screen.getByTestId("card-cnr")).getByRole("button", { name: "Case Details by CNR: Details" })).toBeInTheDocument();
     expect(screen.getByText("17 of 17 working")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Test now/ })).toBeNull();
+  });
+
+  it("a card with no recent calls shows its badge in full", async () => {
+    routes(summary(true, { cnr: { status: "unknown" } }));
+    renderWithClient(<SystemHealth params={{}} />);
+    const card = await screen.findByTestId("card-cnr");
+    const head = card.querySelector("[data-ui='item-head']") as HTMLElement;
+    expect(within(head).getByText("No Recent Calls")).toBeInTheDocument();
+    expect(head.querySelector("[data-lead]")).toBeNull();
   });
 
   it("shows the overview: ring, the server's sentence and the four figures", async () => {

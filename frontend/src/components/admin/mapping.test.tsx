@@ -507,7 +507,7 @@ describe("keywords and name patterns", () => {
       "POST /admin/keywords": json(409, { detail: "the keyword COMMISSIONER OF EDUCATION already exists for EDU" }),
     });
     renderWithClient(<KeywordsAndPatterns />);
-    expect(await screen.findByText(/4 case\(s\) found/)).toBeInTheDocument();
+    expect(await screen.findByText(/4 cases found/)).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Search the court for DIRECTOR OF SECONDARY EDUCATION"));
     await waitFor(() => expect(calls(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
     expect(calls(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ discover: false });

@@ -232,7 +232,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}
       {total === 0 ? (
-        <EmptyState>{T.pf.failedNone}</EmptyState>
+        <EmptyState title={T.pf.failedNoneTitle}>{T.pf.failedNone}</EmptyState>
       ) : (
         <>
           <h3>{T.pf.failedByKind}</h3>
@@ -273,13 +273,18 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
                       caption={T.pf.failedTitle}
                       rows={rows.data.items}
                       rowKey={(r) => r.id}
-                      empty={<EmptyState>{T.pf.failedNone}</EmptyState>}
+                      empty={<EmptyState title={T.pf.failedNoneTitle}>{T.pf.failedNone}</EmptyState>}
                       columns={[
                         { key: "when", header: T.pf.cols.when, cell: (r) => formatDateTime(r.finished_at ?? r.updated_at) },
                         { key: "what", header: T.pf.cols.what, primary: true, cell: (r) => <span title={r.ref}>{failedWhat(r.kind, r.ref)}</span> },
                         { key: "kind", header: T.pf.cols.kindOfWork, cell: (r) => T.dc.kinds[r.kind] ?? r.kind },
                         { key: "tries", header: T.pf.cols.tries, align: "right", cell: (r) => r.attempts },
-                        { key: "problem", header: T.pf.cols.problem, cell: (r) => r.last_error ?? "—" },
+                        {
+                          key: "problem",
+                          header: T.pf.cols.problem,
+                          // raw paths and error lines may break anywhere (design portal-ui-kit-fixes, decision 16)
+                          cell: (r) => <span data-free-text="">{r.last_error ?? "—"}</span>,
+                        },
                         {
                           key: "retry",
                           header: <span className="visually-hidden">{T.pf.retry}</span>,
@@ -405,7 +410,7 @@ function PossibleDuplicates({ review }: { review: number }) {
       {list.isPending ? <Loading /> : null}
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.pf.dupNone[kind]}</EmptyState>
+          <EmptyState title={T.pf.dupNoneTitle}>{T.pf.dupNone[kind]}</EmptyState>
         ) : (
           <>
             <ScrollBox label={T.pf.dupKinds[kind]!}>
@@ -417,7 +422,7 @@ function PossibleDuplicates({ review }: { review: number }) {
                   { key: "case", header: T.pf.cols.case, primary: true, cell: (d) => brief(d.case) },
                   { key: "other", header: T.pf.cols.otherCase, cell: (d) => brief(d.other) },
                   { key: "at", header: T.pf.cols.when, cell: (d) => formatDateTime(d.at) },
-                  { key: "reason", header: T.pf.cols.reason, cell: (d) => d.reasons ?? "—" },
+                  { key: "reason", header: T.pf.cols.reason, cell: (d) => <span data-free-text="">{d.reasons ?? "—"}</span> },
                 ]}
               />
             </ScrollBox>

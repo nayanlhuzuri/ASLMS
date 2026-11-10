@@ -88,7 +88,7 @@ export function Sent({ params }: { params: Params }) {
               caseFiltersSet(params, "sent") ? (
                 <NoCaseMatches params={params} list="sent" />
               ) : (
-                <EmptyState>{earlier ? T.files.emptySent : T.files.emptyStillOut}</EmptyState>
+                <EmptyState title={T.files.emptySentTitle}>{earlier ? T.files.emptySent : T.files.emptyStillOut}</EmptyState>
               )
             }
           />

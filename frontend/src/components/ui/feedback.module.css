@@ -125,6 +125,13 @@
   border-radius: var(--r-lg);
 }
 
+/* design portal-ui-kit-fixes, decision 18: an empty list inside a card or panel, with no frame and no icon */
+.emptyCompact {
+  padding: var(--s3) 0;
+  text-align: left;
+  color: var(--text-3);
+}
+
 .emptyIcon {
   display: grid;
   place-items: center;

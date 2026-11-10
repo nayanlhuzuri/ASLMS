@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatDate } from "./format";
 import { LIST_SEARCH_FROM, matchesWords, searchShown } from "./listSearch";
+import { nb } from "@/test/dates";
 
 describe("matchesWords", () => {
   it("needs every word in one of the texts", () => {
@@ -19,7 +20,7 @@ describe("matchesWords", () => {
 
   it("finds dates in the portal's format", () => {
     const shown = formatDate("2025-10-12");
-    expect(shown).toBe("12 Oct 2025");
+    expect(shown).toBe(nb("12 Oct 2025"));
     expect(matchesWords("12 oct", "SC, EDU", shown)).toBe(true);
     expect(matchesWords("13 oct", "SC, EDU", shown)).toBe(false);
   });

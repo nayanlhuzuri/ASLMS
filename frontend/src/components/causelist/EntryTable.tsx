@@ -269,15 +269,21 @@ export function EntryTable({
                     <CaseCell e={e} />
                     <Parties e={e} />
                   </td>
+                  {/* one value box per labelled cell, as in the kit's DataTable: the phone card lines it up and
+                      draws no row when it is empty (design portal-ui-kit-fixes, decisions 6 and 8) */}
                   <td data-label={T.causelist.ownership}>
-                    <OwnershipCell entry={e} names={names} />
+                    <div className={s.value}>
+                      <OwnershipCell entry={e} names={names} />
+                    </div>
                   </td>
                   <td data-label={T.causelist.action}>
-                    {e.claimable && e.case ? (
-                      <Button variant="secondary" onClick={() => onClaim(e.case!.ref_no)}>
-                        {T.own.claim}
-                      </Button>
-                    ) : null}
+                    <div className={s.value}>
+                      {e.claimable && e.case ? (
+                        <Button variant="secondary" onClick={() => onClaim(e.case!.ref_no)}>
+                          {T.own.claim}
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                   <td className={s.hideOnPhone}>
                     <Chevron />

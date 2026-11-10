@@ -10,7 +10,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
-import { Badge, Button, CodeBlock, ErrorBanner, KvList, Lead, Loading, Modal } from "@/components/ui";
+import { Badge, Button, CodeBlock, ErrorBanner, ItemHead, KvList, Loading, Modal } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { NapixToken, NapixTokenCheck } from "@/lib/api/types";
 import { formatDateTime, formatNumber, formatTime } from "@/lib/format";
@@ -47,16 +47,17 @@ export function TokenCard({ token, onOpen }: { token: NapixToken | undefined; on
         onOpen();
       }}
     >
-      <div className={s.cardHead}>
-        <Lead>
-          <Badge tone={toneOf(token?.status)}>{token ? K.status[token.status] : T.loading}</Badge>
-        </Lead>
-        <h3 className={s.cardName}>
-          <button type="button" className={s.nameButton} onClick={onOpen} aria-label={K.open}>
-            {K.card}
-          </button>
-        </h3>
-      </div>
+      {/* the title first, the status badge at the top right (design portal-ui-kit-fixes, decision 12) */}
+      <ItemHead
+        title={
+          <h3 className={s.cardName}>
+            <button type="button" className={s.nameButton} onClick={onOpen} aria-label={K.open}>
+              {K.card}
+            </button>
+          </h3>
+        }
+        badges={<Badge tone={toneOf(token?.status)}>{token ? K.status[token.status] : T.loading}</Badge>}
+      />
       <p className={s.muted}>{token ? tokenLine(token) : T.loading}</p>
     </article>
   );
@@ -123,7 +124,7 @@ function TokenRequest({ token }: { token: NapixToken }) {
       <CodeBlock label={K.method} copySize="md">{`${e.method} ${e.url}`}</CodeBlock>
       <KvList
         items={[
-          [K.body, <span key="b" className={s.mono}>{e.body}</span>],
+          [K.body, <span key="b" className={s.mono} data-free-text="">{e.body}</span>],
           [K.contentType, <span key="c" className={s.mono}>{e.content_type}</span>],
           [K.auth, e.auth_note],
         ]}

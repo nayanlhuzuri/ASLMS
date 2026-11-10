@@ -205,7 +205,7 @@ export function CourtSearch({
           {result.queued ? <Notice>{T.search.courtQueued(result.queued)}</Notice> : null}
           {result.not_stored ? <Notice>{T.search.courtNotStored(result.court_cases ?? 0, result.created)}</Notice> : null}
           {result.items.length === 0 ? (
-            <EmptyState>{T.search.none}</EmptyState>
+            <EmptyState title={T.search.noneTitle}>{T.search.none}</EmptyState>
           ) : (
             <CaseResults
               items={result.items}

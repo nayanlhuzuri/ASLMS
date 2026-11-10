@@ -33,7 +33,7 @@ export function Links({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.case.noLinks}</EmptyState>
+          <EmptyState title={T.case.noLinksTitle}>{T.case.noLinks}</EmptyState>
         ) : (
           <DataTable
             caption={T.case.links}

@@ -487,9 +487,10 @@ function OwnWeights({ settings }: { settings: ScoringSettings }) {
     {
       key: "use",
       header: <span className="visually-hidden">{T.mapping.useStandard}</span>,
-      // the phone card's label, short as in the other mapping tables, so the label and the button share
-      // one line at 375 px (the button names the action)
       label: T.mapping.actions,
+      // the button names the action: on a card it runs the full width, so it never overflows the value column
+      // (design portal-ui-kit-fixes, build deviations)
+      actions: true,
       align: "right",
       cell: (r) => (
         <Button variant="secondary" size="sm" busy={action.busy} aria-label={T.mapping.useStandardFor(r.text)} onClick={() => void clearOwn(r)}>

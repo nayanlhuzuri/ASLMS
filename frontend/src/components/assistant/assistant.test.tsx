@@ -21,6 +21,7 @@ import { browserApi, json, makeMe, primaryActions, renderWithClient } from "@/te
 
 import { AssistantPage, CaseAssistant } from "./Assistant";
 import { CourtOrderView } from "./CourtOrderView";
+import { nb } from "@/test/dates";
 
 const FNS: Permission[] = ["cases.view_scope", "documents.view", "assistant.use", "notes.add"];
 const BASE = `/cases/${REF}`;
@@ -191,7 +192,7 @@ describe("the Assistant page", () => {
     // design assistant-polish, decision 16: an answer without markers keeps its sources under it
     const box = await screen.findByRole("log", { name: "Conversation" });
     const panel = await within(box).findByRole("group", { name: "Preview 1" });
-    const own = await within(panel).findByRole("link", { name: /Open source 1: Order of 12 Mar 2026, No\. 5, page 2/ });
+    const own = await within(panel).findByRole("link", { name: /Open source 1: Order of 12\sMar\s2026, No\. 5, page 2/ });
     expect(own).toHaveAttribute("href", "/api/backend/cases/c-1/orders/o-1/file?disposition=inline#page=2");
     expect(own).toHaveAttribute("target", "_blank");
     const related = within(panel).getByRole("list", { name: "Related Orders in Other Cases" });
@@ -346,6 +347,7 @@ describe("the case Assistant tab", () => {
     const dialog = await screen.findByRole("dialog");
     const note = (await within(dialog).findByLabelText("Note")) as HTMLTextAreaElement;
     expect(note.value).toContain("2 passages from 2 documents matched");
+    // a note keeps ordinary spaces (design portal-ui-kit-fixes, decision 5)
     expect(note.value).toContain("[1] Order of 12 Mar 2026, No. 5, page 2 (WP(C)/1/2026): “The respondents shall file an affidavit within four weeks.”");
     expect(note.value).toContain("[2] Order of 12 Mar 2026, No. 2, page 1 (WP(C)/202/2026)");
     expect(note.value).not.toContain("[[");
@@ -786,10 +788,10 @@ describe("sources opened from their reference (design assistant-polish, decision
     resetNav(BASE + "/assistant");
     renderWithClient(<CaseAssistant caseRef={REF} />);
     const box = await screen.findByRole("log", { name: "Conversation" });
-    const s2 = await within(box).findByRole("button", { name: "Source S2: Order of 12 Mar 2026, No. 5, page 2" });
+    const s2 = await within(box).findByRole("button", { name: nb("Source S2: Order of 12 Mar 2026, No. 5, page 2") });
     expect(s2).toHaveAttribute("type", "button");
     expect(s2).toHaveTextContent("S2");
-    expect(within(box).getByRole("button", { name: "Source S3: Note 4, General, 1 Oct 2026 (Internal)" })).toBeInTheDocument();
+    expect(within(box).getByRole("button", { name: nb("Source S3: Note 4, General, 1 Oct 2026 (Internal)") })).toBeInTheDocument();
     expect(within(box).queryByRole("button", { name: /Source S9/ })).toBeNull();
     expect(within(box).getByText(/\[S9\]/)).toBeInTheDocument();
   });
@@ -841,7 +843,7 @@ describe("sources opened from their reference (design assistant-polish, decision
     resetNav(BASE + "/assistant");
     renderWithClient(<CaseAssistant caseRef={REF} />);
     const box = await screen.findByRole("log", { name: "Conversation" });
-    await userEvent.click(await within(box).findByRole("button", { name: "Source S3: Note 4, General, 1 Oct 2026 (Internal)" }));
+    await userEvent.click(await within(box).findByRole("button", { name: nb("Source S3: Note 4, General, 1 Oct 2026 (Internal)") }));
     const dialog = await screen.findByRole("dialog", { name: "Source S3" });
     expect(within(dialog).getByText("Internal")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "Open the Note" })).toHaveAttribute("href", "/cases/c-1/notes#note-4");

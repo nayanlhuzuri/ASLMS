@@ -379,11 +379,13 @@ describe("the overview and the ownership card", () => {
     renderWithClient(<Overview caseRef={REF} />);
     const latest = await screen.findByRole("region", { name: "Latest Order" });
     expect(await within(latest).findByText("Affidavit within four weeks.")).toBeInTheDocument();
-    expect(within(latest).getByRole("link", { name: "All Orders →" })).toHaveAttribute("href", `${BASE}/orders`);
+    // design portal-ui-kit-fixes, decision 22: the kit HeadLink, "View All" with the target named for screen readers
+    expect(within(latest).getByRole("link", { name: "View All Orders" })).toHaveAttribute("href", `${BASE}/orders`);
     const recent = await screen.findByRole("region", { name: "Recent Activity" });
     const list = await within(recent).findByRole("list", { name: "Recent Activity" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(5);
-    expect(within(recent).getByRole("link", { name: "Timeline →" })).toHaveAttribute("href", `${BASE}/timeline`);
+    expect(within(recent).getByRole("link", { name: "View All Activity" })).toHaveAttribute("href", `${BASE}/timeline`);
+    expect(within(recent).getByRole("link", { name: "View All Activity" })).toHaveTextContent("View All →");
     // the parties, advocates and acts are folded away until asked for
     const fold = within(latest).getByRole("button", { name: "Show Parties, Advocates and Acts" });
     expect(fold).toHaveAttribute("aria-expanded", "false");
@@ -639,6 +641,12 @@ describe("tabs", () => {
     });
     renderWithClient(<Notes caseRef={REF} />);
     expect(await screen.findByRole("link", { name: "corrected by ASLMS/EDU/NOTE/2026/000002" })).toHaveAttribute("href", "#note-2");
+    // design portal-ui-kit-fixes, decision 14: the kind first as a <strong>, the visibility badge in the badges slot
+    const head = document.querySelector("#note-1 [data-ui='item-head']") as HTMLElement;
+    expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Remark");
+    expect(head.lastElementChild!.textContent).toBe("Everyone with the Case");
+    expect(head.querySelector("[data-lead]")).toBeNull();
     expect(screen.getByRole("link", { name: "corrects ASLMS/EDU/NOTE/2026/000001" })).toHaveAttribute("href", "#note-1");
     await userEvent.click(screen.getByLabelText("Hide Corrected Notes"));
     await waitFor(() => expect(screen.queryByText("body 1")).toBeNull());

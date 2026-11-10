@@ -50,7 +50,7 @@ export function Timeline({ caseRef }: { caseRef: string }) {
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{T.case.noTimeline}</EmptyState>
+          <EmptyState title={T.case.noTimelineTitle}>{T.case.noTimeline}</EmptyState>
         ) : (
           <>
             <ol className={s.plainList} aria-label={T.case.timeline}>

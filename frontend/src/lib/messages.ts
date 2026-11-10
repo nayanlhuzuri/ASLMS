@@ -3,12 +3,13 @@
  * later. `errorText` turns an API error code into text and falls back to the server's own message.
  */
 import type { ApiError } from "./api/client";
+import { groupDigits as num, plural } from "./digits";
 
 function wait(seconds: unknown): string {
-  const s = Number(seconds);
-  if (!Number.isFinite(s) || s <= 0) return "a few minutes";
-  if (s < 60) return `${Math.ceil(s)} seconds`;
-  const m = Math.ceil(s / 60);
+  const secs = Number(seconds);
+  if (!Number.isFinite(secs) || secs <= 0) return "a few minutes";
+  if (secs < 60) return `${Math.ceil(secs)} seconds`;
+  const m = Math.ceil(secs / 60);
   return m === 1 ? "1 minute" : `${m} minutes`;
 }
 
@@ -23,7 +24,7 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   mail_not_configured: () => "Mail is not set up on the server, so no code can be sent. Contact the administrator.",
   otp_invalid: (x) =>
     x.attempts_left !== undefined
-      ? `That code is not correct. ${String(x.attempts_left)} attempt(s) left.`
+      ? `That code is not correct. ${plural(Number(x.attempts_left), "attempt", "attempts")} left.`
       : "That code is not correct.",
   otp_expired: () => "The code has expired. Start again.",
   weak_password: () => "The password is too weak.",
@@ -265,6 +266,8 @@ export const T = {
   active: "Active",
   inactive: "Inactive",
   previous: "Previous",
+  // design portal-ui-kit-fixes, decision 20: the one wording of a "see all" link in a card head (HeadLink)
+  viewAll: "View All",
   next: "Next",
   pageOf: (from: number, to: number, total: string) => `${from}–${to} of ${total}`,
   saved: "Saved.",
@@ -364,11 +367,11 @@ export const T = {
   shell: {
     nav: "Main Navigation",
     breadcrumb: "Breadcrumb",
-    alerts: (n: number) => (n === 1 ? "1 unread alert" : `${n} unread alerts`),
+    alerts: (n: number) => plural(n, "unread alert", "unread alerts"),
     profile: "My Profile",
     signOut: "Sign Out",
     userMenu: "User Menu",
-    offices: (n: number) => (n === 1 ? "1 office" : `${n} offices`),
+    offices: (n: number) => plural(n, "office", "offices"),
     primary: "Primary",
     noOffice: "No Active Office",
     openMenu: "Open Menu",
@@ -463,8 +466,8 @@ export const T = {
     ringNone: "No Court Calls in 24 Hours",
     sentence: {
       everything_working: () => "Everything is working",
-      need_attention: (n: number) => `${n} need attention`,
-      not_working: (n: number) => (n === 1 ? "1 is not working" : `${n} are not working`),
+      need_attention: (n: number) => `${num(n)} need attention`,
+      not_working: (n: number) => `${plural(n, "is", "are")} not working`,
       not_known: () => "Checking…",
     } as Record<string, (n: number) => string>,
     kpi: {
@@ -481,9 +484,9 @@ export const T = {
       services: (total: number) => `of ${total}`,
     },
     court: "Court Connections (NAPIX)",
-    courtCount: (working: number, total: number) => `${working} of ${total} working`,
+    courtCount: (working: number, total: number) => `${num(working)} of ${num(total)} working`,
     services: "ASLMS Services",
-    servicesCount: (working: number, total: number) => `${working} of ${total} working`,
+    servicesCount: (working: number, total: number) => `${num(working)} of ${num(total)} working`,
     groups: {
       masters: "Connection and Masters",
       causelists: "Cause Lists",
@@ -955,6 +958,8 @@ export const T = {
     claimed: "Cases Claimed and Active",
     claimedSub: (n: string) => `${n} disposed`,
     upcoming: "Upcoming Hearings",
+    noPendingActions: "No Pending Actions.",
+    noOverdueActions: "No Overdue Pending Actions.",
     noHearings: "No hearings in the next 7 days.",
     attention: "Needs Attention",
     nextDatesReview: "Next Dates to Enter",
@@ -1027,13 +1032,12 @@ export const T = {
     kpiFiles: "Cases with Me",
     kpiFilesSub: (n: string) => `${n} due today`,
     kpiOverdue: "Overdue Actions",
-    kpiOverdueSub: (n: number) => (n === 1 ? "Oldest 1 day" : `Oldest ${n} days`),
+    kpiOverdueSub: (n: number) => `Oldest ${plural(n, "day", "days")}`,
     kpiOverdueNone: "Nothing Overdue",
     kpiConfirm: "Next Dates to Enter",
     kpiConfirmSub: "Orders with no clear date",
     upcomingNone: "No hearing of your cases in the next 7 days.",
     upcomingNoneTitle: "No Hearings This Week",
-    openCalendar: "Open Calendar →",
     needsAttention: "Needs Your Attention",
     attentionNoneTitle: "Nothing Waiting",
     attentionNone: "Overdue cases, next dates to enter and cases you receive appear here.",
@@ -1071,6 +1075,7 @@ export const T = {
     status: "Status",
     noMembership: "No Active Office",
     empty: "No users match.",
+    emptyTitle: "No Users",
     createTitle: "New User",
     checkEmail: "Check E-mail",
     exists: (name: string) => `${name} already has a login.`,
@@ -1183,11 +1188,11 @@ export const T = {
     choose: "Choose an Officer",
     reason: "Reason for Ending",
     confirm: "End Membership",
-    missing: (n: number) => `${n} item(s) still need a successor.`,
+    missing: (n: number) => `${plural(n, "item still needs", "items still need")} a successor.`,
     allotment: "Assigned Case",
     file: "Case with Them",
     counts: (a: number, f: number, d: number, al: number) =>
-      `${a} assigned case(s), ${f} case(s) with them, ${d} draft(s), ${al} open alert(s)`,
+      `${plural(a, "assigned case", "assigned cases")}, ${plural(f, "case", "cases")} with them, ${plural(d, "draft", "drafts")}, ${plural(al, "open alert", "open alerts")}`,
   },
   access: {
     title: "User Types and Functions",
@@ -1199,11 +1204,11 @@ export const T = {
     // design case-workspace-admin, decisions 24-25: the user-type cards and the user-type page
     indexTitle: "User Types",
     indexSubtitle: "What each kind of user can do. Open a type to change its functions.",
-    users: (n: number) => (n === 1 ? "1 user" : `${n} users`),
+    users: (n: number) => plural(n, "user", "users"),
     functionsOn: (on: number, total: number) => `${on} of ${total} functions on`,
     changed: (n: number) => `${n} changed from default`,
     counts: (users: number, on: number, total: number) =>
-      `${users === 1 ? "1 user" : `${users} users`} · ${on} of ${total} functions on`,
+      `${plural(users, "user", "users")} · ${on} of ${total} functions on`,
     back: "All User Types",
     find: "Find a Function",
     findPlaceholder: "Find a function, e.g. recall",
@@ -1215,13 +1220,13 @@ export const T = {
     superAdminLine: "The Super Administrator always holds every function.",
     reserved: "Reserved to the Super Administrator",
     readOnlyLine: "Only the Super Administrator changes user types.",
-    unsaved: (n: number) => (n === 0 ? "No unsaved changes" : n === 1 ? "1 unsaved change" : `${n} unsaved changes`),
+    unsaved: (n: number) => (n === 0 ? "No unsaved changes" : plural(n, "unsaved change", "unsaved changes")),
     discard: "Discard",
     saveChanges: "Save Changes",
     saved: "Saved. The change is in the audit log.",
     leaveTitle: "Leave Without Saving?",
     leaveText: (n: number) =>
-      n === 1 ? "1 change is not saved and will be lost." : `${n} changes are not saved and will be lost.`,
+      `${plural(n, "change is", "changes are")} not saved and will be lost.`,
     leave: "Leave",
     stay: "Stay",
     saveBar: "Unsaved Changes",
@@ -1246,7 +1251,8 @@ export const T = {
   offices: {
     title: "Offices",
     newOffice: "New Office",
-    users: (n: number) => (n === 1 ? "1 user" : `${n} users`),
+    emptyTitle: "No Offices",
+    users: (n: number) => plural(n, "user", "users"),
     code: "Code",
     name: "Name",
     kind: "Kind",
@@ -1297,6 +1303,7 @@ export const T = {
     orderHint: "Lower numbers are higher in the hierarchy and listed first. Leave empty to add at the end.",
     add: "Add Designation",
     empty: "No designations.",
+    emptyTitle: "No Designations",
   },
   mapping: {
     title: "Department Mapping",
@@ -1472,6 +1479,7 @@ export const T = {
     age: "Age (Days)",
     status: "Status",
     empty: "No tickets.",
+    emptyTitle: "No Tickets",
     approve: "Approve",
     reject: "Reject",
     withdraw: "Withdraw",
@@ -1590,7 +1598,7 @@ export const T = {
     yourAction: "Your Action",
     unitOfficer: "Responsible Unit · Dealing Officer",
     fileWith: "With",
-    overdueDays: (n: number) => `Overdue ${n} ${n === 1 ? "day" : "days"}`,
+    overdueDays: (n: number) => `Overdue ${plural(n, "day", "days")}`,
     dueOn: (d: string) => `Due ${d}`,
     you: "You",
     nothingWaiting: "Nothing waiting",
@@ -1780,6 +1788,7 @@ export const T = {
     results: "Results",
     total: (n: string, capped: boolean) => `${n}${capped ? "+" : ""} cases`,
     none: "No case matches in the portal's database.",
+    noneTitle: "No Cases Found",
     owner: (code: string) => `Owned by ${code}`,
     inPool: "In the Unclaimed Pool",
     notVisible: "Court-public Summary Only",
@@ -1805,7 +1814,7 @@ export const T = {
     pendDisp: "Cases",
     pendDispOptions: { P: "Pending", D: "Disposed", both: "Both" } as Record<string, string>,
     courtGo: "Search the Court",
-    courtFound: (n: number, created: number) => `${n} case(s) found; ${created} new to the portal.`,
+    courtFound: (n: number, created: number) => `${plural(n, "case", "cases")} found; ${num(created)} new to the portal.`,
     // design ownership-refinements, decision 4: a CNR, case-number or filing search the database answered
     courtLocal: "Found in the ASLMS database; the court was not asked.",
     // design safety-fixes, decision 14: a capped advocate search
@@ -1860,7 +1869,7 @@ export const T = {
     heldText: (status: string, lists: number) =>
       status === "skipped"
         ? "The court published no cause list for this day when it was last asked. Fetch anyway?"
-        : `${lists} list(s) of this day are already held. Fetch anyway?`,
+        : `${plural(lists, "list of this day is", "lists of this day are")} already held. Fetch anyway?`,
     fetchAnyway: "Fetch Anyway",
     lists: "Lists of This Bench",
     listEntries: (n: number) => `${n} entries`,
@@ -1915,6 +1924,7 @@ export const T = {
     yourDepartmentWatching: "Your Department (Watching)",
     unclaimed: "Unclaimed",
     noEntries: "No entry of this day matches.",
+    noEntriesTitle: "No Entries",
     nothingHeld: "No list of this day is held.",
     openCauselist: "Open the Cause List",
     connectedFallback: "with the case above",
@@ -2066,12 +2076,13 @@ export const T = {
     proceedings: "Proceedings",
     allHearings: "All Hearings",
     noHearings: "No hearings recorded.",
+    noHearingsTitle: "No Hearings Yet",
     custody: "Journey",
     holder: "With",
     pendingAction: "Pending Action",
     since: "Since",
     due: "Due",
-    overdue: (n: number) => `${n} day(s) overdue`,
+    overdue: (n: number) => `${plural(n, "day", "days")} overdue`,
     sentBy: "Sent By",
     remark: "Remark",
     noCustody: "No movement recorded yet.",
@@ -2079,6 +2090,7 @@ export const T = {
     noStage: "No stage set.",
     latestOrder: "Latest Order",
     noOrders: "No orders.",
+    noOrdersTitle: "No Orders Yet",
     view: "View",
     download: "Download",
     opensAsDownload: "Opens As a Download",
@@ -2147,7 +2159,7 @@ export const T = {
     archived: "Archived",
     uploadedBy: "Uploaded By",
     size: "Size",
-    pages: (n: number) => `${n} page(s)`,
+    pages: (n: number) => plural(n, "page", "pages"),
     textStatus: "Text",
     // design document-ocr, decision 3: the text state in plain words, never the raw value
     textLabels: {
@@ -2162,6 +2174,7 @@ export const T = {
     description: "Description",
     type: "Type",
     noDocuments: "No documents.",
+    noDocumentsTitle: "No Documents Yet",
     groupTotal: (n: string) => `${n} in this group`,
     noDocumentAccess: "Reading documents is not among your functions.",
     links: "Linked Cases",
@@ -2169,6 +2182,7 @@ export const T = {
     linkKind: "Kind",
     linkSource: "Source",
     noLinks: "No linked cases.",
+    noLinksTitle: "No Linked Cases",
     graph: "Relationship Graph",
     graphTruncated: "The graph is cut short; not every connected case is drawn.",
     notes: "Notes",
@@ -2176,9 +2190,11 @@ export const T = {
     corrects: (ref: string) => `corrects ${ref}`,
     correctedBy: (ref: string) => `corrected by ${ref}`,
     noNotes: "No notes.",
+    noNotesTitle: "No Notes Yet",
     attachments: "Attachments",
     timeline: "Timeline",
     noTimeline: "Nothing yet.",
+    noTimelineTitle: "No Activity Yet",
     details: "Details",
     identity: "Identity",
     statusBlock: "Status",
@@ -2201,8 +2217,9 @@ export const T = {
     actions: "Case Actions",
     moreTabs: "More",
     recentActivity: "Recent Activity",
-    timelineLink: "Timeline →",
-    allOrders: "All Orders →",
+    // the hidden suffixes of the head links' accessible names ("View All Activity", "View All Orders")
+    activityLink: "Activity",
+    ordersLink: "Orders",
     showOrder: "Show the Order",
     showParties: "Show Parties, Advocates and Acts",
     ownershipFolded: "Ownership and Recommendations",
@@ -2232,7 +2249,7 @@ export const T = {
     searchCourtHint: "Search the High Court for cases naming this, from 2025 on, every week. Never for a regular expression.",
     searchCourtFor: (what: string) => `Search the court for ${what}`,
     ruleLine: (last: string | null, found: number) =>
-      last ? `Last searched ${last}; ${found} case(s) found.` : "Not searched yet; the search is waiting in the queue.",
+      last ? `Last searched ${last}; ${plural(found, "case", "cases")} found.` : "Not searched yet; the search is waiting in the queue.",
     ticked: "This text will be searched at the court.",
     unticked: "This text is not searched at the court.",
     tab: "Court Search",
@@ -2295,7 +2312,7 @@ export const T = {
     sweepAll: "Sweep Every Name Now",
     sweepTitle: "Queue a Discovery Sweep",
     sweepText: "Every active name is queued again for 2025 to this year, within the discovery share. Nothing is fetched at once.",
-    swept: (rows: number, terms: number) => `${rows} searches queued for ${terms} name(s).`,
+    swept: (rows: number, terms: number) => `${plural(rows, "search", "searches")} queued for ${plural(terms, "name", "names")}.`,
     failures: "Latest Failed Discovery Rows",
     finishedAt: "Finished",
     noFailures: "No failed discovery row.",
@@ -2740,7 +2757,7 @@ export const T = {
     upToDate: "Up to Date",
     // design causelist-day-gap-sweep, decision 6: the days of the collection period no collection has asked for
     notAskedLine: (count: string, ranges: string, more: number) =>
-      `Days Not Asked For: ${count} · ${ranges}${more > 0 ? ` and ${more} more ${more === 1 ? "range" : "ranges"}` : ""}`,
+      `Days Not Asked For: ${count} · ${ranges}${more > 0 ? ` and ${plural(more, "more range", "more ranges")}` : ""}`,
     notAskedRange: (from: string, to: string) => `${from} to ${to}`,
     notAskedTooltip:
       "Days in the collection period that no collection has asked the court for yet. The nightly sweep at 04:15 asks for them.",
@@ -2964,7 +2981,7 @@ export const T = {
     scheduleFacts: {
       disposed: (eligible: string, due: string) => `${eligible} in their first year, ${due} due now`,
       purge: (n: string) => `last run removed ${n}`,
-      dayGaps: (n: number) => `last run queued ${n} ${n === 1 ? "day" : "days"}`,
+      dayGaps: (n: number) => `last run queued ${plural(n, "day", "days")}`,
     },
     dailyTitle: "Daily Updates, Last 7 Days",
     dailyStatus: { done: "Done", waiting: "Waiting", failed: "Failed", none: "No List Published" } as Record<string, string>,
@@ -3012,8 +3029,8 @@ export const T = {
     requestListLabel: "Request List",
     requestsEmpty: "No request in the last 7 days.",
     requestWhat: {
-      cases: (n: number) => (n === 1 ? "One Case" : `${n} Cases`),
-      list: (n: number) => `List of ${n} Cases`,
+      cases: (n: number) => (n === 1 ? "One Case" : `${num(n)} Cases`),
+      list: (n: number) => `List of ${num(n)} Cases`,
       day: (date: string) => `Cases Listed on ${date}`,
       refetchDay: (date: string) => `Cause Lists of ${date}`,
       recheckDay: (date: string) => `Cause Lists of ${date} Checked Again`,
@@ -3152,6 +3169,8 @@ export const T = {
     // Failed Fetches (decision 44)
     failedTitle: "Failed Fetches",
     failedNone: "No fetch has failed.",
+    failedNoneTitle: "No Failed Fetches",
+    dupNoneTitle: "No Possible Duplicates",
     failedByKind: "Failed by Kind of Work",
     retryAll: "Retry All",
     retryAllOf: (kind: string) => `Retry All ${kind}`,
@@ -3242,7 +3261,7 @@ export const T = {
     action: "Action Needed",
     since: "Since",
     due: "Due By",
-    overdueBy: (n: number) => (n === 1 ? "Overdue by 1 day" : `Overdue by ${n} days`),
+    overdueBy: (n: number) => `Overdue by ${plural(n, "day", "days")}`,
     sentBy: "Sent By",
     remark: "Remark",
     holder: "With",
@@ -3251,9 +3270,13 @@ export const T = {
     holderDepartment: "Department It Is With",
     allDepartments: "All Departments",
     emptyMine: "No case is with you.",
+    emptyMineTitle: "No Cases with You",
     emptyOffices: "No case is with your offices.",
+    emptyOfficesTitle: "No Cases with Your Offices",
     emptyDepartment: "No case of your department is waiting on someone.",
+    emptyDepartmentTitle: "Nothing Waiting on Others",
     emptySent: "You have not sent or recalled a case.",
+    emptySentTitle: "Nothing Sent",
     // design case-inbox-simplify, decisions 6 and 18: Sent by Me lists the files still out
     emptyStillOut: "Nothing you sent is still out. Tick Show Earlier to see everything you sent and recalled.",
     showEarlier: "Show Earlier",
@@ -3332,8 +3355,8 @@ export const T = {
     withWhom: (who: string) => `With ${who}`,
     from: "From",
     dueBy: "Due By",
-    daysLeft: (n: number) => (n === 0 ? "due today" : n === 1 ? "1 day left" : `${n} days left`),
-    overdueBy: (n: number) => (n === 1 ? "Overdue by 1 day" : `Overdue by ${n} days`),
+    daysLeft: (n: number) => (n === 0 ? "due today" : `${plural(n, "day", "days")} left`),
+    overdueBy: (n: number) => `Overdue by ${plural(n, "day", "days")}`,
     noDue: "No due date",
     showAll: "Show All",
     showLess: "Show Less",
@@ -3348,7 +3371,7 @@ export const T = {
     courtItem: (court: string | null, item: number | string | null) =>
       [court ? `Court ${court}` : null, item !== null && item !== "" ? `Item ${item}` : null].filter(Boolean).join(" · "),
     quickActions: "Quick Actions",
-    actionsCount: (n: number) => (n === 1 ? "1 action" : `${n} actions`),
+    actionsCount: (n: number) => plural(n, "action", "actions"),
     journey: "Journey of This Case",
     journeyLink: "Journey and Stage",
     noJourney: "No movement recorded yet.",
@@ -3413,6 +3436,7 @@ export const T = {
     ticket: (ref: string) => `Ticket ${ref}`,
     empty: "No alerts match these filters.",
     emptyDefault: "You have no open alerts.",
+    emptyTitle: "No Alerts",
   },
   // design next-hearing-highlight, decision 8: the next hearing badge (`HearingDate`) on every screen that shows one
   hearing: {
@@ -3460,9 +3484,9 @@ export const T = {
     today: "Today",
     critical: "Within 48 Hours",
     thisWeek: "This Week",
-    hearings: (n: number) => (n === 1 ? "1 hearing" : `${n} hearings`),
+    hearings: (n: number) => plural(n, "hearing", "hearings"),
     dayName: (day: string, n: number, critical: number) =>
-      `${day}: ${n === 1 ? "1 hearing" : `${n} hearings`}${critical > 0 ? `, ${critical} within 48 hours` : ""}`,
+      `${day}: ${plural(n, "hearing", "hearings")}${critical > 0 ? `, ${num(critical)} within 48 hours` : ""}`,
     agenda: "Agenda",
     court: "Court",
     item: "Item",
@@ -3544,6 +3568,7 @@ export const T = {
     custodyTab: "Journey and Stage",
     movement: "Movement Record",
     noLegs: "No movements recorded.",
+    noLegsTitle: "No Movements Yet",
     seq: "No.",
     holderCol: "With",
     reason: "Reason",
@@ -3586,10 +3611,14 @@ export const T = {
     linksHint: "A link never widens who can see the document.",
     noLinkable: "No documents of this case to link.",
     attachFiles: "Attach New Files",
-    attachHint: (n: number) => `Up to ${n} file(s); each is checked for viruses before it is stored.`,
+    // whole phrases, not plural(): the wording guard reads "file" only inside "Up to n files" (wording.test.ts)
+    attachHint: (n: number) =>
+      n === 1
+        ? "Up to 1 file; each is checked for viruses before it is stored."
+        : `Up to ${num(n)} files; each is checked for viruses before it is stored.`,
     attachmentType: (name: string) => `Document type for ${name}`,
     removeFile: (name: string) => `Remove ${name}`,
-    tooManyFiles: (n: number) => `At most ${n} file(s) may be attached.`,
+    tooManyFiles: (n: number) => (n === 1 ? "At most 1 file may be attached." : `At most ${num(n)} files may be attached.`),
     internalLine: "Notes and their attachments are internal and are never sent to the Case Assistant.",
     saveDraft: "Save Draft",
     addNote: "Add Note",
@@ -3650,6 +3679,7 @@ export const T = {
     alertsTab: "Alerts",
     alertsReader: "Alerts of this case are shown to the offices working on it.",
     noAlerts: "No alerts.",
+    noAlertsTitle: "No Alerts",
     statusFilter: "Show",
     openAndAcknowledged: "Open and Acknowledged",
     allAlerts: "All",
@@ -3701,6 +3731,7 @@ export const T = {
     enterNext: "Enter Next Date",
     enterFor: (c: string) => `Enter date for ${c}`,
     emptyDefault: "Nothing to enter. New orders of your cases are checked every few minutes.",
+    emptyTitle: "Nothing to Enter",
     empty: "No item matches these filters.",
     onlyYours: "Only cases your office works on are listed here.",
     // the dialogs (design portal-next-dates, decision 7; next-date-direct, decisions 17 and 18)
@@ -3885,6 +3916,7 @@ export const T = {
     newConversation: "New Conversation",
     private: "Conversations are private to you and cannot be deleted.",
     noConversations: "No conversation yet.",
+    noConversationsTitle: "No Conversations Yet",
     backToList: "All Conversations",
     openConversation: (title: string) => `Open conversation: ${title}`,
     emptyTitle: "Ask a Question",
@@ -3905,7 +3937,7 @@ export const T = {
     questionPlaceholder: "Ask a question about the court records",
     ask: "Ask",
     asking: "Searching the Court Records…",
-    left: (n: number, total: number) => (n === 1 ? `1 question left this hour of ${total}` : `${n} questions left this hour of ${total}`),
+    left: (n: number, total: number) => `${plural(n, "question", "questions")} left this hour of ${num(total)}`,
     you: "You",
     answerBy: {
       preview: "Preview",

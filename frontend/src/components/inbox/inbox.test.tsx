@@ -713,7 +713,7 @@ describe("the Next Hearing column's bands (design next-hearing-highlight, decisi
       expect(el).toHaveAttribute("data-band", band);
       if (word) expect(el.firstElementChild).toHaveTextContent(word);
       // the later band reads the date alone in a list
-      else expect(el.textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/);
+      else expect(el.textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/);
     });
     expect(screen.queryByText("48 Hours")).toBeNull();
     expect(screen.queryByText("This Week", { selector: "span" })).toBeNull();

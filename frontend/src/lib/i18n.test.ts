@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { formatDate, formatDateTime, formatDateTimeSeconds, formatNumber, formatTime, formatWeekday } from "./format";
 import { CATALOGUES, DEFAULT_LOCALE, htmlAttributes, LOCALES, messagesFor, type LocaleInfo } from "./i18n";
 import { T } from "./messages";
+import { nb } from "@/test/dates";
 
 const SRC = join(process.cwd(), "src");
 
@@ -80,10 +81,10 @@ describe("message catalogues", () => {
 
 describe("dates and numbers by locale", () => {
   it("English keeps today's fixed texts (the existing cases)", () => {
-    expect(formatDate("2026-09-24T19:00:00Z", "en")).toBe("25 Sep 2026");
-    expect(formatDate("2026-01-01", "en")).toBe("1 Jan 2026");
-    expect(formatDateTime("2026-09-24T18:30:00Z", "en")).toBe("25 Sep 2026, 00:00");
-    expect(formatDateTimeSeconds("2026-10-14T09:04:07Z", "en")).toBe("14 Oct 2026, 14:34:07");
+    expect(formatDate("2026-09-24T19:00:00Z", "en")).toBe(nb("25 Sep 2026"));
+    expect(formatDate("2026-01-01", "en")).toBe(nb("1 Jan 2026"));
+    expect(formatDateTime("2026-09-24T18:30:00Z", "en")).toBe(nb("25 Sep 2026, 00:00"));
+    expect(formatDateTimeSeconds("2026-10-14T09:04:07Z", "en")).toBe(nb("14 Oct 2026, 14:34:07"));
     expect(formatTime("2026-10-11T09:04:30Z", "en")).toBe("14:34");
     expect(formatNumber(128400, "en")).toBe("1,28,400");
     expect(formatNumber(12345678)).toBe("1,23,45,678");
@@ -93,9 +94,12 @@ describe("dates and numbers by locale", () => {
   it("any other locale goes through Intl, in IST", () => {
     const other: LocaleInfo = { code: "xx", htmlLang: "xx", intl: "en-US", dir: "ltr" };
     const instant = "2026-09-24T19:00:00Z";
+    // the Intl text with no-break spaces between its parts (design portal-ui-kit-fixes, decision 3)
     expect(formatDate(instant, other)).toBe(
-      new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }).format(
-        new Date(instant),
+      nb(
+        new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }).format(
+          new Date(instant),
+        ),
       ),
     );
     expect(formatDate(instant, other)).toContain("25");

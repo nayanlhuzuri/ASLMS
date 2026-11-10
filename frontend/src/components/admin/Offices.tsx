@@ -98,7 +98,7 @@ export function OfficesTree() {
             <TreeItems nodes={tree.data} kinds={labels.data?.office_kinds} />
           </nav>
         ) : (
-          <EmptyState>{T.none}</EmptyState>
+          <EmptyState title={T.offices.emptyTitle}>{T.none}</EmptyState>
         )
       ) : null}
     </section>

@@ -308,7 +308,11 @@ describe("the Access token card and modal", () => {
     renderWithClient(<SystemHealth params={{}} />);
     const card = await screen.findByTestId("token-card");
     expect(await within(card).findByText("Held · 42 minutes left")).toBeInTheDocument();
-    expect(card.querySelector("[data-lead='lead']")!.textContent).toBe("Working");
+    // design portal-ui-kit-fixes, decision 12: the title first, then the badge; no Lead
+    const head = card.querySelector("[data-ui='item-head']") as HTMLElement;
+    expect(head.querySelector("[data-lead]")).toBeNull();
+    expect(head.firstElementChild!.textContent).toBe("Access Token");
+    expect(within(head).getByText("Working")).toBeInTheDocument();
     expect(api.calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
@@ -322,7 +326,7 @@ describe("the Access token card and modal", () => {
     renderWithClient(<SystemHealth params={{}} />);
     const card = await screen.findByTestId("token-card");
     expect(await within(card).findByText(line)).toBeInTheDocument();
-    expect(card.querySelector("[data-lead='lead']")!.textContent).toBe(word);
+    expect(card.querySelector("[data-ui='item-head']")!.lastElementChild!.textContent).toBe(word);
   });
 
   it("the Token tab lists the facts; Check token shows its cost, posts once and shows the outcome", async () => {

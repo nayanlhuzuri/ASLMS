@@ -445,7 +445,8 @@ None.
     - `components/dashboard/dashboard.test.tsx`:
       - Upcoming Hearings has a "View All" link to `/calendar` with the accessible name "View All Upcoming Hearings";
       - the department block's Pending Actions card shows with "No Pending Actions." when `pending_actions.items` is
-        empty;
+        empty and `held` is 0, with "No Overdue Pending Actions." when it is empty and `held` is above 0, and stays
+        hidden when `items` is null (see Deviations);
       - `PersonalExtras` still hides Cases with Me when empty.
     - `components/case/case.test.tsx`: Recent Activity's head link is "View All", to the Timeline tab.
     - `components/data/data.test.tsx`: `.panel` has `overflow-wrap: break-word`. The Failed Fetches Problem cell carries
@@ -530,6 +531,44 @@ None from the plan, which does not fix the layout of these elements. Earlier des
   stays for lists that give every row one.
 - **Design data-collection-redesign's panel rule** ("a long value wraps", `overflow-wrap: anywhere`) becomes
   `break-word`, with `[data-free-text]` for long machine text (decisions 15 and 16).
+
+**Build deviations (developer, 10 Nov 2026).** The smallest choices made where the design was silent or read older
+code:
+- **`plural` lives in a leaf module.** `messages.ts` cannot import `lib/format.ts` (`format.ts` imports `i18n.ts`, which
+  imports `messages.ts`, so `T` would be read before it exists). The helper and the Indian grouping are in the new
+  `lib/digits.ts` (no imports); `format.ts` re-exports `plural` and uses the same grouping for English.
+- **`T.case.allOrders` was in use** (the Latest Order card's head on the case Overview), not unused as read at 6dd84d3.
+  By the wording rule of decision 21 it became `HeadLink` "View All" with the hidden suffix "Orders", and the key was
+  removed with the other two.
+- **The two attachment messages keep whole phrases** (`wf.attachHint`, `wf.tooManyFiles`): "Up to 1 file; …" / "Up to
+  1,234 files; …". Passing "file" and "files" to `plural()` as separate strings fails the wording guard
+  (`wording.test.ts`), which allows the computer-file sense only inside "Up to n files" and "At most n files".
+- **The cause-list cards follow decisions 6 and 8 too.** `EntryTable` is a hand-built table whose cells carry
+  `data-label`, so the `card-row` check reads it. Its labelled cells hold one value box, laid out on the same grid, and
+  an empty Action cell draws no row.
+- **"New" on the case Alerts tab** shows only for an alert that reached the reader (`notified_at` set, `read_at` null).
+  The tab also lists alerts of the case sent to others, whose read state is not the reader's.
+- **Copy to Note keeps ordinary spaces.** `noteText` (the Assistant's Copy to Note) puts formatted dates into a note's
+  text, which is stored and searched on the server; it turns the no-break spaces back into spaces. `fold` in
+  `lib/listSearch.ts` does the same, so a list search for "12 Oct" matches.
+- **The report caption needed no rule of its own.** The report table uses the kit's `.table` class, so decision 1's
+  caption padding reaches it.
+- **The empty-state guard's allow-list** holds one entry: Automatic Collection's "share is off" line, a setting's state
+  rather than an empty list. The fact-list values are not caught by its pattern, so they need no entry.
+- **`wait()` in `messages.ts`** names its variable `secs`, so the "(s)" guard does not read `isFinite(s)` as a plural.
+- **A kit column option `actions`.** With the fixed 112 px label column, two single buttons no longer fit the value
+  column of a 375 px card ("Use the Standard Weight" on Department Mapping's scoring table, "Stop Using Everything" on
+  Collect Now's Request List; the browser check's `gutter` and `inner-scroll`). A column marked `actions` has no card
+  label and runs the card's full width, because its buttons name themselves. Only those two columns use it;
+  `expectDataTable` accepts the cell without a label.
+- **More `[data-free-text]` marks**, found by the new `broken-word` check on System Health: the request envelope's
+  values and headers in the console (a 64-character token) and the token request's body.
+- **The Pending Actions card follows the list, not the section** (review finding). Decision 19 read the card as
+  showing whenever `pending_actions` is sent, but the server fills `pending_actions.items` only for readers with
+  `custody.track` or State scope (others get `null`), and the list holds only overdue files. So the card shows only
+  when `items` is a list; empty, it says "No Pending Actions." only when `held` is 0 and otherwise "No Overdue Pending
+  Actions.", so it never contradicts the Pending Actions count above it. A reader with the reports function alone sees
+  the count and no card, as before this row.
 
 ## Owner's answers (10 Nov 2026)
 
