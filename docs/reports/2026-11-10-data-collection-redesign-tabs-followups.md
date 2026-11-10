@@ -31,3 +31,6 @@ causelist_day done 414 / skipped 266; causelist_recheck done 6 / skipped 11; dos
 
 ## Push
 See the final return of the integrator (pushed commit and CI run address).
+
+## Deployed
+10 Nov 2026 at 16:16 IST. Images built from clean `main` at 87d28e0; CI run 42798686306 green (changes, policy, backend, frontend, compose, ci-ok). `up -d --wait` with the court-data switch on, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. Switch on in `api` and `worker`; mail still to Mailpit; web build ID matches the image (`voWoRgEwrG4P8IuLgy43X`, frontend unchanged); the new fetch-details code is in the running api; portal smoke passed. No migration. Verification 4 of the design (the live role checks) is the owner's.
