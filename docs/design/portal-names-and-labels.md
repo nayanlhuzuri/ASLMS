@@ -2,10 +2,10 @@
 
 ```
 slug: portal-names-and-labels
-status: proposed
+status: approved
 author: architect
 date: 2026-11-10
-approved_by: (pending)
+approved_by: owner on 2026-11-10, with the recommended answers to the open questions
 ```
 
 ## Context
@@ -693,3 +693,7 @@ recommended answers".
      raise sites add `*_office_name` to the alert data. Existing alerts keep their stored text.
    - Alternative: fold it into this row, which adds the ownership, workflow and document raise sites and their tests
      (about half a day).
+
+## Owner's answers (10 Nov 2026)
+
+All open questions answered with the recommended answers.

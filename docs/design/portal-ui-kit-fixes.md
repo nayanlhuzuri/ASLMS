@@ -2,10 +2,10 @@
 
 ```
 slug: portal-ui-kit-fixes
-status: proposed
+status: approved
 author: architect
 date: 2026-11-10
-approved_by:
+approved_by: owner on 2026-11-10, with the recommended answers to the open questions
 ```
 
 ## Context
@@ -530,3 +530,7 @@ None from the plan, which does not fix the layout of these elements. Earlier des
   stays for lists that give every row one.
 - **Design data-collection-redesign's panel rule** ("a long value wraps", `overflow-wrap: anywhere`) becomes
   `break-word`, with `[data-free-text]` for long machine text (decisions 15 and 16).
+
+## Owner's answers (10 Nov 2026)
+
+All open questions answered with the recommended answers.

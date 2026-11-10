@@ -2,10 +2,10 @@
 
 ```
 slug: portal-screen-fixes-work
-status: proposed
+status: approved
 author: architect
 date: 2026-11-10
-approved_by:
+approved_by: owner on 2026-11-10, with the recommended answers to the open questions
 ```
 
 ## Context
@@ -571,3 +571,7 @@ recommended answers".
 
 ## Build notes
 (For the developer: P6 step 0 measurements, then any deviation from this note.)
+
+## Owner's answers (10 Nov 2026)
+
+All open questions answered with the recommended answers.

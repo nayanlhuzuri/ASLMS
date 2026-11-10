@@ -3566,3 +3566,16 @@ wants the sample's motion: it becomes row 235 `portal-motion` after row 229, bec
 **Build order.** Row 204, then 231 `portal-ui-kit-fixes`, 228, 232 `portal-names-and-labels`, 233
 `portal-screen-fixes-work`, 234 `portal-screen-fixes-oversight`, 229 (with the colour-meaning findings K7, A1 and C4),
 235; then rows 187 and 191 and the rest of the earlier order. Design notes of 231 to 234 are written while row 204 builds.
+
+## 2026-11-10 — Rows 231 to 234 approved (owner)
+
+**Decision.** The owner approved the designs of rows 231 `portal-ui-kit-fixes`, 232 `portal-names-and-labels`, 233
+`portal-screen-fixes-work` and 234 `portal-screen-fixes-oversight` with the recommended answers to every open question:
+L3 fixed in row 231 and only verified in row 234; the rest of A2 (alert titles repeating the case number) in row 233
+through row 228's `summary` field on `GET /alerts`; no-wrap dates may make some tables switch to cards sooner; titles on
+the main empty list of each page and case tab; "View All →" in card heads; inactive offices in `GET /reference/offices`;
+the plain labels for the undocumented NAPIX fields as listed in row 232's note; a follow-up row 236 so new alerts carry
+office names; plain-bold case numbers in the Case Inbox (the row opens the side panel); Movement Record newest first (a
+change to design portal-workflow decision 8); case tabs folding into More at every width only if the live check shows
+overflow; four due states in the inbox; Search keeps the case number as a link. Build order unchanged: 231, 228, 232,
+233, 234, 229, 235.
