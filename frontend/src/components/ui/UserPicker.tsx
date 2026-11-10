@@ -15,7 +15,8 @@
  *
  * Design office-head-picker-followups, decision 5: a failed search says so in the list ("You cannot search people
  * from this form." for a 403, else "The search did not work."), announced through a visually hidden status, with Try
- * Again (and Enter) for anything but a 4xx; never "No person matches". The chosen person is kept.
+ * Again (and Enter) for anything but a 4xx; never "No person matches". The chosen person is kept. Enter retries
+ * only while Try Again is shown (design user-picker-enter-retry).
  */
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -279,7 +280,7 @@ export function UserPicker({
       case "Enter":
         if (!open) return;
         e.preventDefault();
-        if (failed && canRetry) void people.refetch();
+        if (retryShown) void people.refetch();
         else choose(active);
         return;
       case "Escape":
@@ -310,6 +311,8 @@ export function UserPicker({
       people.error instanceof ApiError && people.error.status === 403 ? T.userPicker.forbiddenNote : T.userPicker.errorNote;
     note = errorNote;
   } else if (shown.length === 0) note = T.userPicker.noneNote(typed);
+  // design user-picker-enter-retry: Try Again and Enter share this one condition
+  const retryShown = errorNote !== null && canRetry;
 
   const popover = open ? (
     <div className={cx(s.pop, host === document.body && s.popTop)} style={place} data-ui="user-picker-list">
@@ -354,7 +357,7 @@ export function UserPicker({
           })
         )}
       </ul>
-      {errorNote && canRetry ? <PickerRetry onRetry={() => void people.refetch()} /> : null}
+      {retryShown ? <PickerRetry onRetry={() => void people.refetch()} /> : null}
       {!note && total > shown.length ? <div className={s.foot}>{T.userPicker.firstNote}</div> : null}
     </div>
   ) : null;

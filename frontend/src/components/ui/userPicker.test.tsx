@@ -218,6 +218,44 @@ describe("a failed search (design office-head-picker-followups, decision 5)", ()
     expect(screen.getByTestId("value")).toHaveTextContent("");
   });
 
+  // design user-picker-enter-retry: Enter repeats the failed search only while Try Again is shown
+  it("Enter while a new search waits does not repeat the failed one", async () => {
+    const api = failing(500);
+    renderWithClient(<Harness />);
+    const box = screen.getByRole("combobox", { name: "Person" });
+    await userEvent.type(box, "ra");
+    await within(await screen.findByRole("listbox")).findByText("The search did not work.");
+    // inside the 300 ms debounce: the note is "Searching…", not the error note
+    await userEvent.type(box, "m{Enter}");
+    expect(await screen.findAllByRole("option")).toHaveLength(5);
+    expect(searches(api).map((c) => c.path)).toEqual(["/admin/users?q=ra&limit=20", "/admin/users?q=ram&limit=20"]);
+    expect(screen.getByTestId("value")).toHaveTextContent("");
+  });
+
+  it("Enter below 2 letters does not repeat the failed search", async () => {
+    const api = failing(500);
+    renderWithClient(<Harness />);
+    const box = screen.getByRole("combobox", { name: "Person" });
+    await userEvent.type(box, "ra");
+    await within(await screen.findByRole("listbox")).findByText("The search did not work.");
+    await userEvent.type(box, "{Backspace}{Enter}");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(searches(api)).toHaveLength(1);
+    expect(screen.getByText("Type at least 2 letters of a name or e-mail")).toBeInTheDocument();
+    expect(screen.getByTestId("value")).toHaveTextContent("");
+  });
+
+  it("Enter with the forbidden note asks nothing", async () => {
+    const api = failing(403);
+    renderWithClient(<Harness />);
+    await userEvent.type(screen.getByRole("combobox", { name: "Person" }), "ra");
+    await within(await screen.findByRole("listbox")).findByText("You cannot search people from this form.");
+    await userEvent.keyboard("{Enter}");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(searches(api)).toHaveLength(1);
+    expect(screen.getByTestId("value")).toHaveTextContent("");
+  });
+
   it("a 403 shows the forbidden note and no Try Again", async () => {
     failing(403);
     renderWithClient(<Harness includeWithoutOffice />);

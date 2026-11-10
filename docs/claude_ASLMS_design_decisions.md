@@ -3513,3 +3513,19 @@ installed here: backlog row 226. After merge the images must be rebuilt (`docker
 versions; no migration. The Software Documentation and the process workflows do not describe dependency installation,
 so they are unchanged.
 
+
+## User Picker: Enter retries only while Try Again is shown (2026-11-09)
+
+**What was built.** Row 186, frontend only: in `frontend/src/components/ui/UserPicker.tsx` the Enter key refetches the
+search only when the Try Again control is on screen. One condition, `retryShown = errorNote !== null && canRetry`, now
+drives both the Try Again button and Enter. Test added in `frontend/src/components/ui/userPicker.test.tsx`. No API,
+table or migration change.
+
+**Decisions and reasons.** Closes the advisory of the row 185 review: Enter used to refetch whenever the last settled
+search had failed, even when the error note was not shown (for example a 4xx, or an option list still visible), costing
+one wasted request. Sharing one condition keeps the button and the key from drifting apart.
+
+**Deviations.** None from the design note `docs/design/user-picker-enter-retry.md`.
+
+**Left for later.** Nothing. Documents read outside the team (Process Workflows, operations, the two Word guides) do
+not describe this key handling, so none changed. `docs/schema/schema.md` unchanged (no data change).
