@@ -32,3 +32,6 @@ Row 239 `portal-ui-kit-fixes-followups`.
 
 ## Load status
 `aslms queue-status` did not answer within 120 s in this run; not recorded.
+
+## Deployed
+10 Nov 2026 at 23:52 IST, images built from clean `main` (f7af1e7) after CI run 42870426230 passed. No migration. `docker compose --profile monitoring up -d --wait` with the court-data switch, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. The switch reads `true` in `api` and `worker`, mail goes to Mailpit, the web build ID matches the image (`wfTFkvDk4uSlAVNAyZu6a`), and `portal_smoke.py` passed.
