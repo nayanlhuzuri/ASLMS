@@ -37,3 +37,6 @@ See the integrator's return values; the push of `main` and the tag follows this 
 
 ## Load status
 Not recorded in this run (the host `aslms queue-status` was not run; no backend or database change in this row).
+
+## Deployed
+11 Nov 2026 at 22:15 IST, images built from clean `main` (152895f) after CI run 43055726382 passed. No migration. `docker compose --profile monitoring up -d --wait` with the court-data switch, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. The switch reads `true` in `api` and `worker`, mail goes to Mailpit, the web build ID matches the image (`XJynA7aen5DVPm-ISCv_m`), and `portal_smoke.py` passed. The owner's browser check of the new colours is next.
