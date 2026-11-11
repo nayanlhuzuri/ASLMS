@@ -29,3 +29,6 @@ Deviation 1 of the design note (decision 16 step 0 not measured) stands.
 
 ## Load status
 `aslms queue-status` was requested but did not return within 2 minutes (run in background); load status not recorded here.
+
+## Deployed
+11 Nov 2026 at 13:25 IST, images built from clean `main` (a4299f3) after CI run 42979868899 passed. No migration. `docker compose --profile monitoring up -d --wait` with the court-data switch, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. The switch reads `true` in `api` and `worker`, mail goes to Mailpit, the web build ID matches the image (`6JN7R0nHF4hIc5HGj9wKY`), and `portal_smoke.py` passed. The six P6 measurements (Verification step 6) are still the owner's.
