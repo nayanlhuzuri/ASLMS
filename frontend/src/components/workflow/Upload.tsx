@@ -127,7 +127,7 @@ export function UploadForm({
         void submit();
       }}
     >
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <FileField
         label={T.wf.file}
         accept={acceptOf(upload)}

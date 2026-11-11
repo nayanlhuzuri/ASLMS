@@ -293,7 +293,7 @@ export function CauseList({ params }: { params: Params }) {
             />
           ) : null}
           {earlier ? (
-            <Notice>
+            <Notice tone="warning">
               <span className="row">
                 <Badge tone="warning">{T.causelist.earlierBadge}</Badge>
                 <span>{T.causelist.earlierText(formatDateTime(earlier.superseded_at))}</span>

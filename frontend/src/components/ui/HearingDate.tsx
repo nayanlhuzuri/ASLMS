@@ -2,7 +2,7 @@
  * The next hearing badge (design next-hearing-highlight, decisions 1 and 4-9): one look for a case's next hearing on
  * every screen that shows one. The word comes first ("Today", "Tomorrow", "In 3 Days", "Date Passed"), then the date
  * in a `<time>`; colour is never the only signal and no `aria-label` replaces the visible words.
- * - strong (today, tomorrow): solid red; soft (2 to 7 days): amber; plain (later): no fill; warning (passed): the
+ * - strong (today, tomorrow): solid red; soft (2 to 7 days): ochre; plain (later): no fill; warning (passed): the
  *   warning colour and icon on the neutral ground; muted (no date, disposed): greyed with a dashed border;
  * - `kind="suggested"` (a date read from an order and not yet confirmed): the band's colour as an outline, "Suggested"
  *   first;

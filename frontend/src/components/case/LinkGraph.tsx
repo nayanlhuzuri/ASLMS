@@ -56,6 +56,9 @@ function label(n: GraphNode): string {
   return text.length > 24 ? text.slice(0, 23) + "…" : text;
 }
 
+const GRAPH_NODE = { root: s.graphRoot, visible: s.graphNode, hidden: s.graphHidden };
+const GRAPH_TEXT = { root: s.graphRootText, visible: s.graphNodeText, hidden: s.graphHiddenText };
+
 export function LinkGraph({ graph, rootId }: { graph: LinkGraphOut; rootId: string | null }) {
   const rootKey = graph.nodes.find((n) => n.case?.id === rootId)?.key ?? null;
   const placed = layout(graph.nodes, graph.edges, rootKey);
@@ -80,8 +83,8 @@ export function LinkGraph({ graph, rootId }: { graph: LinkGraphOut; rootId: stri
             const y2 = y(b) + H / 2;
             return (
               <g key={i} data-edge={`${e.from}->${e.to}`}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8892a0" strokeWidth={1.5} />
-                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 4} textAnchor="middle" fill="#4f5968">
+                <line x1={x1} y1={y1} x2={x2} y2={y2} className={s.graphEdge} strokeWidth={1.5} />
+                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 4} textAnchor="middle" className={s.graphEdgeLabel}>
                   {e.kind}
                 </text>
               </g>
@@ -89,6 +92,9 @@ export function LinkGraph({ graph, rootId }: { graph: LinkGraphOut; rootId: stri
           })}
           {placed.map((p) => {
             const isRoot = p.node.key === rootKey;
+            // design portal-navy-cream, decision 7: the colours are classes of case.module.css (CSS variables are
+            // unreliable in SVG presentation attributes, and the CSP forbids inline styles)
+            const tone = isRoot ? "root" : p.node.visible ? "visible" : "hidden";
             const box = (
               <g data-node={p.node.key}>
                 <rect
@@ -97,10 +103,10 @@ export function LinkGraph({ graph, rootId }: { graph: LinkGraphOut; rootId: stri
                   width={W}
                   height={H}
                   rx={6}
-                  fill={isRoot ? "#15284a" : p.node.visible ? "#e6ebf3" : "#eeeeee"}
-                  stroke={p.node.visible ? "#1f3a66" : "#b5b5b5"}
+                  className={GRAPH_NODE[tone]}
+                  data-tone={tone}
                 />
-                <text x={x(p) + W / 2} y={y(p) + H / 2 + 4} textAnchor="middle" fill={isRoot ? "#ffffff" : p.node.visible ? "#1b2330" : "#767676"}>
+                <text x={x(p) + W / 2} y={y(p) + H / 2 + 4} textAnchor="middle" className={GRAPH_TEXT[tone]}>
                   {label(p.node)}
                 </text>
               </g>

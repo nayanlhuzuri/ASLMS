@@ -77,7 +77,7 @@
 }
 
 .card[data-status="warn"] {
-  border-left-color: var(--amber);
+  border-left-color: var(--ochre);
 }
 
 .card[data-status="down"] {
@@ -180,7 +180,7 @@
   display: block;
   height: 100%;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--action);
   animation: response-fill 700ms var(--ease);
 }
 
@@ -224,13 +224,13 @@
 }
 
 .tab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
-  color: var(--accent);
+  border-bottom-color: var(--mark-text);
+  color: var(--heading);
 }
 
 .tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 /* the form: two columns on wide screens, stacked fields (label, input, hint) on phones */

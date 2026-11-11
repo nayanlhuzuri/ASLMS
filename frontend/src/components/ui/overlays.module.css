@@ -7,7 +7,7 @@
   z-index: 60;
   display: flex;
   justify-content: flex-end;
-  background: rgba(16, 24, 40, 0.35);
+  background: var(--scrim);
   animation: fade-in var(--med) var(--ease);
 }
 
@@ -301,7 +301,7 @@
 }
 
 .menuList a[aria-current="page"] {
-  color: var(--accent);
+  color: var(--link);
   font-weight: 600;
 }
 

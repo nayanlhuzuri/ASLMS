@@ -11,12 +11,13 @@ import type { ReactNode } from "react";
 import { errorText, T, type ErrorTexts } from "@/lib/messages";
 import { signalText, type Signal } from "@/lib/signals";
 import { labelFor } from "@/lib/displayLabels";
+import { hearingBand } from "@/lib/hearingDate";
 
 import { Button, cx } from "./controls";
 import s from "./feedback.module.css";
 import { OfficeName } from "./OfficeName";
 
-/** Red = urgent or overdue; amber = due soon; green = done or confirmed; blue (`info`) = action; none = neutral. */
+/** Red = urgent or overdue; ochre (`warning`) = due soon; green = done or confirmed; navy (`info`) = action or selection; none = neutral. */
 export type Tone = "danger" | "warning" | "success" | "info";
 
 /**
@@ -80,8 +81,11 @@ export function ErrorBanner({
   );
 }
 
-/** A short message in the page; `tone="warning"` (amber) for something to report or act on. */
-export function Notice({ children, tone }: { children: ReactNode; tone?: "warning" }) {
+/**
+ * A short message in the page (design portal-navy-cream, addendum K7): `info` (the default, neutral) for information,
+ * `success` (green) for the confirmation of an action just done, `warning` (ochre) for something to report or act on.
+ */
+export function Notice({ children, tone = "info" }: { children: ReactNode; tone?: "info" | "success" | "warning" }) {
   return (
     <div className={s.notice} role="status" aria-live="polite" data-tone={tone}>
       {children}
@@ -153,14 +157,20 @@ export function EmptyState({
 }
 
 /**
- * The score as stored (three decimals) with the label of the API's `band`: "Strong · 0.950" in blue for `high`,
- * "Possible · 0.620" in neutral for `medium` (decision 10.6). The colour and the label never come from the portal
+ * The score as stored (three decimals) with the label of the API's `band`: "Strong · 0.950" solid navy for `high`,
+ * "Possible · 0.620" outlined navy for `medium` (decision 10.6, addendum C4). The colour and the label never come from the portal
  * comparing numbers, because the bands are the super admin's settings.
  */
 export function ScoreBadge({ score, band }: { score: number; band: string }) {
   const known = (T.score as Record<string, unknown>)[band];
   const label = band === "high" || band === "medium" ? (known as string) : band.charAt(0).toUpperCase() + band.slice(1);
-  return <Badge tone={band === "high" ? "info" : undefined}>{T.score.badge(label, score.toFixed(3))}</Badge>;
+  // design portal-navy-cream, addendum C4: one recommendation tone on every screen, strong solid navy, possible outlined
+  const look = band === "high" ? "solid" : band === "medium" ? "outline" : undefined;
+  return (
+    <Badge tone={look ? "info" : undefined} look={look}>
+      {T.score.badge(label, score.toFixed(3))}
+    </Badge>
+  );
 }
 
 /**
@@ -185,10 +195,41 @@ export function ScoreLine({
   );
 }
 
-/** The API's severity of an alert (critical / high / normal), never computed in the browser. */
-export function SeverityBadge({ severity }: { severity: string }) {
-  const tone = severity === "critical" ? "danger" : severity === "high" ? "warning" : undefined;
-  return <Badge tone={tone}>{labelFor(T.wf.severity, severity)}</Badge>;
+/** The alert kinds about a hearing, whose `data.hearing_date` gives the badge its band (as on the dashboard). */
+const HEARING_ALERT_KINDS = new Set(["hearing_due", "listed_tomorrow"]);
+
+/**
+ * The colour of an alert's badge by what the alert means, never by its severity (design portal-navy-cream, addendum
+ * A1, with dashboard-my-work-polish decision 6): a hearing alert takes its hearing date's band (today and tomorrow red,
+ * 2 to 7 days ochre, otherwise neutral); a recommendation is navy, solid when strong and outlined when possible; every
+ * other alert is neutral.
+ */
+export function alertTone(
+  kind: string | undefined,
+  data: Record<string, unknown> | undefined,
+  now?: Date,
+): { tone?: Tone; look?: "solid" | "outline" } {
+  if (kind && HEARING_ALERT_KINDS.has(kind) && typeof data?.hearing_date === "string") {
+    const { band } = hearingBand(data.hearing_date, { now });
+    if (band === "today" || band === "tomorrow") return { tone: "danger" };
+    if (band === "week") return { tone: "warning" };
+    return {};
+  }
+  if (kind === "recommendation") {
+    if (data?.band === "high") return { tone: "info", look: "solid" };
+    if (data?.band === "medium") return { tone: "info", look: "outline" };
+  }
+  return {};
+}
+
+/** The API's severity of an alert (critical / high / normal) in words; its colour follows the alert's meaning. */
+export function SeverityBadge({ severity, kind, data }: { severity: string; kind?: string; data?: Record<string, unknown> }) {
+  const { tone, look } = alertTone(kind, data);
+  return (
+    <Badge tone={tone} look={look}>
+      {labelFor(T.wf.severity, severity)}
+    </Badge>
+  );
 }
 
 export function SignalChip({ signal }: { signal: Signal }) {
@@ -248,8 +289,8 @@ export interface ProgressSegment {
 const PROGRESS_ORDER: readonly ProgressTone[] = ["done", "active", "waiting", "unavailable", "failed"];
 
 /**
- * A segmented progress bar (decision 9): done is solid green, active the accent with the live pulse, waiting striped
- * accent-soft, unavailable slate with a strong edge, failed red. `role="progressbar"` with the done amount as
+ * A segmented progress bar (decision 9): done is solid green, active navy with the live pulse, waiting striped
+ * navy-soft, unavailable slate with a strong edge, failed red. `role="progressbar"` with the done amount as
  * `aria-valuenow` of `max` and `text` as `aria-valuetext`; the same text is shown under the bar (never colour alone)
  * unless the caller shows it beside the bar (`showText={false}`). Each segment grows by `scaleX` over `--slow`; under
  * reduced motion nothing animates. Nothing moves the layout.

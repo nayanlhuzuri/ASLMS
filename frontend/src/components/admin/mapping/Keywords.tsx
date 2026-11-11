@@ -213,7 +213,7 @@ export function KeywordsAndPatterns() {
         }}
         onConflict={() => void refresh()}
       />
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {pending ? <Loading /> : null}
       <ErrorBanner error={given(keywords.error ?? patterns.error)} onRetry={() => void refresh()} />
       {!pending && !keywords.error && !patterns.error ? (

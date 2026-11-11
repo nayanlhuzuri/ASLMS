@@ -642,3 +642,43 @@ K7 notice tones (`info`, `success`, `warning`: one neutral info tone in place of
 notices), A1 alert tone by meaning in place of severity on the Alerts page and the case Alerts tab (with row 228
 point 5), and C4 one recommendation tone on every screen (strong solid navy, possible outlined). Layout findings land
 first in rows 231 to 234; the box baseline is `main` after them.
+
+## Deviations
+
+Written by the developer while building (11 Nov 2026); each is the smallest option where the note was silent.
+
+1. **The info notice tone (K7).** The note gives no colours for `Notice tone="info"`. It uses the palette's info ground
+   `--action-soft` with `--text` and a `--border` line (12.98:1), so no new token is added; `success` keeps green with
+   `--green-line`, `warning` ochre with `--ochre-line`. `info` is the default. Chosen per notice: `success` for the
+   confirmation of an action just done (saved, set, queued, claimed, sent, copied), `warning` for Offices "already
+   active", System Health "court calls are switched off", the Cause List's Earlier Version, and the two drafts
+   warnings of Close Case and Send File; everything else `info`. The Problems and Fixes messages and the Scoring
+   notice stay `info` because the same notice carries both outcomes (a check that passed or failed, saved or nothing
+   changed).
+2. **A1 is colour only.** The alert badge on Alerts and on the case Alerts tab keeps its place and its words (the
+   severity, "Critical", "High", "Normal"); its colour now follows the alert's meaning through the kit's `alertTone`
+   (a hearing alert takes its `data.hearing_date` band: today and tomorrow red, 2 to 7 days ochre, otherwise neutral;
+   a recommendation navy, solid when `data.band` is high and outlined when medium; everything else neutral). The
+   review's other suggestions (counts by kind instead of by severity, a different filter, the badge's words) change
+   wording and layout, which this row may not do; they are left for a later row if the owner wants them.
+3. **C4.** `ScoreBadge` is solid navy for `high` and outlined navy for `medium` on every screen (Case Claim, the case
+   page, the case modal, Cause List through `ScoreLine`, the mapping search), matching row 228's dashboard badge. The
+   solid info badge carries `--on-action`.
+4. **Fields.** Besides the kit's `.input` (text fields, selects, textareas), the list-search box and select and the
+   header search box when focused take the white `--field`, so every field on cream is white as in the samples.
+5. **`.secondary` gets its own colour rule** (`--action`), and the parent on the menu path (`.onPath`) and its
+   chevron read `--nav-current-text` and `--nav-strong`, so the current branch reads as selected in both colour sets.
+   `.statusTitle` (the error pages) and the KPI values take `--heading`.
+6. **The layout signature.** Two details the note left open: a `background` whose value is several colours or
+   gradients normalises to one `<c>` (the sign-in panel loses its blue glow layer, which paints and never sizes), and
+   the test can regenerate its snapshot with `UPDATE_LAYOUT_SIGNATURE=1` for a later row that changes layout on
+   purpose; on this branch the snapshot is the first commit's only. New colour-only rules use the paint-only longhands
+   (`background-color`, `border-color`, `outline-color`) so they leave no trace.
+7. **Boxes mode pins the fixtures too.** Pinning only the page clock would leave the fixtures' own times (notified
+   "2 hours ago", the IST day of the hearing rows) moving between runs, and a changed time string can change a box. In
+   boxes mode the fixtures read the same instant as the page: `UICHECK_CLOCK`, set once per run by the global setup to
+   12:00 IST of the run's day unless the integrator sets it (do so when the runs straddle midnight IST). A redirected
+   route writes no boxes, as it writes no screenshot. `npm run boxdiff` runs `boxdiff.ts` with Node's type stripping
+   (Node 24 in the uicheck image), so the file imports only Node built-ins.
+8. **The reference files.** The temporary folder held two sets; the complete one (with `Main.dc.html` and the
+   sample's motion keyframes) was copied unchanged.

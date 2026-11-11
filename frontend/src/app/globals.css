@@ -1,39 +1,70 @@
-/* Design tokens (design portal-ui-redesign, decisions 11-14; the visual reference is
-   docs/design/ui/aslms-ui-direction-v4.html): a neutral base, one blue accent, status colours with fixed meanings
-   (red = urgent, overdue or within 48 h; amber = due soon; green = done or confirmed; blue = action or selection;
-   neutral = everything else), the 8-point spacing scale, one type scale and one control height. Every text and
-   background pair meets WCAG 2.1 AA (tokens.test.ts checks them). */
+/* Design tokens (design portal-ui-redesign, decisions 11-14, with the navy-and-cream palette of design
+   portal-navy-cream, decision 1; the colour reference is docs/design/ui/navy-cream/): a cream base, navy and orange,
+   and status colours with fixed meanings: red = urgent, overdue or within 48 h; ochre = due soon; green = done or
+   confirmed; navy = action or selection; orange = the one thing to do now, focus, and markers; neutral = everything
+   else. Orange fills always carry navy text (--on-mark); orange standing alone on cream is deep orange (--mark-text).
+   The 8-point spacing scale, one type scale and one control height. Every text and background pair meets WCAG 2.1 AA
+   and every stand-alone mark 3:1 (tokens.test.ts checks them). */
 :root {
-  --bg: #f5f7fa;
-  --surface: #ffffff;
-  --surface-2: #f9fafb;
-  --border: #e4e7ec;
-  --border-strong: #d0d5dd;
-  --text: #101828;
-  --text-2: #475467;
-  --text-3: #667085;
-  --accent: #1d4ed8;
-  --accent-hover: #1e40af;
-  --accent-soft: #eef2ff;
-  --accent-ring: rgba(29, 78, 216, 0.25);
-  --red: #d92d20;
-  /* text in red on a soft or grey ground: #d92d20 on --red-soft is 4.45:1, below AA (design note, Deviations) */
+  --bg: #f7f1e3;
+  --surface: #fffbf2;
+  --surface-2: #f6edda;
+  /* white fields on cream: text fields, selects, textareas, the switch knob */
+  --field: #ffffff;
+  --border: #e2d6be;
+  --border-strong: #cdbfa6;
+  --text: #13213f;
+  --text-2: #4a5570;
+  --text-3: #5b6580;
+  --heading: #0f1e3d;
+  /* the shade: neutral badges, tracks, ghost hover */
+  --slate-soft: #efe6d2;
+  /* navy 700: ordinary actions and selection */
+  --action: #22386a;
+  --action-hover: #2e4785;
+  --action-soft: #e3e8f2;
+  --on-action: #ffffff;
+  /* navy 500: links and icons */
+  --link: #3c5a94;
+  --link-hover: var(--action);
+  /* orange: a fill always with navy text, markers on navy; deep orange for orange words and thin marks on cream */
+  --mark: #f28c28;
+  --mark-hover: #f59a3e;
+  --on-mark: #0f1e3d;
+  --mark-text: #b4470c;
+  --mark-soft: #fde9d1;
+  --mark-line: #f3c99b;
+  --mark-glow: rgba(242, 140, 40, 0.45);
+  /* decision 20 as amended by portal-navy-cream decision 5: the 2 px outline and the 4 px halo, orange */
+  --focus-line: var(--mark-text);
+  --focus-ring: rgba(242, 140, 40, 0.35);
+  --red: #b42318;
   --red-text: #b42318;
-  --red-soft: #fef3f2;
+  --red-soft: #fbe7e4;
   /* text on a solid --red fill, the strong hearing band (design next-hearing-highlight, decision 4) */
   --on-red: #ffffff;
-  --amber: #b54708;
-  --amber-soft: #fffaeb;
-  --green: #067647;
-  --green-soft: #ecfdf3;
-  --slate-soft: #f2f4f7;
-  /* the deep-blue panel of the public pages (decision 26, template A) and its text */
-  --panel-from: #0b1f4d;
-  --panel-to: #0f172a;
-  --panel-text: #cbd5e1;
+  --red-line: #ebb1a9;
+  /* due soon (in place of amber, darker than orange so it is never taken for it) */
+  --ochre: #7a5a00;
+  --ochre-soft: #f5eccb;
+  --ochre-line: #e3d08f;
+  --green: #0b6b3a;
+  --green-soft: #e2f0e5;
+  --green-line: #a9d3b5;
+  /* the navy ground: the public pages' panel (decision 26), the side menu, the Save bar */
+  --panel-from: #0f1e3d;
+  --panel-to: #0b1730;
+  --panel-text: #c9d3e6;
   --panel-strong: #ffffff;
-  --panel-muted: #94a3b8;
-  --panel-accent: #93c5fd;
+  --panel-muted: #8c97b0;
+  --panel-accent: #f6c48e;
+  --panel-raised: #22386a;
+  --panel-hover: #1c2b4d;
+  --panel-line: #2a3b5e;
+  --panel-dots: rgba(255, 255, 255, 0.06);
+  --panel-tile: rgba(255, 255, 255, 0.03);
+  --panel-tile-line: rgba(255, 255, 255, 0.1);
+  --scrim: rgba(15, 30, 61, 0.4);
 
   --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
@@ -66,9 +97,10 @@
   --r-lg: 12px;
   --r-xl: 16px;
 
-  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow-2: 0 4px 12px rgba(16, 24, 40, 0.08);
-  --shadow-3: 0 16px 40px rgba(16, 24, 40, 0.16);
+  --shadow-1: 0 1px 2px rgba(15, 30, 61, 0.06);
+  --shadow-2: 0 4px 12px rgba(15, 30, 61, 0.08);
+  --shadow-3: 0 16px 40px rgba(15, 30, 61, 0.16);
+  --shadow-knob: 0 1px 2px rgba(15, 30, 61, 0.2);
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --fast: 150ms;
@@ -139,6 +171,7 @@ h2,
 h3 {
   font-family: var(--font-sans);
   font-weight: 600;
+  color: var(--heading);
   line-height: 1.25;
   letter-spacing: -0.01em;
   margin: 0 0 var(--s3);
@@ -161,18 +194,18 @@ p {
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
 }
 
 a:hover {
-  color: var(--accent-hover);
+  color: var(--link-hover);
 }
 
-/* decision 20: the visible 4 px accent ring */
+/* decision 20 (colour amended by portal-navy-cream, decision 5): the visible 2 px outline and 4 px halo, orange */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: 1px;
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 code,
@@ -206,7 +239,7 @@ code,
   z-index: 100;
   padding: var(--s2) var(--s3);
   background: var(--surface);
-  color: var(--accent);
+  color: var(--link);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
 }
@@ -262,8 +295,8 @@ code,
   height: var(--control-h);
   padding: 0 var(--s4);
   border-radius: var(--r-md);
-  background: var(--accent);
-  color: #fff;
+  background: var(--mark);
+  color: var(--on-mark);
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
@@ -272,10 +305,12 @@ code,
     transform var(--fast) var(--ease);
 }
 
+/* the one main action is orange with navy text (design portal-navy-cream, decisions 2 and 4) */
 .button-link:hover {
-  background: var(--accent-hover);
-  color: #fff;
+  background: var(--mark-hover);
+  color: var(--on-mark);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--mark-glow);
 }
 
 .actions {

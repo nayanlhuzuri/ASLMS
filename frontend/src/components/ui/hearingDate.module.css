@@ -61,8 +61,8 @@
 
 /* soft: 2 to 7 days ahead */
 .soft {
-  background: var(--amber-soft);
-  color: var(--amber);
+  background: var(--ochre-soft);
+  color: var(--ochre);
 }
 
 /* plain: later; no fill, the word quieter than the date */
@@ -78,7 +78,7 @@
 /* warning: the court's date has passed; the warning colour and icon on the neutral ground */
 .warning {
   background: var(--slate-soft);
-  color: var(--amber);
+  color: var(--ochre);
 }
 
 /* muted: no date or disposed */
@@ -100,8 +100,8 @@
 }
 
 .soft[data-kind="suggested"] {
-  border-color: var(--amber);
-  color: var(--amber);
+  border-color: var(--ochre);
+  color: var(--ochre);
 }
 
 .plain[data-kind="suggested"],
@@ -137,10 +137,10 @@
   display: inline-flex;
   align-items: center;
   padding: 0 var(--s2);
-  border: 1px solid var(--amber);
+  border: 1px solid var(--ochre);
   border-radius: var(--r-sm);
   background: var(--surface);
-  color: var(--amber);
+  color: var(--ochre);
   font-size: var(--t-sm);
   font-weight: 600;
   line-height: 1.35;

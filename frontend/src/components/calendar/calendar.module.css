@@ -40,11 +40,11 @@
 }
 
 .sw-action_due {
-  background: var(--amber);
+  background: var(--ochre);
 }
 
 .sw-confirm {
-  background: var(--accent);
+  background: var(--action);
 }
 
 .grid {
@@ -98,7 +98,7 @@
 }
 
 .selected .day {
-  background: var(--accent-soft);
+  background: var(--action-soft);
 }
 
 .outside .day {
@@ -121,8 +121,8 @@
 }
 
 .dayNo.today {
-  background: var(--accent);
-  color: #fff;
+  background: var(--action);
+  color: var(--on-action);
 }
 
 .ev {
@@ -141,13 +141,13 @@
 }
 
 .ev-action_due {
-  background: var(--amber-soft);
-  color: var(--amber);
+  background: var(--ochre-soft);
+  color: var(--ochre);
 }
 
 .ev-confirm {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
 }
 
 .moreEv {
@@ -207,11 +207,11 @@
   }
 
   .ev-action_due {
-    background: var(--amber);
+    background: var(--ochre);
   }
 
   .ev-confirm {
-    background: var(--accent);
+    background: var(--action);
   }
 
   .moreEv {

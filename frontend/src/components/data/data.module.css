@@ -152,7 +152,7 @@
 
 /* design causelist-day-gap-sweep, decision 6: the days no collection has asked for, a warning in words */
 .warnLine {
-  color: var(--amber);
+  color: var(--ochre);
   font-weight: 500;
 }
 
@@ -347,9 +347,9 @@
   gap: var(--s1);
   padding: var(--s3);
   border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--action);
   border-radius: var(--r-md);
-  background: var(--accent-soft);
+  background: var(--action-soft);
   font-size: var(--t-sm);
 }
 

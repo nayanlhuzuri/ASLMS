@@ -4,12 +4,14 @@
  * session cookie that passes the page gate (the public pages go without it) and every `/api/backend/**` and
  * `/api/session/**` request answered in the browser from the fixtures. The interaction states as well. Each page
  * gets a full-page screenshot and the geometry checks of `checks.ts`; a page fails on any finding, a missing fixture,
- * a request other than `GET`, or a console or page error.
+ * a request other than `GET`, or a console or page error. With `UICHECK_BOXES=1` each page and state also writes its
+ * element boxes for `boxdiff.ts` (design portal-navy-cream, decision 16, `boxes.ts`).
  */
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
+import { pinClock, writeBoxes } from "./boxes";
 import { pageChecks, type PageFinding } from "./checks";
 import { answer, CLOSE_CASES, SAMPLE, type ACTIVITY_DEFAULT } from "./fixtures";
 import { OLD_CASE_REF_PATH } from "./fixtures/legacy";
@@ -121,6 +123,8 @@ async function watch(
     add("console-error", text.slice(0, 200), msg.location().url);
   });
   page.on("pageerror", (err) => add("page-error", err.message.slice(0, 200), err.stack?.split("\n")[1]?.trim() ?? ""));
+  // boxes mode only (design portal-navy-cream, decision 16): one IST instant for the page's clock
+  await pinClock(page);
 
   return async (drive) => {
     await drive();
@@ -164,6 +168,7 @@ test.describe("every page", () => {
       if (landed !== route) redirect = landed + new URL(page.url()).search;
       const findings = kept(visit.findings, redirect !== null);
       const screenshot = redirect ? null : await shoot(page, route, width);
+      if (!redirect) await writeBoxes(page, route, width);
       writeResult({ name: route, width, screenshot, redirect, findings });
       expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
       if (OLD_FILES[route]) expect(redirect, `${route} leads to its new place`).toBe(OLD_FILES[route]);
@@ -1043,6 +1048,7 @@ test.describe("interaction states", () => {
         await state.open(page);
       });
       const screenshot = await shoot(page, state.name, width);
+      await writeBoxes(page, state.name, width);
       writeResult({ name: state.name, width, screenshot, redirect: null, findings: visit.findings });
       expect(visit.findings, JSON.stringify(visit.findings, null, 2)).toEqual([]);
     });

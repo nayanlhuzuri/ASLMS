@@ -60,7 +60,7 @@
 }
 
 .thread:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: 2px;
 }
 
@@ -195,8 +195,8 @@
   display: grid;
   place-items: center;
   border-radius: var(--r-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font-size: var(--t-xs);
   font-weight: 600;
 }
@@ -222,7 +222,7 @@
 }
 
 .passage mark {
-  background: var(--amber-soft);
+  background: var(--ochre-soft);
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;
@@ -274,8 +274,8 @@
 }
 
 .conv[aria-current="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
 }
 
 .conv small {
@@ -347,7 +347,7 @@
 .given summary,
 .uncited summary {
   cursor: pointer;
-  color: var(--accent);
+  color: var(--link);
 }
 
 .givenText {
@@ -375,10 +375,10 @@
   margin: 0 2px;
   padding: 0 var(--s1);
   min-width: 24px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--action);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font: inherit;
   font-size: var(--t-xs);
   font-weight: 600;
@@ -388,12 +388,12 @@
 }
 
 .marker:hover {
-  background: var(--accent);
-  color: var(--surface);
+  background: var(--action);
+  color: var(--on-action);
 }
 
 .marker:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: 2px;
 }
 
@@ -404,7 +404,7 @@
   align-items: center;
   margin-top: var(--s2);
   padding: var(--s2) var(--s3);
-  background: var(--amber-soft);
+  background: var(--ochre-soft);
   border-radius: var(--r-md);
   font-size: var(--t-sm);
 }
@@ -424,8 +424,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--s3);
-  border: 1px solid var(--amber);
-  background: var(--amber-soft);
+  border: 1px solid var(--ochre);
+  background: var(--ochre-soft);
   border-radius: var(--r-lg);
 }
 
@@ -439,6 +439,6 @@
   text-align: center;
   font-size: var(--t-xs);
   font-weight: 600;
-  color: var(--amber);
-  border-top: 1px dashed var(--amber);
+  color: var(--ochre);
+  border-top: 1px dashed var(--ochre);
 }

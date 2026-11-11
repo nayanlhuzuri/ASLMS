@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ASLMS Dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3C5A94}a:hover{color:#22386A}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(242,140,40,.65)}70%{box-shadow:0 0 0 9px rgba(242,140,40,0)}100%{box-shadow:0 0 0 0 rgba(242,140,40,0)}}
+@keyframes urgent{0%,100%{box-shadow:0 0 0 0 rgba(180,35,24,.45)}50%{box-shadow:0 0 0 5px rgba(180,35,24,0)}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .55s cubic-bezier(.2,.8,.2,1) both}
+.d1{animation-delay:.04s}.d2{animation-delay:.10s}.d3{animation-delay:.16s}.d4{animation-delay:.22s}.d5{animation-delay:.30s}.d6{animation-delay:.38s}
+.nav-link{transition:background .22s ease,color .22s ease,padding-left .22s cubic-bezier(.2,.8,.2,1)}
+.nav-link:hover{background:rgba(255,255,255,.07);color:#FFFFFF;padding-left:36px}
+.tile{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease,border-color .25s ease;cursor:pointer}
+.tile:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(15,30,61,.13);border-color:#CDBFA6}
+.num{animation:countUp .4s cubic-bezier(.2,.8,.2,1) both}
+.btn-main{transition:transform .15s ease,box-shadow .2s ease,filter .2s ease;cursor:pointer}
+.btn-main:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(242,140,40,.45);filter:brightness(1.04)}
+.btn-main:active{transform:translateY(1px) scale(.98);box-shadow:none}
+.btn-icon{transition:background .2s ease,transform .15s ease;cursor:pointer}
+.btn-icon:hover{background:#F2E9D6}
+.btn-icon:active{transform:scale(.94)}
+.ring{animation:ring 2.2s ease-out infinite}
+.urgent{animation:urgent 1.8s ease-in-out infinite}
+.row{transition:background .18s ease}
+.row:hover{background:#F6EDDA}
+.seg{transition:color .25s ease;cursor:pointer}
+.pill{transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.link-move{transition:gap .2s ease}
+.link-move:hover{gap:10px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="min-height: 980px; display: flex; flex-wrap: wrap; background: #F7F1E3; color: #13213F; font-family: Inter, system-ui, sans-serif">
+
+  <nav aria-label="Main menu" style="flex: 1 1 240px; max-width: 100%; color: #C9D3E6; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px; background-color: #0f1e3d">
+    <div class="rise d1" style="display: flex; gap: 12px; align-items: center; padding: 0 8px">
+      <div style="width: 44px; height: 44px; border-radius: 50%; border: 1.5px dashed #8C97B0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #C9D3E6">Emblem</div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 18px; font-weight: 700; color: #FFFFFF">ASLMS</div>
+        <div style="font-size: 12px; color: #8C97B0">Government of Assam</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="font-size: 12px; font-weight: 600; color: #8C97B0; padding: 0 12px 6px">Work</div>
+      <sc-for list="{{menu}}" as="m" hint-placeholder-count="8">
+        <a href="#" class="nav-link" onClick="{{m.pick}}" style="{{m.style}}"><span style="display: inline-flex; align-items: center; gap: 10px"><span style="{{m.dot}}"></span>{{m.label}}</span><sc-if value="{{m.hasCount}}" hint-placeholder-val="{{false}}"><span style="min-width: 22px; height: 20px; border-radius: 999px; background: {{accent}}; color: #0F1E3D; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px">{{m.count}}</span></sc-if></a>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="font-size: 12px; font-weight: 600; color: #8C97B0; padding: 0 12px 6px">Oversight</div>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Reports</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Audit Log</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Administration</a>
+    </div>
+  </nav>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 32px; background: #FFFBF2; border-bottom: 1px solid #E2D6BE">
+      <label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid #E2D6BE; border-radius: 8px; background: #F7F1E3; flex: 0 1 420px; min-width: 200px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6580" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search cases</span>
+        <input type="search" placeholder="Search by case number, party or CNR" style="border: 0; outline: 0; background: transparent; font: 14px Inter, sans-serif; color: #13213F; flex: 1; min-width: 0">
+      </label>
+      <div style="display: flex; align-items: center; gap: 16px">
+        <button type="button" class="btn-icon" aria-label="Alerts, 4 unread" style="position: relative; width: 40px; height: 40px; border: 1px solid #E2D6BE; border-radius: 8px; background: #FFFBF2; display: flex; align-items: center; justify-content: center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22386A" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21h4"></path></svg>
+          <span class="ring" style="position: absolute; top: 7px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: {{accent}}"></span>
+        </button>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: #22386A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">DS</div>
+          <div style="display: flex; flex-direction: column">
+            <div style="font-size: 14px; font-weight: 600">Deputy Secretary</div>
+            <div style="font-size: 12px; color: #5B6580">Revenue and Disaster Management</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main style="padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 24px; max-width: 1180px; box-sizing: border-box; width: 100%">
+      <div class="rise d1" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 13px; color: #5B6580">Tuesday, 10 November 2026 · Sample data</div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #0F1E3D">Good Afternoon</h1>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+          <div role="group" aria-label="View" style="position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 240px; height: 40px; border: 1px solid #22386A; border-radius: 8px; overflow: hidden; background: #FFFBF2; box-sizing: border-box">
+            <span class="pill" style="{{pillStyle}}"></span>
+            <button type="button" class="seg" aria-pressed="{{mineOn}}" onClick="{{showMine}}" style="{{mineBtn}}">My Work</button>
+            <button type="button" class="seg" aria-pressed="{{deptOn}}" onClick="{{showDept}}" style="{{deptBtn}}">Department</button>
+          </div>
+          <button type="button" class="btn-main" style="height: 40px; padding: 0 18px; border: 0; border-radius: 8px; background: {{accent}}; color: #0F1E3D; font: 700 14px Inter, sans-serif">Review 23 Recommended Cases</button>
+        </div>
+      </div>
+
+      <sc-if value="{{mineView}}" hint-placeholder-val="{{true}}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+          <sc-for list="{{tilesMine}}" as="t" hint-placeholder-count="4">
+            <div class="{{t.cls}}" style="{{t.box}}">
+              <div style="{{t.labelStyle}}">{{t.label}}</div>
+              <div class="num" style="font-size: 34px; font-weight: 700; color: #0F1E3D">{{t.value}}</div>
+              <div style="{{t.noteStyle}}">{{t.note}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{deptView}}" hint-placeholder-val="{{false}}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+          <sc-for list="{{tilesDept}}" as="t" hint-placeholder-count="4">
+            <div class="{{t.cls}}" style="{{t.box}}">
+              <div style="{{t.labelStyle}}">{{t.label}}</div>
+              <div class="num" style="font-size: 34px; font-weight: 700; color: #0F1E3D">{{t.value}}</div>
+              <div style="{{t.noteStyle}}">{{t.note}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px">
+        <section class="rise d5" style="background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #E2D6BE">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 700; color: #0F1E3D">Upcoming Hearings</h2>
+            <a href="#" class="link-move" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600">Open My Calendar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+          </div>
+          <div style="overflow-x: auto">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+              <thead>
+                <tr style="background: #EFE6D2; color: #4A5570; text-align: left">
+                  <th style="padding: 10px 20px; font-weight: 600; font-size: 13px">Case</th>
+                  <th style="padding: 10px 12px; font-weight: 600; font-size: 13px">Bench</th>
+                  <th style="padding: 10px 20px; font-weight: 600; font-size: 13px">Next Hearing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 12px 20px"><div style="font-weight: 600"><a href="#">WP(C) 1520/2026</a></div><div style="font-size: 13px; color: #5B6580">Sample Petitioner vs State of Assam</div></td><td style="padding: 12px; color: #4A5570">Court 3</td><td style="padding: 12px 20px"><span class="urgent" style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #B42318; color: #FFFFFF; font-size: 12px; font-weight: 600">Today</span></td></tr>
+                <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 12px 20px"><div style="font-weight: 600"><a href="#">MAC App 88/2025</a></div><div style="font-size: 13px; color: #5B6580">State of Assam vs Sample Respondent</div></td><td style="padding: 12px; color: #4A5570">Court 11</td><td style="padding: 12px 20px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #B42318; color: #FFFFFF; font-size: 12px; font-weight: 600">Tomorrow</span></td></tr>
+                <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 12px 20px"><div style="font-weight: 600"><a href="#">WA 210/2026</a></div><div style="font-size: 13px; color: #5B6580">Sample Appellant vs State of Assam</div></td><td style="padding: 12px; color: #4A5570">Division Bench 2</td><td style="padding: 12px 20px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #F5ECCB; color: #7A5A00; font-size: 12px; font-weight: 600">In 3 Days</span></td></tr>
+                <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 12px 20px"><div style="font-weight: 600"><a href="#">Crl.Pet 402/2026</a></div><div style="font-size: 13px; color: #5B6580">Sample Petitioner vs State of Assam</div></td><td style="padding: 12px; color: #4A5570">Court 7</td><td style="padding: 12px 20px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #EFE6D2; color: #4A5570; font-size: 12px; font-weight: 600">24 Nov 2026</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="rise d6" style="background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #E2D6BE">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 700; color: #0F1E3D">Needs Your Attention</h2>
+            <a href="#" class="link-move" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600">Open Case Inbox<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+          </div>
+          <div style="display: flex; flex-direction: column">
+            <div class="row" style="display: flex; gap: 14px; padding: 14px 20px; border-top: 1px solid #E2D6BE; align-items: flex-start">
+              <span style="flex: none; display: inline-flex; height: 24px; align-items: center; padding: 0 8px; border-radius: 6px; background: #FBE7E4; color: #B42318; font-size: 12px; font-weight: 600">Overdue</span>
+              <div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 600">File affidavit in reply</div><div style="font-size: 13px; color: #5B6580">WP(C) 1520/2026 · sent by Under Secretary · due 8 Nov</div></div>
+            </div>
+            <div class="row" style="display: flex; gap: 14px; padding: 14px 20px; border-top: 1px solid #E2D6BE; align-items: flex-start">
+              <span style="flex: none; display: inline-flex; height: 24px; align-items: center; padding: 0 8px; border-radius: 6px; background: #F5ECCB; color: #7A5A00; font-size: 12px; font-weight: 600">Due Soon</span>
+              <div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 600">Brief the Government Advocate</div><div style="font-size: 13px; color: #5B6580">WA 210/2026 · due 12 Nov</div></div>
+            </div>
+            <div class="row" style="display: flex; gap: 14px; padding: 14px 20px; border-top: 1px solid #E2D6BE; align-items: flex-start">
+              <span style="flex: none; display: inline-flex; height: 24px; align-items: center; padding: 0 8px; border-radius: 6px; background: #EFE6D2; color: #22386A; font-size: 12px; font-weight: 600">New Order</span>
+              <div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 600">Order of 7 Nov 2026 uploaded</div><div style="font-size: 13px; color: #5B6580">MAC App 88/2025 · next date read from the order</div></div>
+            </div>
+            <div class="row" style="display: flex; gap: 14px; padding: 14px 20px; border-top: 1px solid #E2D6BE; align-items: flex-start">
+              <span style="flex: none; display: inline-flex; height: 24px; align-items: center; padding: 0 8px; border-radius: 6px; background: #E2F0E5; color: #0B6B3A; font-size: 12px; font-weight: 600">Confirmed</span>
+              <div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 600">Transfer accepted by Home Department</div><div style="font-size: 13px; color: #5B6580">Crl.Pet 402/2026</div></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#F28C28","options":["#F28C28","#F07C1E","#F59E3B","#E8742A"]},"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { view: 'mine', page: 'Dashboard', flip: 0 };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#F28C28';
+    const mine = this.state.view === 'mine';
+    const base = 'display: flex; align-items: center; justify-content: space-between; height: 40px; border-radius: 8px; text-decoration: none; font-size: 14px; ';
+    const items = [['Dashboard', 0], ['Case Inbox', 12], ['Case Claim', 0], ['Cause List', 0], ['My Calendar', 0], ['Alerts', 4], ['Search', 0], ['Case Assistant', 0]];
+    const menu = items.map(([label, count]) => {
+      const on = this.state.page === label;
+      return {
+        label, count, hasCount: count > 0,
+        style: base + (on ? 'padding: 0 12px; background: #22386A; color: #FFFFFF; font-weight: 600' : 'padding: 0 12px 0 12px; color: #C9D3E6'),
+        dot: 'display: inline-block; width: 8px; height: 8px; border-radius: 50%; transition: transform .3s cubic-bezier(.2,.8,.2,1), background .3s; background: ' + (on ? accent : 'transparent') + '; transform: scale(' + (on ? 1 : 0) + ')',
+        pick: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ page: label }); },
+      };
+    });
+    const segBase = 'position: relative; z-index: 1; border: 0; background: transparent; font: 600 13px Inter, sans-serif; ';
+    const mineData = [['Files With Me', '12', '3 due today'], ['Hearings This Week', '7', '2 today or tomorrow'], ['Pending Actions', '5', '2 overdue'], ['Recommended to Claim', '23', '9 strong matches']];
+    const deptData = [['Files in the Department', '64', '11 due this week'], ['Hearings This Week', '41', '9 today or tomorrow'], ['Pending Actions', '28', '6 overdue'], ['Department Cases', '1,284', '41 listed this month']];
+    const toTiles = (data) => data.map(([label, value, note], i) => {
+      const hot = i === 0;
+      return {
+        label, value, note,
+        cls: 'tile rise d' + (i + 2),
+        box: 'border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 6px; ' + (hot ? 'background: #FDE9D1; border: 1px solid #F3C99B' : 'background: #FFFBF2; border: 1px solid #E2D6BE'),
+        labelStyle: 'font-size: 13px; font-weight: 600; color: ' + (hot ? '#A63F0A' : '#4A5570'),
+        noteStyle: 'font-size: 13px; ' + (i === 2 ? 'color: #B42318; font-weight: 600' : hot ? 'color: #A63F0A' : 'color: #5B6580'),
+      };
+    });
+    return {
+      accent, menu,
+      tilesMine: toTiles(mineData), tilesDept: toTiles(deptData),
+      mineView: mine, deptView: !mine,
+      mineOn: mine ? 'true' : 'false', deptOn: mine ? 'false' : 'true',
+      pillStyle: 'position: absolute; top: 0; left: 0; width: 50%; height: 100%; background: #22386A; transform: translateX(' + (mine ? '0' : '100%') + ')',
+      mineBtn: segBase + 'color: ' + (mine ? '#FFFFFF' : '#22386A'),
+      deptBtn: segBase + 'color: ' + (mine ? '#22386A' : '#FFFFFF'),
+      showMine: () => this.setState({ view: 'mine' }),
+      showDept: () => this.setState({ view: 'dept' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

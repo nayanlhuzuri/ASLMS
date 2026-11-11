@@ -75,7 +75,7 @@ export function NextDateBlock({ caseRef, c, latestOrderId }: { caseRef: string; 
   };
   return (
     <>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       {row ? (
         <>

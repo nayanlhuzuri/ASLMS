@@ -718,7 +718,7 @@ function RefetchCards() {
         <div className="stack">
           <h2 id="dc-one-day">{T.dc.oneDayTitle}</h2>
           <ErrorBanner error={day.action.error} />
-          {day.message ? <Notice>{day.message}</Notice> : null}
+          {day.message ? <Notice tone="success">{day.message}</Notice> : null}
           <form
             className="row"
             aria-label={T.data.refetchDay}
@@ -740,7 +740,7 @@ function RefetchCards() {
         <div className="stack">
           <h2 id="dc-fetch-again">{T.dc.fetchAgainTitle}</h2>
           <ErrorBanner error={again.action.error} />
-          {again.message ? <Notice>{again.message}</Notice> : null}
+          {again.message ? <Notice tone="success">{again.message}</Notice> : null}
           <form
             className="row"
             aria-label={T.data.refetchCase}
@@ -800,7 +800,7 @@ function ReferenceLists() {
           </Button>
         </div>
         <ErrorBanner error={sync.action.error ?? health.error} />
-        {sync.message ? <Notice>{sync.message}</Notice> : null}
+        {sync.message ? <Notice tone="success">{sync.message}</Notice> : null}
         {sync.progress}
         {health.isPending ? <Loading /> : null}
         {health.data ? (

@@ -6,7 +6,7 @@
  * `DateHero` is the left zone of Layout B (design portal-ui-polish-2, decisions 23-25): the weekday over the date, large;
  * Previous Day and Next Day as icon buttons with accessible names; Pick Date opening the browser's own date picker
  * (`showPicker`, focus as the fallback); the "Lists Held: n" badge counting the day's lists from `GET /causelists/{date}`
- * ("No Lists" in amber when there are none); and View Cause List under it, enabled whenever the day holds a list (design
+ * ("No Lists" in ochre when there are none); and View Cause List under it, enabled whenever the day holds a list (design
  * causelist-pdf-access, decision 1: the chosen bench, the only bench with lists, or the bench chooser) and disabled with
  * "No cause list is held for this day." otherwise.
  *
@@ -190,7 +190,7 @@ export function DayNotice({
           </span>
         </Notice>
       ) : null}
-      {queued ? <Notice>{T.causelist.fetchQueued}</Notice> : null}
+      {queued ? <Notice tone="success">{T.causelist.fetchQueued}</Notice> : null}
       <ErrorBanner error={action.error} />
       <Dialog open={held !== null} title={T.causelist.heldTitle} onClose={() => setHeld(null)}>
         <p>{held}</p>

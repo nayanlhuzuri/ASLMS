@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ASLMS Sign In</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3C5A94}a:hover{color:#22386A}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes grow{from{width:0}to{width:56px}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.rise{animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.25s}.d4{animation-delay:.35s}
+.grow{animation:grow .7s .45s cubic-bezier(.2,.8,.2,1) both}
+.fade{animation:fade .8s .6s ease both}
+.field{transition:border-color .18s ease,box-shadow .18s ease;outline:0}
+.field:focus{border-color:#F28C28;box-shadow:0 0 0 3px rgba(242,140,40,.28)}
+.btn-main{transition:transform .15s ease,box-shadow .2s ease,filter .2s ease;cursor:pointer}
+.btn-main:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(242,140,40,.45);filter:brightness(1.04)}
+.btn-main:active{transform:translateY(1px) scale(.98);box-shadow:none}
+.link-u{text-decoration:none;background-image:linear-gradient(currentColor,currentColor);background-size:0 1.5px;background-position:0 100%;background-repeat:no-repeat;transition:background-size .25s ease}
+.link-u:hover{background-size:100% 1.5px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #F7F1E3; color: #13213F; font-family: Inter, system-ui, sans-serif">
+
+  <section style="flex: 1 1 420px; background: #0F1E3D; color: #C9D3E6; padding: 64px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 28px">
+      <div class="rise d1" style="width: 88px; height: 88px; border-radius: 50%; border: 2px dashed #8C97B0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #C9D3E6">Emblem</div>
+      <div style="display: flex; flex-direction: column; gap: 14px">
+        <div class="rise d2" style="font-size: 14px; font-weight: 600; color: #F6C48E">Government of Assam</div>
+        <h1 class="rise d3" style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 700; color: #FFFFFF; max-width: 460px">Assam State Litigation Management System</h1>
+        <div class="grow" style="width: 56px; height: 4px; border-radius: 2px; background: {{accent}}"></div>
+        <div class="rise d4" style="font-size: 16px; line-height: 1.6; max-width: 460px">Track the State's cases before the Gauhati High Court: cause lists, hearings, orders and the files that move between offices.</div>
+      </div>
+    </div>
+    <div class="fade" style="font-size: 13px; color: #8C97B0">For officers of Government of Assam departments. Every sign-in is recorded.</div>
+  </section>
+
+  <section style="flex: 1 1 420px; display: flex; align-items: center; justify-content: center; padding: 48px 24px; box-sizing: border-box">
+    <form class="rise d3" style="width: 100%; max-width: 420px; background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 16px; padding: 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 16px 40px rgba(15, 30, 61, 0.10)">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #0F1E3D">Sign In</h2>
+        <div style="font-size: 14px; color: #4A5570">A 6-digit code will be sent to your e-mail next.</div>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #4A5570">E-mail
+        <input type="email" class="field" placeholder="name@assam.gov.in" style="height: 44px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: 15px Inter, sans-serif; color: #13213F">
+      </label>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #4A5570">Password
+        <input type="password" class="field" placeholder="Your password" style="height: 44px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: 15px Inter, sans-serif; color: #13213F">
+      </label>
+      <button type="button" class="btn-main" style="height: 46px; border: 0; border-radius: 8px; background: {{accent}}; color: #0F1E3D; font: 700 15px Inter, sans-serif">Sign In</button>
+      <div style="display: flex; justify-content: space-between; font-size: 14px">
+        <a href="#" class="link-u" style="font-weight: 600">Forgot Password?</a>
+        <span style="color: #5B6580">Need help? Ask your department admin.</span>
+      </div>
+    </form>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#F28C28","options":["#F28C28","#F07C1E","#F59E3B","#E8742A"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F28C28' };
+  }
+}
+</script>
+</body>
+</html>

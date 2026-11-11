@@ -152,7 +152,7 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
   return (
     <section className="card stack" aria-label={T.wf.stageBlock}>
       <h2>{T.wf.stageBlock}</h2>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {stages.isPending ? <Loading /> : null}
       <ErrorBanner error={stages.error} onRetry={() => stages.refetch()} />
       {data ? (

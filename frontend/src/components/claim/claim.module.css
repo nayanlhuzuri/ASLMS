@@ -71,13 +71,13 @@
 }
 
 .tab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
-  color: var(--accent);
+  border-bottom-color: var(--mark-text);
+  color: var(--heading);
 }
 
 .tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .why {

@@ -1039,3 +1039,36 @@ describe("More About My Work (design dashboard-my-work-polish)", () => {
     expect(within(table).queryByText("parawise_comments")).toBeNull();
   });
 });
+
+describe("the one orange headline tile (design portal-navy-cream, decision 10)", () => {
+  const tiles = () => screen.getAllByRole("link").filter((a) => /kpi/.test(a.className));
+
+  it("emphasises Cases with Me while it holds something, and no other tile", async () => {
+    browserApi(mine());
+    renderWithClient(<Dashboard />);
+    const files = await screen.findByRole("link", { name: "Cases with Me: 6" });
+    expect(files.className).toMatch(/kpiMark/);
+    const others = tiles().filter((a) => a !== files);
+    expect(others.length).toBeGreaterThanOrEqual(3);
+    for (const tile of others) expect(tile.className).not.toMatch(/kpiMark/);
+  });
+
+  it("no tile is orange when nothing is with the person", async () => {
+    browserApi(mine(personal({ headline: { ...HEADLINE, files_with_me: { total: 0, due_today: 0 } } })));
+    renderWithClient(<Dashboard />);
+    const files = await screen.findByRole("link", { name: "Cases with Me: 0" });
+    expect(files.className).not.toMatch(/kpiMark/);
+    for (const tile of tiles()) expect(tile.className).not.toMatch(/kpiMark/);
+  });
+
+  it("no department or State tile is emphasised", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
+      "GET /dashboard": { me: false, departments: [], state: true },
+      "GET /dashboard/state": STATE,
+    });
+    const { container } = renderWithClient(<Dashboard />);
+    await screen.findByRole("table", { name: "Cases by Department" });
+    expect(container.querySelector('[class*="kpiMark"]')).toBeNull();
+  });
+});

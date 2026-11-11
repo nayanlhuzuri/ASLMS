@@ -174,7 +174,7 @@
   height: 12px;
   border-radius: 50%;
   background: var(--surface);
-  border: 2px solid var(--accent);
+  border: 2px solid var(--action);
 }
 
 .when {
@@ -243,9 +243,9 @@
   align-items: center;
   gap: var(--s3);
   padding: var(--s3) var(--s4);
-  border: 1px solid var(--amber);
-  background: var(--amber-soft);
-  color: var(--amber);
+  border: 1px solid var(--ochre);
+  background: var(--ochre-soft);
+  color: var(--ochre);
   border-radius: var(--r-md);
 }
 
@@ -300,6 +300,42 @@
 .graph text {
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* design portal-navy-cream, decision 7: the graph's colours from the tokens (classes, not SVG attributes) */
+.graphEdge {
+  stroke: var(--text-3);
+}
+
+.graphEdgeLabel {
+  fill: var(--text-2);
+}
+
+.graphRoot {
+  fill: var(--panel-from);
+  stroke: var(--action);
+}
+
+.graphRootText {
+  fill: var(--panel-strong);
+}
+
+.graphNode {
+  fill: var(--action-soft);
+  stroke: var(--action);
+}
+
+.graphNodeText {
+  fill: var(--text);
+}
+
+.graphHidden {
+  fill: var(--slate-soft);
+  stroke: var(--border-strong);
+}
+
+.graphHiddenText {
+  fill: var(--text-3);
 }
 
 /* design close-case, decision 19: the closure line under the parties */

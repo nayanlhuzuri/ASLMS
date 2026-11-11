@@ -2,7 +2,7 @@
 
 /**
  * My calendar (design portal-ui-redesign, decision 8; plan §5.5; API A6): a month grid of the user's own dates from
- * `GET /me/calendar` in three colours — red hearings of my cases, amber my action due dates, blue next dates waiting for
+ * `GET /me/calendar` in three colours — red hearings of my cases, ochre my action due dates, navy next dates waiting for
  * my confirmation — with Previous / Next month and Today, the month and the chosen day in the query string
  * (`?month=YYYY-MM&day=YYYY-MM-DD`), legend chips that hide a kind on screen (display only; the API returns all three),
  * and the agenda of the chosen day beside the grid (below it on tablets and phones).

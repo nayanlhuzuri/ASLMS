@@ -114,9 +114,9 @@
 
 .search input:focus {
   outline: none;
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  border-color: var(--focus-line);
+  background: var(--field);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .searchIcon {
@@ -159,7 +159,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--red);
+  /* the unread dot is deep orange on the cream header (design portal-navy-cream, decision 5) */
+  background: var(--mark-text);
   box-shadow: 0 0 0 2px var(--surface);
   animation: pulse 2s infinite;
 }
@@ -169,13 +170,13 @@
   100% {
     box-shadow:
       0 0 0 2px var(--surface),
-      0 0 0 2px rgba(217, 45, 32, 0.4);
+      0 0 0 2px var(--mark-glow);
   }
 
   50% {
     box-shadow:
       0 0 0 2px var(--surface),
-      0 0 0 6px rgba(217, 45, 32, 0);
+      0 0 0 6px transparent;
   }
 }
 
@@ -187,8 +188,8 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action);
+  color: var(--on-action);
   font: inherit;
   font-size: var(--t-sm);
   font-weight: 600;
@@ -200,7 +201,21 @@
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
 
+/* design portal-navy-cream, decision 9: the side menu is navy on laptops and tablets. Its rules read only this local
+   set, which the phone media query re-points to the cream set (the drawer holds the official emblem, which would vanish
+   on navy and may not be altered). On navy the focus ring is bright orange: deep orange there is only 3.02:1. */
 .sidebar {
+  --nav-bg: var(--panel-from);
+  --nav-text: var(--panel-text);
+  --nav-strong: var(--panel-strong);
+  --nav-muted: var(--panel-muted);
+  --nav-hover: var(--panel-hover);
+  --nav-current-bg: var(--panel-raised);
+  --nav-current-text: var(--panel-strong);
+  --nav-line: var(--panel-line);
+  --nav-mark: var(--mark);
+  --nav-focus: var(--mark);
+
   position: sticky;
   top: var(--header-h);
   display: flex;
@@ -208,8 +223,12 @@
   height: calc(100vh - var(--header-h));
   padding: var(--s4) var(--s3);
   overflow-y: auto;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-line);
+}
+
+.sidebar :focus-visible {
+  outline-color: var(--nav-focus);
 }
 
 .drawerTop {
@@ -226,7 +245,7 @@
 
 .groupLabel {
   padding: var(--s4) var(--s3) var(--s2);
-  color: var(--text-3);
+  color: var(--nav-muted);
   font-size: var(--t-xs);
   font-weight: 600;
 }
@@ -249,7 +268,7 @@
   height: 36px;
   padding: 0 var(--s3);
   border-radius: var(--r-md);
-  color: var(--text-2);
+  color: var(--nav-text);
   font-weight: 500;
   text-decoration: none;
   transition:
@@ -258,13 +277,13 @@
 }
 
 .nav a:hover {
-  background: var(--slate-soft);
-  color: var(--text);
+  background: var(--nav-hover);
+  color: var(--nav-strong);
 }
 
 .nav a[aria-current="page"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--nav-current-bg);
+  color: var(--nav-current-text);
 }
 
 .nav a[aria-current="page"]::before {
@@ -275,7 +294,7 @@
   bottom: 8px;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: var(--accent);
+  background: var(--nav-mark);
 }
 
 .navIcon {
@@ -293,22 +312,23 @@
   white-space: nowrap;
 }
 
+/* the counts that need action are orange with navy text, current or not (design portal-navy-cream, decision 2) */
 .navCount {
   margin-left: auto;
   padding: 1px var(--s2);
   border-radius: 999px;
-  background: var(--slate-soft);
-  color: var(--text-2);
+  background: var(--mark);
+  color: var(--on-mark);
   font-size: var(--t-xs);
 }
 
 .nav a[aria-current="page"] .navCount {
-  background: var(--surface);
-  color: var(--accent);
+  background: var(--mark);
+  color: var(--on-mark);
 }
 
-/* design portal-ui-polish-2, decisions 16-18: the one-level tree. The parent on the path has the accent text in
-   semibold; the active child has the accent background and the 3 px bar (aria-current, above). The children's wrapper
+/* design portal-ui-polish-2, decisions 16-18: the one-level tree. The parent on the path has the current text in
+   semibold; the active child has the current background and the 3 px bar (aria-current, above). The children's wrapper
    animates grid-template-rows over --med with the mockup's curve; a closed branch is hidden (and inert), so its links
    are neither focusable nor read. Under reduced motion the tokens are 0 ms and transitions are off. */
 .tree {
@@ -316,12 +336,12 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--nav-focus);
   outline-offset: -2px;
 }
 
 .onPath {
-  color: var(--accent) !important;
+  color: var(--nav-current-text) !important;
   font-weight: 600 !important;
 }
 
@@ -329,7 +349,7 @@
   display: inline-flex;
   flex: none;
   margin-left: auto;
-  color: var(--text-3);
+  color: var(--nav-muted);
   transition: transform var(--med) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -339,6 +359,12 @@
 
 .chevronOpen {
   transform: rotate(90deg);
+}
+
+/* the muted chevron would be 3.89:1 on the current item's ground */
+.nav a[aria-current="page"] .chevron,
+.onPath .chevron {
+  color: var(--nav-strong);
 }
 
 .children {
@@ -364,7 +390,7 @@
   /* the 1 px guide line under the parent's icon; with the child row's padding and empty icon slot, child labels start
      16 px (--s4) beyond the parent's label */
   margin-left: calc(var(--s4) - 1px);
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--nav-line);
 }
 
 .children li {
@@ -396,15 +422,15 @@
 .foot {
   margin-top: var(--s5);
   padding: var(--s3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--nav-line);
   border-radius: var(--r-lg);
-  color: var(--text-2);
+  color: var(--nav-text);
   font-size: var(--t-sm);
 }
 
 .foot strong {
   display: block;
-  color: var(--text);
+  color: var(--nav-strong);
   font-weight: 600;
 }
 
@@ -417,7 +443,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--accent);
+  color: var(--nav-strong);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -480,6 +506,17 @@
   }
 
   .sidebar {
+    --nav-bg: var(--surface);
+    --nav-text: var(--text-2);
+    --nav-strong: var(--text);
+    --nav-muted: var(--text-3);
+    --nav-hover: var(--slate-soft);
+    --nav-current-bg: var(--action-soft);
+    --nav-current-text: var(--action);
+    --nav-line: var(--border);
+    --nav-mark: var(--mark-text);
+    --nav-focus: var(--focus-line);
+
     position: fixed;
     top: 0;
     left: 0;
@@ -508,7 +545,7 @@
     gap: var(--s3);
     margin-bottom: var(--s4);
     padding-bottom: var(--s4);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--nav-line);
   }
 
   .scrim {
@@ -516,7 +553,7 @@
     inset: 0;
     z-index: 61;
     display: block;
-    background: rgba(16, 24, 40, 0.35);
+    background: var(--scrim);
     animation: scrim-in var(--med) var(--ease);
   }
 
@@ -557,7 +594,7 @@
   }
 
   .bottomBar a[aria-current="page"] {
-    color: var(--accent);
+    color: var(--mark-text);
   }
 }
 
@@ -592,6 +629,6 @@
 
 .statusTitle {
   margin: 0 0 var(--s1);
-  color: var(--text);
+  color: var(--heading);
   font-size: var(--t-lg);
 }

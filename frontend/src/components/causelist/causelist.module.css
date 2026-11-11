@@ -93,13 +93,13 @@
 }
 
 .entry:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: -2px;
 }
 
 .heading th {
   text-align: left;
-  background: var(--accent-soft);
+  background: var(--action-soft);
   color: var(--text);
 }
 

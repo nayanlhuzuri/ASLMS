@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ASLMS Case Claim</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3C5A94}a:hover{color:#22386A}
+@keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.6)}70%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+@keyframes draw{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+.fadein{animation:fadein .4s cubic-bezier(.2,.8,.2,1) both}
+.pop{animation:pop .38s cubic-bezier(.2,.8,.2,1) both}
+.check{stroke-dasharray:24;animation:draw .35s .12s ease-out both}
+.nav-link{transition:background .22s ease,color .22s ease,padding-left .22s cubic-bezier(.2,.8,.2,1)}
+.nav-link:hover{background:rgba(255,255,255,.07);color:#FFFFFF;padding-left:36px}
+.tab{transition:color .25s ease;cursor:pointer}
+.tab:hover{color:#0F1E3D}
+.bar{transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.row{transition:background .4s ease,opacity .35s ease,transform .35s cubic-bezier(.2,.8,.2,1)}
+.row:hover{background:#F6EDDA}
+.btn-navy{transition:background .18s ease,transform .12s ease,box-shadow .18s ease;cursor:pointer}
+.btn-navy:hover{background:#2E4785;box-shadow:0 4px 12px rgba(15,30,61,.22)}
+.btn-navy:active{transform:scale(.96)}
+.btn-ghost{transition:background .18s ease,border-color .18s ease,transform .12s ease;cursor:pointer}
+.btn-ghost:hover{background:#EFE6D2;border-color:#22386A}
+.btn-ghost:active{transform:scale(.96)}
+.field{transition:border-color .18s ease,box-shadow .18s ease;outline:0}
+.field:focus{border-color:#F28C28;box-shadow:0 0 0 3px rgba(242,140,40,.28)}
+.toast{transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .3s ease}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="position: relative; min-height: 980px; display: flex; flex-wrap: wrap; background: #F7F1E3; color: #13213F; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <nav aria-label="Main menu" style="flex: 1 1 240px; max-width: 100%; background: #0F1E3D; color: #C9D3E6; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; gap: 12px; align-items: center; padding: 0 8px">
+      <div style="width: 44px; height: 44px; border-radius: 50%; border: 1.5px dashed #8C97B0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #C9D3E6">Emblem</div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 18px; font-weight: 700; color: #FFFFFF">ASLMS</div>
+        <div style="font-size: 12px; color: #8C97B0">Government of Assam</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="font-size: 12px; font-weight: 600; color: #8C97B0; padding: 0 12px 6px">Work</div>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Dashboard</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Case Inbox<span style="min-width: 22px; height: 20px; border-radius: 999px; background: {{accent}}; color: #0F1E3D; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px">12</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: 8px; background: #22386A; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 600"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{accent}}"></span>Case Claim</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Cause List</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">My Calendar</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Alerts</a>
+      <a href="#" class="nav-link" style="display: flex; align-items: center; height: 40px; padding: 0 12px 0 30px; border-radius: 8px; color: #C9D3E6; text-decoration: none; font-size: 14px">Search</a>
+    </div>
+  </nav>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 32px; background: #FFFBF2; border-bottom: 1px solid #E2D6BE">
+      <div style="font-size: 13px; color: #5B6580"><a href="#">Dashboard</a> / Case Claim</div>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <div style="width: 36px; height: 36px; border-radius: 50%; background: #22386A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">DS</div>
+        <div style="font-size: 14px; font-weight: 600">Deputy Secretary</div>
+      </div>
+    </header>
+
+    <main style="padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 20px; max-width: 1180px; box-sizing: border-box; width: 100%">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #0F1E3D">Case Claim</h1>
+          <div style="font-size: 14px; color: #4A5570">Cases the system thinks belong to Revenue and Disaster Management. Nothing is yours until you claim it. Sample data.</div>
+        </div>
+        <button type="button" class="btn-ghost" onClick="{{reset}}" style="height: 34px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: transparent; color: #22386A; font: 600 12px Inter, sans-serif">Reset Sample Rows</button>
+      </div>
+
+      <div role="tablist" aria-label="Case Claim" style="position: relative; display: grid; grid-template-columns: repeat(3, 200px); border-bottom: 1px solid #E2D6BE; max-width: 100%">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <button type="button" role="tab" class="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}} <span style="{{t.countStyle}}">{{t.count}}</span></button>
+        </sc-for>
+        <span class="bar" style="{{barStyle}}"></span>
+      </div>
+
+      <sc-if value="{{onRec}}" hint-placeholder-val="{{true}}">
+        <div class="fadein" style="display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; padding: 16px">
+            <label style="display: flex; flex-direction: column; gap: 6px; flex: 2 1 260px; font-size: 13px; font-weight: 600; color: #4A5570">Search Words
+              <input type="search" class="field" placeholder="Party, case number or CNR" style="height: 40px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: 14px Inter, sans-serif; color: #13213F">
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; font-size: 13px; font-weight: 600; color: #4A5570">Match
+              <select class="field" style="height: 40px; padding: 0 10px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: 14px Inter, sans-serif; color: #13213F"><option>All Matches</option><option>Strong</option><option>Possible</option></select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; font-size: 13px; font-weight: 600; color: #4A5570">Next Hearing
+              <select class="field" style="height: 40px; padding: 0 10px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: 14px Inter, sans-serif; color: #13213F"><option>Any Date</option><option>This Week</option></select>
+            </label>
+            <button type="button" class="btn-ghost" style="height: 40px; padding: 0 16px; border: 1px solid #22386A; border-radius: 8px; background: transparent; color: #22386A; font: 600 14px Inter, sans-serif">Clear All</button>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #4A5570">
+            <div><span style="font-weight: 700; color: #13213F">{{recCount}} cases</span> · Order: Best Match First</div>
+            <div>Try Claim or Not Ours on a row</div>
+          </div>
+
+          <div style="background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; overflow-x: auto">
+            <table style="width: 100%; min-width: 820px; border-collapse: collapse; font-size: 14px">
+              <thead>
+                <tr style="background: #EFE6D2; color: #4A5570; text-align: left">
+                  <th style="padding: 12px 20px; font-size: 13px; font-weight: 600">Case</th>
+                  <th style="padding: 12px; font-size: 13px; font-weight: 600">Why Recommended</th>
+                  <th style="padding: 12px; font-size: 13px; font-weight: 600">Match</th>
+                  <th style="padding: 12px; font-size: 13px; font-weight: 600">Next Hearing</th>
+                  <th style="padding: 12px 20px; font-size: 13px; font-weight: 600; text-align: right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+                  <tr class="row" style="{{r.rowStyle}}">
+                    <td style="padding: 14px 20px"><div style="font-weight: 600"><a href="#">{{r.no}}</a></div><div style="font-size: 13px; color: #5B6580">{{r.parties}}</div></td>
+                    <td style="padding: 14px 12px; color: #4A5570">{{r.why}}</td>
+                    <td style="padding: 14px 12px"><span style="{{r.matchStyle}}">{{r.match}}</span></td>
+                    <td style="padding: 14px 12px"><span style="{{r.dateStyle}}">{{r.date}}</span></td>
+                    <td style="padding: 14px 20px; text-align: right">
+                      <sc-if value="{{r.claimed}}" hint-placeholder-val="{{false}}">
+                        <span class="pop" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: #0B6B3A; color: #FFFFFF; font-size: 13px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="check" d="M4 12.5l5 5L20 6.5"></path></svg>Claimed</span>
+                      </sc-if>
+                      <sc-if value="{{r.open}}" hint-placeholder-val="{{true}}">
+                        <div style="display: inline-flex; gap: 8px"><button type="button" class="btn-navy" onClick="{{r.claim}}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #22386A; color: #FFFFFF; font: 600 13px Inter, sans-serif">Claim</button><button type="button" class="btn-ghost" onClick="{{r.dismiss}}" style="height: 36px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: transparent; color: #22386A; font: 600 13px Inter, sans-serif">Not Ours</button></div>
+                      </sc-if>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{onPool}}" hint-placeholder-val="{{false}}">
+        <div class="fadein" style="background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; overflow-x: auto">
+          <table style="width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px">
+            <thead><tr style="background: #EFE6D2; color: #4A5570; text-align: left"><th style="padding: 12px 20px; font-size: 13px; font-weight: 600">Case</th><th style="padding: 12px; font-size: 13px; font-weight: 600">Best Score</th><th style="padding: 12px; font-size: 13px; font-weight: 600">Next Hearing</th><th style="padding: 12px 20px; font-size: 13px; font-weight: 600; text-align: right">Action</th></tr></thead>
+            <tbody>
+              <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 14px 20px"><div style="font-weight: 600"><a href="#">WP(C) 1702/2026</a></div><div style="font-size: 13px; color: #5B6580">Sample Petitioner vs State of Assam</div></td><td style="padding: 14px 12px; color: #4A5570">0.42</td><td style="padding: 14px 12px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #F5ECCB; color: #7A5A00; font-size: 12px; font-weight: 600">In 2 Days</span></td><td style="padding: 14px 20px; text-align: right"><button type="button" class="btn-navy" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #22386A; color: #FFFFFF; font: 600 13px Inter, sans-serif">Claim</button></td></tr>
+              <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 14px 20px"><div style="font-weight: 600"><a href="#">RSA 61/2025</a></div><div style="font-size: 13px; color: #5B6580">Sample Appellant vs State of Assam</div></td><td style="padding: 14px 12px; color: #4A5570">0.31</td><td style="padding: 14px 12px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #EFE6D2; color: #4A5570; font-size: 12px; font-weight: 600">19 Nov 2026</span></td><td style="padding: 14px 20px; text-align: right"><button type="button" class="btn-navy" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #22386A; color: #FFFFFF; font: 600 13px Inter, sans-serif">Claim</button></td></tr>
+              <tr class="row" style="border-top: 1px solid #E2D6BE"><td style="padding: 14px 20px"><div style="font-weight: 600"><a href="#">Cont.Cas(C) 90/2026</a></div><div style="font-size: 13px; color: #5B6580">Sample Petitioner vs State of Assam</div></td><td style="padding: 14px 12px; color: #4A5570">None</td><td style="padding: 14px 12px"><span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; border: 1.5px dashed #8C97B0; color: #4A5570; font-size: 12px; font-weight: 600; box-sizing: border-box">No Date Yet</span></td><td style="padding: 14px 20px; text-align: right"><button type="button" class="btn-navy" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #22386A; color: #FFFFFF; font: 600 13px Inter, sans-serif">Claim</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{onTr}}" hint-placeholder-val="{{false}}">
+        <div class="fadein" style="display: flex; flex-direction: column; gap: 12px">
+          <div class="row" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; padding: 16px 20px">
+            <div style="display: flex; flex-direction: column; gap: 4px"><div style="font-weight: 600"><a href="#">WP(C) 1399/2026</a> · from Home Department</div><div style="font-size: 13px; color: #5B6580">Requested 9 Nov 2026 · "Land records matter, belongs to Revenue"</div></div>
+            <div style="display: flex; gap: 8px"><button type="button" class="btn-navy" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #22386A; color: #FFFFFF; font: 600 13px Inter, sans-serif">Accept</button><button type="button" class="btn-ghost" style="height: 36px; padding: 0 12px; border: 1px solid #CDBFA6; border-radius: 8px; background: transparent; color: #22386A; font: 600 13px Inter, sans-serif">Decline</button></div>
+          </div>
+          <div class="row" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; background: #FFFBF2; border: 1px solid #E2D6BE; border-radius: 14px; padding: 16px 20px">
+            <div style="display: flex; flex-direction: column; gap: 4px"><div style="font-weight: 600"><a href="#">MAC App 77/2026</a> · to Transport Department</div><div style="font-size: 13px; color: #5B6580">Sent 6 Nov 2026 · waiting for their answer</div></div>
+            <span style="display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; background: #EFE6D2; color: #4A5570; font-size: 12px; font-weight: 600">Waiting</span>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+
+  <div class="toast" role="status" aria-live="polite" style="{{toastStyle}}">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F6C48E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+    <span>{{toastText}}</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#F28C28","options":["#F28C28","#F07C1E","#F59E3B","#E8742A"]},"$preview":{"width":1440,"height":980}}'>
+const SAMPLE = [
+  { id: 1, no: 'WP(C) 1611/2026', parties: 'Sample Petitioner vs State of Assam and 3 others', why: 'Counsel code REV-1 printed on the cause list', strong: true, match: 'Strong · 0.95', date: 'Tomorrow', kind: 'red' },
+  { id: 2, no: 'WA 233/2026', parties: 'State of Assam vs Sample Respondent', why: 'Department named in the parties', strong: true, match: 'Strong · 0.90', date: 'In 4 Days', kind: 'ochre' },
+  { id: 3, no: 'MAC App 140/2025', parties: 'Sample Appellant vs State of Assam', why: 'Code REV partly matches REV-1', strong: false, match: 'Possible · 0.60', date: '2 Dec 2026', kind: 'plain' },
+  { id: 4, no: 'Crl.Pet 455/2026', parties: 'Sample Petitioner vs State of Assam', why: 'Keyword "land acquisition" in the case', strong: false, match: 'Possible · 0.55', date: 'No Date Yet', kind: 'none' },
+];
+const DATE_STYLE = {
+  red: 'background: #B42318; color: #FFFFFF',
+  ochre: 'background: #F5ECCB; color: #7A5A00',
+  plain: 'background: #EFE6D2; color: #4A5570',
+  none: 'border: 1.5px dashed #8C97B0; color: #4A5570; box-sizing: border-box',
+};
+const PILL = 'display: inline-flex; height: 26px; align-items: center; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; ';
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 0, status: {}, toast: '', toastOn: false };
+    this.timers = [];
+  }
+  componentWillUnmount() { this.timers.forEach((t) => clearTimeout(t)); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+  setStatus(id, s) { this.setState({ status: Object.assign({}, this.state.status, { [id]: s }) }); }
+  toast(text) {
+    this.setState({ toast: text, toastOn: true });
+    const stamp = Date.now();
+    this.toastStamp = stamp;
+    this.later(() => { if (this.toastStamp === stamp) this.setState({ toastOn: false }); }, 3200);
+  }
+  claim(r) {
+    this.setStatus(r.id, 'claimed');
+    this.toast(r.no + ' claimed. It is now in Department Cases.');
+    this.later(() => this.setStatus(r.id, 'leaving'), 1500);
+    this.later(() => this.setStatus(r.id, 'gone'), 1900);
+  }
+  dismiss(r) {
+    this.setStatus(r.id, 'leaving');
+    this.toast('Recommendation for ' + r.no + ' dismissed.');
+    this.later(() => this.setStatus(r.id, 'gone'), 400);
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#F28C28';
+    const st = this.state.status;
+    const removed = SAMPLE.filter((r) => st[r.id] === 'gone' || st[r.id] === 'leaving' || st[r.id] === 'claimed').length;
+    const recCount = 23 - removed;
+    const tabDefs = [['Recommended', String(recCount)], ['Unclaimed Pool', '1,906'], ['Transfers', '2']];
+    const tabs = tabDefs.map(([label, count], i) => {
+      const on = this.state.tab === i;
+      return {
+        label, count, selected: on ? 'true' : 'false',
+        style: 'height: 46px; padding: 0 8px; border: 0; background: transparent; text-align: center; font: ' + (on ? '700' : '600') + ' 15px Inter, sans-serif; color: ' + (on ? '#0F1E3D' : '#4A5570'),
+        countStyle: 'color: ' + (on && i === 0 ? '#B4470C' : '#5B6580'),
+        pick: () => this.setState({ tab: i }),
+      };
+    });
+    const rows = SAMPLE.filter((r) => st[r.id] !== 'gone').map((r) => {
+      const s = st[r.id];
+      const claimed = s === 'claimed';
+      const leaving = s === 'leaving';
+      return Object.assign({}, r, {
+        claimed, open: !s,
+        rowStyle: 'border-top: 1px solid #E2D6BE; ' + (claimed ? 'background: #E2F0E5; ' : '') + (leaving ? 'opacity: 0; transform: translateX(32px); ' : ''),
+        matchStyle: PILL + (r.strong ? 'background: #22386A; color: #FFFFFF' : 'border: 1.5px solid #22386A; color: #22386A; box-sizing: border-box'),
+        dateStyle: PILL + DATE_STYLE[r.kind],
+        claim: () => this.claim(r),
+        dismiss: () => this.dismiss(r),
+      });
+    });
+    const on = this.state.toastOn;
+    return {
+      accent, tabs, rows, recCount,
+      onRec: this.state.tab === 0, onPool: this.state.tab === 1, onTr: this.state.tab === 2,
+      barStyle: 'position: absolute; left: 0; bottom: -1px; width: 200px; height: 3px; border-radius: 3px 3px 0 0; background: ' + accent + '; transform: translateX(' + (this.state.tab * 200) + 'px)',
+      toastText: this.state.toast,
+      toastStyle: 'position: absolute; right: 32px; bottom: 32px; display: flex; align-items: center; gap: 10px; max-width: 420px; padding: 14px 18px; border-radius: 12px; background: #0F1E3D; color: #FFFFFF; font-size: 14px; font-weight: 500; box-shadow: 0 16px 40px rgba(15, 30, 61, 0.28); ' + (on ? 'opacity: 1; transform: translateY(0)' : 'opacity: 0; transform: translateY(24px); pointer-events: none'),
+      reset: () => this.setState({ status: {}, toastOn: false, tab: 0 }),
+    };
+  }
+}
+</script>
+</body>
+</html>

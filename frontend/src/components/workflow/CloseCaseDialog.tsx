@@ -96,7 +96,7 @@ export function CloseCaseDialog({
       confirmLabel={T.closure.closeCase}
     >
       <p>{T.closure.closeBody}</p>
-      {drafts > 0 ? <Notice>{T.closure.closeDrafts}</Notice> : null}
+      {drafts > 0 ? <Notice tone="warning">{T.closure.closeDrafts}</Notice> : null}
       <TextArea
         label={T.closure.closeField}
         value={remark}

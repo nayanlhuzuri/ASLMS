@@ -150,7 +150,7 @@ export function CaseAlerts({ caseRef }: { caseRef: string }) {
                     }
                     badges={
                       <>
-                        <SeverityBadge severity={a.severity} />
+                        <SeverityBadge severity={a.severity} kind={a.kind} data={a.data} />
                         {/* New only for an alert that reached the reader and is unread: an alert of the case sent to
                             others has no notification of the reader's */}
                         {a.notified_at && !a.read_at ? (

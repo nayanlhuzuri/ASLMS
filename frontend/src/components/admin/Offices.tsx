@@ -462,7 +462,7 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
           </h2>
           {o.is_active === false ? <Badge tone="warning">{T.inactive}</Badge> : <Badge tone="success">{T.active}</Badge>}
         </div>
-        {refused && o.is_active !== false ? <Notice>{T.offices.alreadyActive}</Notice> : null}
+        {refused && o.is_active !== false ? <Notice tone="warning">{T.offices.alreadyActive}</Notice> : null}
         {editing ? (
           <form className="stack" onSubmit={saveEdit}>
             <TextField label={T.offices.name} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

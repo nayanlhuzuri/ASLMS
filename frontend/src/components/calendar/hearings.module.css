@@ -38,7 +38,7 @@
 }
 
 .today {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--action);
 }
 
 .dayNo {

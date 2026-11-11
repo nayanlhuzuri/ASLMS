@@ -71,7 +71,7 @@ export function ReviewList({ params }: { params: Params }) {
   return (
     <div className="stack">
       <FilterBar list="next_dates" params={params} total={list.data?.total} noun={T.nd.noun} />
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} messages={NEXT_DATE_ERRORS} />
       {list.isPending ? <Loading /> : null}

@@ -359,7 +359,7 @@ export function SendDialog({
             onChange={(e) => setRemark(e.target.value)}
           />
           <CharCounter value={remark} max={REMARK_MAX} />
-          {drafts > 0 ? <Notice>{T.wf.draftsWarning(drafts)}</Notice> : null}
+          {drafts > 0 ? <Notice tone="warning">{T.wf.draftsWarning(drafts)}</Notice> : null}
           {person && pending ? (
             <p>
               <strong>{T.wf.summary(personShort(person), actionLabel, due ? formatDate(due) : null)}</strong>
@@ -451,7 +451,7 @@ export function CustodyActions({ caseRef, detail, card }: { caseRef: string; det
   if (!card.can_send && !card.can_recall && !notice) return null;
   return (
     <div className="stack">
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <div className="row">
         {card.can_send ? (
           <Button variant="secondary" onClick={() => setOpen("send")}>

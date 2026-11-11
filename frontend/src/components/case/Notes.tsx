@@ -58,7 +58,7 @@ function Writing({
   return (
     <section className="card stack" aria-label={T.wf.writeNote} id="write-note">
       <h2>{T.wf.writeNote}</h2>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <NoteComposer
         key={correcting?.id ?? "new"}
         caseRef={caseRef}

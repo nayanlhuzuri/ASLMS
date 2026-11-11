@@ -209,7 +209,7 @@ export function RequestsCard({ query }: { query: ReturnType<typeof useRequests> 
       <div className="stack">
         <h2 id="dc-requests">{T.dc.requestsTitle}</h2>
         <ErrorBanner error={query.error} onRetry={() => query.refetch()} />
-        {stopped ? <Notice>{stopped}</Notice> : null}
+        {stopped ? <Notice tone="success">{stopped}</Notice> : null}
         {items.length ? (
           <ScrollBox label={T.dc.requestListLabel}>
             <DataTable

@@ -121,12 +121,22 @@ const DASHBOARD: DashboardIndex = {
 };
 
 /**
+ * The fixtures' "now" (design portal-navy-cream, decision 16): the run's pinned instant in boxes mode, so both runs of a
+ * comparison answer the same times as the page's pinned clock; the real time otherwise, exactly as before.
+ */
+function fixtureNow(): number {
+  return process.env.UICHECK_BOXES === "1" && process.env.UICHECK_CLOCK ? Date.parse(process.env.UICHECK_CLOCK) : Date.now();
+}
+
+/**
  * The run's IST day plus `days`, as `YYYY-MM-DD` (design next-hearing-highlight): the hearing bands are counted from
  * the IST day, so dates relative to it draw the same bands whenever the check runs. A copy of `istDay` and `addDays`
  * (lib/format.ts), since the fixtures import only types from the portal's source.
  */
 function istDayPlus(days: number): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(
+    new Date(fixtureNow()),
+  );
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   const d = new Date(`${get("year")}-${get("month")}-${get("day")}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -162,7 +172,7 @@ function dashboardMe(): DashboardMe {
     holder_office_code: "SEC-EDU",
     ...extra,
   });
-  const notified = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+  const notified = (hoursAgo: number) => new Date(fixtureNow() - hoursAgo * 3_600_000).toISOString();
   const alert = (i: number, caseNo: string | null, extra: Partial<Alert>): Alert => {
     const summary = extra.summary ?? "New order of 3 Nov 2026";
     return {
@@ -802,7 +812,7 @@ function held(): HeldList {
   const base = synthFor("/custody/held")!.body as HeldList;
   const first = base.items[0]!;
   const card = first.card!;
-  const recent = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const recent = new Date(fixtureNow() - 2 * 3600 * 1000).toISOString();
   // design portal-screen-fixes-work, decision 5: an overdue card with a due date in the past and one due soon
   const variants: Partial<NonNullable<typeof card>>[] = [
     { overdue: true, overdue_days: 12, due_soon: false, due_date: istDayPlus(-12) },
@@ -917,7 +927,7 @@ function claimed(url: URL): OwnershipList {
 function working(): MyCaseList {
   const base = synthFor("/inbox/mine")!.body as MyCaseList;
   const first = base.items[0]!;
-  const recent = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const recent = new Date(fixtureNow() - 2 * 3600 * 1000).toISOString();
   const brief: CustodyBrief = {
     holder_office: { code: "EDU-DSE", name: STRESS.office },
     holder_user: { full_name: "Anita Sharma Baruah", designation: STRESS.designation },

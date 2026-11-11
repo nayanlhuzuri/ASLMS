@@ -140,7 +140,7 @@ export function Watchlist() {
         }}
         onConflict={() => void refresh()}
       />
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {list.isPending ? <Loading /> : null}
       <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
       {list.data ? (

@@ -213,7 +213,7 @@ export function StartDialog({ data, onClose }: { data: DataLoad; onClose: () => 
           </Button>
         </div>
         <ErrorBanner error={action.error} />
-        {message ? <Notice>{message}</Notice> : null}
+        {message ? <Notice tone="success">{message}</Notice> : null}
         {preview ? (
           <div className="stack">
             <div className={ds.previewTiles}>
@@ -392,7 +392,7 @@ export function OrderCard({ data, manage }: { data: DataLoad; manage: boolean })
               </div>
             </div>
             <ErrorBanner error={action.error} />
-            {message ? <Notice>{message}</Notice> : null}
+            {message ? <Notice tone="success">{message}</Notice> : null}
           </form>
         ) : null}
         <p className={ds.line}>{now}</p>
@@ -601,7 +601,7 @@ export function DepartmentNames() {
         <p className={ds.line}>{T.dc.namesIntro}</p>
         {data.isPending ? <Loading /> : null}
         <ErrorBanner error={data.error} onRetry={() => data.refetch()} />
-        {message ? <Notice>{message}</Notice> : null}
+        {message ? <Notice tone="success">{message}</Notice> : null}
         {d && names === 0 ? (
           <EmptyState>
             <p>{T.dc.namesEmpty}</p>

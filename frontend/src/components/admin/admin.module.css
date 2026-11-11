@@ -41,8 +41,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action);
+  color: var(--on-action);
   font-size: var(--t-sm);
   font-weight: 600;
 }
@@ -189,8 +189,8 @@
   min-height: var(--savebar-h);
   padding: var(--s3) var(--s3) var(--s3) var(--s5);
   border-radius: var(--r-lg);
-  background: #0b1220;
-  color: #fff;
+  background: var(--panel-from);
+  color: var(--panel-strong);
   box-shadow: var(--shadow-3);
 }
 
@@ -210,19 +210,20 @@
   height: 24px;
   padding: 0 var(--s1);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: var(--panel-raised);
+  color: var(--panel-strong);
   font-size: var(--t-xs);
   font-weight: 700;
 }
 
+/* the unsaved count needs action: orange with navy text (design portal-navy-cream, decisions 2 and 7) */
 .saveBar:not([data-count="0"]) .saveCount {
-  background: #fec84b;
-  color: #0b1220;
+  background: var(--mark);
+  color: var(--on-mark);
 }
 
 .saveBar button[data-variant="ghost"] {
-  color: #cbd5e1;
+  color: var(--panel-text);
 }
 
 .bump {
@@ -353,8 +354,8 @@
 
 .jumpNav a:hover,
 .jumpNav a:focus-visible {
-  border-left-color: var(--accent);
-  color: var(--accent);
+  border-left-color: var(--action);
+  color: var(--heading);
 }
 
 /* design portal-ui-polish-2, decision 27: the Users filter as one line on laptops, wrapping on the control line below
@@ -437,8 +438,8 @@
   width: var(--s7);
   height: var(--s7);
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action);
+  color: var(--on-action);
   font-size: var(--t-lg);
   font-weight: 600;
 }

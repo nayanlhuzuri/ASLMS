@@ -1,6 +1,6 @@
 /* The public pages (design portal-ui-redesign, decision 26 as amended 20 Oct 2026: template A, the split panel; the
-   visual reference is docs/design/ui/aslms-sign-in-templates.html, tab A). Laptops: the deep-blue panel on the left
-   and the white form side on the right. Phones (< 820 px): the panel shrinks to a header above the form and the
+   visual reference is docs/design/ui/aslms-sign-in-templates.html, tab A; colours from design portal-navy-cream,
+   decision 8). Laptops: the navy panel on the left and the cream form side on the right. Phones (< 820 px): the panel shrinks to a header above the form and the
    benefit tiles are hidden. Motion comes from the tokens, so reduced motion turns it off. */
 
 .page {
@@ -20,9 +20,7 @@
   overflow: hidden;
   padding: var(--s7);
   color: var(--panel-text);
-  background:
-    radial-gradient(1200px 600px at -10% 110%, rgba(37, 99, 235, 0.33), transparent 60%),
-    linear-gradient(160deg, var(--panel-from), var(--panel-to));
+  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
 }
 
 .panel::after {
@@ -30,7 +28,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(var(--panel-dots) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 
@@ -80,9 +78,9 @@
   align-items: flex-start;
   gap: var(--s3);
   padding: var(--s3) var(--s4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--panel-tile-line);
   border-radius: var(--r-xl);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel-tile);
   animation: auth-rise var(--slow) var(--ease) both;
 }
 
@@ -104,8 +102,8 @@
   width: var(--control-h);
   height: var(--control-h);
   border-radius: var(--r-lg);
-  background: rgba(37, 99, 235, 0.2);
-  color: var(--panel-accent);
+  background: var(--panel-raised);
+  color: var(--panel-text);
 }
 
 .maker {
@@ -220,9 +218,9 @@
 }
 
 .stepOn {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
 }
 
 .stepBar {

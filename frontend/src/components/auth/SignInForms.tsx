@@ -68,7 +68,7 @@ export function LoginForm() {
       <h1>{T.auth.signIn}</h1>
       <p>{T.auth.signInSub}</p>
       <SignInSteps step={1} />
-      {params.get("reset") === "done" ? <Notice>{T.auth.passwordChanged}</Notice> : null}
+      {params.get("reset") === "done" ? <Notice tone="success">{T.auth.passwordChanged}</Notice> : null}
       {reasonText ? <Notice>{reasonText}</Notice> : null}
       {params.get("expired") ? <ErrorBanner error={new ApiError(401, "otp_expired", "")} /> : null}
       <ErrorBanner error={error} />
@@ -163,7 +163,7 @@ export function CodeForm() {
       <h1>{T.auth.codeTitle}</h1>
       <SignInSteps step={2} />
       <p>{step?.sent_to ? T.auth.codeSent(step.sent_to) : T.auth.codeSentGeneric}</p>
-      {resent ? <Notice>{T.auth.resent}</Notice> : null}
+      {resent ? <Notice tone="success">{T.auth.resent}</Notice> : null}
       <ErrorBanner error={error} />
       <TextField
         label={T.auth.code}

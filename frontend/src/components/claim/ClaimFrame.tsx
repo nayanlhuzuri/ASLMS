@@ -103,7 +103,7 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
       <PageHeader title={T.claim.title} subtitle={T.claim.subtitle} />
       <ErrorBanner error={sel.error} onRetry={sel.refetch} />
       {done ? (
-        <Notice>
+        <Notice tone="success">
           <span className={s.notice}>
             <span>{done.text}</span>
             {done.caseRef ? <Link href={casePath(done.caseRef)}>{T.claim.openCasePage}</Link> : null}

@@ -12,8 +12,8 @@
 
 .changed {
   font-weight: 600;
-  background: var(--amber-soft);
-  color: var(--amber);
+  background: var(--ochre-soft);
+  color: var(--ochre);
   padding: 0 var(--s1);
   border-radius: var(--r-md);
 }
@@ -238,7 +238,7 @@
   width: 100%;
   height: var(--control-h);
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--action);
 }
 
 .weightRow input[type="number"] {
@@ -260,7 +260,7 @@
   height: var(--s1);
   margin-left: var(--s2);
   border-radius: 50%;
-  background: var(--amber);
+  background: var(--ochre);
   vertical-align: middle;
 }
 
@@ -295,8 +295,8 @@
 }
 
 .band1 {
-  background: var(--amber-soft);
-  color: var(--amber);
+  background: var(--ochre-soft);
+  color: var(--ochre);
 }
 
 .band2 {

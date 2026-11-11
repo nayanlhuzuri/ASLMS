@@ -97,7 +97,7 @@ export function Breadcrumb() {
 
 /**
  * The page header (decision 16): the breadcrumb, the title, an optional subtitle, one `primary` slot (at most one
- * blue button per page) and secondary actions.
+ * orange button per page) and secondary actions.
  */
 export function PageHeader({
   title,
@@ -367,12 +367,15 @@ export function Kpi({
   sub,
   tone,
   href,
+  emphasis = false,
 }: {
   label: string;
   value: number | null | undefined;
   sub?: ReactNode;
   tone?: "danger" | "warning";
   href?: string;
+  /** The one headline tile that needs action now, drawn in soft orange (design portal-navy-cream, decision 10). */
+  emphasis?: boolean;
 }) {
   const shown = useCountUp(value);
   const body = (
@@ -386,12 +389,12 @@ export function Kpi({
   );
   if (href) {
     return (
-      <Link href={href} className={cx(s.kpi, s.kpiLink)} aria-label={`${label}: ${formatNumber(value)}`}>
+      <Link href={href} className={cx(s.kpi, s.kpiLink, emphasis && s.kpiMark)} aria-label={`${label}: ${formatNumber(value)}`}>
         {body}
       </Link>
     );
   }
-  return <div className={s.kpi}>{body}</div>;
+  return <div className={cx(s.kpi, emphasis && s.kpiMark)}>{body}</div>;
 }
 
 /**

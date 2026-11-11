@@ -376,7 +376,7 @@ export function CaseHeader({
         <Fact label={T.rail.ownerFact}>{owner ? <OfficeName code={owner.office_code} name={owner.office_name} /> : T.case.unowned}</Fact>
         {/* design portal-screen-fixes-work, decision 6: the status shows once, as the badge beside the title */}
       </dl>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
     </section>
   );

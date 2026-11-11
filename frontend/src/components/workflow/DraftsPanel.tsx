@@ -51,7 +51,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
 
   return (
     <li className={cs.note} aria-label={kindLabel}>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {editing ? (
         <NoteComposer
           caseRef={caseRef}

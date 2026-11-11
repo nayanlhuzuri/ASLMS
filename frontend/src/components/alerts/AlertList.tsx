@@ -83,7 +83,7 @@ function AlertRow({ alert }: { alert: AlertItem }) {
         meta={<span className="muted">{labelFor(T.wf.alertStatus, alert.status)}</span>}
         badges={
           <>
-            <SeverityBadge severity={alert.severity} />
+            <SeverityBadge severity={alert.severity} kind={alert.kind} data={alert.data} />
             {alert.read_at ? null : (
               <Badge tone="warning">
                 {T.alerts.newBadge}

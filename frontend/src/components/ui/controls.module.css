@@ -42,25 +42,33 @@
   cursor: not-allowed;
 }
 
+/* design portal-navy-cream, decisions 2-4: the one main action is orange with navy text; every other button is navy */
 .primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--mark);
+  border-color: var(--mark);
+  color: var(--on-mark);
 }
 
 .primary:hover:not([disabled]) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--mark-hover);
+  border-color: var(--mark-hover);
+  color: var(--on-mark);
+  box-shadow: 0 4px 12px var(--mark-glow);
+}
+
+.secondary {
+  color: var(--action);
 }
 
 .secondary:hover:not([disabled]) {
-  background: var(--surface-2);
+  background: var(--slate-soft);
+  border-color: var(--action);
 }
 
 .ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--text-2);
+  color: var(--action);
 }
 
 .ghost:hover:not([disabled]) {
@@ -70,7 +78,7 @@
 
 .danger {
   background: var(--surface);
-  border-color: #fda29b;
+  border-color: var(--red-line);
   color: var(--red-text);
 }
 
@@ -81,14 +89,14 @@
 .link {
   background: none;
   border-color: transparent;
-  color: var(--accent);
+  color: var(--link);
   padding: 0 var(--s1);
   text-decoration: underline;
   min-height: auto;
 }
 
 .link:hover:not([disabled]) {
-  color: var(--accent-hover);
+  color: var(--link-hover);
   transform: none;
   box-shadow: none;
 }
@@ -127,7 +135,7 @@
   padding: 0 var(--s3);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
-  background: var(--surface);
+  background: var(--field);
   color: var(--text);
   font: inherit;
   transition:
@@ -137,8 +145,8 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  border-color: var(--focus-line);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .input[aria-invalid="true"] {
@@ -181,7 +189,7 @@
 
 .revealButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .revealButton:disabled {
@@ -211,7 +219,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--action);
 }
 
 /* design portal-ui-polish-2, decision 26: in a field row the checkbox and its text centre on the control line */
@@ -258,14 +266,14 @@
 }
 
 .chip:hover:not([disabled]) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--action);
+  color: var(--action);
 }
 
 .chipOn {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--action-soft);
+  border-color: var(--action);
+  color: var(--action);
 }
 
 .filterChip {
@@ -275,8 +283,8 @@
   height: 26px;
   padding: 0 var(--s1) 0 var(--s3);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font-size: var(--t-xs);
   font-weight: 500;
   animation: chip-in var(--med) var(--ease);
@@ -341,7 +349,7 @@
 
 .segmentOn {
   background: var(--surface);
-  color: var(--accent);
+  color: var(--action);
   box-shadow: var(--shadow-1);
 }
 
@@ -368,13 +376,13 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.2);
+  background: var(--field);
+  box-shadow: var(--shadow-knob);
   transition: transform var(--fast) var(--ease);
 }
 
 .switch[aria-checked="true"] {
-  background: var(--accent);
+  background: var(--action);
 }
 
 .switch[aria-checked="true"]::after {
@@ -388,7 +396,7 @@
 
 .switch:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 /* design portal-ui-polish-2, decision 45: an unavailable view is shown greyed with its reason as the tooltip */

@@ -1,9 +1,15 @@
 /**
  * The checker's own rules (design followups-oct, decision 22): on a redirect only the geometry kinds are dropped (no
- * page needed); and the field-row checkbox step on two small pages of its own (design portal-ui-polish-2, decision 26).
+ * page needed); and the field-row checkbox step on two small pages of its own (design portal-ui-polish-2, decision 26);
+ * the box collector and boxdiff (design portal-navy-cream, decision 16).
  */
 import { expect, test, type Page } from "@playwright/test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { compareRuns, differences, main, report, type Boxes } from "./boxdiff";
+import { collectBoxes } from "./boxes";
 import { GEOMETRY_KINDS, pageChecks } from "./checks";
 import { kept, type Finding } from "./results";
 
@@ -288,4 +294,80 @@ test("values starting at different x on one card are a card-row finding; one col
     ),
   );
   expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "card-row")).toEqual([]);
+});
+
+/**
+ * The screen box comparison (design portal-navy-cream, decision 16): the collector records each element's path and box
+ * and does not see a class change; boxdiff finds a 1 px shift, a missing element and a changed page height, and exits
+ * non-zero, while two identical runs give no difference.
+ */
+function boxPage(extra: string, cls = "a"): string {
+  return `<!doctype html><html><body style="margin:0;font:14px sans-serif">
+    <main class="${cls}" style="padding:16px"><h1 style="margin:0;height:30px">Title</h1>
+      <p style="margin:${extra};height:20px">One</p><p style="margin:0;height:20px">Two</p>
+      <script>window.x = 1;</script></main></body></html>`;
+}
+
+test("the box collector records each element's path and box and ignores a class change", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setContent(boxPage("0"));
+  const first = await page.evaluate(collectBoxes);
+  expect(Object.keys(first.boxes)).toEqual(["body>main:1", "body>main:1>h1:1", "body>main:1>p:1", "body>main:1>p:2"]);
+  expect(first.boxes["body>main:1>h1:1"]).toEqual([16, 16, 1248, 30]);
+  expect(first.boxes["body>main:1>p:2"]).toEqual([16, 66, 1248, 20]);
+  expect(first.scrollWidth).toBe(1280);
+  await page.setContent(boxPage("0", "b other-class"));
+  const renamed = await page.evaluate(collectBoxes);
+  expect(renamed).toEqual(first);
+});
+
+function boxRun(boxes: Record<string, [number, number, number, number]>, scrollHeight = 800): Boxes {
+  return { name: "/", width: 1280, scrollWidth: 1280, scrollHeight, boxes };
+}
+
+const BASE = { "body>main:1": [0, 0, 1280, 100], "body>main:1>p:1": [16, 16, 200, 20] } as Record<string, [number, number, number, number]>;
+
+test("boxdiff gives 0 differences for identical runs and within 0.5 px", () => {
+  const same = compareRuns({ "dashboard-1280": boxRun(BASE) }, { "dashboard-1280": boxRun({ ...BASE }) });
+  expect(differences(same)).toBe(0);
+  expect(report(same)[0]).toBe("0 moved, 0 missing, 0 extra, 0 page-size changes");
+  const half = compareRuns({ p: boxRun(BASE) }, { p: boxRun({ ...BASE, "body>main:1>p:1": [16.5, 16, 200, 20] }) });
+  expect(differences(half)).toBe(0);
+});
+
+test("boxdiff reports a 1 px shift, a missing element, an extra one and a changed page height", () => {
+  const diff = compareRuns(
+    { p: boxRun(BASE), gone: boxRun(BASE) },
+    { p: boxRun({ "body>main:1": [0, 0, 1280, 100], "body>main:1>div:1": [0, 0, 10, 10] }, 801), q: boxRun(BASE) },
+  );
+  expect(diff.moved).toBe(0);
+  expect(diff.pages[0]!.missing).toEqual(["body>main:1>p:1"]);
+  expect(diff.pages[0]!.extra).toEqual(["body>main:1>div:1"]);
+  expect(diff.pages[0]!.size).toBe("1280x800 -> 1280x801");
+  expect(diff.missingPages).toEqual(["gone"]);
+  expect(diff.extraPages).toEqual(["q"]);
+  const shifted = compareRuns({ p: boxRun(BASE) }, { p: boxRun({ ...BASE, "body>main:1>p:1": [16, 17, 200, 20] }) });
+  expect(shifted.moved).toBe(1);
+  expect(shifted.pages[0]!.moved[0]).toContain("body>main:1>p:1 [16, 16, 200, 20] -> [16, 17, 200, 20]");
+});
+
+test("boxdiff exits non-zero on a difference and 0 on none, reading the run folders", () => {
+  const root = mkdtempSync(join(tmpdir(), "boxdiff-"));
+  const write = (run: string, file: string, data: Boxes) => {
+    mkdirSync(join(root, run, "20261111-1200", "boxes"), { recursive: true });
+    writeFileSync(join(root, run, "20261111-1200", "boxes", `${file}.json`), JSON.stringify(data));
+  };
+  write("a1", "dashboard-1280", boxRun(BASE));
+  write("a2", "dashboard-1280", boxRun(BASE));
+  write("b", "dashboard-1280", boxRun(BASE, 900));
+  const log = console.log;
+  console.log = () => undefined;
+  try {
+    expect(main([join(root, "a1"), join(root, "a2")])).toBe(0);
+    expect(main([join(root, "a1"), join(root, "b")])).toBe(1);
+    expect(main([join(root, "a1")])).toBe(2);
+  } finally {
+    console.log = log;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

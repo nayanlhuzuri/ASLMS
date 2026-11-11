@@ -81,7 +81,7 @@ function DetailsCard({ profile }: { profile: ProfileOut }) {
       <TextField label={T.auth.fullName} required value={name} onChange={(e) => setName(e.target.value)} />
       <TextField label={T.auth.mobile} type="tel" hint={T.auth.mobileHint} required value={mobile} onChange={(e) => setMobile(e.target.value)} />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice>{T.saved}</Notice> : null}
+      {save.done ? <Notice tone="success">{T.saved}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.save}
@@ -107,7 +107,7 @@ function PreferencesCard({ profile }: { profile: ProfileOut }) {
     <form className="card stack" onSubmit={submit} aria-label={T.prefs.title}>
       <PreferenceFields value={prefs} onChange={setPrefs} />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice>{T.saved}</Notice> : null}
+      {save.done ? <Notice tone="success">{T.saved}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.save}
@@ -162,7 +162,7 @@ function PasswordCard() {
         onChange={(e) => setRepeat(e.target.value)}
       />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice>{T.profile.passwordChanged}</Notice> : null}
+      {save.done ? <Notice tone="success">{T.profile.passwordChanged}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.auth.setPassword}

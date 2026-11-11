@@ -5,6 +5,7 @@
   "description": "The real-browser layout check of the portal (design portal-ui-polish, decisions 18-22). Runs in Compose: docker compose --profile uicheck run --rm uicheck",
   "scripts": {
     "check": "playwright test",
+    "boxdiff": "UICHECK_BOXDIFF_CLI=1 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON boxdiff.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

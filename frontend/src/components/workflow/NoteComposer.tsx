@@ -182,7 +182,7 @@ export function NoteComposer({
       }}
     >
       <Notice>{draftMode ? T.wf.composerDraft : T.wf.composerPermanent}</Notice>
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {correcting ? (
         <p>
           <strong>{T.wf.correcting(correcting.ref_no)}</strong> <span className="muted">{T.wf.correctionFixed}</span>

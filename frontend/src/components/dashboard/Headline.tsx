@@ -102,6 +102,8 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
       sub={T.dash.kpiFilesSub(n(headline.files_with_me.due_today))}
       tone={headline.files_with_me.due_today > 0 ? "warning" : undefined}
       href="/inbox/with-me"
+      // design portal-navy-cream, decision 10: the one orange headline tile, only while there is something to do
+      emphasis={headline.files_with_me.total > 0}
     />,
     <Kpi
       key="overdue"

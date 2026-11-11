@@ -1,8 +1,8 @@
 /**
  * The frame of the public pages (design portal-ui-redesign, decision 26 as amended by the owner on 20 Oct 2026:
  * template A, the split panel; visual reference docs/design/ui/aslms-sign-in-templates.html, tab A). On laptops the
- * left half is the deep-blue panel with "Government of Assam", the full name, one line on what the portal is for and
- * three benefit tiles; the right half is white, with the official emblem (`BrandLockup`), the page's form and the
+ * left half is the navy panel with "Government of Assam", the full name, one line on what the portal is for and
+ * three benefit tiles; the right half is cream, with the official emblem (`BrandLockup`), the page's form and the
  * foot line. On phones the panel shrinks to a header above the form and the tiles are hidden. The sign-in, code,
  * reset and first-sign-in pages share it; only the right half changes. Every text comes from `messages.ts`, and the
  * Gauhati High Court is not named here.

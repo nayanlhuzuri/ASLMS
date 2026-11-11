@@ -74,7 +74,7 @@
 }
 
 .tone-warn {
-  stroke: var(--amber);
+  stroke: var(--ochre);
 }
 
 .tone-down {
@@ -107,7 +107,7 @@
 }
 
 .dot-warn {
-  background: var(--amber);
+  background: var(--ochre);
 }
 
 .dot-down {
@@ -119,7 +119,7 @@
 }
 
 .dot-busy {
-  background: var(--accent);
+  background: var(--action);
 }
 
 .pulse {

@@ -131,7 +131,7 @@ export function PasswordDialog({ user, onClose }: { user: UserOut; onClose: () =
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      {reset.done ? <Notice>{T.users.passwordSet}</Notice> : null}
+      {reset.done ? <Notice tone="success">{T.users.passwordSet}</Notice> : null}
     </ConfirmDialog>
   );
 }

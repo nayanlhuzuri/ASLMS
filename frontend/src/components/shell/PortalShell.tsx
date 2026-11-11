@@ -3,7 +3,7 @@
 /**
  * The portal frame (design portal-shell, decisions 12 and 13; portal-ui-redesign, decisions 4, 18, 21 and 22).
  * The header: the menu button (phones), the emblem slot and the brand, the search box, the alert bell and the avatar
- * menu. The white sidebar: the navigation in its groups (Work, Oversight, Settings) with server counts, and at its
+ * menu. The navy sidebar (cream in the phone drawer, design portal-navy-cream, decision 9): the navigation in its groups (Work, Oversight, Settings) with server counts, and at its
  * foot the person, the primary membership's designation and office and the list of all memberships. Below 820 px
  * the sidebar is a drawer (focus trapped, Escape and the overlay close it) and a bottom bar shows up to three
  * entries plus More. The breadcrumb sits inside each page, in its `PageHeader`. There is no acting-membership switch:

@@ -208,8 +208,8 @@
 }
 
 .now::before {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: var(--action);
+  background: var(--action);
 }
 
 .when {
@@ -223,8 +223,8 @@
 .nowMark {
   padding: 0 var(--s1);
   border-radius: var(--r-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font-weight: 600;
 }
 

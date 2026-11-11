@@ -11,7 +11,7 @@ import { parseMonth } from "./workflow";
 export const KINDS = ["hearing", "action_due", "confirm"] as const;
 export type Kind = (typeof KINDS)[number];
 
-/** The status tone of each kind (decision 11): red hearings, amber action due dates, blue next dates to confirm. */
+/** The status tone of each kind (decision 11): red hearings, ochre action due dates, navy next dates to confirm. */
 export const KIND_TONE: Record<Kind, "danger" | "warning" | "info"> = {
   hearing: "danger",
   action_due: "warning",

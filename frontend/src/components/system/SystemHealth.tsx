@@ -107,7 +107,7 @@ export function SystemHealth({ params }: { params: Params }) {
       />
       <ErrorBanner error={summary.error} onRetry={() => void summary.refetch()} />
       {summary.isPending ? <Loading /> : null}
-      {summary.data && !summary.data.napix_enabled ? <Notice>{T.system.switchedOff}</Notice> : null}
+      {summary.data && !summary.data.napix_enabled ? <Notice tone="warning">{T.system.switchedOff}</Notice> : null}
       {summary.data ? <Overview data={summary.data} services={services.data} /> : null}
       {summary.data ? (
         <section className="stack" id="court" aria-labelledby="court-heading">

@@ -923,7 +923,7 @@ function Workspace({
       ) : null}
       <ErrorBanner error={error} messages={ASSISTANT_ERRORS} />
       {!confirming ? <ErrorBanner error={includeError} messages={ASSISTANT_ERRORS} /> : null}
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <Composer
         value={question}
         onChange={setQuestion}

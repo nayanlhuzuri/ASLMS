@@ -46,7 +46,7 @@ export function FlashNotice() {
   useEffect(() => {
     clearFlash();
   }, []);
-  return text ? <Notice>{text}</Notice> : null;
+  return text ? <Notice tone="success">{text}</Notice> : null;
 }
 
 /** Text length within bounds (trimmed), as the API counts it. */

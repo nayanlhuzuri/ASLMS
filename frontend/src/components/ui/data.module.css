@@ -105,7 +105,7 @@
 }
 
 .clickable:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: -2px;
 }
 
@@ -499,7 +499,7 @@
   margin: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: var(--surface-2, #f8fafc);
+  background: var(--surface-2);
 }
 
 .codeHead {
@@ -560,7 +560,7 @@
 }
 
 .sortButton:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: 0;
 }
 

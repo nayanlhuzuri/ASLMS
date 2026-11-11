@@ -16,7 +16,7 @@ import { officeName } from "./officeNames";
 
 /**
  * The case status badge's tone (design portal-ui-redesign, decision 10.15): green means done (disposed); pending and
- * unknown are neutral, amber is kept for due soon.
+ * unknown are neutral, ochre is kept for due soon.
  */
 export function statusTone(status: string | null | undefined): "success" | undefined {
   return status === "disposed" ? "success" : undefined;

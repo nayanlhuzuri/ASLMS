@@ -66,7 +66,7 @@
 }
 
 .crumbs a:hover {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: underline;
 }
 
@@ -149,7 +149,7 @@
 
 .tab[aria-current="page"],
 .tabMoreCurrent {
-  color: var(--accent);
+  color: var(--heading);
 }
 
 .tabCount {
@@ -192,7 +192,7 @@
    link and of the More button is drawn inside the tab's own box */
 .tabs .tab:focus-visible {
   outline-offset: -2px;
-  box-shadow: inset 0 0 0 4px var(--accent-ring);
+  box-shadow: inset 0 0 0 4px var(--focus-ring);
 }
 
 .ink {
@@ -200,7 +200,8 @@
   bottom: 0;
   height: 2px;
   border-radius: 2px;
-  background: var(--accent);
+  /* the open tab's underline is deep orange (design portal-navy-cream, decision 5) */
+  background: var(--mark-text);
   transition:
     left var(--med) var(--ease),
     width var(--med) var(--ease);
@@ -238,7 +239,7 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: var(--heading);
 }
 
 .tileLabel,
@@ -264,7 +265,17 @@
 }
 
 .kpiSub-warning {
-  color: var(--amber);
+  color: var(--ochre);
+}
+
+/* design portal-navy-cream, decision 10: the one headline tile that needs action now (colours only) */
+.kpiMark {
+  background-color: var(--mark-soft);
+  border-color: var(--mark-line);
+}
+
+.kpiMark .kpiLabel {
+  color: var(--mark-text);
 }
 
 .collapsible {
@@ -304,7 +315,7 @@
   text-align: start;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--link);
   font: inherit;
   font-size: var(--t-sm);
   font-weight: 500;
@@ -375,8 +386,8 @@
 }
 
 .settingsLink[aria-current="page"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font-weight: 600;
 }
 
@@ -546,7 +557,7 @@
 }
 
 .scrollBox:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-line);
   outline-offset: 2px;
 }
 

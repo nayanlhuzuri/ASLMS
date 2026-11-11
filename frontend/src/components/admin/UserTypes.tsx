@@ -3,7 +3,7 @@
 /**
  * User types on the Settings hub (design case-workspace-admin, decisions 24-27; template A):
  * - the index (`/admin/access`): one card per user type, in `ref_role` order, with its label and description, the
- *   logins of that type in the caller's scope, "n of N functions on" and an amber "n changed from default"
+ *   logins of that type in the caller's scope, "n of N functions on" and an ochre "n changed from default"
  *   (`GET /admin/access/overview`); a card opens the type's page. Readable with `users.view`.
  * - the type's page (`/admin/access/[role]`): the functions in plain-language groups, in the order the API gives
  *   (`group`, `sort_in_group` on `GET /admin/permissions`, so the portal holds no copy of the mapping), each a switch
@@ -499,7 +499,7 @@ export function UserTypePage({ role }: { role: string }) {
         ) : null}
       </div>
       {isSuper ? <Notice>{T.access.superAdminLine}</Notice> : null}
-      {notice ? <Notice>{notice}</Notice> : null}
+      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {/* a refusal names the function, and the draft stays for the user to change */}
       <ErrorBanner error={save.error} messages={refusal ? { reserved: () => refusal, retired: () => refusal, bad_request: () => refusal } : undefined} />
 

@@ -95,7 +95,7 @@ export interface DueState {
 
 /**
  * The one Due line (design portal-screen-fixes-work, decision 5): a muted "No Due Date"; a red "Overdue by N Days"
- * with the date as its title; an amber "Due 12 Nov 2026" when due soon; otherwise the date as text. The caller decides
+ * with the date as its title; an ochre "Due 12 Nov 2026" when due soon; otherwise the date as text. The caller decides
  * the flags (the server's on With Me and My Cases, `sentDue` on Sent by Me).
  */
 export function DueLine({ due }: { due: DueState }) {
