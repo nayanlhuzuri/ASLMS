@@ -572,6 +572,56 @@ recommended answers".
 ## Build notes
 (For the developer: P6 step 0 measurements, then any deviation from this note.)
 
+**P6 step 0 (11 Nov 2026): not measured by the developer.** The developer has no portal login on the live dev stack
+(sign-in needs the mailed code, and the developer reads no `.env`), so the six numbers could not be taken. Decision 16
+was built anyway, because with `overflow="more"` nothing moves while every tab fits: on a row that fits, the result is
+the same as closing P6 as "checked, no overflow". The owner takes the six measurements in Verification step 6 (the same
+console line, on the Overview and Notes tabs at 1280 px and 1100 px) and records them here; if all six are 0, the
+`overflow="more"` on the case page may be dropped in a follow-up, otherwise it stays.
+
 ## Owner's answers (10 Nov 2026)
 
 All open questions answered with the recommended answers.
+
+## Deviations
+1. **P6 built without step 0** (Build notes above): the developer has no login on the live stack; the owner measures.
+2. **`T.inbox.fromTo` and `T.inbox.requested` stay.** Transfers no longer uses them (decision 21), but the case page's
+   Ownership card still draws its transfer line with `fromTo` and the claim modal's Requested fact uses `requested`;
+   neither was raised by the review. `T.inbox.best`, `T.claim.poolBest`, `T.inbox.stayWatcher` and
+   `recommendationText` are gone.
+3. **`T.case.corrects` stays for the drafts panel** (a draft correcting a note; `draft_out` carries no date and drafts are
+   not in this row); `T.case.correctedBy` is gone. The remarks panel's `T.remarks.corrects` / `correctedBy` are unchanged.
+4. **A defensive "Corrected by a later note"** (`T.case.correctedByLater`) for a `superseded_by` without `created_at`; the
+   server always sends it, so it shows only against an older server.
+5. **"Will Stay as Watcher" is `T.inbox.willStayWatcherNote`**: "as" is not one of the Title Case rule's small words, so
+   the string lives under a sentence (note) path and reads exactly as designed.
+6. **Counts in More only for moved tabs.** The case page's fixed More items (Parties, Linked Cases, …) keep their plain
+   labels; a tab moved there by decision 16 carries its count ("Notes (12)").
+7. **`reviewColumns(options, items)`** takes the rows as a second argument (decision 11), so the Actions column can be
+   left out; `ReviewTable` passes them for the review list and the case page alike.
+8. **`components/nextdates/CaseNextDate.tsx` leaves the HearingDate guard list**: the Next Date From Orders card writes
+   its date as a plain line (decision 10); the header and the rail draw the badge.
+9. **Label guard entries**: `nd.fixedInThis`, `nd.countedFromThis`, `case.correctsEarlier` and `case.correctedByLater` are
+   sentence exceptions; `LABEL_FUNCTIONS` holds `due.overdueBy` with sample 12 and `labels.test.ts` checks samples 1
+   and 12; `nd.readingLine`'s sample passes a Title Case origin, so the guard checks the function's own word "Around".
+10. **The rail's Next Hearing card is untouched** ("unchanged", decision 8): it keeps today's rule of drawing its lines
+    when no listing places the case on the day.
+11. **The tracker's Department chips** sit in the same switch row as the other tabs' quick controls (decision 1).
+12. **Sent by Me: a leg whose pending action is "none" shows "—"** in Action Needed, as With Me and My Cases do.
+13. **The dashboard's `alert_extras` reads the item's `summary`** (decision 19's one call site of
+    `alert_rules.title_without_case`).
+14. **Screen check on a private network (Verification step 3, run by the developer on 11 Nov 2026).** The first run
+    against `tmp233-*` images built from the branch found seven failures, fixed on the branch:
+    - `/claim/pool` at 375 px: the `ScoreLine` was `inline-flex`, so inside a table cell it grew to the department's
+      whole name and the name's ellipsis (row 232) never applied. In a `td` it is now a block flex row capped at the
+      cell, with the name allowed to shrink: the name is cut, the badge wraps under it. The Why box is unchanged.
+    - The case page's More menu: the spec expected exactly the five fixed items; with decision 16 the moved tabs come
+      first, so the spec now checks the five fixed items at the end, in order.
+    - At 375 px that longer list ran below the viewport (`menu-clipped`). The kit's `menuPlacement` now moves a list
+      that fits on neither side of its button up until it is wholly in the viewport, over the button, and caps one
+      taller than the viewport at it with a scroll. Two unit tests were added.
+    - The Next Date From Orders card: the spec looked for a `HearingDate` band, which decision 10 replaced with a plain
+      line. The spec now checks the `data-reading-line` line and that no band is drawn there.
+
+    The rerun passed with 575 passed, 7 skipped and 0 findings (174 routes and states, 419 screenshots). The container,
+    network and both images were removed afterwards.

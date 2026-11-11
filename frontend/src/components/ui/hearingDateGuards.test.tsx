@@ -76,7 +76,8 @@ describe("screens and retired helpers", () => {
     "components/inbox/DepartmentCases.tsx",
     "components/inbox/MyCases.tsx",
     "components/files/Held.tsx",
-    "components/nextdates/CaseNextDate.tsx",
+    // design portal-screen-fixes-work, decision 10: the Next Date From Orders card writes its date as a plain line (the
+    // header and the rail draw the badge), so CaseNextDate.tsx is no longer here
     "components/search/CaseResults.tsx",
   ])("%s renders the kit HearingDate", (rel) => {
     expect(read(rel)).toMatch(/<HearingDate\b|HearingDate\s*,|HearingDate\s*}/);

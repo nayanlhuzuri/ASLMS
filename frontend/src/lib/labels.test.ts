@@ -84,3 +84,24 @@ describe("the quick fact's source label (design assistant-polish-followups, deci
     expect(isTitleCase(T.assistant.factsUsed)).toBe(true);
   });
 });
+
+describe("the screen fixes' strings (design portal-screen-fixes-work)", () => {
+  it("the one Due line reads the same on the dashboard and in the inbox, in Title Case for 1 and 12 days", () => {
+    expect(T.due.overdueBy(1)).toBe("Overdue by 1 Day");
+    expect(T.due.overdueBy(12)).toBe("Overdue by 12 Days");
+    for (const n of [1, 12]) expect(isTitleCase(T.due.overdueBy(n))).toBe(true);
+    expect(T.due.none).toBe("No Due Date");
+    expect("dash.overdueByBadge" in LABEL_FUNCTIONS).toBe(false);
+  });
+
+  it("the requested cell, the reading line and the corrections read as designed", () => {
+    expect(T.inbox.requestedCell("Anita Sharma Baruah", "21 Oct 2026")).toBe("Anita Sharma Baruah, 21 Oct 2026");
+    expect(T.nd.readingLine("14 Nov 2026", T.nd.countedFromThis, false)).toBe("14 Nov 2026 · Counted from this order");
+    expect(T.nd.readingLine("14 Nov 2026", T.nd.countedFromThis, true)).toBe("Around 14 Nov 2026 · Counted from this order");
+    expect(T.case.correctedByNote("21 Oct 2026, 11:00")).toBe("Corrected by the note of 21 Oct 2026, 11:00");
+    expect(T.case.correctsNote("20 Oct 2026, 16:30")).toBe("Corrects the note of 20 Oct 2026, 16:30");
+    expect(T.case.correctsEarlier).toBe("Corrects an earlier note");
+    expect(T.wf.charactersMin(0, 500, 3)).toBe("0 / 500 characters, at least 3");
+    expect(T.dash.courtItem("5", "12")).toBe("Court 5 · Item 12");
+  });
+});

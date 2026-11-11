@@ -453,6 +453,10 @@
             "title": "Status",
             "type": "string"
           },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
           "ticket_ref": {
             "anyOf": [
               {
@@ -477,6 +481,7 @@
           "severity",
           "status",
           "title",
+          "summary",
           "body",
           "due_at",
           "case",
@@ -630,6 +635,10 @@
             "title": "Status",
             "type": "string"
           },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
           "ticket_ref": {
             "anyOf": [
               {
@@ -654,6 +663,7 @@
           "severity",
           "status",
           "title",
+          "summary",
           "body",
           "due_at",
           "case",
@@ -20315,6 +20325,18 @@
       },
       "NoteRefOut": {
         "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "ref_no": {
             "title": "Ref No",
             "type": "string"
@@ -22046,6 +22068,21 @@
       },
       "PoolCaseOut": {
         "properties": {
+          "best_band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Band"
+          },
           "best_office_code": {
             "anyOf": [
               {

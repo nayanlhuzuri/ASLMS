@@ -6,8 +6,10 @@
  * otherwise its number is text, never a link to a 404. A leg that is no longer the case's current leg is muted
  * (`current` false); for a case the caller can no longer open `current` is null and the row says nothing about where
  * the case went. The remark is the caller's own. The one filter bar (design portal-filters): the shared case filters
- * with the owning department. Work list template: the lead badge (Overdue, Due soon or Waiting while the leg is
- * current), case and parties ("Recalled" under the number for a recall), action needed, due by, Sent to and the chevron.
+ * with the owning department. Work list template: case and parties ("Recalled" marked under the number for a recall),
+ * action needed with its Due line, Sent to and the chevron (design portal-screen-fixes-work, decisions 2 to 5: no lead
+ * column, the inbox's one plain case cell, overdue and due soon counted in the browser as legs carry no flag; Layout B
+ * with "Search" and "n cases" or "n cases match" at the head of the strip, decision 1).
  *
  * Design case-inbox-simplify, decisions 6 and 7: by default the files still out (`still_out=true`: sends still the
  * case's current leg, on a case the caller can open, not held by the caller, overdue first); "Show Earlier"
@@ -18,25 +20,21 @@ import { useState } from "react";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
-import { Chevron } from "@/components/inbox/rows";
+import { ActionDueCell, CaseCell, Chevron, CountLine, DueLine } from "@/components/inbox/rows";
 import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { SentItem, SentList } from "@/lib/api/types";
-import { leadBadge, legHolder } from "@/lib/cases";
+import { legHolder, sentDue } from "@/lib/cases";
 import { toApiQuery } from "@/lib/filters";
-import { formatDate, formatDateTime, istDay } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { serverLabel } from "@/lib/displayLabels";
 
 import { FilePanel } from "./FilePanel";
-import { CaseCell, DueCell, LeadCell, WithCell } from "./Held";
+import { CUSTODY_MORE, WithCell } from "./Held";
 import s from "./files.module.css";
 import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
-
-function overdue(item: SentItem): boolean {
-  return item.current === true && !!item.leg.due_date && item.leg.due_date < istDay();
-}
 
 export function Sent({ params }: { params: Params }) {
   const setFilters = useFilters(params);
@@ -44,7 +42,7 @@ export function Sent({ params }: { params: Params }) {
   const offset = offsetOf(params);
   const earlier = params.earlier === "true";
   const query = { still_out: earlier ? undefined : true, ...toApiQuery(params, "sent"), limit: PAGE, offset };
-  const own: OwnControl[] = [{ key: "earlier", kind: "check", label: T.files.showEarlier }];
+  const own: OwnControl[] = [{ key: "earlier", kind: "check", label: T.files.showEarlier, first: true }];
   const list = useQuery({
     queryKey: ["files", "sent", query],
     queryFn: () => api<SentList>("/custody/sent", { query }),
@@ -52,27 +50,40 @@ export function Sent({ params }: { params: Params }) {
   });
   const columns: Column<SentItem>[] = [
     {
-      key: "lead",
-      header: <span className="visually-hidden">{T.cases.leadCol}</span>,
-      label: T.cases.leadCol,
-      width: "var(--lead-w)",
-      cell: (r) => <LeadCell badge={leadBadge(r, "sent")} />,
-    },
-    {
       key: "case",
       header: T.files.case,
       primary: true,
-      cell: (r) => <CaseCell c={r.case} visible={r.visible} mark={r.leg.reason === "recalled" ? T.cases.recalledMark : null} />,
+      cell: (r) => <CaseCell c={r.case} marks={[r.leg.reason === "recalled" ? { label: T.cases.recalledMark } : null]} />,
     },
-    { key: "action", header: T.files.action, cell: (r) => serverLabel(r.leg.pending_action_label) },
-    { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.leg.due_date} overdue={overdue(r)} /> },
+    {
+      key: "action",
+      header: T.files.action,
+      cell: (r) => (
+        <ActionDueCell
+          action={r.leg.pending_action && r.leg.pending_action !== "none" ? (serverLabel(r.leg.pending_action_label) ?? r.leg.pending_action) : null}
+          due={sentDue(r)}
+        />
+      ),
+    },
     { key: "to", header: T.cases.sentTo, cell: (r) => <WithCell party={legHolder(r.leg)} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
+  // "Show Earlier" is the list's view, not a filter (design case-inbox-simplify, decision 6)
+  const filtered = caseFiltersSet(params, "sent");
   const leg = open?.leg;
   return (
     <div className="stack">
-      <FilterBar list="sent" params={params} own={own} total={list.data?.total} noun="files" />
+      <FilterBar
+        list="sent"
+        layout="card"
+        hero="q"
+        more={CUSTODY_MORE}
+        params={params}
+        own={own}
+        wordsLabel={T.filters.wordsShort}
+        wordsHint={T.filters.wordsHint}
+        countLine={list.data ? <CountLine total={list.data.total} of={null} filtered={filtered} /> : null}
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (
@@ -86,7 +97,7 @@ export function Sent({ params }: { params: Params }) {
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
             rowClassName={(r) => (earlier && r.current === false ? s.mutedRow : undefined)}
             empty={
-              caseFiltersSet(params, "sent") ? (
+              filtered ? (
                 <NoCaseMatches params={params} list="sent" />
               ) : (
                 <EmptyState title={T.files.emptySentTitle}>{earlier ? T.files.emptySent : T.files.emptyStillOut}</EmptyState>
@@ -107,7 +118,7 @@ export function Sent({ params }: { params: Params }) {
           [T.cases.sentTo, open ? <WithCell party={legHolder(open.leg)} /> : null],
           [T.files.action, serverLabel(leg?.pending_action_label) ?? null],
           [T.files.since, formatDateTime(leg?.started_at)],
-          [T.files.due, leg?.due_date ? formatDate(leg.due_date) : null],
+          [T.files.due, open ? <DueLine due={sentDue(open)} /> : null],
           [T.files.reason, serverLabel(leg?.reason_label) ?? null],
         ]}
       />

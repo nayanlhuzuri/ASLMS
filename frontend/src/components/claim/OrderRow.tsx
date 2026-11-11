@@ -10,7 +10,8 @@
  * (the portal cannot script into the sandboxed frame, so it never calls `print()` on it). When the PDF is not stored the
  * row says "Not yet published" or "Fetch pending"; when `INLINE_PDF` is false the expanded row offers "Open in a new
  * tab" and Download instead. `meta` (the case page's Orders tab: the judge and the order's next-date reading) shows
- * under the row's summary, always.
+ * under the row's summary, always. `showDate={false}` (the Overview's Latest Order card, which shows the date in bold
+ * above; design portal-screen-fixes-work, decision 9) leaves the date out of the summary.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
@@ -34,12 +35,15 @@ export function OrderRow({
   order,
   meta,
   label,
+  showDate = true,
 }: {
   caseRef: string;
   order: Order;
   meta?: ReactNode;
   /** In place of the order's details in the summary (the Overview's Latest order card, which shows them above). */
   label?: ReactNode;
+  /** The date in the summary's leading column (default); the Overview's card already says it. */
+  showDate?: boolean;
 }) {
   const me = useMe();
   const canView = can(me.data, "documents.view");
@@ -49,7 +53,7 @@ export function OrderRow({
   const inline = fileUrl(caseRef, order.id, "inline");
   const summary = (
     <span className={s.orderHead}>
-      <span className={s.orderDate}>{date}</span>
+      {showDate ? <span className={s.orderDate}>{date}</span> : null}
       {label ? (
         <span>{label}</span>
       ) : (

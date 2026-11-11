@@ -7,6 +7,11 @@
  * portal-cases-followups, decision 9) / Download through `/documents/{doc}/file`; "Hide corrected notes" asks the API
  * for `include_superseded=false`.
  *
+ * Design portal-screen-fixes-work, decision 14: the trail sits in a card headed "Notes" with Hide Corrected Notes in its
+ * head; no note's internal number is in sight (its anchor stays for the links to it); a correction is named by its
+ * date ("Corrected by the note of 21 Oct 2026, 11:00", "Corrects the note of …"), as a link, or "Corrects an earlier
+ * note" with no link when the reader may not read the original.
+ *
  * Writing (design portal-workflow, decisions 10-12): the composer when the overview's `workflow.note_mode` is not
  * null, saying before anything is written whether the note will be a draft or permanent; the drafts panel when the
  * caller holds the file or has drafts; Correct on a note only where the API's `can_correct` is true. There is no Edit
@@ -15,7 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, Button, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, Notice, Pagination } from "@/components/ui";
+import { Badge, Button, Card, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, Notice, Pagination } from "@/components/ui";
 import { DraftsPanel } from "@/components/workflow/DraftsPanel";
 import { NoteComposer } from "@/components/workflow/NoteComposer";
 import { api } from "@/lib/api/client";
@@ -127,76 +132,91 @@ export function Notes({ caseRef }: { caseRef: string }) {
       {mode ? (
         <Writing caseRef={caseRef} mode={mode} correcting={correcting} onClearCorrection={() => setCorrecting(null)} />
       ) : null}
-      <CheckField
-        label={T.case.hideCorrected}
-        checked={hide}
-        onChange={(e) => {
-          setHide(e.target.checked);
-          setOffset(0);
-        }}
-      />
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
-      {list.data ? (
-        list.data.items.length === 0 ? (
-          <EmptyState title={T.case.noNotesTitle}>{T.case.noNotes}</EmptyState>
-        ) : (
-          <>
-            <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.case.notes}>
-              {list.data.items.map((n) => (
-                <li key={n.id} id={anchor(n.seq_no)} className={s.note}>
-                  {/* the kind first, the author and date after it, the visibility badge at the end (design
-                      portal-ui-kit-fixes, decision 14) */}
-                  <ItemHead
-                    id={noteRefAnchor(n.ref_no)}
-                    title={<strong>{serverLabel(n.kind_label)}</strong>}
-                    meta={
-                      <>
-                        <span className="mono muted">{n.ref_no}</span>
-                        <span>
-                          {[n.author.name, n.author.designation, n.author.office_code ? officeName(n.author.office_code, names) : null]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                        <span className="muted">{formatDateTime(n.created_at)}</span>
-                      </>
-                    }
-                    badges={<Badge>{labelFor(T.case.visibilities, n.visibility)}</Badge>}
-                  />
-                  {n.supersedes ? (
-                    <div className="muted">
-                      <a href={`#${anchor(n.supersedes.seq_no)}`}>{T.case.corrects(n.supersedes.ref_no)}</a>
-                    </div>
-                  ) : null}
-                  {n.superseded_by ? (
-                    <div>
-                      <Badge tone="warning">
-                        <a href={`#${anchor(n.superseded_by.seq_no)}`}>{T.case.correctedBy(n.superseded_by.ref_no)}</a>
-                      </Badge>
-                    </div>
-                  ) : null}
-                  <p className={s.noteBody}>{n.body}</p>
-                  {n.can_correct && mode ? (
-                    <div className="row">
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setCorrecting(n);
-                          document.getElementById("write-note")?.scrollIntoView?.({ behavior: "smooth" });
-                        }}
-                      >
-                        {T.wf.correct}
-                      </Button>
-                    </div>
-                  ) : null}
-                  <NoteAttachments note={n} />
-                </li>
-              ))}
-            </ol>
-            <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={setOffset} />
-          </>
-        )
-      ) : null}
+      <Card
+        title={T.case.notes}
+        actions={
+          <CheckField
+            label={T.case.hideCorrected}
+            checked={hide}
+            onChange={(e) => {
+              setHide(e.target.checked);
+              setOffset(0);
+            }}
+          />
+        }
+      >
+        {list.isPending ? <Loading /> : null}
+        <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
+        {list.data ? (
+          list.data.items.length === 0 ? (
+            <EmptyState compact title={T.case.noNotesTitle}>
+              {T.case.noNotes}
+            </EmptyState>
+          ) : (
+            <>
+              <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.case.notes}>
+                {list.data.items.map((n) => (
+                  <li key={n.id} id={anchor(n.seq_no)} className={s.note}>
+                    {/* the kind first, the author and date after it, the visibility badge at the end (design
+                        portal-ui-kit-fixes, decision 14) */}
+                    <ItemHead
+                      id={noteRefAnchor(n.ref_no)}
+                      title={<strong>{serverLabel(n.kind_label)}</strong>}
+                      meta={
+                        <>
+                          <span>
+                            {[n.author.name, n.author.designation, n.author.office_code ? officeName(n.author.office_code, names) : null]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                          <span className="muted">{formatDateTime(n.created_at)}</span>
+                        </>
+                      }
+                      badges={<Badge>{labelFor(T.case.visibilities, n.visibility)}</Badge>}
+                    />
+                    {n.supersedes ? (
+                      <div className="muted" data-corrects="">
+                        {n.supersedes.created_at ? (
+                          <a href={`#${anchor(n.supersedes.seq_no)}`}>{T.case.correctsNote(formatDateTime(n.supersedes.created_at))}</a>
+                        ) : (
+                          T.case.correctsEarlier
+                        )}
+                      </div>
+                    ) : null}
+                    {n.superseded_by ? (
+                      <div data-corrected-by="">
+                        <Badge tone="warning">
+                          <a href={`#${anchor(n.superseded_by.seq_no)}`}>
+                            {n.superseded_by.created_at
+                              ? T.case.correctedByNote(formatDateTime(n.superseded_by.created_at))
+                              : T.case.correctedByLater}
+                          </a>
+                        </Badge>
+                      </div>
+                    ) : null}
+                    <p className={s.noteBody}>{n.body}</p>
+                    {n.can_correct && mode ? (
+                      <div className="row">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setCorrecting(n);
+                            document.getElementById("write-note")?.scrollIntoView?.({ behavior: "smooth" });
+                          }}
+                        >
+                          {T.wf.correct}
+                        </Button>
+                      </div>
+                    ) : null}
+                    <NoteAttachments note={n} />
+                  </li>
+                ))}
+              </ol>
+              <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={setOffset} />
+            </>
+          )
+        ) : null}
+      </Card>
     </div>
   );
 }

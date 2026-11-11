@@ -414,7 +414,13 @@ describe("the custody tab", () => {
       "GET /me": me(),
       "GET /workflow/codes": CODES,
       [`GET ${BASE}`]: d,
-      [`GET ${BASE}/custody`]: { card: d.custody, legs, total: 2 },
+      // newest first when asked (`order=desc`), as the API answers
+      [`GET ${BASE}/custody`]: (call: { url: string }) => ({
+        card: d.custody,
+        legs: call.url.includes("order=desc") ? [...legs].reverse() : legs,
+        total: 2,
+        remarks_shown: true,
+      }),
       [`GET ${BASE}/stages`]: stagesBody,
       ...extra,
     };
@@ -432,8 +438,9 @@ describe("the custody tab", () => {
     const table = await screen.findByRole("table", { name: "Movement Record" });
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3);
-    expect(within(rows[1]!).getByText("Not Shown")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("comments within a week")).toBeInTheDocument();
+    // newest first (design portal-screen-fixes-work, decision 13)
+    expect(within(rows[1]!).getByText("comments within a week")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Not Shown")).toBeInTheDocument();
     expect(await screen.findByText("Not recorded: Reply Due")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Set Stage" })).toBeNull();
   });
@@ -454,6 +461,38 @@ describe("the custody tab", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Set Stage" }));
     expect(await within(dialog).findByText("the case is already at Reply filed")).toBeInTheDocument();
     expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ stage: "reply_filed", response_mode: "department", note: null });
+  });
+
+  it("the Movement Record reads order=desc, the highest move first; the cards' own facts grid; no mono holder; the stage note headed Note (portal-screen-fixes-work, decisions 7 and 13)", async () => {
+    const withRemark = detail();
+    const custody = { ...withRemark.custody!, remark: "Please prepare the parawise comments and send them back by Friday." };
+    const api = browserApi(
+      routes({ ...withRemark, custody } as CaseDetail, {
+        [`GET ${BASE}/stages`]: { ...stagesBody, current: { ...stagesBody.current, note: "Reply filed on time." } },
+      }),
+    );
+    renderWithClient(<CustodyTab caseRef={REF} />);
+    const table = await screen.findByRole("table", { name: "Movement Record" });
+    const call = api.calls.find((c) => c.path.startsWith(`${BASE}/custody`))!;
+    expect(call.path).toContain("order=desc");
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["2", "1"]);
+    // the holder cells name the office, never a code in mono
+    for (const r of rows) {
+      const holder = within(r).getAllByRole("cell").find((c) => c.getAttribute("data-label") === "Holder" || c.hasAttribute("data-primary"));
+      if (holder) expect(holder.querySelector(".mono")).toBeNull();
+    }
+    // the custody card: its own grid, the remark across the card
+    const card = screen.getByRole("region", { name: "Journey" });
+    const remark = within(card).getByText(custody.remark);
+    const item = remark.closest("div")!;
+    expect(item.className).toMatch(/wide/);
+    expect(item.parentElement!.className).toMatch(/cardFacts/);
+    // the stage card's note header reads Note, not the form's label
+    const stage = screen.getByRole("region", { name: "Stage" });
+    const note = await within(stage).findByText("Reply filed on time.");
+    expect(note.previousElementSibling).toHaveTextContent(/^Note$/);
+    expect(note.closest("div")!.className).toMatch(/wide/);
   });
 
   it("an unclaimed case has no custody and no actions", async () => {
@@ -842,10 +881,36 @@ function alert(extra: Partial<AlertItem> = {}): AlertItem {
     can_act: true,
     case_visible: false,
     ...extra,
+    // the server's title without its case number (design portal-screen-fixes-work, decision 19); the title by default
+    summary: extra.summary ?? extra.title ?? "Hearing tomorrow",
   };
 }
 
 describe("the case alerts tab", () => {
+  it("shows the summary with no case link, the case being the page's own (portal-screen-fixes-work, decision 19)", async () => {
+    browserApi({
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/alerts`]: {
+        items: [
+          alert({
+            title: "Hearing tomorrow: WP(C)/1/2026",
+            summary: "Hearing tomorrow",
+            case: { id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" },
+            case_visible: true,
+          }),
+        ],
+        total: 1,
+      },
+    });
+    renderWithClient(<CaseAlerts caseRef={REF} />);
+    const list = await screen.findByRole("list", { name: "Alerts" });
+    expect(within(list).getByText("Hearing tomorrow").tagName).toBe("STRONG");
+    expect(within(list).queryByText(/WP\(C\)\/1\/2026/)).toBeNull();
+    expect(within(list).queryByRole("link", { name: /WP\(C\)/ })).toBeNull();
+    await userEvent.click(within(list).getByRole("button", { name: "Acknowledge" }));
+    expect(within(await screen.findByRole("dialog")).getByText("Hearing tomorrow: WP(C)/1/2026")).toBeInTheDocument();
+  });
+
   it("a reader who does not work on the case is told why the list is empty", async () => {
     browserApi({ [`GET ${BASE}`]: detail({ access_basis: ["recommended"] }), [`GET ${BASE}/alerts`]: { items: [], total: 0 } });
     renderWithClient(<CaseAlerts caseRef={REF} />);

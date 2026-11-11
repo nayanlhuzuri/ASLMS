@@ -14,6 +14,7 @@ import { labelFor } from "@/lib/displayLabels";
 
 import { Button, cx } from "./controls";
 import s from "./feedback.module.css";
+import { OfficeName } from "./OfficeName";
 
 /** Red = urgent or overdue; amber = due soon; green = done or confirmed; blue (`info`) = action; none = neutral. */
 export type Tone = "danger" | "warning" | "success" | "info";
@@ -160,6 +161,28 @@ export function ScoreBadge({ score, band }: { score: number; band: string }) {
   const known = (T.score as Record<string, unknown>)[band];
   const label = band === "high" || band === "medium" ? (known as string) : band.charAt(0).toUpperCase() + band.slice(1);
   return <Badge tone={band === "high" ? "info" : undefined}>{T.score.badge(label, score.toFixed(3))}</Badge>;
+}
+
+/**
+ * A department and its score (design portal-screen-fixes-work, decision 20): the department's name (`OfficeName`) first,
+ * then the `ScoreBadge`, which wraps under the name in a narrow cell, never inside itself. Without a band (a best score
+ * below the possible band) the name and the muted plain score, with no badge: no recommendation exists there.
+ */
+export function ScoreLine({
+  office,
+  score,
+  band,
+}: {
+  office: { code: string | null | undefined; name?: string | null };
+  score: number;
+  band: string | null | undefined;
+}) {
+  return (
+    <span className={s.scoreLine} data-score-line="">
+      <OfficeName code={office.code} name={office.name} />
+      {band ? <ScoreBadge score={score} band={band} /> : <span className="muted">{score.toFixed(3)}</span>}
+    </span>
+  );
 }
 
 /** The API's severity of an alert (critical / high / normal), never computed in the browser. */

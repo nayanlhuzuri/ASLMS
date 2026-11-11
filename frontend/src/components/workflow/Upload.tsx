@@ -180,11 +180,11 @@ export function UploadForm({
         rows={2}
         maxLength={DESC_MAX}
         aria-required
-        hint={T.wf.descriptionHint}
         error={tried && !descOk ? T.wf.descriptionHint : undefined}
         onChange={(e) => setDescription(e.target.value)}
       />
-      <CharCounter value={description} max={DESC_MAX} />
+      {/* design portal-screen-fixes-work, decision 15: one hint under Description, the counter with its floor */}
+      <CharCounter value={description} max={DESC_MAX} min={DESC_MIN} />
       <RadioGroup
         legend={T.wf.docVisibility}
         name={`upload-visibility-${refPath(caseRef)}`}

@@ -26,6 +26,7 @@ import { INBOX_TABS, inboxTabsFor, type InboxTab } from "@/lib/routes";
 
 import { DepartmentCases, DepartmentChips } from "./DepartmentCases";
 import { MyCases } from "./MyCases";
+import s from "./inbox.module.css";
 import { DepartmentSelect, useInboxSelection } from "./selection";
 
 export function tabHref(tab: InboxTab, department?: string | null): string {
@@ -92,7 +93,7 @@ function InboxBody({
   sel: ReturnType<typeof useInboxSelection>;
   summary: CustodySummary | undefined;
 }) {
-  if (tab === "with-me") return <Held tab="with-me" params={withMeParams(params)} />;
+  if (tab === "with-me") return <Held tab="with-me" params={withMeParams(params)} unfiltered={counts?.files ?? null} />;
   if (tab === "mine") return <MyCases params={params} counts={counts} />;
   if (tab === "sent") return <Sent params={params} />;
   return <DepartmentTab params={params} sel={sel} summary={summary} />;
@@ -142,7 +143,9 @@ function DepartmentTab({
       <>
         {select}
         {tracking}
-        <DepartmentChips params={params} elsewhere={false} />
+        <div className={s.switchRow}>
+          <DepartmentChips params={params} elsewhere={false} />
+        </div>
         <Held key={department} tab="pending" params={params} department={department} />
       </>
     );

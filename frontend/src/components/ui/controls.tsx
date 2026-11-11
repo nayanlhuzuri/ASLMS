@@ -301,12 +301,16 @@ export function RadioGroup({
   );
 }
 
-/** The number of characters typed against the limit, read out politely (design portal-workflow, decision 25). */
-export function CharCounter({ value, max, id }: { value: string; max: number; id?: string }) {
+/**
+ * The number of characters typed against the limit, read out politely (design portal-workflow, decision 25). `min`
+ * (design portal-screen-fixes-work, decision 15) adds the floor to the same line ("0 / 500 characters, at least 3"), so
+ * a field needs no second hint.
+ */
+export function CharCounter({ value, max, min, id }: { value: string; max: number; min?: number; id?: string }) {
   const n = value.length;
   return (
     <span id={id} className={cx(s.hint, n > max && s.error)} aria-live="polite">
-      {T.wf.characters(n, max)}
+      {min ? T.wf.charactersMin(n, max, min) : T.wf.characters(n, max)}
     </span>
   );
 }

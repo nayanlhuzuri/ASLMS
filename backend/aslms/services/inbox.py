@@ -43,7 +43,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import Permission
 from aslms.domain.workflow import Custody
-from aslms.services import access, case_filters
+from aslms.services import access, case_filters, matching, scoring_settings
 from aslms.services.case_filters import CaseFilters
 from aslms.services.offices import find_office
 from aslms.services.visibility import (
@@ -633,11 +633,21 @@ def pool(
             lst = dismissed.setdefault(cid, [])
             if code not in lst:
                 lst.append(code)
+    # The band of the best score on the super admin's current thresholds, the engine's own function (design
+    # portal-screen-fixes-work, decision 20), so the portal computes nothing.
+    settings = scoring_settings.current(session) if best else None
     items = [
         {
             "case": summ[c.id],
             "best_score": best[c.id][0] if c.id in best else None,
             "best_office_code": best[c.id][1] if c.id in best else None,
+            "best_band": (
+                band.value
+                if c.id in best
+                and settings is not None
+                and (band := matching.band_of(best[c.id][0], settings))
+                else None
+            ),
             "dismissed_by": dismissed.get(c.id, []),
         }
         for c in cases

@@ -2,8 +2,9 @@
 
 /**
  * Case claim → Unclaimed pool (design portal-ui-redesign, decision 6; portal-cases decision 6): cases that have never
- * had a primary owner. Columns: Case, Parties, Next hearing, the best score with the department it was for, and the
- * departments that dismissed it. The pool's portal-filters fields (the shared case filters, "Matched to department",
+ * had a primary owner. Columns: Case, Parties, Next hearing, the best score with the department it was for (the kit's
+ * `ScoreLine`: the department's name, then the score badge of the server's `best_band`, design portal-screen-fixes-work,
+ * decision 20), and the departments that dismissed it. The pool's portal-filters fields (the shared case filters, "Matched to department",
  * minimum score, "State is a party", "Found by our court search"); an old `status=` link is read as `case_status`. A
  * row opens the details modal, where Claim and Suggest elsewhere are.
  */
@@ -12,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { CaseCell } from "@/components/inbox/rows";
-import { type Column, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, useOfficeName } from "@/components/ui";
+import { type Column, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, ScoreLine, useOfficeName } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { PoolCase, PoolList } from "@/lib/api/types";
@@ -52,7 +53,12 @@ export function Pool({ params, department, onOpen }: { params: Params; departmen
     {
       key: "best",
       header: T.claim.best,
-      cell: (p) => (p.best_score !== null ? T.inbox.best(p.best_score.toFixed(3), nameOf(p.best_office_code)) : <span className="muted">{T.inbox.noScore}</span>),
+      cell: (p) =>
+        p.best_score !== null ? (
+          <ScoreLine office={{ code: p.best_office_code }} score={p.best_score} band={p.best_band} />
+        ) : (
+          <span className="muted">{T.inbox.noScore}</span>
+        ),
     },
     {
       key: "dismissed",

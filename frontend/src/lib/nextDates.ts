@@ -56,13 +56,16 @@ export function readingLabel(order: OrderReadingLike): Reading | null {
  */
 export function originLine(
   row: Pick<NextDate, "source" | "review_status" | "order" | "reviewed_by" | "reviewed_at" | "created_by" | "created_at">,
+  latestOrderId?: string | null,
 ): string {
   if (row.source === "manual") return T.nd.enteredBy(row.created_by?.name ?? null, formatDate(row.created_at));
+  // design portal-screen-fixes-work, decision 9: beside the Latest Order card, "this order" rather than its date again
+  const thisOrder = !!latestOrderId && row.order?.id === latestOrderId;
   let base: string;
   if (row.source === "order_specific" && row.order) {
-    base = T.nd.fixedIn(formatDate(row.order.order_date));
+    base = thisOrder ? T.nd.fixedInThis : T.nd.fixedIn(formatDate(row.order.order_date));
   } else if (row.source === "order_period" && row.order) {
-    base = T.nd.countedFrom(formatDate(row.order.order_date));
+    base = thisOrder ? T.nd.countedFromThis : T.nd.countedFrom(formatDate(row.order.order_date));
   } else if (row.source === "causelist") {
     base = T.nd.fromCauselist;
   } else if (row.source === "current_status") {

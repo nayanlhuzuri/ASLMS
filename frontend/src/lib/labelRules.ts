@@ -116,7 +116,6 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "offices.outgoingEnd": "a fragment completing a choice sentence",
   "mapping.changedMark": "a marker inside parentheses",
   "officePicker.subMarker": "a marker beside an office code",
-  "inbox.stayWatcher": "a fragment completing a sentence",
   "causelist.versus": "the word between two parties",
   "causelist.provisional": "a value shown in place of a CNR",
   "causelist.connectedFallback": "a fragment completing a sentence",
@@ -153,6 +152,10 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "wf.currentMark": "a marker inside parentheses",
   "wf.currentMarkShort": "a marker inside parentheses",
   "nd.noun": "a noun inside a count sentence",
+  "case.correctsEarlier": "a muted sentence under a note's head (design portal-screen-fixes-work, decision 14)",
+  "case.correctedByLater": "a sentence inside a badge under a note's head (design portal-screen-fixes-work, decision 14)",
+  "nd.fixedInThis": "a muted origin line under a date, a sentence like nd.fixedIn (design portal-screen-fixes-work)",
+  "nd.countedFromThis": "a muted origin line under a date, a sentence like nd.countedFrom (design portal-screen-fixes-work)",
   "nd.reading.period": "a fragment after a period of days",
   // design next-date-direct: muted lines and reasons written as sentences in a row of the list or under a badge
   "hearing.basis.court": "a muted sentence under the next hearing badge",
@@ -183,5 +186,7 @@ export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "hearing.badges.inDays": [3],
   "list.showMoreButton": [100],
   "dc.requestWhat.cases": [12],
-  "dash.overdueByBadge": [12],
+  "due.overdueBy": [12],
+  "inbox.requestedCell": ["Anita Sharma Baruah", "21 Oct 2026"],
+  "nd.readingLine": ["14 Nov 2026", "From the Cause List", true],
 };

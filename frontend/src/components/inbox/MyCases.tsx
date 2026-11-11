@@ -5,13 +5,14 @@
  * `GET /inbox/mine?view=all` with its filters in the query string, active and court-disposed together, disposed after
  * active (the API's order), with no status switch; a disposed row reads "Disposed" in the Next Hearing column
  * (`HearingDate`). Rows (Work list template): the case number with the parties under it, the Reason badges from the
- * row's `reasons` (Assigned to Me, Claimed by Me, With Me, in that order), the stage, the next hearing, "Your Action"
- * (the pending action and due date of a case with me) and a chevron; a row opens the case page by click or Enter. The
- * filter bar: the quick chip Hearing This Week, Stage, and the shared filters with Search Words on the first row;
- * "n cases", or "n of m cases" when filtered, m being the `all` figure of `/inbox/mine/counts`.
+ * row's `reasons` (Assigned to Me, Claimed by Me, With Me, in that order), the stage, the next hearing, "Action Needed"
+ * (the pending action of a case with me over its Due line) and a chevron; a row opens the case page by click or Enter.
+ * The filter card (Layout B, design portal-screen-fixes-work, decision 1): Words the hero, Stage and Case Type on the
+ * right, Year, Court and Next Date Differs under More Filters, the quick chip Hearing This Week above it; "n cases", or
+ * "n of m cases" when filtered, at the head of the strip, m being the `all` figure of `/inbox/mine/counts`.
  * Open / Closed (design close-case, decision 16): the switch's Open (the default, no URL key) sends `closure=open` and
  * Closed (`closure=closed`, a fixed key Clear All keeps) lists the closed cases, newest closure first; m is `all_open`
- * or `all_closed`. A disposed open row carries "Ready to Close", a closed row "Closed".
+ * or `all_closed`. A disposed open row carries "Ready to Close", a closed row "Closed", as marks under the number.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -21,14 +22,14 @@ import { Badge, Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useWorkflowCodes } from "@/lib/api/hooks";
 import type { MyCase, MyCaseCounts, MyCaseList } from "@/lib/api/types";
-import { FIELD_KEYS, LIST_FILTERS, toApiQuery } from "@/lib/filters";
+import { FIELD_KEYS, LIST_FILTERS, toApiQuery, type SharedField } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath } from "@/lib/refs";
 
 import { useFilters } from "./common";
 import s from "./inbox.module.css";
-import { ActionCell, CaseCell, Chevron, ClosureSwitch, CountLine, ClosureBadge, StageCell } from "./rows";
+import { ActionDueCell, briefDue, CaseCell, Chevron, closureMark, ClosureSwitch, CountLine, custodyAction, StageCell } from "./rows";
 import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** The stage choices: any, "No stage set" (`none`) and the catalogue's stages. */
@@ -46,6 +47,9 @@ export function isFiltered(params: Params, keys: string[]): boolean {
 }
 
 const MINE_KEYS = [...LIST_FILTERS.mine.fields.flatMap((f) => FIELD_KEYS[f]), "stage"];
+
+/** My Cases' More Filters in Layout B (design portal-screen-fixes-work, decision 1): Case Type stays on the right. */
+const MINE_MORE: readonly SharedField[] = ["year", "court_no", "next_differs"];
 
 /** The order of the Reason badges (design case-inbox-simplify, decision 4). */
 export const REASON_ORDER = ["allotted", "claimed", "file"] as const;
@@ -84,19 +88,23 @@ export function MyCases({ params, counts }: { params: Params; counts: MyCaseCoun
     queryKey: [...INBOX_KEY, "mine", query],
     queryFn: () => api<MyCaseList>("/inbox/mine", { query }),
   });
-  const own: OwnControl[] = [{ key: "stage", kind: "select", label: T.inbox.stage, options: stages, placeholder: T.inbox.anyStage }];
+  const own: OwnControl[] = [
+    { key: "stage", kind: "select", label: T.inbox.stage, options: stages, placeholder: T.inbox.anyStage, first: true },
+  ];
   const weekOn = params.next === "n7" && !params.next_from && !params.next_to;
   const columns: Column<MyCase>[] = [
-    { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
+    { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} marks={[closureMark(r.case)]} /> },
     { key: "reason", header: T.inbox.reasonCol, cell: (r) => <ReasonBadges reasons={r.reasons} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => (
-        <span className={s.nextCell}>
-          <HearingDate next={r.case.next_hearing} status={r.case.status} />
-          <ClosureBadge c={r.case} />
-        </span>
-      ) },
-    { key: "action", header: T.inbox.yourAction, cell: (r) => <ActionCell custody={r.custody?.with_me ? r.custody : null} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
+    {
+      key: "action",
+      header: T.files.action,
+      cell: (r) => {
+        const mine = r.custody?.with_me ? r.custody : null;
+        return <ActionDueCell action={custodyAction(mine)} due={briefDue(mine)} />;
+      },
+    },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   return (
@@ -109,14 +117,25 @@ export function MyCases({ params, counts }: { params: Params; counts: MyCaseCoun
           </Chip>
         </ChipGroup>
       </div>
-      <FilterBar list="mine" params={params} own={own} />
-      <div className={s.toolbar}>
-        <CountLine
-          total={list.data?.total}
-          of={closure === "closed" ? counts?.all_closed : counts?.all_open}
-          filtered={isFiltered(params, MINE_KEYS)}
-        />
-      </div>
+      <FilterBar
+        list="mine"
+        layout="card"
+        hero="q"
+        more={MINE_MORE}
+        params={params}
+        own={own}
+        wordsLabel={T.filters.wordsShort}
+        wordsHint={T.filters.wordsHint}
+        countLine={
+          list.data ? (
+            <CountLine
+              total={list.data.total}
+              of={closure === "closed" ? counts?.all_closed : counts?.all_open}
+              filtered={isFiltered(params, MINE_KEYS)}
+            />
+          ) : null
+        }
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

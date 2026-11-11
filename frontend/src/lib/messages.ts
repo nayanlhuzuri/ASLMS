@@ -1052,15 +1052,14 @@ export const T = {
       file_received: "Case Received",
     } as Record<string, string>,
     courtItem: (court: string | null, item: string | null) =>
-      [court ? `Court ${court}` : null, item ? `item ${item}` : null].filter(Boolean).join(" · "),
+      // design portal-screen-fixes-work, decision 22: "Item" with a capital, as the rail writes it
+      [court ? `Court ${court}` : null, item ? `Item ${item}` : null].filter(Boolean).join(" · "),
     moreWork: "More About My Work",
     // design dashboard-my-work-polish, decisions 5, 6, 10 and 15 (the View All link is the kit's `T.viewAll`)
     alertCols: { type: "Type", case: "Case", what: "What Happened", raised: "Raised" },
     alertHearingBadge: "Hearing",
     alertRecommendationBadge: "Recommendation",
     matchBadges: { high: "Strong Match", medium: "Possible Match" } as Record<string, string>,
-    overdueByBadge: (n: number) => `Overdue by ${plural(n, "Day", "Days")}`,
-    dueNoneLabel: "No Due Date",
     caseDetail: (caseNo: string, detail: string | null) => [caseNo, detail].filter(Boolean).join(" · "),
   },
   admin: {
@@ -1575,7 +1574,6 @@ export const T = {
     // design department-discovery, decision 13 (f)
     originDiscovery: "Court Search (Discovery)",
     stateParties: { "": "Either", true: "Yes", false: "No" } as Record<string, string>,
-    best: (score: string, code: string | null) => `Best ${score}${code ? ` for ${code}` : ""}`,
     noScore: "No score",
     dismissedBy: (codes: string) => `Dismissed by ${codes}`,
     direction: "Direction",
@@ -1590,7 +1588,11 @@ export const T = {
     } as Record<string, string>,
     fromTo: (from: string | null, to: string | null) => `${from ?? "—"} → ${to ?? "—"}`,
     requested: (who: string, at: string) => `Requested by ${who} on ${at}`,
-    stayWatcher: "stays as a watcher",
+    // design portal-screen-fixes-work, decision 21: Transfers names the other department and says who asked, when
+    fromDepartmentCol: "From Department",
+    toDepartmentCol: "To Department",
+    requestedCell: (who: string, at: string) => `${who}, ${at}`,
+    willStayWatcherNote: "Will Stay as Watcher",
     noDepartmentInbox: "Choose a department to read its inbox.",
     // design portal-ui-redesign, decision 5: the user's own work
     myTabs: "Case Inbox Sections",
@@ -1605,10 +1607,8 @@ export const T = {
     casesNoun: "cases",
     caseNoun: "case",
     nextHearingCol: "Next Hearing",
-    yourAction: "Your Action",
     unitOfficer: "Responsible Unit · Dealing Officer",
     fileWith: "With",
-    overdueDays: (n: number) => `Overdue ${plural(n, "day", "days")}`,
     dueOn: (d: string) => `Due ${d}`,
     you: "You",
     nothingWaiting: "Nothing waiting",
@@ -1685,7 +1685,6 @@ export const T = {
     tabDetails: "Case Details",
     why: "Why This Is Suggested",
     meter: "Match Strength",
-    poolBest: (score: string, code: string | null) => `Best score ${score}${code ? ` for ${code}` : ""}`,
     poolDismissed: (codes: string) => `Dismissed by ${codes}`,
     noSignals: "No signal recorded.",
     rule: "Claiming makes this case your department's. It never returns to the unclaimed pool.",
@@ -2197,8 +2196,13 @@ export const T = {
     graphTruncated: "The graph is cut short; not every connected case is drawn.",
     notes: "Notes",
     hideCorrected: "Hide Corrected Notes",
+    // a draft correcting a note (the drafts panel); the trail names a correction by its date (decision 14 below)
     corrects: (ref: string) => `Corrects ${ref}`,
-    correctedBy: (ref: string) => `Corrected by ${ref}`,
+    // design portal-screen-fixes-work, decision 14: a correction named by its date, sentences
+    correctsNote: (when: string) => `Corrects the note of ${when}`,
+    correctedByNote: (when: string) => `Corrected by the note of ${when}`,
+    correctsEarlier: "Corrects an earlier note",
+    correctedByLater: "Corrected by a later note",
     noNotes: "No notes.",
     noNotesTitle: "No Notes Yet",
     attachments: "Attachments",
@@ -3417,13 +3421,17 @@ export const T = {
     notSearchable: (n: string) => `${n} documents cannot be searched by their content`,
     readOnlyNote: "You can see every problem; the fixes are for holders of the matching function.",
   },
+  // design portal-screen-fixes-work, decision 5: the one Due line of the dashboard and the Case inbox
+  due: {
+    overdueBy: (n: number) => `Overdue by ${plural(n, "Day", "Days")}`,
+    none: "No Due Date",
+  },
   // design portal-files-alerts: the Files screens (decisions 12-16)
   files: {
     case: "Case and Parties",
     action: "Action Needed",
     since: "Since",
     due: "Due By",
-    overdueBy: (n: number) => `Overdue by ${plural(n, "day", "days")}`,
     sentBy: "Sent By",
     remark: "Remark",
     holder: "With",
@@ -3471,13 +3479,13 @@ export const T = {
   // design case-workspace-admin: plain case words, the rail of the case page, the remarks history and the Cases list
   cases: {
     you: (text: string) => `${text} (you)`,
-    lead: { overdue: "Overdue", dueSoon: "Due Soon", new: "New", waiting: "Waiting" },
+    // design portal-screen-fixes-work, decision 3: "New" is a mark under the case number; the lead column is gone
+    lead: { new: "New" },
     recalledMark: "Recalled",
     // design case-inbox-simplify, decision 2: the Show control of With Me
     show: "Show",
     showMe: "With Me",
     showOffices: "With My Offices",
-    leadCol: "Status",
     from: "From",
     with: "With",
     sentTo: "Sent To",
@@ -3514,6 +3522,8 @@ export const T = {
   rail: {
     label: "Case Work",
     yourTask: "Your Task",
+    // design portal-screen-fixes-work, decision 17: the task card's title when the file is with someone else
+    currentTask: "Current Task",
     withWhom: (who: string) => `With ${who}`,
     from: "From",
     dueBy: "Due By",
@@ -3535,11 +3545,11 @@ export const T = {
     quickActions: "Quick Actions",
     actionsCount: (n: number) => plural(n, "action", "actions"),
     journey: "Journey of This Case",
+    // the Journey card's "View All" suffix, to the Custody tab (design portal-screen-fixes-work, decision 17)
     journeyLink: "Journey and Stage",
     noJourney: "No movement recorded yet.",
     now: "Now",
     sentByLine: (who: string) => `sent by ${who}`,
-    statusFact: "Status",
     ownerFact: "Owner Department",
     withFact: "With",
   },
@@ -3745,6 +3755,8 @@ export const T = {
     currentStage: "Current Stage",
     responseMode: "Response Mode",
     stageNote: "Note (Optional)",
+    // design portal-screen-fixes-work, decision 13: the stage card's header for its note (the form keeps stageNote)
+    stageNoteHead: "Note",
     setBy: "Set By",
     stageHistory: "Stage History",
     noStageHistory: "No stage recorded yet.",
@@ -3861,6 +3873,8 @@ export const T = {
     acknowledgedBy: (name: string, at: string) => `Acknowledged by ${name}, ${at}`,
     dueAt: (t: string) => `Due ${t}`,
     characters: (n: number, max: number) => `${n} / ${max} characters`,
+    // design portal-screen-fixes-work, decision 15: the counter with its floor, the field's one hint
+    charactersMin: (n: number, max: number, min: number) => `${n} / ${max} characters, at least ${min}`,
   },
   // next dates from orders (design portal-next-dates, decision 12)
   nd: {
@@ -3888,6 +3902,8 @@ export const T = {
     } as Record<string, string>,
     enterNeeded: "The order gives no clear date",
     pleaseAnswerBy: (d: string) => `Please answer by ${d}`,
+    // design portal-screen-fixes-work, decision 18
+    answerWasDue: (d: string) => `Answer was due ${d}`,
     enterDate: "Enter Date…",
     enterNext: "Enter Next Date",
     enterFor: (c: string) => `Enter date for ${c}`,
@@ -3930,9 +3946,12 @@ export const T = {
     card: "Next Date From Orders",
     noneYet: "No next date from the orders yet.",
     waiting: "Waiting for You",
-    allNextDates: "All Next Dates",
     fixedIn: (d: string) => `Fixed in the order of ${d}`,
     countedFrom: (d: string) => `Counted from the order of ${d}`,
+    // design portal-screen-fixes-work, decisions 9 and 10: the origin beside the Latest Order card, and the date in use
+    fixedInThis: "Fixed in this order",
+    countedFromThis: "Counted from this order",
+    readingLine: (date: string, origin: string, around: boolean) => `${around ? `Around ${date}` : date} · ${origin}`,
     confirmedBy: (name: string | null, d: string) => (name ? `confirmed by ${name} on ${d}` : `confirmed on ${d}`),
     enteredBy: (name: string | null, d: string) => (name ? `Entered by ${name} on ${d}` : `Entered on ${d}`),
     fromCauselist: "From the Cause List",

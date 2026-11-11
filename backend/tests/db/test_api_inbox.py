@@ -353,6 +353,50 @@ def test_take_over_and_stop_watching(api, world):
     ]
 
 
+def test_pool_best_band_follows_the_current_thresholds(api, world, monkeypatch):
+    """Design portal-screen-fixes-work, decision 20: each pool item names the band of its best score on the super
+    admin's current thresholds; no score, no band."""
+    with world.Session() as s:
+        cases = {k: make_case(s) for k in ("strong", "possible", "weak", "none")}
+        for key, score in (("strong", 0.912), ("possible", 0.612), ("weak", 0.312)):
+            s.add(
+                CaseOfficeScore(
+                    case_id=cases[key].id,
+                    office_id=world.offices["EDU"].id,
+                    score=score,
+                    signals=[],
+                    engine_version="2.1",
+                )
+            )
+        s.commit()
+        q = {k: str(v.id) for k, v in cases.items()}
+    root = login(api, "root")
+    admin = login(api, "edu_admin")
+
+    def bands() -> dict[str, tuple]:
+        pool = api.get("/inbox/pool?limit=100", headers=admin).json()
+        by_id = {str(i["case"]["id"]): i for i in pool["items"]}
+        return {k: (by_id[v]["best_score"], by_id[v]["best_band"]) for k, v in q.items()}
+
+    assert bands() == {
+        "strong": (0.912, "high"),
+        "possible": (0.612, "medium"),
+        "weak": (0.312, None),
+        "none": (None, None),
+    }
+    monkeypatch.setattr(matching_router, "dispatch_rescore", lambda settings: True)
+    current = api.get("/admin/scoring-settings", headers=root).json()
+    body = {
+        "weights": current["weights"],
+        "thresholds": {"strong": 0.95, "possible": 0.5},
+        "reason": "stricter strong band",
+        "expected_version": current["version"],
+    }
+    r = api.put("/admin/scoring-settings", json=body, headers=root)
+    assert r.status_code == 200, r.text
+    assert bands()["strong"] == (0.912, "medium")
+
+
 # ------------------------------------------------------------------------------------------------ scoring settings
 
 

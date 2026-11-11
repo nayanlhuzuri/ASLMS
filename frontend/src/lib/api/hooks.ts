@@ -254,17 +254,10 @@ export function useStages(ref: string, enabled = true) {
   });
 }
 
-/** The custody card and one page of the movement record, oldest first (`GET /cases/{ref}/custody`). */
-export function useCustodyHistory(ref: string, offset = 0, limit = 50) {
-  return useQuery({
-    queryKey: [...caseKey(ref), "custody", offset],
-    queryFn: () => api<CustodyHistory>(apiCasePath(ref, "custody"), { query: { limit, offset } }),
-  });
-}
-
 /**
- * The latest movements of a case, newest first (`GET /cases/{ref}/custody?order=desc`; design case-workspace-admin,
- * decision 14): the rail's journey (4) and the remarks history (pages of 50). `total` counts every movement and
+ * The custody card and the latest movements of a case, newest first (`GET /cases/{ref}/custody?order=desc`; design
+ * case-workspace-admin, decision 14): the rail's journey (4), the remarks history and the Custody tab's movement
+ * record (pages of 50; design portal-screen-fixes-work, decision 13). `total` counts every movement and
  * `remarks_shown` says whether the legs carry their remark for the caller.
  */
 export function useJourney(ref: string, limit = 4, offset = 0, enabled = true) {

@@ -41,7 +41,7 @@ export function ReviewTable({
       caption={caption}
       rows={items}
       rowKey={(item) => `${item.kind}-${item.id}`}
-      columns={reviewColumns({ showCase, showDepartment, canViewOrder, ...outcome })}
+      columns={reviewColumns({ showCase, showDepartment, canViewOrder, ...outcome }, items)}
     />
   );
 }

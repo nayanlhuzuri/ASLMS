@@ -132,11 +132,11 @@ function DueCell({ file }: { file: DashboardFile }) {
   if (file.overdue_days > 0) {
     return (
       <Badge tone="danger" title={formatDate(file.due_date)}>
-        {T.dash.overdueByBadge(file.overdue_days)}
+        {T.due.overdueBy(file.overdue_days)}
       </Badge>
     );
   }
-  if (!file.due_date) return <span className="muted">{T.dash.dueNoneLabel}</span>;
+  if (!file.due_date) return <span className="muted">{T.due.none}</span>;
   return <>{formatDate(file.due_date)}</>;
 }
 

@@ -101,7 +101,13 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     browserApi(routes());
     renderRail(detail());
     const task = await screen.findByRole("region", { name: "Your Task" });
-    expect(await within(task).findByText("Your Task", { selector: "div" })).toBeInTheDocument();
+    // design portal-screen-fixes-work, decision 17: a visible title, and the holder as the first row of the facts
+    const title = within(task).getByRole("heading", { name: "Your Task" });
+    expect(title).not.toHaveClass("visually-hidden");
+    expect(task.querySelector(".visually-hidden")).toBeNull();
+    const dt = within(task).getByText("With", { selector: "dt" });
+    expect(dt.nextElementSibling).toHaveTextContent("Under Secretary, Education (you)");
+    expect(dt.parentElement!.firstElementChild).toBe(dt);
     expect(within(task).getByText("Prepare Reply")).toBeInTheDocument();
     expect(within(task).getByText("Commissioner and Secretary, EDU")).toHaveAttribute("title", "Edu Head");
     expect(within(task).getByText(/30 Nov 2099/)).toBeInTheDocument();
@@ -119,7 +125,7 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     expect(within(task).getByText("Overdue by 3 days")).toBeInTheDocument();
   });
 
-  it("the case is with someone else: With <designation, office>, Recall case as a secondary danger button, never primary", async () => {
+  it("the case is with someone else: the Current Task card, With <designation, office>, Recall case as a secondary danger button, never primary", async () => {
     const other = card({
       holder_user: { id: "u-7", full_name: "Officer One", designation: "Section Officer" },
       holder_office: { code: "EDU-DSE", name: "Secondary Education" },
@@ -129,8 +135,12 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     const onAction = vi.fn();
     browserApi(routes());
     const { container } = renderRail(detail({ custody: other }), true, onAction);
-    const task = await screen.findByRole("region", { name: "Your Task" });
-    expect(await within(task).findByText("With Section Officer, Secondary Education")).toHaveAttribute("title", "Officer One");
+    // "Your Task" would be wrong for someone else's file (portal-screen-fixes-work, decision 17)
+    const task = await screen.findByRole("region", { name: "Current Task" });
+    expect(screen.queryByRole("region", { name: "Your Task" })).toBeNull();
+    const dt = within(task).getByText("With", { selector: "dt" });
+    expect(dt.nextElementSibling).toHaveTextContent("Section Officer, Secondary Education");
+    expect(dt.nextElementSibling).toHaveAttribute("title", "Officer One");
     const recall = within(task).getByRole("button", { name: "Recall Case" });
     expect(recall).toHaveAttribute("data-variant", "danger");
     expect(container.querySelectorAll(PRIMARY_SELECTOR)).toHaveLength(0);
@@ -142,15 +152,15 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
   it("Recall case shows only with can_recall", async () => {
     browserApi(routes());
     renderRail(detail({ custody: card({ holder_user: { id: "u-7", full_name: "O", designation: "SO" }, can_recall: false }) }));
-    const task = await screen.findByRole("region", { name: "Your Task" });
-    await within(task).findByText(/With SO/);
+    const task = await screen.findByRole("region", { name: "Current Task" });
+    await within(task).findByText("SO, Education");
     expect(within(task).queryByRole("button", { name: "Recall Case" })).toBeNull();
   });
 
   it("the remark is absent when the API omits it, with no placeholder; See the journey when remarks are not shown", async () => {
     browserApi(routes(history({ remarks_shown: false, legs: [leg(2, { remark: null }), leg(1, { remark: null })], total: 2 })));
     renderRail(detail({ custody: card({ holder_user: { id: "u-7", full_name: "O", designation: "SO" }, remark: null }) }));
-    const task = await screen.findByRole("region", { name: "Your Task" });
+    const task = await screen.findByRole("region", { name: "Current Task" });
     expect(await within(task).findByRole("button", { name: "See the Journey (2)" })).toBeInTheDocument();
     expect(within(task).queryByRole("button", { name: /See all remarks/ })).toBeNull();
     expect(within(task).queryByText(/“/)).toBeNull();
@@ -168,14 +178,14 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
   it("a case with an office and no officer: With <office name>", async () => {
     browserApi(routes());
     renderRail(detail({ custody: card({ holder_user: null, can_send: false }) }));
-    const task = await screen.findByRole("region", { name: "Your Task" });
-    expect(within(task).getByText("With Education")).toBeInTheDocument();
+    const task = await screen.findByRole("region", { name: "Current Task" });
+    expect(within(task).getByText("With", { selector: "dt" }).nextElementSibling).toHaveTextContent(/^Education$/);
   });
 
   it("no custody: one muted line and no buttons; no journey card", async () => {
     browserApi(routes(null));
     renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }));
-    const task = await screen.findByRole("region", { name: "Your Task" });
+    const task = await screen.findByRole("region", { name: "Current Task" });
     expect(within(task).getByText("The case moves between officers once a department claims it.")).toBeInTheDocument();
     expect(within(task).queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryByRole("region", { name: "Journey of This Case" })).toBeNull();
@@ -267,7 +277,9 @@ describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", ()
     expect(items[0]).toHaveAttribute("aria-current", "step");
     expect(within(items[0]!).getByText("Now")).toBeInTheDocument();
     expect(within(items[1]!).getByText("Recalled")).toBeInTheDocument();
-    expect(within(journey).getByRole("link", { name: "Journey and Stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    // design portal-screen-fixes-work, decision 17: "View All" in the card's head; the old bottom link is gone
+    expect(within(journey).getByRole("link", { name: "View All Journey and Stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    expect(within(journey).getAllByRole("link")).toHaveLength(1);
     expect(within(journey).queryByRole("button", { name: /See all remarks/ })).toBeNull();
     const call = api.calls.find((c) => c.path.startsWith(`${BASE}/custody`))!;
     expect(call.path).toContain("order=desc");
@@ -336,7 +348,7 @@ describe("the layout (decision 8)", () => {
       browserApi(pageRoutes());
       const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
       const aside = await screen.findByRole("complementary", { name: "Case Work" });
-      expect(within(aside).getByRole("region", { name: "Your Task" })).toBeInTheDocument();
+      expect(await within(aside).findByRole("region", { name: "Your Task" })).toBeInTheDocument();
       const tabs = screen.getByRole("navigation", { name: "Case Sections" });
       expect(tabs.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       unmount();
@@ -412,16 +424,43 @@ describe("Close Case on Your Task (design close-case, decision 19)", () => {
       true,
       onAction,
     );
-    const task = await screen.findByRole("region", { name: "Your Task" });
-    expect(within(task).getByText("Closed")).toBeInTheDocument();
+    const task = await screen.findByRole("region", { name: "Current Task" });
+    // the Closed badge on the body's first line
+    expect(within(task).getByText("Closed").closest("p")).toHaveTextContent(/Closed\s*Closed on 2 Nov 2026/);
     expect(within(task).getByText("Closed on 2 Nov 2026 by Officer One, SO")).toBeInTheDocument();
     expect(within(task).queryByRole("button", { name: /Recall Case|Send Case/ })).toBeNull();
     await userEvent.click(within(task).getByRole("button", { name: "Reopen Case" }));
     expect(onAction).toHaveBeenCalledWith("reopen");
     unmount();
     renderRail(detail({ custody: closedCard, closure: CLOSURE, workflow: { ...W, close: false, reopen: false, reopen_blocked: "not_own_department" } }));
-    const other = await screen.findByRole("region", { name: "Your Task" });
+    const other = await screen.findByRole("region", { name: "Current Task" });
     expect(within(other).queryByRole("button", { name: "Reopen Case" })).toBeNull();
     expect(within(other).getByText("Only the owning department or the Super Administrator can reopen this case.")).toBeInTheDocument();
+  });
+});
+
+describe("one card header style (portal-screen-fixes-work, decision 17)", () => {
+  it("stacked: each card has a visible title, a bare collapsible, and the Journey's View All outside the summary button", async () => {
+    browserApi(routes());
+    renderRail(detail(), false);
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    for (const name of ["Your Task", "Next Hearing", "Quick Actions", "Journey of This Case"]) {
+      const region = screen.getByRole("region", { name });
+      expect(region.querySelector("[data-bare]")).not.toBeNull();
+      expect(within(region).getAllByText(name).length).toBeGreaterThan(0);
+    }
+    expect(task.querySelector(".visually-hidden")).toBeNull();
+    const journey = screen.getByRole("region", { name: "Journey of This Case" });
+    const link = within(journey).getByRole("link", { name: "View All Journey and Stage" });
+    expect(link).toHaveAttribute("href", `${BASE}/custody`);
+    expect(link.closest("button")).toBeNull();
+  });
+
+  it("Quick Actions is a grid of equal-width buttons", async () => {
+    browserApi(routes());
+    renderRail(detail());
+    const quick = screen.getByRole("region", { name: "Quick Actions" });
+    const grid = within(quick).getByRole("button", { name: "Add Note" }).parentElement!;
+    expect(grid.className).toMatch(/quick/);
   });
 });

@@ -8,6 +8,9 @@
  * asks for a date (design next-date-direct, decision 9: no clear date, no next date, a scanned copy, a date marked
  * wrong) with the date to answer by, the department when the login has more than one, and Enter Date. Never the alert
  * reference, the rule code or a score. Confirm and Not Correct are gone: a date the court gave is shown directly.
+ *
+ * Design portal-screen-fixes-work, decisions 11 and 18: the Next Date column has a fixed width of two lead columns, the
+ * Actions column is left out when no row has an action, and a missed answer-by date reads "Answer was due …" in red.
  */
 import { useState } from "react";
 
@@ -15,7 +18,7 @@ import { fileUrl } from "@/components/case/Orders";
 import { Remark } from "@/components/files/Remark";
 import { Button, CaseLink, type Column } from "@/components/ui";
 import type { NextDateReviewItem } from "@/lib/api/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, istDay } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { reasonLabel } from "@/lib/nextDates";
 
@@ -62,7 +65,17 @@ function ReviewActions({ item, onDone, onStale }: { item: NextDateReviewItem } &
 }
 
 /** The columns of the review table (design portal-ui-polish, decision 15: one `DataTable`, cards on phones). */
-export function reviewColumns({ showCase, showDepartment, canViewOrder, onDone, onStale }: ReviewColumnsOptions): Column<NextDateReviewItem>[] {
+/** The answer-by line: "Please answer by …", or "Answer was due …" in the danger text once the date has passed (IST). */
+export function AnswerBy({ actBy }: { actBy: string | null | undefined }) {
+  if (!actBy) return null;
+  if (actBy < istDay()) return <span className={s.missed}>{T.nd.answerWasDue(formatDate(actBy))}</span>;
+  return <span className={s.hint}>{T.nd.pleaseAnswerBy(formatDate(actBy))}</span>;
+}
+
+export function reviewColumns(
+  { showCase, showDepartment, canViewOrder, onDone, onStale }: ReviewColumnsOptions,
+  items: readonly NextDateReviewItem[] = [],
+): Column<NextDateReviewItem>[] {
   const columns: Column<NextDateReviewItem>[] = [];
   if (showCase) {
     columns.push({
@@ -105,10 +118,12 @@ export function reviewColumns({ showCase, showDepartment, canViewOrder, onDone, 
     {
       key: "next",
       header: T.nd.nextDate,
+      // two lead columns (192 px), so the reason wraps between a few words, not one per line
+      width: "calc(2 * var(--lead-w))",
       cell: (item) => (
         <div className={s.suggested} data-reason={item.reason ?? undefined}>
           <span>{reasonLabel(item)}</span>
-          <span className={s.hint}>{T.nd.pleaseAnswerBy(formatDate(item.act_by))}</span>
+          <AnswerBy actBy={item.act_by} />
         </div>
       ),
     },
@@ -116,10 +131,13 @@ export function reviewColumns({ showCase, showDepartment, canViewOrder, onDone, 
   if (showDepartment) {
     columns.push({ key: "department", header: T.nd.department, cell: (item) => item.departments.join(", ") || "—" });
   }
-  columns.push({
-    key: "actions",
-    header: T.nd.actions,
-    cell: (item) => <ReviewActions item={item} onDone={onDone} onStale={onStale} />,
-  });
+  // no row with an action (every item an old server's confirm item): no empty Actions column
+  if (items.some((item) => item.kind === "enter")) {
+    columns.push({
+      key: "actions",
+      header: T.nd.actions,
+      cell: (item) => <ReviewActions item={item} onDone={onDone} onStale={onStale} />,
+    });
+  }
   return columns;
 }

@@ -375,3 +375,28 @@
   border-radius: 2px;
   animation: none;
 }
+
+/* design portal-screen-fixes-work, decision 20: the department first, its score badge after it; the badge wraps under
+   the name as a whole, never inside itself */
+.scoreLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+}
+
+.scoreLine > .badge {
+  flex: none;
+}
+
+/* in a table cell the department's name is cut with an ellipsis (officeName.module.css): the line takes the cell's
+   width, not the whole name's, so the cut happens and the badge wraps under the name (uicheck, /claim/pool at 375) */
+:global(td) .scoreLine {
+  display: flex;
+  max-width: 100%;
+}
+
+:global(td) .scoreLine > :first-child {
+  min-width: 0;
+}

@@ -608,6 +608,41 @@ def test_admin_ticket_alert_case_visible_false(api, world):
     assert item["case"] is None and item["ticket_ref"] == ticket_ref and item["case_visible"] is False
 
 
+def test_summary_is_the_title_without_its_case_number(api, world, alerted):
+    """Design portal-screen-fixes-work, decision 19: every item of the list, the case tab and the detail carries
+    `summary`, the title without ": <case number>"."""
+    off1 = login(api, "edu_off1")
+    (item,) = api.get("/alerts", headers=off1).json()["items"]
+    label = item["case"]["case_no_text"] or item["case"]["cnr"] or item["case"]["ref_no"]
+    assert item["kind"] == "hearing_due" and item["title"].endswith(f": {label}")
+    assert item["summary"] == item["title"][: -len(f": {label}")] and label not in item["summary"]
+    tab = api.get(f"/cases/{alerted['edu_case_ref']}/alerts", headers=off1).json()["items"]
+    assert tab and all(i["summary"] == item["summary"] for i in tab)
+    assert api.get(f"/alerts/{alerted['edu_alert']}", headers=off1).json()["summary"] == item["summary"]
+
+
+def test_ticket_alert_summary_is_its_title(api, world):
+    from aslms.services import tickets
+
+    with world.Session() as s:
+        a_actor, admin = world.actor(s, "edu_admin")
+        tickets.request_head_change(
+            s,
+            a_actor,
+            admin,
+            {
+                "operation": "replace",
+                "department_code": "EDU",
+                "incoming": {"membership_id": str(world.membership(s, "edu_off1").id)},
+                "outgoing": {"mode": "retype"},
+            },
+            request_remark="the order of 1 Oct",
+        )
+        s.commit()
+    (item,) = api.get("/alerts", headers=login(api, "root")).json()["items"]
+    assert item["summary"] == item["title"]
+
+
 def test_case_tab_items_case_visible_true(api, world, alerted):
     for key in ("edu_off1", "edu_admin", "edu_auditor"):
         items = api.get(f"/cases/{alerted['edu_case_ref']}/alerts", headers=login(api, key)).json()["items"]

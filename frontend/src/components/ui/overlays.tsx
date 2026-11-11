@@ -424,7 +424,10 @@ const MENU_EDGE = 8;
 /**
  * Where the list of a `Menu` goes, from the button's rectangle (design case-inbox-simplify, decision 23): below the
  * button, or above it when the room below is under the list's height and the room above is larger; aligned to the
- * button's start or end edge; kept `MENU_EDGE` px inside the viewport on both sides. `position: fixed`.
+ * button's start or end edge; kept `MENU_EDGE` px inside the viewport on both sides. `position: fixed`. A list that
+ * fits on neither side (the case page's More on a phone, with the tabs moved into it, design portal-screen-fixes-work,
+ * decision 16) is moved up until it is wholly in the viewport, over the button; one taller than the viewport is capped
+ * at it and scrolls.
  */
 export function menuPlacement(
   rect: Pick<DOMRect, "top" | "bottom" | "left" | "right">,
@@ -434,9 +437,16 @@ export function menuPlacement(
 ): CSSProperties {
   const below = view.height - rect.bottom - MENU_GAP;
   const above = rect.top - MENU_GAP;
-  const up = below < list.height && above > below;
   const wanted = align === "start" ? rect.left : rect.right - list.width;
   const left = Math.max(MENU_EDGE, Math.min(wanted, view.width - MENU_EDGE - list.width));
+  if (below < list.height && above < list.height) {
+    const room = view.height - 2 * MENU_EDGE;
+    const top = Math.max(MENU_EDGE, Math.min(rect.bottom + MENU_GAP, view.height - MENU_EDGE - list.height));
+    return list.height > room
+      ? { position: "fixed", left, top: MENU_EDGE, maxHeight: room, overflowY: "auto" }
+      : { position: "fixed", left, top };
+  }
+  const up = below < list.height && above > below;
   return up
     ? { position: "fixed", left, bottom: view.height - rect.top + MENU_GAP }
     : { position: "fixed", left, top: rect.bottom + MENU_GAP };

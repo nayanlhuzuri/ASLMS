@@ -81,7 +81,6 @@ const UNDERSCORES = /\.replace\(\/_\/g, ?" "\)/;
 const ALLOW: [string, string, string][] = [
   ["lib/audit.ts", "T.audit.actionNames[code] ?? code", "decision 20: an action code with no name shows the code itself, never an invented name"],
   ["lib/audit.ts", "groupLabels[key] ?? key", "decision 20: an action prefix with no group label shows the prefix itself"],
-  ["lib/causelist.ts", "names[r.office_code] ?? r.office_code", "decision 5: an office without a known name shows its code"],
   ["components/causelist/OwnershipCell.tsx", "names[owner] ?? owner", "decision 5: an office without a known name shows its code"],
 ];
 

@@ -187,6 +187,50 @@ def test_correction_rules(wide):
         s.rollback()
 
 
+def test_correction_links_carry_the_date_the_reader_may_see(wide, monkeypatch):
+    """Design portal-screen-fixes-work, decision 14: `superseded_by.created_at` is the correcting note's;
+    `supersedes.created_at` is the original's only when the caller may read the original, else null with `ref_no`
+    still given; a note without corrections has both links null."""
+    from aslms.services import notes
+
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        plain, _ = w.note(s, wide, "edu_admin", case, body="no corrections")
+        original, _ = w.note(s, wide, "edu_admin", case, body="first", kind="opinion")
+        corr, _ = w.note(s, wide, "edu_admin", case, body="corrected", supersedes=original.ref_no, kind=None)
+        _, off1 = wide.actor(s, "edu_off1")
+        by_ref = {n["ref_no"]: n for n in notes.list_for_case(s, off1, case).items}
+        assert by_ref[original.ref_no]["superseded_by"] == {
+            "ref_no": corr.ref_no,
+            "seq_no": corr.seq_no,
+            "created_at": corr.created_at,
+        }
+        assert by_ref[corr.ref_no]["supersedes"] == {
+            "ref_no": original.ref_no,
+            "seq_no": original.seq_no,
+            "created_at": original.created_at,
+        }
+        assert by_ref[plain.ref_no]["supersedes"] is None and by_ref[plain.ref_no]["superseded_by"] is None
+
+        # a reader who may read the correction but not the original (a correction keeps the original's office and
+        # visibility, so with today's rules this is the corrector who has since lost the original's office): the
+        # date is withheld, the reference stays
+        real_condition = notes.note_visible_condition
+        monkeypatch.setattr(
+            notes,
+            "note_visible_condition",
+            lambda session, user: sa.and_(real_condition(session, user), CaseNote.id != original.id),
+        )
+        by_ref = {n["ref_no"]: n for n in notes.list_for_case(s, off1, case).items}
+        assert original.ref_no not in by_ref
+        assert by_ref[corr.ref_no]["supersedes"] == {
+            "ref_no": original.ref_no,
+            "seq_no": original.seq_no,
+            "created_at": None,
+        }
+        s.rollback()
+
+
 # ------------------------------------------------------------------------------------------------ portal-workflow
 
 

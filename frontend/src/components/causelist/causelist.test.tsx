@@ -339,7 +339,11 @@ describe("the entries", () => {
     expect(within(watched).getByTitle("FIN")).toHaveAttribute("data-wrap");
     expect(within(watched).getByText("Your Department (Watching)")).toBeInTheDocument();
     const rec = screen.getByText("WP(C)/2/2025").closest("tr")!;
-    expect(within(rec).getByText("Strong · Education · 0.95")).toBeInTheDocument();
+    // design portal-screen-fixes-work, decision 20: a ScoreLine, the name first, then the badge with three decimals
+    const line = rec.querySelector("[data-score-line]")!;
+    expect(line.firstElementChild).toHaveTextContent("Education");
+    expect(within(line as HTMLElement).getByText("Strong · 0.950")).toBeInTheDocument();
+    expect(within(rec).queryByText(/0.95$/)).toBeNull();
     expect(within(rec).getByText("Unclaimed")).toBeInTheDocument();
   });
 
@@ -579,7 +583,7 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
     expect(within(dialog).getByText("Supplementary List")).toBeInTheDocument();
     const table = await within(dialog).findByRole("table", { name: "Cause-list Entries" });
     expect(within(table).getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
-    expect(within(table).getByText("Strong · Education · 0.95")).toBeInTheDocument();
+    expect(within(table).getByText("Strong · 0.950")).toBeInTheDocument();
     expect(within(table).getByText("Claimed by Education")).toBeInTheDocument();
     expect(within(table).getAllByText("MR. A. BORA").length).toBeGreaterThan(0);
     // Claim stays on the page

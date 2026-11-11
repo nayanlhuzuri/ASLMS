@@ -501,21 +501,27 @@ export function LeadIcon({ children }: { children: ReactNode }) {
   );
 }
 
-/** A row with a fixed leading element (`Lead`, `DateChip` or `LeadIcon`), the body and an optional trailing slot. */
+/**
+ * A row with a fixed leading element (`Lead`, `DateChip` or `LeadIcon`), the body and an optional trailing slot.
+ * `stackTrail` (design portal-screen-fixes-work, decision 23): below 820 px the trail moves onto its own line under the
+ * body, aligned with the body's left edge, so the body keeps the row's full width; from 820 px nothing changes.
+ */
 export function ListRow({
   lead,
   children,
   trail,
   as = "div",
+  stackTrail,
 }: {
   lead?: ReactNode;
   children: ReactNode;
   trail?: ReactNode;
   as?: "div" | "li";
+  stackTrail?: boolean;
 }) {
   const Tag = as;
   return (
-    <Tag className={s.listRow}>
+    <Tag className={s.listRow} data-stack-trail={stackTrail ? "" : undefined}>
       {lead}
       <div className={s.listBody}>{children}</div>
       {trail ? <div className={s.listTrail}>{trail}</div> : null}

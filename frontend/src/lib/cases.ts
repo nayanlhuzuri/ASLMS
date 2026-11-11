@@ -3,11 +3,11 @@
  * case-workspace-admin, decisions 11, 13 and 19):
  * - `withText`: who a case is with, "<designation>, <office>" with "(you)" for the caller; the person's name only when
  *   the membership has no designation, and always as the title attribute;
- * - `leadBadge`: the lead badge of the custody lists, one pure rule per list (first match wins); Working on reads the
- *   row's custody brief only when the case is with the caller (design case-inbox-merge, decision 8).
+ * - `isNewSince` and `sentDue`: the "New" mark of With Me and the Due line of Sent by Me (design
+ *   portal-screen-fixes-work, decisions 3 and 5; the lead badge column is gone).
  * The whole-day countdown to a hearing is `lib/hearingDate.ts` (design next-hearing-highlight, decision 2).
  */
-import type { CustodyCard, CustodyLeg, HeldItem, MyCase, OfficeNameMap, SentItem } from "./api/types";
+import type { CustodyCard, CustodyLeg, OfficeNameMap, SentItem } from "./api/types";
 import { addDays, daysBetween, istDay } from "./format";
 import { T } from "./messages";
 import { officeName } from "./officeNames";
@@ -74,48 +74,31 @@ export function legActor(leg: CustodyLeg, names?: OfficeNameMap): WithParty | nu
   };
 }
 
-export type CasesTab = "with-me" | "pending" | "sent" | "working";
-
-export interface LeadBadge {
-  label: string;
-  tone?: "danger" | "warning" | "info";
-}
-
 /** The window of "Due soon" on Sent by me, whose legs carry no server flag: the server's default (decision 19). */
 export const SENT_DUE_SOON_DAYS = 2;
 
 const NEW_MS = 48 * 3600 * 1000;
 
-function isNew(since: string | null | undefined, now: Date): boolean {
+/** Received in the last 48 hours: With Me's "New" mark (design portal-screen-fixes-work, decision 3). */
+export function isNewSince(since: string | null | undefined, now: Date = new Date()): boolean {
   const t = since ? Date.parse(since) : NaN;
   return Number.isFinite(t) && now.getTime() - t <= NEW_MS && now.getTime() >= t;
 }
 
-/** Decision 19's table, first match wins; null leaves the 96 px column empty. */
-export function leadBadge(row: HeldItem | SentItem | MyCase, tab: CasesTab, now: Date = new Date()): LeadBadge | null {
-  if (tab === "working") {
-    // design case-inbox-merge, decision 8: only a case with me carries a badge
-    const brief = (row as MyCase).custody;
-    if (!brief?.with_me) return null;
-    if (brief.overdue) return { label: T.cases.lead.overdue, tone: "danger" };
-    if (brief.due_soon) return { label: T.cases.lead.dueSoon, tone: "warning" };
-    if (isNew(brief.since, now)) return { label: T.cases.lead.new, tone: "info" };
-    return null;
-  }
-  if (tab === "sent") {
-    const item = row as SentItem;
-    if (item.current !== true) return null;
-    const due = item.leg.due_date;
-    const today = istDay(now);
-    if (due && due < today) return { label: T.cases.lead.overdue, tone: "danger" };
-    if (due && due <= addDays(today, SENT_DUE_SOON_DAYS)) return { label: T.cases.lead.dueSoon, tone: "warning" };
-    return { label: T.cases.lead.waiting };
-  }
-  const card = (row as HeldItem).card;
-  if (card?.overdue) return { label: T.cases.lead.overdue, tone: "danger" };
-  if (card?.due_soon) return { label: T.cases.lead.dueSoon, tone: "warning" };
-  if (tab === "with-me") return isNew(card?.since, now) ? { label: T.cases.lead.new, tone: "info" } : null;
-  return { label: T.cases.lead.waiting };
+/**
+ * The due state of a Sent by Me leg (design portal-screen-fixes-work, decision 5), whose legs carry no server flag:
+ * overdue when the leg is still the case's current one and its date is before today in IST, counted in whole days;
+ * due soon within `SENT_DUE_SOON_DAYS`; a leg that has moved on shows its date only.
+ */
+export function sentDue(
+  item: Pick<SentItem, "current"> & { leg: Pick<CustodyLeg, "due_date"> },
+  now: Date = new Date(),
+): { date: string | null; overdue: boolean; overdueDays: number; dueSoon: boolean } {
+  const date = item.leg.due_date ?? null;
+  if (!date || item.current !== true) return { date, overdue: false, overdueDays: 0, dueSoon: false };
+  const today = istDay(now);
+  if (date < today) return { date, overdue: true, overdueDays: -daysUntil(date, now), dueSoon: false };
+  return { date, overdue: false, overdueDays: 0, dueSoon: date <= addDays(today, SENT_DUE_SOON_DAYS) };
 }
 
 /** Whole IST days from today to a due date: positive = days left, negative = days overdue. */

@@ -2,14 +2,19 @@
 
 /**
  * The custody card's facts (shared with the Overview) and the "Custody and stage" tab (design portal-workflow,
- * decisions 8, 9; plan §5.7): the card with Send and Recall; the movement record, oldest first and paged by 50, with
- * the remark only when the API returns it; the stage block with the current stage, the history newest first, the
- * gaps ("Not recorded", guided, not enforced) and Set stage. An unclaimed case has no custody and no actions.
+ * decisions 8, 9; plan §5.7): the card with Send and Recall; the movement record, paged by 50, with the remark only
+ * when the API returns it; the stage block with the current stage, the history newest first, the gaps ("Not
+ * recorded", guided, not enforced) and Set stage. An unclaimed case has no custody and no actions.
+ *
+ * Design portal-screen-fixes-work, decisions 7 and 13: the movement record reads newest first (`order=desc`, the rail's
+ * and the remarks panel's order; the `#` column keeps the move numbers), the custody and stage cards have their own
+ * facts grid with the remark and the note across the card's full width, offices by name only, the stage note headed
+ * "Note", and the stage history rows on `ItemHead`.
  */
 import { useState } from "react";
 
-import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, Notice, OfficeName, Pagination, useOfficeName } from "@/components/ui";
-import { useCase, useCustodyHistory, useStages, useWorkflowCodes } from "@/lib/api/hooks";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, ItemHead, Loading, Notice, OfficeName, Pagination, useOfficeName } from "@/components/ui";
+import { useCase, useJourney, useStages, useWorkflowCodes } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard } from "@/lib/api/types";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -23,7 +28,7 @@ import cs from "@/components/case/case.module.css";
 export function CustodyFacts({ card }: { card: CustodyCard }) {
   const nameOf = useOfficeName();
   return (
-    <dl className={cs.facts}>
+    <dl className={cs.cardFacts}>
       <div>
         <dt>{T.case.holder}</dt>
         <dd>
@@ -63,7 +68,7 @@ export function CustodyFacts({ card }: { card: CustodyCard }) {
         </div>
       ) : null}
       {card.remark ? (
-        <div>
+        <div className={cs.wide}>
           <dt>{T.case.remark}</dt>
           <dd>{card.remark}</dd>
         </div>
@@ -75,7 +80,8 @@ export function CustodyFacts({ card }: { card: CustodyCard }) {
 function Movement({ caseRef, detail }: { caseRef: string; detail: CaseDetail }) {
   const nameOf = useOfficeName();
   const [offset, setOffset] = useState(0);
-  const history = useCustodyHistory(caseRef, offset, PAGE);
+  // newest first: the current move leads page 1, under the card that shows where the file is now
+  const history = useJourney(caseRef, PAGE, offset);
   if (history.isPending) return <Loading />;
   if (history.error || !history.data) return <ErrorBanner error={history.error} onRetry={() => history.refetch()} />;
   const { card, legs, total } = history.data;
@@ -152,7 +158,7 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
       {data ? (
         <>
           {cur ? (
-            <dl className={cs.facts}>
+            <dl className={cs.cardFacts}>
               <div>
                 <dt>{T.wf.currentStage}</dt>
                 <dd>
@@ -171,8 +177,8 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
                 </dd>
               </div>
               {cur.note ? (
-                <div>
-                  <dt>{T.wf.stageNote}</dt>
+                <div className={cs.wide}>
+                  <dt>{T.wf.stageNoteHead}</dt>
                   <dd>{cur.note}</dd>
                 </div>
               ) : null}
@@ -188,11 +194,20 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
             <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.wf.stageHistory}>
               {data.history.map((h) => (
                 <li key={h.id}>
-                  <strong>{serverLabel(h.label)}</strong>{" "}
-                  <span className="muted">· {serverLabel(h.response_mode_label) ?? labelFor(undefined, h.response_mode)}</span>{" "}
-                  <span className="muted">
-                    · {[h.set_by, h.office_code ? nameOf(h.office_code) : null].filter(Boolean).join(", ")} · {formatDateTime(h.set_at)}
-                  </span>
+                  <ItemHead
+                    title={<strong>{serverLabel(h.label)}</strong>}
+                    meta={
+                      <span className="muted">
+                        {[
+                          serverLabel(h.response_mode_label) ?? labelFor(undefined, h.response_mode),
+                          [h.set_by, h.office_code ? nameOf(h.office_code) : null].filter(Boolean).join(", "),
+                          formatDateTime(h.set_at),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    }
+                  />
                   {h.note ? <div>{h.note}</div> : null}
                 </li>
               ))}

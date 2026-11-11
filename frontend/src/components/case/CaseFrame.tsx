@@ -73,9 +73,9 @@ export function caseName(c: Pick<CaseDetail, "identity" | "ref_no">): string {
   return c.identity.case_no_text || c.ref_no;
 }
 
-function Fact({ label, children, status }: { label: string; children: ReactNode; status?: boolean }) {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={status ? `${s.fact} ${s.factStatus}` : s.fact} data-fact={status ? "status" : undefined}>
+    <div className={s.fact}>
       <dt>{label}</dt>
       <dd>{children}</dd>
     </div>
@@ -93,24 +93,18 @@ export function listingOnDay(c: CaseDetail, listing: Listing | null | undefined)
 /**
  * The header's next hearing (design next-hearing-highlight, decision 11; next-date-direct, decisions 5, 8 and 11): the
  * kit's `HearingDate` in the medium size with the case's one next hearing, the word before the weekday and date, then
- * the court and item when the latest listing places the case on that day, else the line saying where the date comes
- * from; "Order Differs" with its sentence when the latest order gives another exact date; "Reported as possibly wrong"
- * while a report is open.
+ * the court and item when the latest listing places the case on that day; "Order Differs" with its sentence as its title
+ * when the latest order gives another exact date. Design portal-screen-fixes-work, decision 8: the explanation (the
+ * basis line, the differs sentence, "Reported as possibly wrong") lives in one place, the rail's Next Hearing card.
  */
 function NextHearingFact({ c, listing }: { c: CaseDetail; listing: Listing | null | undefined }) {
   const onDay = listingOnDay(c, listing);
   const disposed = c.status.status === "disposed";
-  const reported = c.next_hearing?.reported_at;
   return (
     <span className={s.factLine}>
-      <HearingDate next={c.next_hearing ?? null} status={c.status.status} size="md" lines={!onDay} />
+      <HearingDate next={c.next_hearing ?? null} status={c.status.status} size="md" lines={false} />
       {/* the item number as printed in the cause list, else the serial (design portal-ui-polish, decision 12) */}
       {onDay && !disposed ? <span className="muted">{T.rail.courtItem(onDay.court_no ?? null, onDay.printed_sr ?? onDay.sr_no)}</span> : null}
-      {reported && !disposed ? (
-        <span className="muted" data-reported="true">
-          {T.hearing.reported(formatDate(reported))}
-        </span>
-      ) : null}
     </span>
   );
 }
@@ -385,9 +379,7 @@ export function CaseHeader({
         </Fact>
         <Fact label={T.case.stage}>{c.stage ? serverLabel(c.stage.label) : <span className="muted">{T.case.noStage}</span>}</Fact>
         <Fact label={T.rail.ownerFact}>{owner ? <OfficeName code={owner.office_code} name={owner.office_name} /> : T.case.unowned}</Fact>
-        <Fact label={T.rail.statusFact} status>
-          {status}
-        </Fact>
+        {/* design portal-screen-fixes-work, decision 6: the status shows once, as the badge beside the title */}
       </dl>
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
@@ -465,10 +457,12 @@ function Workspace({ caseRef, c, children }: { caseRef: string; c: CaseDetail; c
       <div ref={workspace} className={s.workspace} data-layout={wide ? "rail" : "stacked"}>
         {wide ? null : rail}
         <div className={s.main}>
+          {/* design portal-screen-fixes-work, decision 16: the tabs that do not fit move into More, at every width */}
           <Tabs
             label={T.case.tabs}
             items={CASE_TABS.filter((t) => !t.more && (t.key !== "assistant" || showsAssistant(me.data))).map(tab)}
             more={CASE_TABS.filter((t) => t.more).map(tab)}
+            overflow="more"
           />
           {children}
         </div>

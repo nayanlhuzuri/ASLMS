@@ -93,8 +93,10 @@ function AlertRow({ alert }: { alert: AlertItem }) {
           </>
         }
       />
+      {/* design portal-screen-fixes-work, decision 19: the title without its case number; the case shows once, as the
+          link under it */}
       <div>
-        <strong>{alert.title}</strong>
+        <strong>{alert.summary}</strong>
       </div>
       {alert.body ? <p className={cs.noteBody}>{alert.body}</p> : null}
       <div className="row">

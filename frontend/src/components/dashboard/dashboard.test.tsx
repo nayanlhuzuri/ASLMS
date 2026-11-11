@@ -522,7 +522,10 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(bands.map((b) => b.getAttribute("data-band"))).toEqual(["tomorrow", "week", "week"]);
     expect(bands.map((b) => b.textContent)).toEqual(["Tomorrow", "In 2 Days", "In 7 Days"]);
     for (const b of bands) expect(b.querySelector("time")).toBeNull();
-    expect(within(rows[0]!).getByText("Court 3 · item 14")).toBeInTheDocument();
+    // design portal-screen-fixes-work, decisions 22 and 23: "Item" with a capital; on phones the badge goes under the
+    // case number
+    expect(within(rows[0]!).getByText("Court 3 · Item 14")).toBeInTheDocument();
+    for (const r of rows) expect(r).toHaveAttribute("data-stack-trail");
     // design portal-ui-kit-fixes, decision 22: "View All", the target named for screen readers
     expect(screen.getByRole("link", { name: "View All Upcoming Hearings" })).toHaveAttribute("href", "/calendar");
   });

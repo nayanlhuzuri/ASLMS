@@ -14,6 +14,10 @@
  *   …" line from `access_basis`.
  * The next hearing, the file holder, the stage and the owner are in the summary header; the full custody card and the
  * stage history are on the Custody and stage tab.
+ *
+ * Design portal-screen-fixes-work, decisions 9 and 10: the Latest Order card says the order date once ("Show the
+ * Order" without the date; the line "Next date found in the order" only when that reading is not the one in use), and
+ * "Next Date From Orders" is its own card under it, with "View All" to the Hearings tab's Next Dates.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -78,13 +82,19 @@ function PartiesAndActs({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   );
 }
 
-function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
-  const list = useQuery({
+/** The case's latest order (one row of `GET /cases/{ref}/orders`), shared by the Latest Order and Next Date cards. */
+function useLatestOrder(caseRef: string) {
+  return useQuery({
     queryKey: [...caseKey(caseRef), "orders", 1],
     queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: 1 } }),
   });
+}
+
+function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+  const list = useLatestOrder(caseRef);
   const o = list.data?.items[0];
-  const reading = o ? readingLabel(o) : null;
+  // the reading of this order shows here only when it is not the one in use: the Next Date card says that one
+  const reading = o && c.next_date_from_orders?.order?.id !== o.id ? readingLabel(o) : null;
   return (
     <section aria-label={T.case.latestOrder}>
       <Card
@@ -105,7 +115,7 @@ function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
                 <strong>{formatDate(o.order_date)}</strong> · {labelFor(T.assistant.orderKinds, o.kind)}
               </div>
               {o.order_details ? <p className={s.orderText}>{o.order_details}</p> : null}
-              <OrderRow caseRef={caseRef} order={o} label={T.case.showOrder} />
+              <OrderRow caseRef={caseRef} order={o} label={T.case.showOrder} showDate={false} />
             </>
           ) : null}
           {reading ? (
@@ -114,10 +124,27 @@ function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
               {reading.date && o?.next_date_status === "period" ? <span className="muted"> · {reading.words}</span> : null}
             </div>
           ) : null}
-          <section className="stack" aria-label={T.nd.card}>
-            <NextDateBlock caseRef={caseRef} c={c} />
-          </section>
           <PartiesAndActs caseRef={caseRef} c={c} />
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function NextDateCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+  const latest = useLatestOrder(caseRef);
+  return (
+    <section aria-label={T.nd.card}>
+      <Card
+        title={T.nd.card}
+        actions={
+          <HeadLink href={`${casePath(caseRef, "hearings")}#next-dates`} srSuffix={T.nd.section}>
+            {T.viewAll}
+          </HeadLink>
+        }
+      >
+        <div className="stack">
+          <NextDateBlock caseRef={caseRef} c={c} latestOrderId={latest.data?.items[0]?.id ?? null} />
         </div>
       </Card>
     </section>
@@ -175,7 +202,10 @@ export function Overview({ caseRef }: { caseRef: string }) {
   return (
     <div className="stack">
       <div className={s.caseGrid}>
-        <LatestOrder caseRef={caseRef} c={c} />
+        <div className="stack">
+          <LatestOrder caseRef={caseRef} c={c} />
+          <NextDateCard caseRef={caseRef} c={c} />
+        </div>
         <RecentActivity caseRef={caseRef} />
       </div>
       <Collapsible summary={T.case.ownershipFolded}>

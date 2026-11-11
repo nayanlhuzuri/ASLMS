@@ -758,3 +758,94 @@ describe("round 2 advisories (design portal-ui-polish, decisions 6, 7, 9 and 10)
     expect(nav.back).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Design portal-screen-fixes-work, decisions 20 and 21: one score format (the kit's `ScoreLine`, the department's name
+ * then a three-decimal `ScoreBadge`), and Transfers naming the other department once, with one "requested" cell.
+ */
+describe("score lines and Transfers (portal-screen-fixes-work, decisions 20 and 21)", () => {
+  const NAMES = {
+    items: [
+      { code: "EDU", name: "Education", kind: "department", tier: "department", department_code: "EDU", is_active: true },
+      { code: "FIN", name: "Finance", kind: "department", tier: "department", department_code: "FIN", is_active: true },
+      { code: "HEALTH", name: "Health", kind: "department", tier: "department", department_code: "HEALTH", is_active: true },
+    ],
+  };
+
+  it("Pool: the department's name then the badge for a band; the name and a muted plain score without one; no code or 'Best … for'", async () => {
+    resetNav("/claim/pool");
+    browserApi(
+      routes({
+        "GET /reference/offices": NAMES,
+        "GET /inbox/pool": {
+          items: [
+            poolItem(1, { best_score: 0.912, best_office_code: "EDU", best_band: "high" }),
+            poolItem(2, { best_score: 0.312, best_office_code: "FIN", best_band: null }),
+          ],
+          total: 2,
+        },
+      }),
+    );
+    renderWithClient(<ClaimFrame tab="pool" params={{}} />);
+    const best = (n: number) =>
+      within(screen.getByRole("row", { name: `Open details of WP(C)/${n}/2026` }))
+        .getAllByRole("cell")
+        .find((c) => c.getAttribute("data-label") === "Best Score")!;
+    await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" });
+    await waitFor(() => expect(within(best(1)).getByText("Education")).toBeInTheDocument());
+    const line1 = best(1).querySelector("[data-score-line]")!;
+    expect(line1.firstElementChild).toHaveTextContent("Education");
+    expect(within(line1 as HTMLElement).getByText("Strong · 0.912")).toBeInTheDocument();
+    expect(within(best(2)).getByText("Finance")).toBeInTheDocument();
+    expect(within(best(2)).getByText("0.312")).toHaveClass("muted");
+    expect(within(best(2)).queryByText(/Strong|Possible/)).toBeNull();
+    for (const n of [1, 2]) {
+      expect(best(n).textContent).not.toMatch(/Best .* for|\bEDU\b|\bFIN\b/);
+    }
+  });
+
+  it("the pool's Why box: Best Score, then the department and its badge", async () => {
+    resetNav("/claim/pool");
+    browserApi(
+      routes({
+        "GET /reference/offices": NAMES,
+        "GET /inbox/pool": { items: [poolItem(1, { best_score: 0.912, best_office_code: "EDU", best_band: "high" })], total: 1 },
+        ...caseRoutes(ownershipView(actions({ claim: true, claim_departments: ["EDU"] }))),
+      }),
+    );
+    renderWithClient(<Routed tab="pool" initial={{}} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" }));
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    const why = await within(dialog).findByRole("complementary", { name: "Why This Is Suggested" });
+    await waitFor(() => expect(within(why).getByText("Education")).toBeInTheDocument());
+    expect(within(why).getByText("Best Score")).toBeInTheDocument();
+    expect(within(why).getByText("Strong · 0.912")).toBeInTheDocument();
+    expect(why.textContent).not.toMatch(/Best score 0|for Education/);
+  });
+
+  it("Transfers In names the From Department, Out the To Department, by name and never in mono; one Requested cell", async () => {
+    resetNav("/claim/transfers");
+    const t = transfer(1, {
+      requested_by: { id: "u-2", full_name: "Anita Sharma Baruah" },
+      requested_at: "2026-10-21T06:30:00Z",
+      stay_as_watcher: true,
+    });
+    browserApi(routes({ "GET /reference/offices": NAMES, "GET /inbox/transfers": { items: [t], total: 1 } }));
+    const { unmount } = renderWithClient(<ClaimFrame tab="transfers" params={{}} />);
+    const table = await screen.findByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "From Department" })).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Health")).toBeInTheDocument());
+    expect(table.querySelector(".mono")).toBeNull();
+    expect(table.textContent).not.toContain("→");
+    const requested = within(table).getByText((_, el) => el?.tagName === "SPAN" && el.textContent?.replace(/\u00a0/g, " ") === "Anita Sharma Baruah, 21 Oct 2026");
+    const watcher = within(table).getByText("Will Stay as Watcher");
+    expect(watcher).toHaveClass("muted");
+    expect(watcher.parentElement).toBe(requested.parentElement);
+    unmount();
+    renderWithClient(<ClaimFrame tab="transfers" params={{ direction: "out" }} />);
+    const out = await screen.findByRole("table");
+    expect(within(out).getByRole("columnheader", { name: "To Department" })).toBeInTheDocument();
+    await waitFor(() => expect(within(out).getByText("Education")).toBeInTheDocument());
+    expect(out.querySelector(".mono")).toBeNull();
+  });
+});

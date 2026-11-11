@@ -15,6 +15,7 @@ import {
   ScrollBox,
   TabToolbar,
   Button,
+  CharCounter,
   CheckField,
   Chip,
   Collapsible,
@@ -35,6 +36,7 @@ import {
   Modal,
   PageHeader,
   ScoreBadge,
+  ScoreLine,
   SegmentedSwitch,
   SelectField,
   SidePanel,
@@ -241,6 +243,34 @@ describe("Menu in a portal (design case-inbox-simplify, decisions 22 to 25)", ()
       expect(menu.style.top).toBe("");
       expect(menu.style.bottom).toBe(`${40 + 4}px`);
       expect(parseFloat(menu.style.left) + 220).toBeLessThanOrEqual(window.innerWidth - 8);
+    });
+  });
+
+  it("a list that fits on neither side is moved up until it is wholly in the viewport", () => {
+    const height = window.innerHeight - 100;
+    sized(height, 220, () => {
+      renderWithClient(<Menu label="More" items={ITEMS} align="start" />);
+      const button = screen.getByRole("button", { name: "More" });
+      place(button, rect(window.innerHeight / 2, 50));
+      fireEvent.click(button);
+      const menu = screen.getByRole("menu");
+      expect(menu.style.bottom).toBe("");
+      expect(parseFloat(menu.style.top) + height).toBeLessThanOrEqual(window.innerHeight - 8);
+      expect(parseFloat(menu.style.top)).toBeGreaterThanOrEqual(8);
+      expect(menu.style.maxHeight).toBe("");
+    });
+  });
+
+  it("a list taller than the viewport is capped at it and scrolls", () => {
+    sized(window.innerHeight + 200, 220, () => {
+      renderWithClient(<Menu label="More" items={ITEMS} align="start" />);
+      const button = screen.getByRole("button", { name: "More" });
+      place(button, rect(window.innerHeight / 2, 50));
+      fireEvent.click(button);
+      const menu = screen.getByRole("menu");
+      expect(menu.style.top).toBe("8px");
+      expect(menu.style.maxHeight).toBe(`${window.innerHeight - 16}px`);
+      expect(menu.style.overflowY).toBe("auto");
     });
   });
 
@@ -1081,5 +1111,136 @@ describe("EmptyState compact and HeadLink (design portal-ui-kit-fixes, decisions
     expect(link).toHaveAttribute("href", "/calendar");
     const arrow = within(link).getByText("→");
     expect(arrow).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+/**
+ * Design portal-screen-fixes-work, decisions 15, 16, 17, 20 and 23: the case tabs that do not fit move into More, the
+ * bare Collapsible with an aside, ListRow's stacked trail, CharCounter's floor and ScoreLine.
+ */
+describe("Tabs overflow=\"more\" (portal-screen-fixes-work, decision 16)", () => {
+  const ITEMS = [
+    { href: "/o", label: "Overview", active: false },
+    { href: "/h", label: "Hearings", active: false, count: 3 },
+    { href: "/r", label: "Orders", active: false, count: 7 },
+    { href: "/d", label: "Documents", active: false, count: 2 },
+    { href: "/n", label: "Notes", active: true, count: 12 },
+  ];
+  const MORE = [{ href: "/p", label: "Parties", active: false }];
+
+  function mockWidths() {
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute("data-measure-item")) return 120;
+      if (this.hasAttribute("data-measure-more")) return 80;
+      return 0;
+    });
+    const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "NAV" ? 400 : 0;
+    });
+    return () => {
+      width.mockRestore();
+      client.mockRestore();
+    };
+  }
+
+  it("with a 400 px row, 120 px tabs and an 80 px More: two tabs stay, the rest move to the front of More in order, with counts", async () => {
+    const restore = mockWidths();
+    try {
+      renderWithClient(<Tabs label="Case Sections" items={ITEMS} more={MORE} overflow="more" />);
+      const nav = screen.getByRole("navigation", { name: "Case Sections" });
+      expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Overview", "Hearings3 (3)"]);
+      // the current tab moved into More: the button takes its label and the underline
+      const trigger = within(nav).getByRole("button", { name: "Notes" });
+      expect(trigger.closest("[data-tab-current='true']")).not.toBeNull();
+      await userEvent.click(trigger);
+      expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Orders (7)", "Documents (2)", "Notes (12)", "Parties"]);
+      // the measuring copy is hidden and holds no link or button
+      const copy = document.querySelector("[data-tabs-measure]")!;
+      expect(copy).toHaveAttribute("aria-hidden", "true");
+      expect(copy.querySelectorAll("a, button")).toHaveLength(0);
+      expect(nav).toHaveAttribute("data-scroll-x");
+    } finally {
+      restore();
+    }
+  });
+
+  it("without overflow the output is as today: every tab in the row and no measuring copy", () => {
+    const restore = mockWidths();
+    try {
+      renderWithClient(<Tabs label="Case Sections" items={ITEMS} more={MORE} />);
+      const nav = screen.getByRole("navigation", { name: "Case Sections" });
+      expect(within(nav).getAllByRole("link")).toHaveLength(5);
+      expect(document.querySelector("[data-tabs-measure]")).toBeNull();
+      expect(within(nav).getByRole("button", { name: "More" })).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("when every tab fits nothing moves", () => {
+    renderWithClient(<Tabs label="Case Sections" items={ITEMS} overflow="more" />);
+    const nav = screen.getByRole("navigation", { name: "Case Sections" });
+    expect(within(nav).getAllByRole("link")).toHaveLength(5);
+    expect(within(nav).queryByRole("button")).toBeNull();
+  });
+});
+
+describe("Collapsible bare and aside, ListRow stackTrail, CharCounter min, ScoreLine (portal-screen-fixes-work)", () => {
+  it("Collapsible bare renders data-bare; aside sits beside the summary button, outside it", () => {
+    renderWithClient(
+      <Collapsible bare summary="Journey of This Case" aside={<a href="/x">View All</a>}>
+        body
+      </Collapsible>,
+    );
+    const button = screen.getByRole("button", { name: /Journey of This Case/ });
+    expect(button.closest("[data-bare]")).not.toBeNull();
+    const link = screen.getByRole("link", { name: "View All" });
+    expect(button.contains(link)).toBe(false);
+    expect(link.closest("[data-bare]")).toBe(button.closest("[data-bare]"));
+  });
+
+  it("a Collapsible without bare has no data-bare", () => {
+    renderWithClient(<Collapsible summary="More">body</Collapsible>);
+    expect(screen.getByRole("button", { name: /More/ }).closest("[data-bare]")).toBeNull();
+  });
+
+  it("ListRow stackTrail renders data-stack-trail", () => {
+    const { container } = renderWithClient(
+      <>
+        <ListRow trail={<span>Today</span>} stackTrail>
+          WP(C)/1/2026
+        </ListRow>
+        <ListRow trail={<span>Tomorrow</span>}>WA/2/2026</ListRow>
+      </>,
+    );
+    const rows = container.querySelectorAll("[data-stack-trail]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("WP(C)/1/2026");
+  });
+
+  it("CharCounter min reads the floor on the same line", () => {
+    renderWithClient(
+      <>
+        <CharCounter value="" max={500} min={3} />
+        <CharCounter value="ab" max={500} />
+      </>,
+    );
+    expect(screen.getByText("0 / 500 characters, at least 3")).toBeInTheDocument();
+    expect(screen.getByText("2 / 500 characters")).toBeInTheDocument();
+  });
+
+  it("ScoreLine puts the name before the badge, and shows the muted plain score without a band", () => {
+    const { container } = renderWithClient(
+      <>
+        <ScoreLine office={{ code: "EDU", name: "Education" }} score={0.912} band="high" />
+        <ScoreLine office={{ code: "FIN", name: "Finance" }} score={0.312} band={null} />
+      </>,
+    );
+    const [strong, weak] = Array.from(container.querySelectorAll("[data-score-line]"));
+    expect(strong!.firstElementChild).toHaveTextContent("Education");
+    expect(strong!.lastElementChild).toHaveTextContent("Strong · 0.912");
+    expect(weak!.firstElementChild).toHaveTextContent("Finance");
+    expect(within(weak as HTMLElement).getByText("0.312")).toHaveClass("muted");
+    expect(within(weak as HTMLElement).queryByText(/Strong|Possible/)).toBeNull();
   });
 });

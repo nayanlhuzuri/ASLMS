@@ -445,6 +445,25 @@
   flex: none;
 }
 
+/* design portal-screen-fixes-work, decision 23: on phones the trail goes under the body, at the body's left edge */
+@media (max-width: 819px) {
+  .listRow[data-stack-trail] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--s3);
+    row-gap: var(--s1);
+  }
+
+  .listRow[data-stack-trail] > .listTrail {
+    grid-column: 2;
+  }
+
+  .listRow[data-stack-trail] > .listBody:first-child,
+  .listRow[data-stack-trail] > .listBody:first-child ~ .listTrail {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ItemHead (design portal-ui-kit-fixes, decision 10): the title first, then the meta on the same line, and the badges
    at the end of the line; the badges never shrink and move onto a line of their own when the title needs the room */
 .itemHead {

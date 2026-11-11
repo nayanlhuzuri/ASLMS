@@ -34,6 +34,30 @@
   font-weight: 600;
 }
 
+/* design portal-screen-fixes-work, decision 17: the title row with a head link at its right */
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s1) var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.cardHead .cardTitle {
+  margin: 0;
+}
+
+.cardAction {
+  flex: none;
+  font-size: var(--t-sm);
+}
+
+/* the closed state's badge on the body's first line */
+.closedLine {
+  margin: 0;
+}
+
 .summary {
   display: inline-flex;
   flex-wrap: wrap;
@@ -55,12 +79,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-}
-
-.eyebrow {
-  color: var(--accent);
-  font-size: var(--t-xs);
-  font-weight: 600;
 }
 
 .taskAction {
@@ -141,9 +159,10 @@
   display: flex;
 }
 
+/* decision 17: equal-width buttons, three to a row in the 320 px rail, two rows on a narrow phone */
 .quick {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
   gap: var(--s2);
 }
 

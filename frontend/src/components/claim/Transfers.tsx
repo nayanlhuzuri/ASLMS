@@ -4,7 +4,9 @@
  * Case claim → Transfers to us (design portal-ui-redesign, decision 6; portal-cases decision 6): by default the
  * transfers to the department still requested. The two-way switch "To us | From us" keeps the outgoing transfers
  * (and Withdraw, in the modal) reachable, and the status filter stays ("Any" shows every status). Columns: Case, the
- * other department, the reason, who requested it and when, and the status. A row opens the details modal, whose
+ * other department by name (From Department on In, To Department on Out: the switch says the direction), the reason,
+ * "who, when" with "Will Stay as Watcher" on a muted second line, and the status (design portal-screen-fixes-work,
+ * decision 21). A row opens the details modal, whose
  * footer holds Accept / Decline (or Withdraw for an outgoing transfer) by the server's `actions`.
  */
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { CaseCell } from "@/components/inbox/rows";
-import { Badge, type Column, DataTable, EmptyState, ErrorBanner, Loading, Pagination, SegmentedSwitch, useOfficeName } from "@/components/ui";
+import { Badge, type Column, DataTable, EmptyState, ErrorBanner, Loading, OfficeName, Pagination, SegmentedSwitch } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { Transfer, TransferList } from "@/lib/api/types";
@@ -23,6 +25,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { labelFor } from "@/lib/displayLabels";
 
 import type { RowContext } from "./CaseModal";
+import s from "./claim.module.css";
 import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** `status=all` in the URL is "Any"; without a status, In shows the requested ones. */
@@ -39,7 +42,6 @@ export function transferStatusOf(params: Params): string {
 
 export function Transfers({ params, department, onOpen }: { params: Params; department: string; onOpen: (row: RowContext) => void }) {
   const setFilters = useFilters(params);
-  const nameOf = useOfficeName();
   const direction = params.direction === "out" ? "out" : "in";
   const status = transferStatusOf(params);
   const offset = offsetOf(params);
@@ -59,17 +61,17 @@ export function Transfers({ params, department, onOpen }: { params: Params; depa
     { key: "case", header: T.inbox.case, primary: true, cell: (t) => <CaseCell c={t.case} /> },
     {
       key: "other",
-      header: T.inbox.direction,
-      cell: (t) => T.inbox.fromTo(nameOf(t.from_office_code), nameOf(t.to_office_code)),
+      header: direction === "in" ? T.inbox.fromDepartmentCol : T.inbox.toDepartmentCol,
+      cell: (t) => <OfficeName code={direction === "in" ? t.from_office_code : t.to_office_code} />,
     },
     { key: "reason", header: T.claim.reason, cell: (t) => t.reason ?? <span className="muted">—</span> },
     {
       key: "requested",
       header: T.claim.requested,
       cell: (t) => (
-        <span className="muted">
-          {T.inbox.requested(t.requested_by?.full_name ?? "—", formatDate(t.requested_at))}
-          {t.stay_as_watcher ? ` · ${T.inbox.stayWatcher}` : ""}
+        <span className={s.requested}>
+          <span>{T.inbox.requestedCell(t.requested_by?.full_name ?? "—", formatDate(t.requested_at))}</span>
+          {t.stay_as_watcher ? <span className="muted">{T.inbox.willStayWatcherNote}</span> : null}
         </span>
       ),
     },

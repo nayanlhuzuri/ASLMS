@@ -15,7 +15,8 @@ import { Hearings } from "./Hearings";
 import { Links } from "./Links";
 import { Notes } from "./Notes";
 import { Orders } from "./Orders";
-import { orderNext } from "@/test/nextHearing";
+import { courtNext, orderNext } from "@/test/nextHearing";
+import { Rail } from "./Rail";
 
 import { Overview } from "./Overview";
 import { Parties } from "./Parties";
@@ -217,7 +218,8 @@ describe("the frame", () => {
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const header = await screen.findByRole("region", { name: "Case Summary" });
     // the status label is the badge and the Status fact (hidden on phones)
-    expect(within(header).getAllByText("Pending")).toHaveLength(2);
+    // design portal-screen-fixes-work, decision 6: the status shows once, as the badge beside the title
+    expect(within(header).getAllByText("Pending")).toHaveLength(1);
     expect(await within(header).findByText("Your Department")).toBeInTheDocument();
     // the case is with the caller and overdue: "Overdue since <date>" in danger
     expect(await within(header).findByText("Overdue since 10 Oct 2026")).toBeInTheDocument();
@@ -231,8 +233,8 @@ describe("the frame", () => {
     expect(fact("With")).toHaveTextContent("Under Secretary, Secondary Education (you)");
     expect(fact("Stage")).toHaveTextContent("Reply Due");
     expect(fact("Owner Department")).toHaveTextContent("Education");
-    expect(fact("Status")).toHaveTextContent("Pending");
-    expect(within(header).getByText("Status", { selector: "dt" }).parentElement).toHaveAttribute("data-fact", "status");
+    expect(within(header).queryByText("Status", { selector: "dt" })).toBeNull();
+    expect(within(header).getAllByRole("term").map((t) => t.textContent)).toEqual(["Next Hearing", "With", "Stage", "Owner Department"]);
     expect(within(header).queryByText("File is with")).toBeNull();
   });
 
@@ -633,24 +635,36 @@ describe("tabs", () => {
       "GET /me": me(),
       [`GET ${BASE}/notes`]: (call: { url: string }) =>
         call.url.includes("include_superseded=false")
-          ? { items: [note(2, { supersedes: { ref_no: "ASLMS/EDU/NOTE/2026/000001", seq_no: 1 } })], total: 1 }
+          ? { items: [note(2, { supersedes: { ref_no: "ASLMS/EDU/NOTE/2026/000001", seq_no: 1, created_at: "2026-10-20T11:00:00Z" } })], total: 1 }
           : {
               items: [
-                note(1, { superseded_by: { ref_no: "ASLMS/EDU/NOTE/2026/000002", seq_no: 2 } }),
-                note(2, { supersedes: { ref_no: "ASLMS/EDU/NOTE/2026/000001", seq_no: 1 } }),
+                note(1, { created_at: "2026-10-20T11:00:00Z", superseded_by: { ref_no: "ASLMS/EDU/NOTE/2026/000002", seq_no: 2, created_at: "2026-10-21T05:30:00Z" } }),
+                note(2, { created_at: "2026-10-21T05:30:00Z", supersedes: { ref_no: "ASLMS/EDU/NOTE/2026/000001", seq_no: 1, created_at: "2026-10-20T11:00:00Z" } }),
+                note(3, { supersedes: { ref_no: "ASLMS/EDU/NOTE/2026/000009", seq_no: 9, created_at: null } }),
               ],
-              total: 2,
+              total: 3,
             },
     });
     renderWithClient(<Notes caseRef={REF} />);
-    expect(await screen.findByRole("link", { name: "Corrected by ASLMS/EDU/NOTE/2026/000002" })).toHaveAttribute("href", "#note-2");
+    // design portal-screen-fixes-work, decision 14: a correction is named by its date (IST), as a link
+    expect(await screen.findByRole("link", { name: /^Corrected by the note of 21\s+Oct\s+2026, 11:00$/ })).toHaveAttribute("href", "#note-2");
     // design portal-ui-kit-fixes, decision 14: the kind first as a <strong>, the visibility badge in the badges slot
     const head = document.querySelector("#note-1 [data-ui='item-head']") as HTMLElement;
     expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
     expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Remark");
     expect(head.lastElementChild!.textContent).toBe("Everyone with the Case");
     expect(head.querySelector("[data-lead]")).toBeNull();
-    expect(screen.getByRole("link", { name: "Corrects ASLMS/EDU/NOTE/2026/000001" })).toHaveAttribute("href", "#note-1");
+    expect(screen.getByRole("link", { name: /^Corrects the note of 20\s+Oct\s+2026, 16:30$/ })).toHaveAttribute("href", "#note-1");
+    // an original the reader may not read: no date and no link
+    const earlier = screen.getByText("Corrects an earlier note");
+    expect(earlier.closest("a")).toBeNull();
+    // no internal number in sight, the anchors stay
+    expect(document.body.textContent).not.toMatch(/ASLMS\/EDU\/NOTE/);
+    expect(document.getElementById("note-ASLMS-EDU-NOTE-2026-000001") ?? document.querySelector("[id*='NOTE-2026-000001']")).not.toBeNull();
+    // the list sits in a card headed Notes, with the check in its head
+    const card = screen.getByRole("heading", { name: "Notes" }).closest("section")!;
+    expect(within(card).getByLabelText("Hide Corrected Notes")).toBeInTheDocument();
+    expect(within(card).getByRole("list", { name: "Notes" })).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Hide Corrected Notes"));
     await waitFor(() => expect(screen.queryByText("body 1")).toBeNull());
     expect(api.calls.some((c) => c.url.includes("include_superseded=false"))).toBe(true);
@@ -1266,15 +1280,14 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     // 12:00 IST on 17 Nov 2026: the 20th is in 3 days (design next-hearing-highlight, decision 5)
     vi.useFakeTimers({ now: new Date("2026-11-17T06:30:00Z"), toFake: ["Date"] });
     let r = await card(detail({ next_date_from_orders: nd() }));
-    const ndBadge = () => r.region.querySelector("[data-band]") as HTMLElement;
-    // a date read from an order that matches the court's is firm: filled, no "Suggested"
-    expect(ndBadge()).toHaveAttribute("data-band", "week");
-    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
-    expect(ndBadge()).toHaveTextContent(/^In 3 Days · Fri, 20 Nov 2026$/);
-    expect(within(r.region).getByText("Fixed in the order of 12 Oct 2026")).toBeInTheDocument();
+    // design portal-screen-fixes-work, decision 10: the date in use is one plain line, not a third badge
+    const line = () => r.region.querySelector("[data-reading-line]") as HTMLElement;
+    expect(r.region.querySelector("[data-band]")).toBeNull();
+    expect(line()).toHaveTextContent(/^20 Nov 2026 · Fixed in the order of 12 Oct 2026$/);
     expect(within(r.region).getByText("What the Order Says")).toBeInTheDocument();
     expect(within(r.region).getByText("“List on 20.11.2026.”")).toBeInTheDocument();
-    expect(within(r.region).getByRole("link", { name: "All Next Dates" })).toHaveAttribute("href", `${BASE}/hearings#next-dates`);
+    expect(within(r.region).queryByRole("link", { name: "All Next Dates" })).toBeNull();
+    expect(within(r.region).getByRole("link", { name: "View All Next Dates" })).toHaveAttribute("href", `${BASE}/hearings#next-dates`);
     r.unmount();
     r = await card(
       detail({
@@ -1286,8 +1299,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
         }),
       }),
     );
-    expect(within(r.region).getByText("Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026")).toBeInTheDocument();
-    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
+    expect(line()).toHaveTextContent(/^20 Nov 2026 · Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026$/);
     r.unmount();
     // design next-date-direct, decision 8: a period read from the latest order is shown directly, around
     r = await card(
@@ -1296,8 +1308,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
         next_hearing: orderNext("2026-11-20", { basis: "around", approximate: true, basis_words: "after 5 weeks", rule: "list_after_period" }),
       }),
     );
-    expect(ndBadge()).toHaveAttribute("data-kind", "around");
-    expect(ndBadge()).toHaveTextContent(/^Around · In 3 Days · Fri, 20 Nov 2026$/);
+    expect(line()).toHaveTextContent(/^Around 20 Nov 2026 · Counted from the order of 12 Oct 2026$/);
     r.unmount();
     r = await card(
       detail({
@@ -1311,9 +1322,8 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
         }),
       }),
     );
-    expect(within(r.region).getByText("Entered by Officer One on 15 Oct 2026")).toBeInTheDocument();
+    expect(line()).toHaveTextContent(/^20 Nov 2026 · Entered by Officer One on 15 Oct 2026$/);
     expect(within(r.region).getByText(/Fixed by the court orally/)).toBeInTheDocument();
-    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
     r.unmount();
     r = await card(detail({ next_date_from_orders: null }));
     expect(within(r.region).getByText("No next date from the orders yet.")).toBeInTheDocument();
@@ -1463,7 +1473,13 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getByText("Used for the Calendar")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("ASLMS-EDU-NXT-2026-000001")).toHaveClass("mono");
+    // design portal-screen-fixes-work, decision 12: the internal number is the date cell's title, never in sight
+    expect(within(rows[0]!).queryByText("ASLMS-EDU-NXT-2026-000001")).toBeNull();
+    expect(table.querySelector(".mono")).toBeNull();
+    expect(within(rows[0]!).getByText("1 Dec 2026")).toHaveAttribute("title", "ASLMS-EDU-NXT-2026-000001");
+    // the order cell reads "Order of …" with "No. 4" muted under it
+    expect(within(rows[1]!).getByText("Order of 12 Oct 2026")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("No. 4")).toHaveClass("muted");
     expect(within(rows[0]!).getByText("Entered by Hand")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("Officer One, 15 Oct 2026")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("Fixed orally")).toBeInTheDocument();
@@ -1880,5 +1896,147 @@ describe("the closure lines of the header (design close-case, decision 19)", () 
     expect(within(header).queryByRole("button", { name: "Send Case" })).toBeNull();
     await userEvent.click(within(header).getByRole("button", { name: "More Actions" }));
     expect(screen.getByRole("menuitem", { name: "Send Case" })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Design portal-screen-fixes-work, decisions 8 to 10 and 15: the header's next hearing without its explanation (the
+ * rail keeps it), the Latest Order card saying the date once, the Next Date From Orders card with one toolbar, and the
+ * Documents tab's uploader column and visibility cell.
+ */
+describe("the case page after the screen fixes (portal-screen-fixes-work, decisions 8 to 10 and 15)", () => {
+  const ORDER = {
+    id: "o-4",
+    order_no: "4",
+    order_date: "2026-10-12",
+    kind: "interim",
+    order_details: "Issue notice",
+    order_judge_name: "X",
+    download_status: "stored",
+    document_id: "d-4",
+    next_date_status: "period",
+    next_date_found: "2026-11-20",
+  };
+  const ND = {
+    id: "nd-1",
+    ref_no: null,
+    next_date: "2026-11-20",
+    source: "order_period",
+    confidence: 0.95,
+    needs_review: false,
+    review_status: "not_needed",
+    order: { id: "o-4", order_no: "4", order_date: "2026-10-12", document_id: "d-4", phrase: "List after five weeks.", rule: "list_after_period" },
+    note: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    created_by: null,
+    created_at: "2026-10-12T10:00:00Z",
+  };
+  const DIFFERS = courtNext("2026-11-20", { differs: { date: "2026-11-25", order: { id: "o-4", order_no: "4", order_date: "2026-10-12", document_id: "d-4" } } });
+
+  it("the header's next hearing has no basis or differs line but keeps the Order Differs chip; the rail's card has both lines", async () => {
+    const c = detail({ next_hearing: DIFFERS, status: { ...detail().status, next_hearing_date: "2026-11-20" } } as Partial<CaseDetail>);
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: c, [`GET ${BASE}/listings`]: { items: [], total: 0 }, [`GET ${BASE}/custody`]: { card: null, legs: [], total: 0, remarks_shown: true } });
+    const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case Summary" });
+    const fact = within(header).getByText("Next Hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(fact.querySelector("[data-differs='true']")).not.toBeNull();
+    expect(fact.textContent).not.toMatch(/court's record is used|From the court's records/);
+    expect(fact.querySelector("[data-reported]")).toBeNull();
+    unmount();
+    renderWithClient(<Rail c={c} caseRef={REF} wide onAction={() => {}} onRemarks={() => {}} />);
+    const rail = await screen.findByRole("region", { name: "Next Hearing" });
+    expect(rail.querySelector("[data-differs='true']")).not.toBeNull();
+    expect(rail.textContent).toMatch(/From the court's records/);
+    expect(rail.textContent).toMatch(/The court's record is used\./);
+  });
+
+  it("Latest Order: Show the Order without the date; with the latest order's reading in use, no 'found in the order' line and 'Counted from this order'", async () => {
+    const c = detail({ next_date_from_orders: ND } as Partial<CaseDetail>);
+    browserApi({ ...overviewRoutes(c, ownership(actions())), [`GET ${BASE}/orders`]: { items: [ORDER], total: 1 } });
+    renderWithClient(<Overview caseRef={REF} />);
+    const latest = await screen.findByRole("region", { name: "Latest Order" });
+    const summary = await within(latest).findByRole("button", { name: /Show the Order/ });
+    expect(summary.textContent).toBe("Show the Order");
+    expect(within(latest).queryByText(/Next date found in the order/)).toBeNull();
+    const card = screen.getByRole("region", { name: "Next Date From Orders" });
+    await waitFor(() => expect(card.querySelector("[data-reading-line]")).toHaveTextContent(/^20 Nov 2026 · Counted from this order$/));
+  });
+
+  it("an older reading in use keeps the 'found in the order' line on the Latest Order card", async () => {
+    const c = detail({ next_date_from_orders: { ...ND, order: { ...ND.order, id: "o-3" } } } as Partial<CaseDetail>);
+    browserApi({ ...overviewRoutes(c, ownership(actions())), [`GET ${BASE}/orders`]: { items: [ORDER], total: 1 } });
+    renderWithClient(<Overview caseRef={REF} />);
+    const latest = await screen.findByRole("region", { name: "Latest Order" });
+    expect(await within(latest).findByText(/Next date found in the order: 20 Nov 2026/)).toBeInTheDocument();
+  });
+
+  it("Next Date From Orders is a card with View All to #next-dates, and its three buttons share one toolbar", async () => {
+    const c = detail({
+      next_date_from_orders: ND,
+      workflow: { ...detail().workflow, next_dates: true, next_date_report: true, next_date_correct: true },
+    } as Partial<CaseDetail>);
+    browserApi({ ...overviewRoutes(c, ownership(actions())), [`GET ${BASE}/orders`]: { items: [ORDER], total: 1 } });
+    renderWithClient(<Overview caseRef={REF} />);
+    const card = await screen.findByRole("region", { name: "Next Date From Orders" });
+    expect(within(card).getByRole("heading", { name: "Next Date From Orders" })).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "View All Next Dates" })).toHaveAttribute("href", `${BASE}/hearings#next-dates`);
+    const toolbar = within(card).getByRole("button", { name: "Report Wrong Next Date" }).parentElement!;
+    expect(within(toolbar).getAllByRole("button").map((b) => b.textContent)).toEqual(["Report Wrong Next Date", "Correct It", "Enter Next Date"]);
+  });
+
+  const doc = (id: string, group: string, extra: Partial<DocumentItem> = {}): DocumentItem =>
+    ({
+      id,
+      doc_group: group,
+      doc_type: "order",
+      doc_type_label: "Order",
+      doc_date: "2026-09-01",
+      description: `${id} description`,
+      original_filename: `${id}.pdf`,
+      mime: "application/pdf",
+      size_bytes: 2048,
+      page_count: 2,
+      uploaded_by: null,
+      office: null,
+      visibility: "case_scope",
+      assistant_available: true,
+      sourcetrace_status: "ingested",
+      text_status: "extracted",
+      archived_at: null,
+      ...extra,
+    }) as DocumentItem;
+
+  function documents(records: DocumentItem[]) {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/documents`]: (call: { url: string }) => {
+        const g = new URL(call.url, "http://x").searchParams.get("group");
+        return g === "court_record" ? { items: records, total: records.length } : { items: [], total: 0 };
+      },
+    });
+  }
+
+  it("Documents: court orders with no uploader have no Uploaded By column; one uploaded document on the page brings it back", async () => {
+    documents([doc("o-1", "court_record"), doc("o-2", "court_record")]);
+    const { unmount } = renderWithClient(<Documents caseRef={REF} />);
+    let orders = await screen.findByRole("region", { name: "Court Orders" });
+    expect(within(orders).queryByRole("columnheader", { name: "Uploaded By" })).toBeNull();
+    expect(within(orders).getAllByText("2 pages").length).toBeGreaterThan(0);
+    unmount();
+    documents([doc("o-1", "court_record"), doc("o-3", "court_record", { uploaded_by: { name: "Edu Admin", office_code: "EDU", designation: null } })]);
+    renderWithClient(<Documents caseRef={REF} />);
+    orders = await screen.findByRole("region", { name: "Court Orders" });
+    expect(within(orders).getByRole("columnheader", { name: "Uploaded By" })).toBeInTheDocument();
+  });
+
+  it("Documents: the visibility cell's text state is its own line after the badges row", async () => {
+    documents([doc("o-1", "court_record")]);
+    renderWithClient(<Documents caseRef={REF} />);
+    const orders = await screen.findByRole("region", { name: "Court Orders" });
+    const state = within(orders).getByText("Text: Searchable");
+    const badges = within(orders).getByText("In Case Assistant").closest("div")!;
+    expect(badges.contains(state)).toBe(false);
+    expect(badges.nextElementSibling).toBe(state);
   });
 });

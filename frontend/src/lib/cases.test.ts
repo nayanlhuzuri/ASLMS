@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { CustodyBrief, CustodyCard, HeldItem, MyCase, SentItem } from "./api/types";
-import { cardHolder, cardSender, leadBadge, legHolder, withText } from "./cases";
+import type { CustodyCard, SentItem } from "./api/types";
+import { cardHolder, cardSender, isNewSince, legHolder, sentDue, withText } from "./cases";
 
 // 25 Oct 2026, 12:00 IST
 const NOW = new Date("2026-10-25T06:30:00Z");
@@ -28,7 +28,6 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
   };
 }
 
-const heldRow = (extra: Partial<CustodyCard> = {}): HeldItem => ({ case: {} as HeldItem["case"], card: card(extra) });
 
 function sentRow(current: boolean | null, due: string | null): SentItem {
   return {
@@ -54,77 +53,21 @@ function sentRow(current: boolean | null, due: string | null): SentItem {
   };
 }
 
-describe("leadBadge (case-workspace-admin, decision 19), first match wins", () => {
-  it("Cases with Me: Overdue, Due soon, New within 48 h, else no badge", () => {
-    expect(leadBadge(heldRow({ overdue: true, due_soon: false }), "with-me", NOW)).toEqual({ label: "Overdue", tone: "danger" });
-    // overdue wins over due soon and new
-    expect(leadBadge(heldRow({ overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "with-me", NOW)!.label).toBe("Overdue");
-    expect(leadBadge(heldRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "with-me", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
-    // the 48 h edge: exactly 48 h ago is still new, a minute more is not
-    expect(leadBadge(heldRow({ since: "2026-10-23T06:30:00Z" }), "with-me", NOW)).toEqual({ label: "New", tone: "info" });
-    expect(leadBadge(heldRow({ since: "2026-10-23T06:29:00Z" }), "with-me", NOW)).toBeNull();
-    expect(leadBadge(heldRow(), "with-me", NOW)).toBeNull();
-    expect(leadBadge({ case: {} as HeldItem["case"], card: null }, "with-me", NOW)).toBeNull();
+describe("isNewSince and sentDue (portal-screen-fixes-work, decisions 3 and 5)", () => {
+  it("New within 48 hours of receipt, not before or after", () => {
+    expect(isNewSince("2026-10-23T06:30:00Z", NOW)).toBe(true);
+    expect(isNewSince("2026-10-23T06:29:00Z", NOW)).toBe(false);
+    expect(isNewSince("2026-10-26T06:30:00Z", NOW)).toBe(false);
+    expect(isNewSince(null, NOW)).toBe(false);
   });
 
-  it("Pending Action: Overdue, Due soon, else Waiting (never New)", () => {
-    expect(leadBadge(heldRow({ overdue: true }), "pending", NOW)!.label).toBe("Overdue");
-    expect(leadBadge(heldRow({ due_soon: true }), "pending", NOW)!.label).toBe("Due Soon");
-    expect(leadBadge(heldRow({ since: "2026-10-25T06:00:00Z" }), "pending", NOW)).toEqual({ label: "Waiting" });
-    expect(leadBadge(heldRow(), "pending", NOW)).toEqual({ label: "Waiting" });
-  });
-
-  it("Sent by Me: only while the leg is current, Overdue, Due soon or Waiting; nothing when not current or not known", () => {
-    expect(leadBadge(sentRow(true, "2026-10-24"), "sent", NOW)).toEqual({ label: "Overdue", tone: "danger" });
-    expect(leadBadge(sentRow(true, "2026-10-27"), "sent", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
-    expect(leadBadge(sentRow(true, "2026-10-28"), "sent", NOW)).toEqual({ label: "Waiting" });
-    expect(leadBadge(sentRow(true, null), "sent", NOW)).toEqual({ label: "Waiting" });
-    expect(leadBadge(sentRow(false, "2026-10-24"), "sent", NOW)).toBeNull();
-    expect(leadBadge(sentRow(null, "2026-10-24"), "sent", NOW)).toBeNull();
-  });
-});
-
-function workingRow(extra: Partial<CustodyBrief> | null): MyCase {
-  return {
-    case: {} as MyCase["case"],
-    owner_code: "EDU",
-    stage: null,
-    allotment: null,
-    reasons: ["file"],
-    custody:
-      extra === null
-        ? null
-        : {
-            holder_office: { code: "EDU", name: "Education" },
-            holder_user: null,
-            with_me: true,
-            pending_action: "examine",
-            pending_action_label: "Examine",
-            since: "2026-10-01T10:00:00Z",
-            due_date: null,
-            overdue: false,
-            overdue_days: 0,
-            due_soon: false,
-            sent_by: null,
-            ...extra,
-          },
-  };
-}
-
-describe("leadBadge on Working on (case-inbox-merge, decision 8): only a case with me", () => {
-  it("Overdue before Due soon before New (48 h boundary)", () => {
-    expect(leadBadge(workingRow({ overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({
-      label: "Overdue",
-      tone: "danger",
-    });
-    expect(leadBadge(workingRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
-    expect(leadBadge(workingRow({ since: "2026-10-23T06:30:00Z" }), "working", NOW)).toEqual({ label: "New", tone: "info" });
-    expect(leadBadge(workingRow({ since: "2026-10-23T06:29:00Z" }), "working", NOW)).toBeNull();
-  });
-
-  it("no badge when the case is not with me, or with no custody row", () => {
-    expect(leadBadge(workingRow({ with_me: false, overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toBeNull();
-    expect(leadBadge(workingRow(null), "working", NOW)).toBeNull();
+  it("Sent by Me: overdue by whole IST days, due soon within the window, a moved-on leg only its date", () => {
+    expect(sentDue(sentRow(true, "2026-10-22"), NOW)).toEqual({ date: "2026-10-22", overdue: true, overdueDays: 3, dueSoon: false });
+    expect(sentDue(sentRow(true, "2026-10-27"), NOW)).toEqual({ date: "2026-10-27", overdue: false, overdueDays: 0, dueSoon: true });
+    expect(sentDue(sentRow(true, "2026-10-28"), NOW)).toEqual({ date: "2026-10-28", overdue: false, overdueDays: 0, dueSoon: false });
+    expect(sentDue(sentRow(true, null), NOW)).toEqual({ date: null, overdue: false, overdueDays: 0, dueSoon: false });
+    expect(sentDue(sentRow(false, "2026-10-24"), NOW)).toEqual({ date: "2026-10-24", overdue: false, overdueDays: 0, dueSoon: false });
+    expect(sentDue(sentRow(null, "2026-10-24"), NOW).overdue).toBe(false);
   });
 });
 

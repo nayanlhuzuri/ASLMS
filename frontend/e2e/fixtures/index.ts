@@ -786,9 +786,10 @@ function held(): HeldList {
   const first = base.items[0]!;
   const card = first.card!;
   const recent = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  // design portal-screen-fixes-work, decision 5: an overdue card with a due date in the past and one due soon
   const variants: Partial<NonNullable<typeof card>>[] = [
-    { overdue: true, overdue_days: 12, due_soon: false },
-    { overdue: false, overdue_days: 0, due_soon: true },
+    { overdue: true, overdue_days: 12, due_soon: false, due_date: istDayPlus(-12) },
+    { overdue: false, overdue_days: 0, due_soon: true, due_date: istDayPlus(1) },
     { overdue: false, overdue_days: 0, due_soon: false, since: recent },
     { overdue: false, overdue_days: 0, due_soon: false, due_date: null },
   ];
@@ -1020,10 +1021,76 @@ function notes(): NoteList {
   const ref = (seq: number) => `ASLMS/EDU/NOTE/2026/00000${seq}`;
   const note = (seq: number, extra: Partial<Note>): Note => ({ ...n, id: `0192a3b4-0000-7000-8000-00000000040${seq}`, seq_no: seq, ref_no: ref(seq), draft: false, ...extra });
   const items = [
-    note(1, { body: STRESS.sentence, superseded_by: { ref_no: ref(3), seq_no: 3 }, supersedes: null }),
+    // design portal-screen-fixes-work, decision 14: a correction is named by its date
+    note(1, {
+      body: STRESS.sentence,
+      created_at: "2026-10-20T11:00:00Z",
+      superseded_by: { ref_no: ref(3), seq_no: 3, created_at: "2026-10-21T05:30:00Z" },
+      supersedes: null,
+    }),
     note(2, { body: "Seen; put up with the counsel's opinion.", supersedes: null, superseded_by: null }),
-    note(3, { body: `${STRESS.sentence} (corrected)`, supersedes: { ref_no: ref(1), seq_no: 1 }, superseded_by: null }),
+    note(3, {
+      body: `${STRESS.sentence} (corrected)`,
+      created_at: "2026-10-21T05:30:00Z",
+      supersedes: { ref_no: ref(1), seq_no: 1, created_at: "2026-10-20T11:00:00Z" },
+      superseded_by: null,
+    }),
   ];
+  return { ...base, items, total: items.length };
+}
+
+/**
+ * The unclaimed pool (design portal-screen-fixes-work, decision 20): a best score in the strong band, one below the
+ * possible band (name and plain score, no badge), and a case with no score.
+ */
+function pool(): S["PoolListOut"] {
+  const base = synthFor("/inbox/pool")!.body as S["PoolListOut"];
+  const first = base.items[0]!;
+  const rows: Partial<S["PoolCaseOut"]>[] = [
+    { best_score: 0.912, best_office_code: "EDU", best_band: "high" },
+    { best_score: 0.312, best_office_code: "HEALTH", best_band: null },
+    { best_score: null, best_office_code: null, best_band: null },
+  ];
+  const items = rows.map((r, i) => ({ ...first, ...r, case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}` } }));
+  return { ...base, items, total: items.length };
+}
+
+/** The alerts list (design portal-screen-fixes-work, decision 19): the title's summary, the case once as the link. */
+function alertsList(): AlertList {
+  const base = synthFor("/alerts")!.body as AlertList;
+  const first = base.items[0]!;
+  const caseNo = first.case?.case_no_text ?? STRESS.caseNo;
+  const items = [
+    { ...first, kind: "hearing_due", title: `Hearing in three days: ${caseNo}`, summary: "Hearing in three days", case_visible: true, read_at: null },
+    { ...first, id: "0192a3b4-0000-7000-8000-000000000611", kind: "admin_ticket", case: null, ticket_ref: SAMPLE.ticketRef, title: "Head change requested", summary: "Head change requested" },
+  ];
+  return { ...base, items, total: items.length };
+}
+
+/** Next Dates to Enter (design portal-screen-fixes-work, decision 18): one answer-by date passed, one still ahead. */
+function nextDatesReview(): S["NextDateReviewListOut"] {
+  const base = synthFor("/next-dates/review")!.body as S["NextDateReviewListOut"];
+  const first = base.items[0]!;
+  const items = [
+    { ...first, kind: "enter" as const, act_by: istDayPlus(-18) },
+    { ...first, kind: "enter" as const, id: "0192a3b4-0000-7000-8000-000000000621", act_by: istDayPlus(2) },
+  ];
+  return { ...base, items, total: items.length };
+}
+
+/** A documents page of court orders with no uploader (design portal-screen-fixes-work, decision 15): no Uploaded By. */
+function documentsPage(url: URL): S["DocumentListOut"] {
+  const base = synthFor("/cases/x/documents")!.body as S["DocumentListOut"];
+  const first = base.items[0]!;
+  if (url.searchParams.get("group") !== "court_record") return base;
+  const items = [0, 1].map((i) => ({
+    ...first,
+    id: `0192a3b4-0000-7000-8000-00000000063${i}`,
+    doc_group: "court_record",
+    uploaded_by: null,
+    office: null,
+    page_count: 2,
+  }));
   return { ...base, items, total: items.length };
 }
 
@@ -1409,7 +1476,10 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/cases\/[^/]+\/notes$/, () => notes()],
   [/^\/reports$/, () => catalogue()],
   [/^\/reports\/[^/]+$/, (url) => report(url.pathname.split("/").pop()!)],
-  [/^\/alerts$/, () => emptyList<AlertList>("AlertListOut")],
+  [/^\/alerts$/, () => alertsList()],
+  [/^\/inbox\/pool$/, () => pool()],
+  [/^\/next-dates\/review$/, () => nextDatesReview()],
+  [/^\/cases\/[^/]+\/documents$/, (url) => documentsPage(url)],
   [/^\/custody\/sent$/, (url) => sent(url)],
   // design case-inbox-simplify, decision 4: the matcher reads `view` (the API's parameter); the portal reads `all`
   [

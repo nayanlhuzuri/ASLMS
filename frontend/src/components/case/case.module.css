@@ -41,7 +41,7 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s4);
   margin: 0;
   padding-top: var(--s4);
@@ -57,6 +57,51 @@
 .facts dd {
   margin: var(--s1) 0 0;
   font-weight: 500;
+}
+
+/* design portal-screen-fixes-work, decision 7: the custody and stage cards' own facts grid; a remark or note takes the
+   card's full width under the short facts */
+.cardFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: var(--s4);
+  margin: 0;
+}
+
+.cardFacts dt {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.cardFacts dd {
+  margin: var(--s1) 0 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.cardFacts .wide {
+  grid-column: 1 / -1;
+}
+
+/* design portal-screen-fixes-work, decision 15: the Documents visibility cell, its badges in one wrapping row and the
+   text state on its own line under them */
+.docVisibility {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.docBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.docState {
+  display: block;
+  font-size: var(--t-sm);
 }
 
 .factLine {
@@ -163,10 +208,6 @@
     width: 100%;
   }
 
-  /* decision 9: on phones the status badge stays and the Status fact is hidden */
-  .factStatus {
-    display: none;
-  }
 }
 
 /* design case-workspace-admin, decision 8 (template A, "Workspace with action rail"): from 1100 px the tabs card and

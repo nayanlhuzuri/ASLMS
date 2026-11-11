@@ -1893,6 +1893,7 @@ def alert_item(
 ) -> dict[str, Any]:
     kind = alert.kind.value if hasattr(alert.kind, "value") else str(alert.kind)
     ack = users.get(alert.acknowledged_by_user_id) if alert.acknowledged_by_user_id else None
+    case_ref = calendar.case_ref(case) if case is not None else None
     return {
         "id": alert.id,
         "ref_no": alert.ref_no,
@@ -1901,9 +1902,11 @@ def alert_item(
         "severity": Severity(alert.severity).value,
         "status": AlertStatus(alert.status).value,
         "title": alert.title,
+        # design portal-screen-fixes-work, decision 19: the title without its case number
+        "summary": rules.title_without_case(alert.title, case_ref),
         "body": alert.body,
         "due_at": alert.due_at,
-        "case": calendar.case_ref(case) if case is not None else None,
+        "case": case_ref,
         "ticket_ref": (alert.data or {}).get("ticket_ref") if case is None else None,
         "data": alert.data or {},
         "notified_at": notified_at,

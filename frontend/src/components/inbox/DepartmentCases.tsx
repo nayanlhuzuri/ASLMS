@@ -32,7 +32,7 @@ import { nameOptions } from "@/lib/officeNames";
 import { useFilters } from "./common";
 import { isFiltered, useStageOptions } from "./MyCases";
 import s from "./inbox.module.css";
-import { CaseCell, Chevron, ClosureSwitch, CountLine, HolderCell, ClosureBadge, StageCell } from "./rows";
+import { CaseCell, Chevron, closureMark, ClosureSwitch, CountLine, HolderCell, StageCell } from "./rows";
 import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
@@ -161,15 +161,11 @@ export function DepartmentCases({ params, department, block }: { params: Params;
     },
   ];
   const columns: Column<Ownership>[] = [
-    { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
+    // design portal-screen-fixes-work, decision 4: Ready to Close and Closed are marks of the case, under its number
+    { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} marks={[closureMark(r.case)]} /> },
     { key: "allot", header: T.inbox.unitOfficer, cell: (r) => <AllotmentCell row={r} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => (
-        <span className={s.nextCell}>
-          <HearingDate next={r.case.next_hearing} status={r.case.status} />
-          <ClosureBadge c={r.case} />
-        </span>
-      ) },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
     { key: "holder", header: T.inbox.fileWith, cell: (r) => <HolderCell custody={r.custody} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];

@@ -147,16 +147,25 @@ export interface TabItem {
  * tab's label when one of its items is current. Tab rows scroll sideways rather than clip: the row carries
  * `data-scroll-x`, one of the three places the browser check (`frontend/e2e`, design portal-ui-polish, decision 21)
  * allows to scroll sideways, because a row of tabs on a phone is better scrolled than wrapped or cut.
+ *
+ * `overflow="more"` (design portal-screen-fixes-work, decision 16; the case page only): a hidden measuring copy of the
+ * row draws every item with its count and the More trigger; before paint the row keeps as many leading items as fit
+ * with More, and the rest move, in order, to the front of the `more` group, each with its count ("Notes (12)"). A
+ * `ResizeObserver` on the row and the copy and `document.fonts.ready` measure again. The first paint shows every tab;
+ * `data-scroll-x` stays as the fallback when not even one tab and More fit.
  */
 export function Tabs({
   items,
   label,
   more,
   onSelect,
+  overflow = "scroll",
 }: {
   items: TabItem[];
   label: string;
   more?: TabItem[];
+  /** `scroll` (default): the row scrolls sideways; `more`: the tabs that do not fit move into More. */
+  overflow?: "scroll" | "more";
   /**
    * Takes over a plain click on a tab (the User Details modal keeps its tab in the address without a new history
    * entry, design portal-ui-polish-2, decision 31); a click with a modifier key still opens the link.
@@ -164,8 +173,60 @@ export function Tabs({
   onSelect?: (href: string) => void;
 }) {
   const nav = useRef<HTMLElement>(null);
+  const measure = useRef<HTMLDivElement>(null);
   const [ink, setInk] = useState<{ left: number; width: number } | null>(null);
+  // how many leading items stay in the row (`overflow="more"`); null: every item, as on the first paint
+  const [fit, setFit] = useState<number | null>(null);
   const activeKey = [...items, ...(more ?? [])].find((t) => t.active)?.href ?? "";
+  const collapsing = overflow === "more";
+  const itemsKey = items.map((t) => `${t.href}|${t.label}|${t.count ?? ""}`).join("~");
+
+  useIsoLayoutEffect(() => {
+    if (!collapsing) return;
+    const el = nav.current;
+    const copy = measure.current;
+    if (!el || !copy) return;
+    const count = () => {
+      const widths = Array.from(copy.querySelectorAll<HTMLElement>("[data-measure-item]")).map((n) => n.offsetWidth);
+      const trigger = copy.querySelector<HTMLElement>("[data-measure-more]")?.offsetWidth ?? 0;
+      const style = typeof window !== "undefined" ? window.getComputedStyle(el) : null;
+      const gap = parseFloat(style?.columnGap ?? "") || 0;
+      const room = el.clientWidth;
+      const fixedMore = (more?.length ?? 0) > 0;
+      const span = (n: number) => widths.slice(0, n).reduce((a, w) => a + w, 0) + Math.max(0, n - 1) * gap;
+      const all = span(widths.length) + (fixedMore ? gap + trigger : 0);
+      if (all <= room) {
+        setFit(null);
+        return;
+      }
+      let k = widths.length;
+      while (k > 0 && span(k) + gap + trigger > room) k -= 1;
+      // not even one tab and More fit: keep one and let the row scroll (`data-scroll-x`)
+      setFit(Math.max(1, k));
+    };
+    count();
+    let live = true;
+    const fonts = typeof document !== "undefined" ? (document as Document & { fonts?: FontFaceSet }).fonts : undefined;
+    fonts?.ready?.then(() => {
+      if (live) count();
+    });
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        live = false;
+      };
+    }
+    const observer = new ResizeObserver(count);
+    observer.observe(el);
+    observer.observe(copy);
+    return () => {
+      live = false;
+      observer.disconnect();
+    };
+  }, [collapsing, itemsKey, more?.length]);
+
+  const shown = collapsing && fit !== null && fit < items.length ? items.slice(0, fit) : items;
+  const moved = collapsing && fit !== null && fit < items.length ? items.slice(fit) : [];
+  const moreItems = [...moved, ...(more ?? [])];
 
   useIsoLayoutEffect(() => {
     const el = nav.current;
@@ -194,12 +255,13 @@ export function Tabs({
       live = false;
       observer.disconnect();
     };
-  }, [activeKey, items.length, more?.length]);
+  }, [activeKey, items.length, more?.length, fit]);
 
-  const moreCurrent = (more ?? []).find((t) => t.active);
-  return (
-    <nav aria-label={label} className={s.tabs} ref={nav} data-scroll-x="">
-      {items.map((t) => (
+  const moreCurrent = moreItems.find((t) => t.active);
+  const withCount = (t: TabItem) => (t.count !== undefined && t.count !== null ? `${t.label} (${formatNumber(t.count)})` : t.label);
+  const row = (
+    <nav aria-label={label} className={s.tabs} ref={nav} data-scroll-x="" data-overflow={collapsing ? "more" : undefined}>
+      {shown.map((t) => (
         <Link
           key={t.href}
           href={t.href}
@@ -226,7 +288,7 @@ export function Tabs({
           {t.count !== undefined && t.count !== null ? <span className="visually-hidden"> ({formatNumber(t.count)})</span> : null}
         </Link>
       ))}
-      {more && more.length > 0 ? (
+      {moreItems.length > 0 ? (
         <span className={s.tabMore} data-tab="" data-tab-current={moreCurrent ? "true" : undefined}>
           <Menu
             label={moreCurrent ? moreCurrent.label : T.kit.more}
@@ -237,13 +299,32 @@ export function Tabs({
               </>
             }
             triggerClassName={cx(s.tab, s.tabMoreButton, moreCurrent && s.tabMoreCurrent)}
-            items={more.map((t) => ({ key: t.href, href: t.href, label: t.label, current: t.active }))}
+            items={moreItems.map((t) => ({ key: t.href, href: t.href, label: moved.includes(t) ? withCount(t) : t.label, current: t.active }))}
             align="start"
           />
         </span>
       ) : null}
       {ink ? <span className={s.ink} aria-hidden="true" style={{ left: ink.left, width: ink.width }} data-testid="tab-ink" /> : null}
     </nav>
+  );
+  if (!collapsing) return row;
+  return (
+    <>
+      {row}
+      {/* the measuring copy: every item with its count, and the More trigger; never seen, never focused */}
+      <div ref={measure} className={s.tabsMeasure} aria-hidden="true" data-tabs-measure="">
+        {items.map((t) => (
+          <span key={t.href} className={s.tab} data-measure-item="">
+            {t.label}
+            {t.count !== undefined && t.count !== null ? <span className={s.tabCount}>{formatNumber(t.count)}</span> : null}
+          </span>
+        ))}
+        <span className={cx(s.tab, s.tabMoreButton)} data-measure-more="">
+          {T.kit.more}
+          <span> ▾</span>
+        </span>
+      </div>
+    </>
   );
 }
 
@@ -316,11 +397,15 @@ export function Kpi({
 /**
  * A `<details>`-like section (decision 16): the summary button toggles `aria-expanded`, and the body opens
  * smoothly (`grid-template-rows 0fr -> 1fr`). The body mounts on first opening and stays mounted, out of the tab
- * order while closed.
+ * order while closed. Design portal-screen-fixes-work, decision 17: `bare` drops the top border, padding and margin
+ * (a card that is itself the frame, as the rail's cards below 1100 px), rendered as `data-bare`; `aside` is drawn beside
+ * the summary button, outside it, because a link cannot sit inside a button.
  */
 export function Collapsible({
   summary,
   after,
+  aside,
+  bare,
   defaultOpen = false,
   onToggle,
   children,
@@ -328,6 +413,10 @@ export function Collapsible({
   summary: ReactNode;
   /** Always shown under the summary button, outside it (a row's own facts, which may hold their own controls). */
   after?: ReactNode;
+  /** Beside the summary button on its row, outside it (a card head's "View All" link). */
+  aside?: ReactNode;
+  /** No top border, padding or margin. */
+  bare?: boolean;
   defaultOpen?: boolean;
   /** Told each time the section opens or closes (the console's full answer is fetched on each opening). */
   onToggle?: (open: boolean) => void;
@@ -336,24 +425,34 @@ export function Collapsible({
   const [open, setOpen] = useState(defaultOpen);
   const [opened, setOpened] = useState(defaultOpen);
   const bodyId = useId();
+  const button = (
+    <button
+      type="button"
+      className={s.summary}
+      aria-expanded={open}
+      aria-controls={bodyId}
+      onClick={() => {
+        setOpen(!open);
+        setOpened(true);
+        onToggle?.(!open);
+      }}
+    >
+      <svg className={s.chev} aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="m9 6 6 6-6 6" />
+      </svg>
+      <span>{summary}</span>
+    </button>
+  );
   return (
-    <div className={cx(s.collapsible, open && s.open)}>
-      <button
-        type="button"
-        className={s.summary}
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => {
-          setOpen(!open);
-          setOpened(true);
-          onToggle?.(!open);
-        }}
-      >
-        <svg className={s.chev} aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="m9 6 6 6-6 6" />
-        </svg>
-        <span>{summary}</span>
-      </button>
+    <div className={cx(s.collapsible, open && s.open)} data-bare={bare ? "" : undefined}>
+      {aside ? (
+        <div className={s.summaryRow}>
+          {button}
+          <div className={s.aside}>{aside}</div>
+        </div>
+      ) : (
+        button
+      )}
       {after ? <div className={s.after}>{after}</div> : null}
       <div id={bodyId} className={s.body} inert={!open} aria-hidden={!open}>
         <div className={s.bodyInner}>{opened ? children : null}</div>

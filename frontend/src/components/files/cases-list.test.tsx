@@ -143,7 +143,9 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
   it("Show: With Me (the default) calls scope=me; With My Offices sends scope=office at once, through the URL; there is no All", async () => {
     const api = browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
     const { unmount } = renderWithClient(<Held tab="with-me" params={{}} />);
-    expect(await screen.findByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-c1");
+    // design portal-screen-fixes-work, decision 2: the number is plain, the row opens the side panel
+    expect(await screen.findByText("WP(C)/1/2026")).toHaveClass("cno");
+    expect(screen.queryByRole("link", { name: "WP(C)/1/2026" })).toBeNull();
     const call = api.calls.find((c) => c.path.startsWith("/custody/held"))!;
     expect(call.path).toContain("scope=me");
     expect(call.path).not.toContain("overdue");
@@ -162,7 +164,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(nav.replace).toHaveBeenLastCalledWith("/inbox/with-me");
   });
 
-  it("With Me: the lead badge, case and parties, next hearing, action needed, due by, From and the chevron", async () => {
+  it("With Me: case and parties, next hearing, action needed with its Due line, From and the chevron; no lead column (portal-screen-fixes-work, decisions 3 and 5)", async () => {
     browserApi({
       "GET /custody/held": held([
         { case: summary("c1", "WP(C)/1/2026"), card: card() },
@@ -171,18 +173,21 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     });
     renderWithClient(<Held tab="with-me" params={{}} />);
     const table = await screen.findByRole("table", { name: "Cases with Me" });
-    expect(headers(table)).toEqual(["Status", "Case and Parties", "Next Hearing", "Action Needed", "Due By", "From", "Case Details"]);
+    expect(headers(table)).toEqual(["Case and Parties", "Next Hearing", "Action Needed", "From", "Case Details"]);
+    expect(table.querySelector("[data-lead]")).toBeNull();
+    expect(table.querySelector("th .visually-hidden")?.textContent).toBe("Case Details");
     // design case-inbox-simplify, decision 5: a disposed case with me stays, and reads Disposed
     const disposed = screen.getByRole("row", { name: "Details of WP(C)/2/2026" });
     expect(disposed.querySelector("[data-band]")).toHaveAttribute("data-band", "disposed");
     expect(within(disposed).getByText("Disposed")).toBeInTheDocument();
     const first = screen.getByRole("row", { name: "Details of WP(C)/1/2026" });
-    const cells = within(first).getAllByRole("cell");
-    expect(cells[0]!.querySelector("[data-lead='lead']")).not.toBeNull();
-    expect(within(cells[0]!).getByText("Overdue")).toBeInTheDocument();
-    expect(within(first).getByText("RAM KUMAR vs STATE OF ASSAM")).toBeInTheDocument();
-    expect(within(first).getByText("Parawise Comments")).toBeInTheDocument();
-    expect(within(first).getByText("10 Oct 2026")).toBeInTheDocument();
+    expect(within(first).getByText((_, el) => el?.tagName === "SPAN" && el.textContent === "RAM KUMAR vs STATE OF ASSAM")).toBeInTheDocument();
+    const action = within(first).getAllByRole("cell").find((c) => c.getAttribute("data-label") === "Action Needed")!;
+    expect(within(action).getByText("Parawise Comments")).toBeInTheDocument();
+    const overdue = within(action).getByText("Overdue by 3 Days").closest("[title]")!;
+    expect(overdue.getAttribute("title")!.replace(/ /g, " ")).toBe("10 Oct 2026");
+    const noDue = within(disposed).getAllByRole("cell").find((c) => c.getAttribute("data-label") === "Action Needed")!;
+    expect(within(noDue).getByText("No Due Date")).toHaveClass("muted");
     // From: the sender's designation and office, the name as the title (decision 13)
     expect(within(first).getByText("Joint Secretary, EDU")).toHaveAttribute("title", "Edu Admin");
   });
@@ -198,15 +203,16 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     const table = await screen.findByRole("table", { name: "Cases of my department waiting on someone" });
     expect(screen.queryByRole("region", { name: /Tracking summary/ })).toBeNull();
     expect(screen.queryByLabelText("Overdue Only")).toBeNull();
-    expect(headers(table)).toEqual(["Status", "Case and Parties", "Action Needed", "Due By", "With", "Case Details"]);
+    expect(headers(table)).toEqual(["Case and Parties", "Action Needed", "With", "Case Details"]);
     expect(within(table).getByText("Section Officer, Secondary Education")).toHaveAttribute("title", "Officer One");
-    expect(within(table).getByText("Waiting")).toBeInTheDocument();
+    // decision 3: "Waiting" is dropped with the lead column
+    expect(within(table).queryByText("Waiting")).toBeNull();
     expect(api.calls.find((c) => c.path.startsWith("/custody/held"))!.path).toContain("scope=owned");
     expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
     await waitFor(() => expect(screen.getByRole("option", { name: "Health" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Department It Is With"), "HEALTH");
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/department?holder_department=HEALTH");
     unmount();
     // the Department tab's Overdue chip is `action=overdue`; this list sends it as overdue=true, narrowed to the department
@@ -226,8 +232,8 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     const { unmount } = renderWithClient(<Held tab="with-me" params={{}} />);
     expect(await screen.findByText("No case is with you.")).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Overdue Only"));
-    expect(nav.replace).not.toHaveBeenCalled(); // the bar applies with Apply (portal-filters, decision 9)
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).not.toHaveBeenCalled(); // the card applies with Search (portal-filters, decision 9)
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/with-me?overdue=true");
     unmount();
     renderWithClient(<Held tab="with-me" params={{ overdue: "true" }} />);
@@ -267,7 +273,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(api.calls.find((c) => c.path.startsWith("/custody/sent"))!.path).toBe("/custody/sent?still_out=true&limit=50&offset=0");
     expect(screen.getByLabelText("Show Earlier")).not.toBeChecked();
     await userEvent.click(screen.getByLabelText("Show Earlier"));
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/sent?earlier=true");
   });
 
@@ -279,7 +285,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(screen.getByLabelText("Show Earlier")).toBeChecked();
   });
 
-  it("Sent by Me under Show Earlier: Sent to the leg's holder, a link only for visible cases, Recalled under the number, a muted past leg", async () => {
+  it("Sent by Me under Show Earlier: Sent to the leg's holder, the plain number, Recalled marked under the number, a muted past leg", async () => {
     const api = browserApi({
       "GET /custody/sent": {
         items: [
@@ -295,18 +301,18 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     });
     renderWithClient(<Sent params={{ earlier: "true" }} />);
     const table = await screen.findByRole("table", { name: "Cases I Sent or Recalled" });
-    expect(headers(table)).toEqual(["Status", "Case and Parties", "Action Needed", "Due By", "Sent To", "Case Details"]);
-    expect(within(table).getByRole("link", { name: "WP(C)/1/2026" })).toBeInTheDocument();
-    expect(within(table).queryByRole("link", { name: "WA/2/2026" })).toBeNull();
-    expect(within(table).getByText("WA/2/2026")).toBeInTheDocument();
+    expect(headers(table)).toEqual(["Case and Parties", "Action Needed", "Sent To", "Case Details"]);
+    expect(within(table).queryAllByRole("link")).toHaveLength(0);
+    expect(within(table).getByText("WA/2/2026")).toHaveClass("cno");
     expect(within(table).getAllByText("Under Secretary, Health")).toHaveLength(4);
     const row = (name: string) => within(table).getByText(name).closest("tr")!;
-    expect(within(row("WP(C)/1/2026")).getByText("Waiting")).toBeInTheDocument();
-    // not visible: current is null, the row says nothing about where the case went
-    expect(within(row("WA/2/2026")).queryByText(/Waiting|Overdue|Due Soon/)).toBeNull();
+    expect(within(row("WP(C)/1/2026")).queryByText("Waiting")).toBeNull();
+    expect(within(row("WP(C)/1/2026")).getByText("1 Nov 2099")).toBeInTheDocument();
+    // not visible: current is null, the row says nothing about the due state
+    expect(within(row("WA/2/2026")).queryByText(/Waiting|Overdue|Due 1/)).toBeNull();
     expect(row("WP(C)/3/2026").className).toMatch(/muted/i);
-    expect(within(row("WP(C)/3/2026")).queryByText("Waiting")).toBeNull();
-    expect(within(row("WP(C)/4/2026")).getByText("Recalled")).toBeInTheDocument();
+    const recalled = within(row("WP(C)/4/2026")).getByText("Recalled");
+    expect(recalled.closest("[data-marks]")).not.toBeNull();
     expect(api.calls.find((c) => c.path.startsWith("/custody/sent"))!.path).toBe("/custody/sent?limit=50&offset=0");
   });
 
@@ -350,26 +356,25 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("rows become cards on phones: every cell carries its label, the lead badge sits in the fixed column", async () => {
+  it("rows become cards on phones: every cell carries its label, the case first", async () => {
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
     const { container } = renderWithClient(<Held tab="with-me" params={{}} />);
     const table = await screen.findByRole("table", { name: "Cases with Me" });
     expectDataTable(table);
     const cells = within(table).getAllByRole("cell");
-    expect(cells[0]!.querySelector("[data-lead='lead']")).not.toBeNull();
-    expect(cells[0]).toHaveAttribute("data-label", "Status");
+    expect(within(cells[0]!).getByText("WP(C)/1/2026")).toHaveClass("cno");
     expect(cells.find((c) => c.getAttribute("data-label") === "From")).toBeDefined();
-    // no primary but the filter bar's Apply (one primary per page)
+    // no primary but the filter card's Search (one primary per page)
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
   });
 
-  it("a link inside a row opens the case page, not the panel", async () => {
+  it("the case cell holds no link: one tab stop per row, the row opens the panel (portal-screen-fixes-work, decision 2)", async () => {
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
     renderWithClient(<Held tab="with-me" params={{}} />);
-    const link = await screen.findByRole("link", { name: "WP(C)/1/2026" });
-    link.addEventListener("click", (e) => e.preventDefault());
-    await userEvent.click(link);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const row = await screen.findByRole("row", { name: "Details of WP(C)/1/2026" });
+    expect(within(row).queryAllByRole("link")).toHaveLength(0);
+    await userEvent.click(within(row).getByText("WP(C)/1/2026"));
+    expect(await screen.findByRole("dialog", { name: "Case Details" })).toBeInTheDocument();
   });
 
   it("a Sent row the caller cannot open shows the panel without Open case page", async () => {

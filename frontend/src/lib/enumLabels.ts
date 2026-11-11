@@ -57,6 +57,8 @@ export const LABELLED: Record<string, { map: LabelMap; sentence?: true; extra?: 
   "LoadFetchPartyIn.pend_disp": { map: T.search.pendDispOptions },
   ScoreBand: { map: T.inbox.strengths },
   "DashboardAlertOut.band": { map: T.inbox.strengths },
+  // design portal-screen-fixes-work, decision 20: the pool's best band, shown through ScoreBadge
+  "PoolCaseOut.best_band": { map: T.inbox.strengths },
   "DashboardMeAttentionOut.kind": { map: T.dash.leads },
   "DataLoadOverviewOut.collection": { map: T.dc.states },
   DocGroup: { map: T.case.docGroups },

@@ -838,6 +838,8 @@ class PoolCaseOut(BaseModel):
     case: CaseSummaryOut
     best_score: float | None
     best_office_code: str | None
+    # The best score's band on the current thresholds (design portal-screen-fixes-work, decision 20).
+    best_band: Literal["high", "medium"] | None = None
     dismissed_by: list[str]
 
 
@@ -1809,6 +1811,7 @@ class AlertItemOut(BaseModel):
     severity: str
     status: str
     title: str
+    summary: str  # the title without its case number (design portal-screen-fixes-work, decision 19)
     body: str | None
     due_at: datetime | None
     case: AlertCaseOut | None
@@ -2529,6 +2532,8 @@ class NoteAuthorOut(BaseModel):
 class NoteRefOut(BaseModel):
     ref_no: str
     seq_no: int
+    # When the caller may read the referenced note (design portal-screen-fixes-work, decision 14); else null.
+    created_at: datetime | None = None
 
 
 class NoteAttachmentOut(BaseModel):

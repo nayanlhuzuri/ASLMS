@@ -408,7 +408,11 @@ const STATES: State[] = [
       // the tab bar's late scroll (bringing More into view as it is pressed) must not close the list
       await page.waitForTimeout(300);
       const names = await menu.getByRole("menuitem").allTextContents();
-      expect(names).toEqual(["Parties", "Linked Cases", "Journey and Stage", "Alerts", "Details"]);
+      // design portal-screen-fixes-work, decision 16: tabs that do not fit come first, each with its count; the fixed
+      // items keep their plain labels, in order, at the end
+      const fixed = ["Parties", "Linked Cases", "Journey and Stage", "Alerts", "Details"];
+      expect(names.slice(-fixed.length)).toEqual(fixed);
+      for (const moved of names.slice(0, -fixed.length)) expect(moved).toMatch(/^\S.*\S$/);
     },
   },
   {
@@ -1020,7 +1024,9 @@ const STATES: State[] = [
       await expect(page.getByRole("region", { name: "Case Summary" }).locator('[data-differs="true"]').first()).toBeVisible();
       const card = page.getByRole("region", { name: "Next Date From Orders" });
       await card.scrollIntoViewIfNeeded();
-      await expect(card.locator('[data-band]').first()).toBeVisible();
+      // design portal-screen-fixes-work, decision 10: the date in use is a plain line in the card, not a badge
+      await expect(card.locator("[data-reading-line]").first()).toBeVisible();
+      await expect(card.locator("[data-band]")).toHaveCount(0);
     },
   },
 ];

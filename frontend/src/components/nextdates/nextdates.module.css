@@ -15,6 +15,13 @@
   font-size: var(--t-sm);
 }
 
+/* design portal-screen-fixes-work, decision 18: a missed answer-by date, in the danger text as the inbox's overdue date */
+.missed {
+  color: var(--red-text);
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
 .panel {
   border: 1px solid var(--amber);
   background: var(--amber-soft);
@@ -27,6 +34,18 @@
 }
 
 .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* design portal-screen-fixes-work, decision 10: the date in use as one plain line, and the card's one toolbar */
+.readingLine {
+  margin: 0;
+  font-weight: 600;
+}
+
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);

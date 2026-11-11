@@ -37,7 +37,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import AlertKind, Permission, Role
 from aslms.domain.workflow import PENDING_ACTION_LABELS, CaseNoteDraft, Custody, CustodyHistory, PendingAction
-from aslms.services import access, alert_rules, alerts, calendar, custody, inbox, next_dates, visibility
+from aslms.services import access, alerts, calendar, custody, inbox, next_dates, visibility
 from aslms.services.access import Forbidden, Member
 from aslms.services.offices import find_office
 from aslms.services.reporting_common import (
@@ -137,12 +137,13 @@ def _hearing_date(value: Any) -> date | None:
 def alert_extras(item: dict[str, Any]) -> dict[str, Any]:
     """The dashboard's own values of an `alerts.alert_item` (design dashboard-my-work-polish, decisions 5, 6, 8
     and 12): the title without its case number, the time of the latest notice to the reader, the hearing date of a
-    hearing alert and the band of a recommendation; all from the item itself, no query."""
+    hearing alert and the band of a recommendation; all from the item itself, no query. The summary is the item's own
+    (design portal-screen-fixes-work, decision 19), one call site of `alert_rules.title_without_case`."""
     data = item.get("data") or {}
     kind = item["kind"]
     band = data.get("band") if kind == AlertKind.RECOMMENDATION.value else None
     return {
-        "summary": alert_rules.title_without_case(item["title"], item["case"]),
+        "summary": item["summary"],
         "notified_at": item.get("notified_at"),
         "hearing_date": _hearing_date(data.get("hearing_date")) if kind in HEARING_ALERT_KINDS else None,
         "band": band if band in MATCH_BANDS else None,

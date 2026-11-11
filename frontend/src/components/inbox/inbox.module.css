@@ -13,11 +13,20 @@
   font-size: var(--t-sm);
 }
 
-.action {
-  display: inline-flex;
+/* design portal-screen-fixes-work, decision 2: the case's marks (New, Recalled, Ready to Close, Closed) on one line
+   under the number, before the parties */
+.marks {
+  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
+  gap: var(--s1);
+}
+
+/* decision 5: the one Action Needed cell, the action over its Due line */
+.actionDue {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
 }
 
 /* design case-inbox-simplify, decision 4: My Cases' Reason badges, wrapping under the case on phones */
@@ -38,13 +47,6 @@
   font-size: var(--t-sm);
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s3);
-}
-
 .notice {
   display: flex;
   flex-wrap: wrap;
@@ -63,14 +65,7 @@
   flex: 1 1 220px;
 }
 
-/* design close-case, decisions 15-17: the Closed / Ready to Close badge beside the next hearing, the switch row */
-.nextCell {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-}
-
+/* design close-case, decisions 15-17, and portal-screen-fixes-work, decision 1: the quick controls above the card */
 .switchRow {
   display: flex;
   flex-wrap: wrap;

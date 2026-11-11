@@ -691,6 +691,14 @@ def note_out(
     by = session.scalar(
         select(CaseNote).where(CaseNote.supersedes_id == note.id, note_visible_condition(session, user))
     )
+    # The superseded note's date is given only when the caller may read that note (design portal-screen-fixes-work,
+    # decision 14); its `ref_no` and `seq_no` are given as before.
+    sup_visible = sup is not None and (
+        session.scalar(
+            select(CaseNote.id).where(CaseNote.id == sup.id, note_visible_condition(session, user))
+        )
+        is not None
+    )
     if writer is None:
         writer = may_write(session, user, session.get(Case, note.case_id))
     can_correct = bool(writer) and not _superseded(session, note.id) and _may_correct(session, user, note)
@@ -719,8 +727,18 @@ def note_out(
         "created_at": note.created_at,
         "drafted_at": note.drafted_at,
         "custody_leg_seq_no": leg.seq_no if leg else None,
-        "supersedes": {"ref_no": sup.ref_no, "seq_no": sup.seq_no} if sup else None,
-        "superseded_by": {"ref_no": by.ref_no, "seq_no": by.seq_no} if by else None,
+        "supersedes": (
+            {
+                "ref_no": sup.ref_no,
+                "seq_no": sup.seq_no,
+                "created_at": sup.created_at if sup_visible else None,
+            }
+            if sup
+            else None
+        ),
+        "superseded_by": (
+            {"ref_no": by.ref_no, "seq_no": by.seq_no, "created_at": by.created_at} if by else None
+        ),
         "attachments": [
             {
                 "id": d.id,

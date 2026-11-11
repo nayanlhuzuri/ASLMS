@@ -3,14 +3,14 @@
 /**
  * The Ownership cell of a cause-list row (design portal-causelist, decision 6): the owner of a claimed case ("Claimed by
  * EDU", with "Your department" when one of the caller's departments holds it), the recommendations the caller is shown
- * ("Strong · EDU · 0.95"), or "Unclaimed" for a case in the pool. Everything comes from the API; nothing is computed.
+ * (the kit's `ScoreLine`: the department's name, then "Strong · 0.950", design portal-screen-fixes-work, decision 20), or
+ * "Unclaimed" for a case in the pool. Everything comes from the API; nothing is computed.
  * The department is shown by name with its code as the tooltip (design portal-names-and-labels, decision 6), and a
  * badge that names one wraps at word boundaries, so a long name never pushes the entries table past the page
  * (deviation 9).
  */
-import { Badge } from "@/components/ui";
+import { Badge, ScoreLine } from "@/components/ui";
 import type { CauselistEntry } from "@/lib/api/types";
-import { recommendationText } from "@/lib/causelist";
 import { T } from "@/lib/messages";
 
 import s from "./causelist.module.css";
@@ -30,9 +30,7 @@ export function OwnershipCell({ entry, names }: { entry: CauselistEntry; names: 
         </Badge>
       ) : null}
       {entry.recommendations.map((r) => (
-        <Badge key={r.office_code} tone={r.band === "high" ? "warning" : undefined} title={r.office_code} wrap>
-          {recommendationText(r, names)}
-        </Badge>
+        <ScoreLine key={r.office_code} office={{ code: r.office_code, name: names[r.office_code] }} score={r.score} band={r.band} />
       ))}
       {!owner && entry.in_pool ? <Badge>{T.causelist.unclaimed}</Badge> : null}
     </div>

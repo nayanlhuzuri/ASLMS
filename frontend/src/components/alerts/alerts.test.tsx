@@ -34,6 +34,8 @@ function alert(extra: Partial<AlertItem> = {}): AlertItem {
     created_at: "2026-10-13T04:30:00Z",
     can_act: true,
     ...extra,
+    // the server's title without its case number (design portal-screen-fixes-work, decision 19); the title by default
+    summary: extra.summary ?? extra.title ?? "Hearing in three days",
   };
 }
 
@@ -348,5 +350,22 @@ describe("the alert row's head (design portal-ui-kit-fixes, decision 13)", () =>
     const badges = head.lastElementChild as HTMLElement;
     expect(badges.textContent).toMatch(/^High.*New/);
     expect(row.textContent).not.toContain("ASLMS/GOA/ALR/2026/000001");
+  });
+});
+
+describe("the alert title without its case number (portal-screen-fixes-work, decision 19)", () => {
+  it("the row shows the summary in bold and the case number exactly once, in the link; the dialog keeps the full title", async () => {
+    browserApi(
+      routes([alert({ title: "Hearing in three days: WP(C)/1234/2026", summary: "Hearing in three days" })]),
+    );
+    renderWithClient(<AlertList params={{}} />);
+    const summary = await screen.findByText("Hearing in three days");
+    expect(summary.tagName).toBe("STRONG");
+    const row = summary.closest("li")!;
+    expect(within(row).getAllByText(/WP\(C\)\/1234\/2026/)).toHaveLength(1);
+    expect(within(row).getByRole("link", { name: "WP(C)/1234/2026" })).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Acknowledge" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Hearing in three days: WP(C)/1234/2026")).toBeInTheDocument();
   });
 });

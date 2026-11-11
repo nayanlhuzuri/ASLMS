@@ -277,11 +277,9 @@ describe("With Me (decision 2)", () => {
     renderWithClient(<InboxFrame tab="with-me" params={{}} />);
     const table = await screen.findByRole("table", { name: "Cases with Me" });
     expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Status",
       "Case and Parties",
       "Next Hearing",
       "Action Needed",
-      "Due By",
       "From",
       "Case Details",
     ]);
@@ -332,7 +330,7 @@ describe("My Cases (decision 4)", () => {
     expect(screen.getByText("Cases assigned to you, cases you claimed and cases sent to you appear here.")).toBeInTheDocument();
   });
 
-  it("the Reason badges come in the order Assigned to Me, Claimed by Me, With Me; a disposed row reads Disposed; Your Action only with me", async () => {
+  it("the Reason badges come in the order Assigned to Me, Claimed by Me, With Me; a disposed row reads Disposed; Action Needed only with me", async () => {
     const api = browserApi(
       routes({
         "GET /inbox/mine": {
@@ -353,7 +351,7 @@ describe("My Cases (decision 4)", () => {
       "Reason",
       "Stage",
       "Next Hearing",
-      "Your Action",
+      "Action Needed",
       "Actions",
     ]);
     const badges = (n: number) =>
@@ -366,7 +364,7 @@ describe("My Cases (decision 4)", () => {
     const row3 = screen.getByRole("row", { name: "Open WP(C)/3/2026" });
     expect(row3.querySelector("[data-band]")).toHaveAttribute("data-band", "disposed");
     expect(within(screen.getByRole("row", { name: "Open WP(C)/1/2026" })).getByText("Parawise Comments")).toBeInTheDocument();
-    expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).queryByText("Parawise comments")).toBeNull();
+    expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).queryByText("Parawise Comments")).toBeNull();
     expect(screen.getByText("3 cases")).toBeInTheDocument();
     expect(lastUrl(api.calls, "/inbox/mine?")).toContain("view=all");
     await userEvent.click(row3);
@@ -811,5 +809,192 @@ describe("Open / Closed (design close-case, decisions 15-17)", () => {
     renderWithClient(<InboxFrame tab="department" params={{}} />);
     await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held?"))).toBe(true));
     expect(screen.queryByRole("radiogroup", { name: "Open or Closed" })).toBeNull();
+  });
+});
+
+/**
+ * Design portal-screen-fixes-work, decisions 1 to 5: Filter Layout B with Search and the count at the head of the strip
+ * on all four tabs, one plain case cell with the case's marks under the number, no lead column, and one Action Needed
+ * cell with one Due line.
+ */
+describe("the four tabs after the screen fixes (portal-screen-fixes-work, decisions 1 to 5)", () => {
+  const sentLeg = (n: number, extra: Record<string, unknown> = {}) => ({
+    case: summary(n),
+    visible: true,
+    current: true,
+    leg: {
+      seq_no: 2,
+      holder_office: { code: "HEALTH", name: "Health" },
+      holder_user: { id: "u-h1", full_name: "Health Off" },
+      holder_designation: "Under Secretary",
+      reason: "recalled",
+      reason_label: "Recalled",
+      pending_action: "examine",
+      pending_action_label: "Examine",
+      due_date: null,
+      remark: null,
+      started_at: "2026-10-13T10:00:00Z",
+      actor_name: "Anita Sharma",
+      actor_designation: "Under Secretary",
+      actor_office_code: "EDU",
+      ...extra,
+    },
+  });
+
+  const TABS: { tab: "with-me" | "mine" | "sent" | "department"; path: string; me?: Me }[] = [
+    { tab: "with-me", path: "/inbox/with-me" },
+    { tab: "mine", path: "/inbox/my-cases" },
+    { tab: "sent", path: "/inbox/sent" },
+    { tab: "department", path: "/inbox/department", me: head() },
+  ];
+
+  for (const { tab, path, me } of TABS) {
+    it(`${tab}: a Filter Card with the words box as the hero, Search and no Apply; one count, first in the strip; a plain case number`, async () => {
+      resetNav(path);
+      browserApi(
+        routes({
+          ...(me ? { "GET /me": me } : {}),
+          "GET /custody/held": { items: [heldItem(1)], total: 1 },
+          "GET /inbox/mine": { items: [myCase(1)], total: 1 },
+          "GET /custody/sent": { items: [sentLeg(1)], total: 1 },
+        }),
+      );
+      const { container } = renderWithClient(<InboxFrame tab={tab} params={{ q: "ram" }} />);
+      const table = await screen.findByRole("table");
+      const hero = container.querySelector('[data-zone="hero"]')!;
+      expect(hero).not.toBeNull();
+      expect(within(hero as HTMLElement).getByLabelText(/^Words/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute("type", "submit");
+      expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+      // the strip starts with the count line, and no second total ("n cases match" from the bar) is drawn
+      const count = await screen.findByText(/^1 (of \d+ )?cases?( match)?$/);
+      const strip = count.closest("p")!.parentElement!;
+      expect(strip.firstElementChild).toBe(count.closest("p"));
+      expect(screen.getAllByText(/cases? match|of \d+ cases?$/).length).toBeLessThanOrEqual(1);
+      // one plain case number, no link inside the case cell
+      const number = within(table).getByText("WP(C)/1/2026");
+      expect(number).toHaveClass("cno");
+      expect(number.closest("td")!.querySelector("a")).toBeNull();
+    });
+  }
+
+  it("With Me: 3 of 9 cases with a filter, m from files; Sent by Me: 3 cases match", async () => {
+    browserApi(
+      routes({
+        "GET /inbox/mine/counts": { ...COUNTS, files: 9 },
+        "GET /custody/held": { items: [heldItem(1), heldItem(2), heldItem(3)], total: 3 },
+        "GET /custody/sent": { items: [sentLeg(1), sentLeg(2), sentLeg(3)], total: 3 },
+      }),
+    );
+    const { unmount } = renderWithClient(<InboxFrame tab="with-me" params={{ overdue: "true" }} />);
+    expect(await screen.findByText("3 of 9 cases")).toBeInTheDocument();
+    unmount();
+    resetNav("/inbox/sent");
+    renderWithClient(<InboxFrame tab="sent" params={{ q: "ram" }} />);
+    expect(await screen.findByText("3 cases match")).toBeInTheDocument();
+  });
+
+  it("the right zone and More Filters hold the fields of decision 1", async () => {
+    const fieldsOf = (zone: Element | null) =>
+      Array.from(zone?.querySelectorAll("label, legend, [role=radiogroup]") ?? []).map((l) => l.getAttribute("aria-label") ?? l.textContent?.trim());
+    browserApi(routes());
+    const { container, unmount } = renderWithClient(<InboxFrame tab="with-me" params={{}} />);
+    await screen.findByText("No case is with you.");
+    const right = () => container.querySelector('[data-zone="fields"]');
+    for (const label of ["Show", "Overdue Only", "Next Hearing", "Case Type"]) expect(fieldsOf(right()).join("|")).toContain(label);
+    expect(within(right() as HTMLElement).queryByLabelText("Year")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
+    for (const label of ["Year", "Status", "Court", "Bench", "Department"]) expect(screen.getByLabelText(new RegExp(`^${label}`))).toBeInTheDocument();
+    expect(screen.getByLabelText("Next Date Differs")).toBeInTheDocument();
+    unmount();
+    resetNav("/inbox/sent");
+    const sent = renderWithClient(<InboxFrame tab="sent" params={{}} />);
+    await screen.findByText(/Nothing you sent is still out/);
+    const sentRight = sent.container.querySelector('[data-zone="fields"]') as HTMLElement;
+    expect(within(sentRight).getByLabelText("Show Earlier")).toBeInTheDocument();
+    expect(within(sentRight).getByText("Case Type")).toBeInTheDocument();
+    sent.unmount();
+    resetNav("/inbox/my-cases");
+    const mine = renderWithClient(<InboxFrame tab="mine" params={{}} />);
+    await screen.findByText("Nothing waiting");
+    const mineRight = mine.container.querySelector('[data-zone="fields"]') as HTMLElement;
+    expect(within(mineRight).getByLabelText("Stage")).toBeInTheDocument();
+    expect(within(mineRight).getByLabelText("Case Type")).toBeInTheDocument();
+    expect(within(mineRight).queryByLabelText("Year")).toBeNull();
+  });
+
+  it("New, Recalled, Ready to Close and Closed are marks under the case number, never in the Next Hearing cell", async () => {
+    const hourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+    browserApi(
+      routes({
+        "GET /custody/held": {
+          items: [heldItem(1, {}, { since: hourAgo }), heldItem(2, { status: "disposed", closed: false })],
+          total: 2,
+        },
+        "GET /custody/sent": { items: [sentLeg(3)], total: 1 },
+        "GET /inbox/mine": { items: [myCase(4, { case: { ...summary(4), status: "disposed", closed: true } })], total: 1 },
+      }),
+    );
+    const markIn = (rowName: string, text: string) => {
+      const row = screen.getByRole("row", { name: rowName });
+      const mark = within(row).getByText(text);
+      expect(mark.closest("[data-marks]")).not.toBeNull();
+      const next = within(row).queryAllByRole("cell").find((c) => c.getAttribute("data-label") === "Next Hearing");
+      if (next) expect(within(next).queryByText(text)).toBeNull();
+    };
+    const { unmount } = renderWithClient(<InboxFrame tab="with-me" params={{}} />);
+    await screen.findByRole("row", { name: "Details of WP(C)/1/2026" });
+    markIn("Details of WP(C)/1/2026", "New");
+    markIn("Details of WP(C)/2/2026", "Ready to Close");
+    expect(within(screen.getByRole("row", { name: "Details of WP(C)/2/2026" })).queryByText("New")).toBeNull();
+    unmount();
+    resetNav("/inbox/sent");
+    const sent = renderWithClient(<InboxFrame tab="sent" params={{}} />);
+    await screen.findByRole("row", { name: "Details of WP(C)/3/2026" });
+    markIn("Details of WP(C)/3/2026", "Recalled");
+    sent.unmount();
+    resetNav("/inbox/my-cases");
+    renderWithClient(<InboxFrame tab="mine" params={{}} />);
+    await screen.findByRole("row", { name: "Open WP(C)/4/2026" });
+    markIn("Open WP(C)/4/2026", "Closed");
+  });
+
+  it("the Action Needed cell: the label over the Due line in its four states, and a dash without an action", async () => {
+    const later = addDays(istDay(), 30);
+    const soon = addDays(istDay(), 1);
+    browserApi(
+      routes({
+        "GET /inbox/mine": {
+          items: [
+            myCase(1, { custody: brief() }),
+            myCase(2, { custody: brief({ overdue: false, overdue_days: 0, due_soon: true, due_date: soon }) }),
+            myCase(3, { custody: brief({ overdue: false, overdue_days: 0, due_date: later }) }),
+            myCase(4, { custody: brief({ overdue: false, overdue_days: 0, due_date: null }) }),
+            myCase(5, { custody: brief({ with_me: false }) }),
+          ],
+          total: 5,
+        },
+      }),
+    );
+    resetNav("/inbox/my-cases");
+    renderWithClient(<InboxFrame tab="mine" params={{}} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    const action = (n: number) =>
+      within(screen.getByRole("row", { name: `Open WP(C)/${n}/2026` }))
+        .getAllByRole("cell")
+        .find((c) => c.getAttribute("data-label") === "Action Needed")!;
+    const nb = (t: string | null | undefined) => (t ?? "").replace(/\u00a0/g, " ");
+    // overdue: a danger badge with the date as its title
+    expect(within(action(1)).getByText("Parawise Comments")).toBeInTheDocument();
+    const overdue = within(action(1)).getByText("Overdue by 3 Days").closest("[title]")!;
+    expect(nb(overdue.getAttribute("title"))).toBe("10 Oct 2026");
+    expect(overdue.className).toMatch(/danger/);
+    // due soon: a warning badge "Due <date>"
+    const dueSoon = within(action(2)).getByText(/^Due /).closest("[title]")!;
+    expect(dueSoon.className).toMatch(/warning/);
+    // later: the plain date; none: the muted "No Due Date"; no action: a dash
+    expect(within(action(3)).queryByText(/Overdue|^Due /)).toBeNull();
+    expect(within(action(4)).getByText("No Due Date")).toHaveClass("muted");
+    expect(action(5).textContent).toBe("—");
   });
 });

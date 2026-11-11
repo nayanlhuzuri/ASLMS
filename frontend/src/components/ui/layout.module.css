@@ -164,6 +164,26 @@
   display: inline-flex;
 }
 
+/* design portal-screen-fixes-work, decision 16: the hidden measuring copy of a collapsing tab row; it takes no room
+   and never shows */
+.tabsMeasure {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  gap: var(--s1);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tabsMeasure > * {
+  flex: none;
+}
+
 .tabMoreButton {
   height: auto;
 }
@@ -253,12 +273,35 @@
   margin-top: var(--s3);
 }
 
+/* design portal-screen-fixes-work, decision 17: a collapsible that is itself a card's frame starts with its title */
+.collapsible[data-bare] {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* the summary button with an aside beside it (a card head's "View All"), outside the button */
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+}
+
+.aside {
+  flex: none;
+  font-size: var(--t-sm);
+}
+
 .summary {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
   min-height: var(--control-h);
   padding: 0;
+  /* a wrapped summary reads from the start of the line, not centred as a button's text is by default */
+  text-align: start;
   border: 0;
   background: none;
   color: var(--accent);

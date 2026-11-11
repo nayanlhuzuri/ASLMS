@@ -23,3 +23,19 @@ def test_committed_openapi_matches_the_app():
     assert committed == _tool().openapi_text(), (
         "frontend/openapi.json is stale: run backend/tools/export_openapi.py and npm run gen:api"
     )
+
+
+def test_screen_fixes_read_only_additions_are_in_the_contract():
+    """Design portal-screen-fixes-work: `PoolCaseOut.best_band`, `NoteRefOut.created_at` and `AlertItemOut.summary`
+    are additions only; `summary` is required, the other two default to null."""
+    import json
+
+    schemas = json.loads(_tool().openapi_text())["components"]["schemas"]
+    band = schemas["PoolCaseOut"]["properties"]["best_band"]
+    assert {"enum": ["high", "medium"], "type": "string"} in band["anyOf"] and band.get("default") is None
+    assert "best_band" not in schemas["PoolCaseOut"].get("required", [])
+    created = schemas["NoteRefOut"]["properties"]["created_at"]
+    assert {"format": "date-time", "type": "string"} in created["anyOf"]
+    assert "created_at" not in schemas["NoteRefOut"].get("required", [])
+    assert schemas["AlertItemOut"]["properties"]["summary"]["type"] == "string"
+    assert "summary" in schemas["AlertItemOut"]["required"]

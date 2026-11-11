@@ -46,33 +46,6 @@
   gap: var(--s4);
 }
 
-/* the Work list template (design portal-ui-redesign, decision 26) */
-.caseCell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-}
-
-.action {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-}
-
-/* a small label under the case number ("Recalled" on Sent by me) */
-.mark {
-  font-size: var(--t-xs);
-  font-weight: 500;
-  color: var(--text-3);
-}
-
-/* an overdue due date */
-.danger {
-  color: var(--red-text);
-  font-weight: 500;
-}
-
 /* a leg that is no longer the case's current leg (Sent by me, decision 20) */
 .mutedRow {
   color: var(--text-3);

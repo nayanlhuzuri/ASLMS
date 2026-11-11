@@ -3,9 +3,10 @@
 /**
  * The case page's next dates (design portal-next-dates, decisions 8 and 10; plan §5.3 "the latest order with the next
  * date read"):
- * - `NextDateBlock`, the body of the Overview card "Next date from orders": the date in use with where it came from,
- *   the court's sentence and the note; "Waiting for you" with the case's enter items when `next_dates_to_review` is
- *   above zero (read from `GET /next-dates/review?q=<case id>`); "Enter next date" only by `workflow.next_dates`, else
+ * - `NextDateBlock`, the body of the Overview card "Next Date From Orders": the date in use as one plain line with
+ *   where it came from ("this order" for the latest order, `latestOrderId`; design portal-screen-fixes-work, decisions 9
+ *   and 10), the court's sentence and the note; Report Wrong Next Date, Correct It and Enter Next Date in one toolbar;
+ *   "Waiting for you" with the case's enter items when `next_dates_to_review` is above zero (read from `GET /next-dates/review?q=<case id>`); "Enter next date" only by `workflow.next_dates`, else
  *   the plain reason when the court has given the date (design next-date-direct, decision 6); Report Wrong Next Date
  *   and Correct It only by `workflow.next_date_report` / `next_date_correct` (decisions 17 to 19), and the "Reported as
  *   possibly wrong" line while a report is open;
@@ -14,12 +15,11 @@
  * What may be done comes from the server; the browser never works out review state or who may act.
  */
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { fileUrl } from "@/components/case/Orders";
-import { Badge, Button, EmptyState, ErrorBanner, HearingDate, Loading, Notice, Pagination, DataTable } from "@/components/ui";
+import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, DataTable } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CaseNextDate, CaseNextDateList, NextDateReviewList } from "@/lib/api/types";
@@ -28,7 +28,7 @@ import { formatDate } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { originLine, sourceLabel, statusLabel } from "@/lib/nextDates";
 import { PAGE } from "@/lib/params";
-import { apiCasePath, casePath } from "@/lib/refs";
+import { apiCasePath } from "@/lib/refs";
 
 import { CorrectNextDate, EnterNextDate, ReportWrongNextDate, type DialogOutcome } from "./Dialogs";
 import s from "./nextdates.module.css";
@@ -51,7 +51,7 @@ function WaitingForYou({ caseRef, c, outcome }: { caseRef: string; c: CaseDetail
   );
 }
 
-export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+export function NextDateBlock({ caseRef, c, latestOrderId }: { caseRef: string; c: CaseDetail; latestOrderId?: string | null }) {
   const search = useSearchParams();
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<"report" | "correct" | null>(() =>
@@ -79,16 +79,15 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       {row ? (
         <>
-          {/* design next-date-direct, decision 8: a date read from an order is shown directly, around for a period */}
-          <div className="row">
-            <HearingDate
-              date={row.next_date}
-              status={c.status.status}
-              kind={reading && c.next_hearing?.basis === "around" && c.next_hearing.date === row.next_date ? "around" : "firm"}
-              size="md"
-            />
-          </div>
-          <div className="muted">{originLine(row)}</div>
+          {/* design next-date-direct, decision 8: a date read from an order is shown directly, around for a period; design
+              portal-screen-fixes-work, decision 10: a plain line, the badge being the header's and the rail's */}
+          <p className={s.readingLine} data-reading-line="">
+            {T.nd.readingLine(
+              formatDate(row.next_date),
+              originLine(row, latestOrderId),
+              !!reading && c.next_hearing?.basis === "around" && c.next_hearing.date === row.next_date,
+            )}
+          </p>
           {row.order?.phrase ? (
             <details>
               <summary>{T.nd.says}</summary>
@@ -111,20 +110,28 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
       ) : null}
       {(c.next_dates_to_review ?? 0) > 0 ? <WaitingForYou caseRef={caseRef} c={c} outcome={outcome} /> : null}
       {c.workflow.next_dates_blocked === "court_date_fixed" ? <p className="muted">{T.hearing.fixed}</p> : null}
+      {/* one toolbar for the three buttons, each by its own flag; it wraps on a phone */}
+      {(reading && (c.workflow.next_date_report || c.workflow.next_date_correct)) || c.workflow.next_dates ? (
+        <div className={s.toolbar}>
+          {reading && c.workflow.next_date_report ? (
+            <Button variant="secondary" onClick={() => setDialog("report")}>
+              {T.nd.report}
+            </Button>
+          ) : null}
+          {reading && c.workflow.next_date_correct ? (
+            <Button variant="secondary" onClick={() => setDialog("correct")}>
+              {T.nd.correct}
+            </Button>
+          ) : null}
+          {c.workflow.next_dates ? (
+            <Button variant="secondary" onClick={() => setOpen(true)}>
+              {T.nd.enterNext}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {reading && (c.workflow.next_date_report || c.workflow.next_date_correct) ? (
         <>
-          <div className="row">
-            {c.workflow.next_date_report ? (
-              <Button variant="secondary" onClick={() => setDialog("report")}>
-                {T.nd.report}
-              </Button>
-            ) : null}
-            {c.workflow.next_date_correct ? (
-              <Button variant="secondary" onClick={() => setDialog("correct")}>
-                {T.nd.correct}
-              </Button>
-            ) : null}
-          </div>
           {c.workflow.next_date_report ? (
             <ReportWrongNextDate
               caseRef={caseRef}
@@ -153,22 +160,14 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
         </>
       ) : null}
       {c.workflow.next_dates ? (
-        <>
-          <div className="row">
-            <Button variant="secondary" onClick={() => setOpen(true)}>
-              {T.nd.enterNext}
-            </Button>
-          </div>
-          <EnterNextDate
-            caseRef={caseRef}
-            name={c.identity.case_no_text || c.ref_no}
-            open={open}
-            onClose={() => setOpen(false)}
-            {...outcome}
-          />
-        </>
+        <EnterNextDate
+          caseRef={caseRef}
+          name={c.identity.case_no_text || c.ref_no}
+          open={open}
+          onClose={() => setOpen(false)}
+          {...outcome}
+        />
       ) : null}
-      <Link href={`${casePath(caseRef, "hearings")}#next-dates`}>{T.nd.allNextDates}</Link>
     </>
   );
 }
@@ -206,10 +205,10 @@ export function NextDatesSection({ caseRef }: { caseRef: string }) {
                   key: "date",
                   header: T.nd.colDate,
                   primary: true,
+                  // design portal-screen-fixes-work, decision 12: the internal number only as the title, never in sight
                   cell: (row) => (
                     <>
-                      <strong>{formatDate(row.next_date)}</strong>
-                      {row.ref_no ? <div className="mono">{row.ref_no}</div> : null}
+                      <strong title={row.ref_no ?? undefined}>{formatDate(row.next_date)}</strong>
                       {row.effective ? (
                         <div>
                           <Badge tone="success">{T.nd.usedForCalendar}</Badge>
@@ -226,7 +225,8 @@ export function NextDatesSection({ caseRef }: { caseRef: string }) {
                   cell: (row) =>
                     row.order ? (
                       <>
-                        <span className="mono">{row.order.order_no}</span> · {formatDate(row.order.order_date)}
+                        <div>{T.nd.orderOf(formatDate(row.order.order_date))}</div>
+                        {row.order.order_no ? <div className="muted">{T.nd.orderNo(row.order.order_no)}</div> : null}
                         {row.order.document_id && canView ? (
                           <div>
                             <a href={fileUrl(caseRef, row.order.id, "inline")} target="_blank" rel="noopener noreferrer">

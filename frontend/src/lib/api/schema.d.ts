@@ -4991,6 +4991,8 @@ export interface components {
             severity: string;
             /** Status */
             status: string;
+            /** Summary */
+            summary: string;
             /** Ticket Ref */
             ticket_ref?: string | null;
             /** Title */
@@ -5040,6 +5042,8 @@ export interface components {
             severity: string;
             /** Status */
             status: string;
+            /** Summary */
+            summary: string;
             /** Ticket Ref */
             ticket_ref?: string | null;
             /** Title */
@@ -11422,6 +11426,8 @@ export interface components {
         };
         /** NoteRefOut */
         NoteRefOut: {
+            /** Created At */
+            created_at?: string | null;
             /** Ref No */
             ref_no: string;
             /** Seq No */
@@ -11989,6 +11995,8 @@ export interface components {
         };
         /** PoolCaseOut */
         PoolCaseOut: {
+            /** Best Band */
+            best_band?: ("high" | "medium") | null;
             /** Best Office Code */
             best_office_code: string | null;
             /** Best Score */

@@ -162,8 +162,9 @@ export function CaseAlerts({ caseRef }: { caseRef: string }) {
                       </>
                     }
                   />
+                  {/* design portal-screen-fixes-work, decision 19: the case's own page, so the title without its number */}
                   <div>
-                    <strong>{a.title}</strong>
+                    <strong>{a.summary}</strong>
                   </div>
                   {a.body ? <p className={cs.noteBody}>{a.body}</p> : null}
                   {a.acknowledged_by && a.acknowledged_at ? (

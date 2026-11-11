@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NextDateReviewItem, Permission } from "@/lib/api/types";
 import { addDays } from "@/lib/format";
@@ -102,7 +102,8 @@ describe("Next Dates to Enter (portal-next-dates, decision 4; next-date-direct, 
     expect(within(table).getByText("The order gives no clear date")).toBeInTheDocument();
     expect(within(table).getByText("The order gives no next date")).toBeInTheDocument();
     expect(within(table).getByText("“List the matter after the ensuing vacation.”")).toBeInTheDocument();
-    expect(within(table).getByText("Please answer by 20 Oct 2026")).toBeInTheDocument();
+    // the dates of these fixtures have passed (design portal-screen-fixes-work, decision 18)
+    expect(within(table).getByText("Answer was due 20 Oct 2026")).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "Enter date for WP(C)/1234/2026" })).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "Enter date for WA/55/2026" })).toBeInTheDocument();
     expect(within(table).queryByRole("button", { name: /Confirm|Not correct/ })).toBeNull();
@@ -232,5 +233,33 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
     browserApi(routes([unclearItem(), enterItem()]));
     renderWithClient(<ReviewList params={{}} />);
     expectDataTable(await screen.findByRole("table", { name: "Next Dates to Enter" }));
+  });
+});
+
+/**
+ * Design portal-screen-fixes-work, decisions 11 and 18: a missed answer-by date says so in the danger text, the Next
+ * Date column has a fixed width, and with no row to act on there is no Actions column.
+ */
+describe("Waiting for You easier to read (portal-screen-fixes-work, decisions 11 and 18)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("a passed answer-by date reads 'Answer was due …' in the danger class; a later one 'Please answer by …'", async () => {
+    vi.useFakeTimers({ now: new Date("2026-11-10T06:30:00Z"), toFake: ["Date"] });
+    browserApi(routes([unclearItem({ act_by: "2026-10-23" }), enterItem({ act_by: "2026-11-12" })]));
+    renderWithClient(<ReviewList params={{}} />);
+    const table = await screen.findByRole("table", { name: "Next Dates to Enter" });
+    const missed = within(table).getByText("Answer was due 23 Oct 2026");
+    expect(missed.className).toMatch(/missed/);
+    expect(within(table).getByText("Please answer by 12 Nov 2026").className).toMatch(/hint/);
+  });
+
+  it("with only items nobody may act on there is no Actions header; the Next Date column has its fixed width", async () => {
+    browserApi(routes([unclearItem({ kind: "confirm" as NextDateReviewItem["kind"] })]));
+    renderWithClient(<ReviewList params={{}} />);
+    const table = await screen.findByRole("table", { name: "Next Dates to Enter" });
+    const headers = within(table).getAllByRole("columnheader");
+    expect(headers.map((h) => h.textContent)).not.toContain("Actions");
+    const next = headers.find((h) => h.textContent === "Next Date")!;
+    expect(next.getAttribute("style")).toContain("calc(2 * var(--lead-w))");
   });
 });

@@ -117,6 +117,21 @@
   font-size: var(--t-sm);
 }
 
+/* design portal-screen-fixes-work, decision 20: "Best Score" then the department and its badge, wrapping as a whole */
+.poolBest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+}
+
+/* decision 21: "who, when" with "Will Stay as Watcher" on a muted second line */
+.requested {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .contribution {
   color: var(--text-3);
   font-variant-numeric: tabular-nums;

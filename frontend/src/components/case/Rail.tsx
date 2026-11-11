@@ -16,11 +16,15 @@
  * case shows its closure line in place of the task, with no Send or Recall; Reopen Case by `workflow.reopen`, and the
  * owning-department line by `workflow.reopen_blocked`.
  * The server decides everything shown: the frontend never infers a hidden remark.
+ *
+ * Design portal-screen-fixes-work, decision 17: every card shows its title at every width ("Your Task" when the file
+ * is with the reader, else "Current Task"), the holder is the first row of the task's facts, the Journey card has
+ * "View All" in its head (beside the summary below 1100 px, outside the button), a collapsed card has no empty band, and
+ * Quick Actions are equal-width buttons.
  */
-import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
-import { Badge, Button, Collapsible, EmptyState, ErrorBanner, HearingDate, Loading, Notice } from "@/components/ui";
+import { Badge, Button, Collapsible, EmptyState, ErrorBanner, HeadLink, HearingDate, Loading, Notice } from "@/components/ui";
 import { useJourney, useLatestListing, useMe, useOfficeNames } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg, Listing } from "@/lib/api/types";
 import { cardHolder, cardSender, daysUntil, legActor, legHolder, withText } from "@/lib/cases";
@@ -136,10 +140,9 @@ export function YourTask({
     // design close-case, decision 19: the closure line in place of the task; nothing moves while closed
     return (
       <div className={s.task}>
-        <div className={s.eyebrow}>
-          <Badge>{T.closure.closed}</Badge>
-        </div>
-        <p>{T.closure.closedOn(formatDate(closed.closed_at), closerName(closed.closed_by))}</p>
+        <p className={s.closedLine}>
+          <Badge>{T.closure.closed}</Badge> {T.closure.closedOn(formatDate(closed.closed_at), closerName(closed.closed_by))}
+        </p>
         <div className={s.buttons}>
           <RemarksButton journey={journey} onRemarks={onRemarks} />
         </div>
@@ -158,11 +161,10 @@ export function YourTask({
   ) : null;
   return (
     <div className={s.task}>
-      <div className={s.eyebrow} title={holder.title}>
-        {mine ? T.rail.yourTask : T.rail.withWhom(holder.text)}
-      </div>
       <div className={s.taskAction}>{serverLabel(card.pending_action_label)}</div>
       <dl className={s.kv}>
+        <dt>{T.rail.withFact}</dt>
+        <dd title={holder.title}>{holder.text}</dd>
         {sender ? (
           <>
             <dt>{T.rail.from}</dt>
@@ -240,7 +242,7 @@ function legLine(leg: CustodyLeg): string | null {
   return leg.reason === "sent" ? null : serverLabel(leg.reason_label);
 }
 
-export function Journey({ caseRef, journey }: { caseRef: string; journey: ReturnType<typeof useJourney> }) {
+export function Journey({ journey }: { journey: ReturnType<typeof useJourney> }) {
   const me = useMe();
   const names = useOfficeNames().data;
   const meId = me.data?.user.id ?? null;
@@ -275,32 +277,36 @@ export function Journey({ caseRef, journey }: { caseRef: string; journey: Return
           </ol>
         )
       ) : null}
-      <Link href={casePath(caseRef, "custody")}>{T.rail.journeyLink}</Link>
     </div>
   );
 }
 
-/** One rail card: a plain card from 1100 px, a collapsible with its key fact below. */
+/**
+ * One rail card: a plain card from 1100 px, a collapsible with its key fact below. The title shows at every width;
+ * `action` (a head link) sits at the right of the title row, or beside the collapsible's summary, outside its button.
+ */
 function RailCard({
   wide,
   title,
   fact,
   open,
-  eyebrow,
+  action,
   children,
 }: {
   wide: boolean;
   title: string;
   fact?: ReactNode;
   open?: boolean;
-  /** The card's own eyebrow names it (Your task), so the column's heading is for screen readers only. */
-  eyebrow?: boolean;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   if (wide) {
     return (
       <section className={s.card} aria-label={title}>
-        <h2 className={eyebrow ? "visually-hidden" : s.cardTitle}>{title}</h2>
+        <div className={s.cardHead}>
+          <h2 className={s.cardTitle}>{title}</h2>
+          {action ? <div className={s.cardAction}>{action}</div> : null}
+        </div>
         {children}
       </section>
     );
@@ -308,6 +314,8 @@ function RailCard({
   return (
     <section className={s.card} aria-label={title}>
       <Collapsible
+        bare
+        aside={action}
         defaultOpen={open}
         summary={
           <span className={s.summary}>
@@ -341,9 +349,12 @@ export function Rail({
   const journey = useJourney(caseRef, 4, 0, !!c.custody);
   const quick = quickItems(c);
   const latest = journey.data?.legs[0];
+  const meId = me.data?.user.id ?? null;
+  // "Your Task" would be wrong for someone else's file
+  const mine = !!c.custody?.holder_user && !!meId && c.custody.holder_user.id === meId;
   return (
     <div className={s.rail} data-rail={wide ? "column" : "stacked"}>
-      <RailCard wide={wide} title={T.rail.yourTask} open eyebrow>
+      <RailCard wide={wide} title={mine ? T.rail.yourTask : T.rail.currentTask} open>
         <YourTask c={c} journey={c.custody ? journey.data : undefined} onAction={onAction} onRemarks={onRemarks} />
       </RailCard>
       <RailCard wide={wide} title={T.rail.nextHearing} fact={<HearingDate next={c.next_hearing ?? null} status={c.status.status} />}>
@@ -359,8 +370,13 @@ export function Rail({
           wide={wide}
           title={T.rail.journey}
           fact={latest ? T.rail.withWhom(withText(legHolder(latest), me.data?.user.id).text) : null}
+          action={
+            <HeadLink href={casePath(caseRef, "custody")} srSuffix={T.rail.journeyLink}>
+              {T.viewAll}
+            </HeadLink>
+          }
         >
-          <Journey caseRef={caseRef} journey={journey} />
+          <Journey journey={journey} />
         </RailCard>
       ) : null}
     </div>

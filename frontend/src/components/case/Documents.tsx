@@ -11,6 +11,10 @@
  * Each group is its own query of 50 with its own pager and the API's `total` (design portal-cases-followups,
  * decision 8); an empty group is not shown, "No documents" when all three are empty; "Show archived" applies to all
  * three. View only for types a browser shows itself (`canViewInline`, decisions 9 and 10).
+ *
+ * Design portal-screen-fixes-work, decision 15: "Uploaded By" is left out of a page none of whose rows has an uploader
+ * or an office (court orders come from the court), and the visibility cell draws its badges in one wrapping row with
+ * the text state on its own line under them.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -29,6 +33,7 @@ import { PAGE } from "@/lib/params";
 import { apiCasePath } from "@/lib/refs";
 import { labelFor, serverLabel } from "@/lib/displayLabels";
 
+import s from "./case.module.css";
 import { documentUrl } from "./Orders";
 
 const GROUPS = ["court_record", "court_filing", "internal"] as const;
@@ -39,9 +44,14 @@ export function sizeText(bytes: number): string {
   return `${formatNumber(bytes)} B`;
 }
 
+/** Whether any row of the page names an uploader or an office: else the Uploaded By column is left out. */
+export function hasUploader(rows: readonly DocumentItem[]): boolean {
+  return rows.some((d) => !!d.uploaded_by || !!d.office);
+}
+
 /** The columns of a document group (one `DataTable`; cards on phones with the description on top). */
-function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Column<DocumentItem>[] {
-  return [
+function docColumns(caseRef: string, canView: boolean, canDownload: boolean, rows: readonly DocumentItem[]): Column<DocumentItem>[] {
+  const columns: Column<DocumentItem>[] = [
     {
       key: "type",
       header: T.case.type,
@@ -88,10 +98,12 @@ function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Co
       key: "visibility",
       header: T.case.visibility,
       cell: (d) => (
-        <div className="stack">
-          {d.assistant_available ? <Badge tone="success">{T.case.inAssistant}</Badge> : <Badge>{T.case.notSent}</Badge>}
-          <Badge>{labelFor(T.case.visibilities, d.visibility)}</Badge>
-          <span className="muted">
+        <div className={s.docVisibility}>
+          <div className={s.docBadges}>
+            {d.assistant_available ? <Badge tone="success">{T.case.inAssistant}</Badge> : <Badge>{T.case.notSent}</Badge>}
+            <Badge>{labelFor(T.case.visibilities, d.visibility)}</Badge>
+          </div>
+          <span className={`muted ${s.docState}`}>
             {T.case.textStatus}: {textLabel(d)}
           </span>
         </div>
@@ -119,6 +131,7 @@ function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Co
       ),
     },
   ];
+  return hasUploader(rows) ? columns : columns.filter((c) => c.key !== "by");
 }
 
 type Group = (typeof GROUPS)[number];
@@ -157,7 +170,7 @@ function GroupSection({
     <section aria-label={title}>
       <h2>{title}</h2>
       <p className="muted">{T.case.groupTotal(formatNumber(list.total))}</p>
-      <DataTable caption={title} rows={list.items} rowKey={(d) => d.id} columns={docColumns(caseRef, canView, canDownload)} />
+      <DataTable caption={title} rows={list.items} rowKey={(d) => d.id} columns={docColumns(caseRef, canView, canDownload, list.items)} />
       <Pagination offset={offset} limit={PAGE} total={list.total} onChange={onPage} />
     </section>
   );

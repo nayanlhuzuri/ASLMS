@@ -152,6 +152,8 @@ export function UpcomingPanel({ items }: { items: DashboardUpcoming[] }) {
                 key={`${h.case.id}-${h.date}`}
                 lead={<DateChip date={h.date} hot={band === "today" || band === "tomorrow"} />}
                 trail={<HearingDate date={h.date} kind={h.approximate ? "around" : undefined} showDate={false} />}
+                // design portal-screen-fixes-work, decision 23: on phones the badge goes under the case number
+                stackTrail
               >
                 <CaseLink value={h.case} />
                 {where ? <div className="muted">{where}</div> : null}
