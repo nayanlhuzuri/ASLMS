@@ -77,6 +77,18 @@ describe("the System health screen", () => {
     expect(screen.getByText("ASLMS Services Working")).toBeInTheDocument();
   });
 
+  it("the overview sentence stands alone with no badge before it; the Services Working figure carries the danger tone", async () => {
+    // design portal-screen-fixes-oversight, decision 8
+    routes();
+    renderWithClient(<SystemHealth params={{}} />);
+    const sentence = await screen.findByText("1 is not working");
+    const line = sentence.closest("p")!;
+    expect(line).toHaveTextContent(/^1 is not working$/);
+    expect(line.querySelector("[data-ui='badge'], [class*='badge']")).toBeNull();
+    const kpi = screen.getByText("ASLMS Services Working").parentElement!;
+    expect(kpi.querySelector("[class*='kpiSub-danger']")).not.toBeNull();
+  });
+
   it("lists the services with words, and Check services again is the only primary button", async () => {
     const api = routes();
     renderWithClient(<SystemHealth params={{}} />);

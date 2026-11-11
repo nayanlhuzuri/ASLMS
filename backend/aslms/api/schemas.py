@@ -501,6 +501,8 @@ class UnmappedCodeOut(BaseModel):
     last_listed: date | None
     example_case_ref: str | None
     partial_matches: list[PartialMatchOut] = []
+    # the example case's printed number, court-public (design portal-screen-fixes-oversight, decision 12)
+    example_case_no: str | None = None
 
 
 class UnmappedCodePageOut(BaseModel):

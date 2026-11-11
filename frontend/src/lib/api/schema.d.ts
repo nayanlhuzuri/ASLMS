@@ -13612,6 +13612,8 @@ export interface components {
             code: string;
             /** Entries */
             entries: number;
+            /** Example Case No */
+            example_case_no?: string | null;
             /** Example Case Ref */
             example_case_ref: string | null;
             /** Last Listed */

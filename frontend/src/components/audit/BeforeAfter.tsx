@@ -26,9 +26,10 @@ export function BeforeAfter({ before, after }: { before: unknown; after: unknown
   const rows = diffRows(before, after);
   if (rows.length === 0) return <EmptyState>{T.audit.noValues}</EmptyState>;
   return (
+    // the section's h2 names the table; the caption stays its accessible name only (design
+    // portal-screen-fixes-oversight, Deviations: a visible caption repeated the heading)
     <DataTable
       caption={T.audit.beforeAfter}
-      showCaption
       rows={rows}
       rowKey={(r) => r.key}
       rowClassName={(r) => (r.changed ? s.changedRow : undefined)}

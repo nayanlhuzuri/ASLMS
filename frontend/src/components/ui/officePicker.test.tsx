@@ -30,7 +30,14 @@ const HEALTH = office("HEALTH", "Health", 1, "GOA", ["Government of Assam"]);
 const OLD = office("EDU-OLD", "Old Cell", 2, "EDU", ["Government of Assam", "Education"], { is_active: false, kind: "unit" });
 const TREE = [GOA, EDU, DSE, OLD, HEALTH];
 
-function Harness(props: { initial?: string | null; subtree?: boolean; options?: OfficeChoice[]; purpose?: "users" | "audit"; onValue?: (v: string | null) => void }) {
+function Harness(props: {
+  initial?: string | null;
+  subtree?: boolean;
+  options?: OfficeChoice[];
+  purpose?: "users" | "audit";
+  onValue?: (v: string | null) => void;
+  clearable?: boolean;
+}) {
   const [value, setValue] = useState<string | null>(props.initial ?? null);
   const [sub, setSub] = useState(true);
   return (
@@ -46,6 +53,7 @@ function Harness(props: { initial?: string | null; subtree?: boolean; options?: 
         }}
         subtree={props.subtree ? { value: sub, onChange: setSub } : undefined}
         includeInactive={props.purpose === "audit"}
+        clearable={props.clearable}
       />
       <output data-testid="value">{value ?? ""}</output>
     </>
@@ -150,6 +158,18 @@ describe("the Office Picker (design portal-ui-polish-2, decision 28)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Clear office" }));
     expect(screen.getByTestId("value")).toHaveTextContent("");
     expect(box).toHaveValue("");
+  });
+
+  it("clearable={false} offers no clear button; the chosen office's full name is the box's title", async () => {
+    // design portal-screen-fixes-oversight, decision 4
+    browserApi({});
+    renderWithClient(<Harness options={[EDU, HEALTH]} clearable={false} />);
+    const box = screen.getByRole("combobox", { name: "Office" });
+    await userEvent.click(box);
+    await userEvent.click(within(await screen.findByRole("listbox")).getByText("Health"));
+    expect(screen.getByTestId("value")).toHaveTextContent("HEALTH");
+    expect(screen.queryByRole("button", { name: "Clear office" })).toBeNull();
+    expect(box).toHaveAttribute("title", "Health");
   });
 
   it("uses the page's options without a call, and marks inactive offices where the purpose allows them", async () => {

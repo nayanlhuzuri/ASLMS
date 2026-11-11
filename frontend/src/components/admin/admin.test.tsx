@@ -9,7 +9,7 @@ import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, rend
 import { AdminFrame } from "./AdminFrame";
 import { Designations } from "./Designations";
 import { NewOfficeForm, OfficeDetailView } from "./Offices";
-import { TicketView } from "./Tickets";
+import { TicketsList, TicketView } from "./Tickets";
 import { NewUserForm, UsersList } from "./Users";
 
 const MEMBERSHIP: MembershipOut = {
@@ -154,6 +154,16 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
     expect(within(row("Mira Bora")).getByText("Standing Counsel")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("+1")).toBeInTheDocument();
     expectDataTable(table);
+    // design portal-screen-fixes-oversight, decision 10: no avatar column and no "Initials" row; the avatar leads the
+    // person in the primary cell, before the name
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).not.toContain("Initials");
+    expect(within(table).queryByText("Initials")).toBeNull();
+    expect(table.querySelector("[data-label='Initials']")).toBeNull();
+    const avatar = within(row("Ravi Das")).getByText("RD");
+    const name = within(row("Ravi Das")).getByText("Ravi Das");
+    expect(avatar.closest("td")).toBe(name.closest("td"));
+    expect(avatar.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
   });
 
   it("the toolbar is one line: hidden labels, the picker with Include Sub-offices, Status and Search; the filters go to the address", async () => {
@@ -304,6 +314,54 @@ describe("tickets", () => {
     expect(await screen.findByRole("button", { name: "Withdraw" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  });
+
+  it("the list names each ticket by kind and person with the reference muted under it; no Kind column, no mono department", async () => {
+    // design portal-screen-fixes-oversight, decision 11
+    // a list item is the detail's leading fields; the extra detail fields are ignored by the list
+    const item = (extra: Partial<TicketDetail>) => ticket(extra);
+    browserApi({
+      "GET /me": makeMe(["admin.tickets"], "super_admin"),
+      "GET /reference/labels": labels(),
+      "GET /reference/offices": {
+        items: [{ code: "EDU", name: "Education", kind: "department", tier: "department", department_code: "EDU", is_active: true }],
+      },
+      "GET /admin/tickets": {
+        items: [
+          item({ target: { user_name: "Anita Sharma Baruah", designation: null, role_from: null, role_to: null }, operation: "add" }),
+          item({ ref_no: "TKT/EDU/2026/0002", operation: null, target: { user_name: null, designation: null, role_from: null, role_to: null } }),
+        ],
+        total: 2,
+        counts: { open: 2, oldest_open_at: null, open_by_department: {}, open_by_kind: {} },
+      },
+    });
+    renderWithClient(<TicketsList status="open" />);
+    const table = await screen.findByRole("table", { name: "Tickets" });
+    const link = within(table).getByRole("link", { name: "Head Change: Anita Sharma Baruah" });
+    expect(link).toHaveAttribute("href", "/admin/tickets/TKT-EDU-2026-0001");
+    expect(link.className).not.toMatch(/mono/);
+    const cell = link.closest("td")!;
+    expect(within(cell).getByText("· add")).toHaveClass("muted");
+    const ref = within(cell).getByText("TKT/EDU/2026/0001");
+    expect(ref.className).toMatch(/ticketRef/);
+    expect(ref.className).not.toMatch(/mono/);
+    expect(within(table).getByRole("link", { name: "Head Change" })).toBeInTheDocument();
+    const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+    expect(headers).not.toContain("Kind");
+    expect(headers[0]).toBe("Ticket");
+    expect(table.querySelector("td .mono, td.mono")).toBeNull();
+    expect(await within(table).findAllByText("Education")).toHaveLength(2);
+    expect(within(table).getByRole("row", { name: "Head Change: Anita Sharma Baruah" })).toBeInTheDocument();
+  });
+
+  it("the ticket page's heading is the same name, the reference muted under it", async () => {
+    browserApi({ "GET /reference/labels": labels(), "GET /admin/tickets/TKT-EDU-2026-0001": ticket({}) });
+    renderWithClient(<TicketView ticketRef="TKT-EDU-2026-0001" />);
+    const heading = await screen.findByRole("heading", { level: 2, name: "Head Change: Mira Bora" });
+    expect(heading.className).not.toMatch(/mono/);
+    const ref = screen.getByText("TKT/EDU/2026/0001");
+    expect(ref.className).toMatch(/ticketRef/);
+    expect(screen.getByRole("region", { name: "Head Change: Mira Bora" })).toBeInTheDocument();
   });
 
   it("neither for anyone else", async () => {

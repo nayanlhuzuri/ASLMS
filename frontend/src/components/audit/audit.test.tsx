@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Sidebar } from "@/components/shell/PortalShell";
 import type { AuditRow, Me, Permission, Role } from "@/lib/api/types";
@@ -11,7 +11,7 @@ import { addDays, istDay } from "@/lib/format";
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
 
-import { AuditEntry } from "./AuditEntry";
+import { AuditEntry, recordRef } from "./AuditEntry";
 import { BeforeAfter } from "./BeforeAfter";
 import { AuditSearch } from "./AuditSearch";
 
@@ -393,7 +393,9 @@ describe("the entry page", () => {
     expect(screen.getByText("Office Changed")).toBeInTheDocument();
     expect(screen.getByText("office.update").tagName).toBe("CODE");
     expect(screen.getByText("14 Oct 2026, 14:34:07")).toBeInTheDocument();
-    expect(screen.getByText("Anita Sharma, Under Secretary, EDU")).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 9: "By" names the office (kit OfficeName; the code while names load)
+    const by = screen.getByText("By", { selector: "dt" }).nextElementSibling!;
+    expect(by).toHaveTextContent("Anita Sharma, Under Secretary, EDU");
     expect(screen.getByText("10.0.0.5")).toBeInTheDocument();
     expect(screen.getByText("Mozilla/5.0")).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "Before and After" });
@@ -414,6 +416,53 @@ describe("the entry page", () => {
     );
     expect(screen.getByRole("link", { name: "Back to the Search" })).toHaveAttribute("href", "/audit");
     expect(api.calls.every((c) => c.method === "GET")).toBe(true);
+  });
+
+  it("Record reads the type in words and the entry's ref_no; the raw id is never shown, only kept as the title, the copy button and the link", async () => {
+    // design portal-screen-fixes-oversight, decision 9
+    const RECORD = "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    browserApi({
+      "GET /me": SUPER,
+      "GET /reference/offices": {
+        items: [{ code: "EDU", name: "Education", kind: "department", tier: "department", department_code: "EDU", is_active: true }],
+      },
+      [`GET /audit/${ID}`]: row(ID, {
+        action: "note.add",
+        entity_type: "case_note",
+        entity_id: RECORD,
+        before: null,
+        after: { ref_no: "ASLMS/EDU/NOTE/2026/000003", visibility: "department" },
+      }),
+    });
+    const { container } = renderWithClient(<AuditEntry id={ID} />);
+    const record = await screen.findByText("Case Note ASLMS/EDU/NOTE/2026/000003");
+    expect(record).toHaveAttribute("title", RECORD);
+    expect(record.className).not.toMatch(/code|mono/);
+    // no element shows the raw id as text
+    expect(container.textContent).not.toContain(RECORD);
+    expect(screen.getByRole("link", { name: "All Entries for This Record" })).toHaveAttribute(
+      "href",
+      `/audit?entity_type=case_note&entity_id=${RECORD}`,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Copy Record ID" }));
+    expect(writeText).toHaveBeenCalledWith(RECORD);
+    // "By" names the office once the names load
+    const by = screen.getByText("By", { selector: "dt" }).nextElementSibling!;
+    await waitFor(() => expect(by).toHaveTextContent("Anita Sharma, Under Secretary, Education"));
+  });
+
+  it("a record without a ref_no shows its type alone, from the before values when after has none", async () => {
+    browserApi({
+      "GET /me": SUPER,
+      [`GET /audit/${ID}`]: row(ID, { entity_type: "user", before: { ref_no: "ASLMS/OLD/1" }, after: { email: "a@b" } }),
+    });
+    renderWithClient(<AuditEntry id={ID} />);
+    expect(await screen.findByText("User ASLMS/OLD/1")).toBeInTheDocument();
+    // only a string ref_no is a reference
+    expect(recordRef({ before: null, after: { ref_no: 7 } })).toBeNull();
+    expect(recordRef({ before: null, after: null })).toBeNull();
   });
 
   it("an action without values says so", async () => {

@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Sidebar } from "@/components/shell/PortalShell";
 import { SystemHealth } from "@/components/system/SystemHealth";
 import type { CallList, Duplicates as DuplicatesList, NapixHealth, Permission } from "@/lib/api/types";
-import type { DataGaps, DataOverview } from "@/lib/dataCollection";
+import { problemWords, type DataGaps, type DataOverview } from "@/lib/dataCollection";
 import { formatNumber } from "@/lib/format";
 import { DATA_TABS, OLD_DATA_REDIRECTS } from "@/lib/routes";
 import { resetNav } from "@/test/nav";
@@ -91,7 +91,7 @@ const row = (id: string, kind: string, ref: string, attempts: number, error: str
 const FAILED_ROWS = {
   total: 2,
   items: [
-    row("q-1", "order_pdf", "GAHC010000012025|3|2025-03-01", 5, "NapixUnavailable: 502 Bad Gateway"),
+    row("q-1", "order_pdf", "GAHC010000012025|3|2025-03-01", 5, "NapixUnavailable: 502 Bad Gateway from /nic/ghc/orders/v1/getOrderPdf"),
     row("q-2", "masters", "all", 3, "NapixAuthError"),
   ],
 };
@@ -239,11 +239,29 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     expectDataTable(items);
     expect(within(items).getByText(/^Order 3 of .* · GAHC010000012025$/)).toBeInTheDocument();
     expect(within(items).getByText("All Court Reference Lists")).toBeInTheDocument();
-    expect(within(items).getByText("NapixUnavailable: 502 Bad Gateway")).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 7: the problem in plain words, the raw text behind Details
+    expect(within(items).getByText("The court did not answer (busy or down) (502)")).toBeInTheDocument();
+    expect(within(items).getByText("The access key or credentials were refused")).toBeInTheDocument();
+    const raw = within(items).getByText("NapixUnavailable: 502 Bad Gateway from /nic/ghc/orders/v1/getOrderPdf");
+    expect(raw.tagName).toBe("CODE");
     // design portal-ui-kit-fixes, decision 16: raw error text may break anywhere, the rest of the panel only between words
-    expect(within(items).getByText("NapixUnavailable: 502 Bad Gateway")).toHaveAttribute("data-free-text");
-    expect(within(items).getAllByRole("button", { name: "Retry" })).toHaveLength(1);
-    await userEvent.click(within(items).getByRole("button", { name: "Retry" }));
+    expect(raw).toHaveAttribute("data-free-text");
+    const details = raw.closest("details")!;
+    expect(details).not.toBeNull();
+    expect(details.querySelector("summary")).toHaveTextContent("Details");
+    expect(details.hasAttribute("open")).toBe(false);
+    // decision 6: both retry actions are small secondary buttons in right-aligned columns
+    const retries = within(items).getAllByRole("button", { name: /^Retry / });
+    expect(retries).toHaveLength(1);
+    const retryAll = within(section).getByRole("button", { name: "Retry All Case Details" });
+    for (const button of [retries[0]!, retryAll]) {
+      expect(button).toHaveAttribute("data-variant", "secondary");
+      expect(button).toHaveAttribute("data-size", "sm");
+      expect(button.closest("td")!.className).toMatch(/num/);
+    }
+    expect(retries[0]).toHaveAccessibleName(/^Retry Order 3 of .* · GAHC010000012025$/);
+    expect(retries[0]).toHaveTextContent("Retry");
+    await userEvent.click(retries[0]!);
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST" && c.path === "/admin/napix/queue/q-1/retry")).toBe(true));
     expect(api.calls.find((c) => c.path.startsWith("/admin/napix/queue?"))?.url).toContain("status=failed");
   });
@@ -529,5 +547,20 @@ describe("words and numbers break only between them (design portal-ui-kit-fixes,
 
   it("globals.css lets long machine text marked data-free-text break anywhere", () => {
     expect(globals).toMatch(/\[data-free-text\] \{\s*overflow-wrap: anywhere;\s*\}/);
+  });
+});
+
+describe("problemWords (design portal-screen-fixes-oversight, decision 7)", () => {
+  it("reads the first known family in plain words with a 4xx or 5xx status, else another problem, else no reason", () => {
+    expect(problemWords("NapixUnavailable: 502 Bad Gateway from /nic/ghc/v1/2026/getOrder")).toBe(
+      "The court did not answer (busy or down) (502)",
+    );
+    expect(problemWords("NapixAuthError")).toBe("The access key or credentials were refused");
+    expect(problemWords("RetryError: NapixNotFound: 404 at /cases/ASHC010001002026")).toBe("Nothing was found at the court (404)");
+    // a three-digit number that is not a 4xx or 5xx status is not one
+    expect(problemWords("NapixProtocolError: 200 with a bad body")).toBe("The court's answer could not be read");
+    expect(problemWords("ValueError: something odd")).toBe("Another problem; see the details.");
+    expect(problemWords(null)).toBe("No reason given");
+    expect(problemWords("   ")).toBe("No reason given");
   });
 });

@@ -869,6 +869,23 @@ describe("CheckField inline (design portal-ui-polish-2, decision 26)", () => {
   });
 });
 
+describe("CheckField hideLabel (design portal-screen-fixes-oversight, decision 13)", () => {
+  it("puts the label in visually-hidden, keeping it as the accessible name; without it the label is unchanged", () => {
+    renderWithClient(
+      <>
+        <CheckField label="Search the Court" hideLabel aria-label="Search the court for EDUCATION" />
+        <CheckField label="Show Archived" />
+      </>,
+    );
+    const hidden = screen.getByRole("checkbox", { name: "Search the court for EDUCATION" });
+    expect(document.querySelector(`label[for='${hidden.id}']`)).toHaveClass("visually-hidden");
+    const plain = screen.getByRole("checkbox", { name: "Show Archived" });
+    const label = document.querySelector(`label[for='${plain.id}']`)!;
+    expect(label).not.toHaveAttribute("class");
+    expect(label).toHaveTextContent("Show Archived");
+  });
+});
+
 describe("FilterCard (design portal-ui-polish-2, decision 21)", () => {
   function Card({ moreCount = 0, onSubmit = vi.fn() }: { moreCount?: number; onSubmit?: () => void }) {
     return (

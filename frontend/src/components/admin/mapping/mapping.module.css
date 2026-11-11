@@ -154,12 +154,17 @@
   border-bottom: 0;
 }
 
+/* design portal-screen-fixes-oversight, decision 12: the code on the first line and "n entries · last seen" on the
+   second, on every row and at every width */
 .recTop {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s2);
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recTop > :first-child {
+  overflow-wrap: anywhere;
 }
 
 .recMap {
@@ -173,41 +178,32 @@
   min-width: 0;
 }
 
-/* owner, 26 Oct 2026: one recommended code per row where the box is wide enough: Code | entries and last seen |
-   example case | Office and Map. Anything else in the entry (a "Partly matches" line, an error) takes a full-width
-   line under it. Narrower boxes keep the stacked entry above. */
+/* owner, 26 Oct 2026: one recommended code per row where the box is wide enough: the code with its entries and last
+   seen under it | example case | Office and Map (design portal-screen-fixes-oversight, decision 12). Anything else in
+   the entry (a "Partly matches" line, an error) takes a full-width line under it. Narrower boxes keep the stacked entry
+   above. */
 @container recommended (min-width: 860px) {
   .recList > li {
     display: grid;
-    grid-template-columns: minmax(110px, 0.8fr) minmax(210px, 1.2fr) minmax(190px, 1fr) minmax(320px, 1.6fr);
+    grid-template-columns: minmax(220px, 1.4fr) minmax(190px, 1fr) minmax(320px, 1.6fr);
     gap: var(--s1) var(--s4);
     align-items: center;
   }
 
-  .recTop {
-    display: contents;
-  }
-
-  .recTop > :first-child {
+  .recList > li > .recTop {
     grid-row: 1;
     grid-column: 1;
-    overflow-wrap: anywhere;
-  }
-
-  .recTop > :last-child {
-    grid-row: 1;
-    grid-column: 2;
   }
 
   .recList > li > a {
     grid-row: 1;
-    grid-column: 3;
+    grid-column: 2;
     overflow-wrap: anywhere;
   }
 
   .recList > li > .recMap {
     grid-row: 1;
-    grid-column: 4;
+    grid-column: 3;
   }
 
   .recList > li > :not(.recTop, a, .recMap) {

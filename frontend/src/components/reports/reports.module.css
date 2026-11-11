@@ -117,3 +117,9 @@
     font-size: var(--t-xl);
   }
 }
+
+/* design portal-screen-fixes-oversight, decision 5: a text column of a report table wraps between a few words, not one
+   per line; the table scrolls sideways in its own region, so the extra width costs nothing on the page */
+.textCell {
+  min-width: 12ch;
+}

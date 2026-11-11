@@ -48,7 +48,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useCase, useLatestListing, useMe, useOwnership } from "@/lib/api/hooks";
 import type { CaseDetail, CaseOwnershipView, Listing, Me } from "@/lib/api/types";
 import { can, departmentsOf, readsAudit } from "@/lib/can";
-import { cardHolder, withText } from "@/lib/cases";
+import { cardHolder, statusTone, withText } from "@/lib/cases";
 import { formatDate } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
@@ -62,11 +62,6 @@ import { labelFor, serverLabel } from "@/lib/displayLabels";
 import s from "./case.module.css";
 import { closerName, openClosure, Rail, type RailAction } from "./Rail";
 import { RemarksPanel } from "./Remarks";
-
-// decision 10.15: green means done (disposed); pending and unknown are neutral, amber is kept for due soon
-function statusTone(status: string) {
-  return status === "disposed" ? "success" : undefined;
-}
 
 /** The case as shown in dialogs and headings: its number, else its reference. */
 export function caseName(c: Pick<CaseDetail, "identity" | "ref_no">): string {

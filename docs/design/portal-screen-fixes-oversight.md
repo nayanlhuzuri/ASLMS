@@ -350,3 +350,48 @@ recommended answers".
 ## Owner's answers (10 Nov 2026)
 
 All open questions answered with the recommended answers.
+
+## Deviations
+1. **The Office Picker gains `clearable` (default true)** (decision 4). The kit's `required` only set `aria-required`;
+   the clear button stayed. Reports passes `required` and `clearable={false}` for a reader of several departments, so
+   the picker cannot be cleared there. The other required pickers (mapping, offices, tickets, users) keep their clear
+   button. The picker's box also carries the chosen office's full name as its `title` everywhere, which is the "full
+   name as its `title`" of decision 4.
+2. **"Owned by" is `T.search.ownedBy`** followed by the kit `OfficeName` (decision 2). The old `T.search.owner(code)`
+   function is gone. The string is a sentence exception in `labelRules.ts` ("a fragment before an office name").
+3. **The side panel's Status fact** is the Status cell (badge and one line), then the "Court-public Summary Only" mark
+   and "Court Details Not Yet Fetched" when they apply (decision 2: every fact stays in the panel).
+4. **Tickets: the primary column's header is "Ticket"** (`T.tickets.ticket`). The design names the cell but not its
+   header, and "Reference" no longer describes it. The Person column stays: decision 11 removes only Kind.
+5. **Ticket page "Requested By"** keeps the parentheses that row 232 put around `OfficeName`: "Edu Admin (Education) ·
+   date".
+6. **Recommended From Cause Lists, wide layout** (decision 12). `.recTop` is now one grid cell, so the wide grid
+   (container width 860 px and more) has three columns, not four: the code with its entries line | the example case |
+   Office and Map.
+7. **Audit entry class names.** The Record value uses `.recordValue`, because `.record` is already the list's record
+   cell (guarded by a test). `recordRef(entry)` is exported for its unit test.
+8. **uicheck fixtures.** The synthetic failed-fetch stress row already names `NapixUnavailable` with a 502
+   (`STRESS.error`), and the synthetic ticket's target is already "Anita Sharma Baruah". So only two fixtures are new:
+   the `/audit/{id}` entry (a case note with `after.ref_no`) and `example_case_no` on the first unmapped code.
+9. **The row's Retry button** is named `T.pf.retryOf(failedWhat(kind, ref))`, for example "Retry Order 3 of 1 Mar 2025 ·
+   GAHC010000012025" (decision 6).
+10. **Screen check on a private network, run by the developer on 11 Nov 2026** (Verification step 2, `tmp234-*`
+    images). The first run found three things, fixed on the branch:
+    - `/search` at 375 px: the Status cell's "Owned by" line grew to the full office name and left the card. Each line
+      of the cell is now capped at the cell's width (`.statusCell > * { max-width: 100% }`), so the kit's `OfficeName`
+      cuts the name with its ellipsis, as row 232 designed for table cells.
+    - `/audit/{id}`: the new fixture gives the entry real before and after values, which showed that the Before and
+      After table's visible caption repeated the section's `h2` (`doubled-heading`). The caption is now its accessible
+      name only, as decision 1 does on Search.
+    - `/audit/{id}` at 375 px: "Copy Record ID" was a small button outside a row. It is the normal 36 px size, as the
+      System Health console's copy button is.
+
+    The second run found `/admin/tickets` at 1280 px scrolling inside its box (`inner-scroll`). The table was measured
+    while the Department cells still held codes. When the office names arrived the table grew, and nothing measured
+    it again. The list now hands the table new rows when the kind labels or the office names arrive, so the kit's
+    `fitTable` measures again and falls back to cards when the table no longer fits. The name cell also has a
+    minimum width of 16ch in the table, so "Head Change: Anita Sharma Baruah" never stands one word to a line. The
+    third run passed: 174 routes and states, 419 screenshots, 0 findings, 307 s.
+11. **Users at 1280 px (decision 10).** With the fixtures' long user-type badges the table still falls back to cards at
+    1280 px. That is the kit's designed fallback. The cards now lead with the avatar beside the name, and there is no
+    "Initials" row.

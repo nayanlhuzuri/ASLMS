@@ -169,22 +169,63 @@ describe("scope", () => {
     expect(await screen.findAllByText("Scope: Education (EDU)")).toHaveLength(2);
   });
 
-  it("a State reader defaults to Whole State and may pick an inactive department by name", async () => {
+  it("a State reader's Scope is an Office Picker: empty reads Whole State and sends no department; an inactive department by name", async () => {
+    // design portal-screen-fixes-oversight, decision 4
     const api = browserApi({
       "GET /me": stateMe(),
       "GET /reports": catalogue(true),
       "GET /reports/pending-cases": report("pending-cases"),
     });
     renderWithClient(<ReportPage reportKey="pending-cases" params={{}} />);
-    const scope = await screen.findByLabelText("Scope");
+    const scope = await screen.findByRole("combobox", { name: "Scope" });
     expect(scope).toHaveValue("");
-    expect(within(scope).getByRole("option", { name: "Whole State" })).toBeInTheDocument();
-    expect(within(scope).getByRole("option", { name: "Finance (FIN) — inactive" })).toBeInTheDocument();
+    expect(scope).toHaveAttribute("placeholder", "Whole State");
+    expect(scope).not.toHaveAttribute("aria-required");
     expect(await screen.findAllByText("Scope: Whole State")).toHaveLength(2);
     expect(reportCalls(api).map((c) => c.path)).toEqual(["/reports/pending-cases"]);
-    await userEvent.selectOptions(scope, "FIN");
+    await userEvent.click(scope);
+    const options = within(await screen.findByRole("listbox")).getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual(["EducationEDU", "Finance — inactiveFIN", "HealthHEALTH"]);
+    await userEvent.click(options[1]!);
+    expect(scope).toHaveValue("Finance — inactive");
     await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push).toHaveBeenCalledWith("/reports/pending-cases?department=FIN");
+    // cleared is the whole State again: no department is sent
+    await userEvent.click(screen.getByRole("button", { name: "Clear office" }));
+    expect(scope).toHaveValue("");
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
+    expect(nav.push).toHaveBeenLastCalledWith("/reports/pending-cases");
+  });
+
+  it("a reader of two departments gets a required picker that cannot be cleared", async () => {
+    browserApi({
+      "GET /me": deptMe(),
+      "GET /reports": catalogue(false, ["EDU", "HEALTH"]),
+      "GET /reports/pending-cases": report("pending-cases", { scope: "department", department_code: "EDU" }),
+    });
+    renderWithClient(<ReportPage reportKey="pending-cases" params={{ department: "EDU" }} />);
+    const picker = await screen.findByRole("combobox", { name: "Department" });
+    expect(picker).toHaveAttribute("aria-required", "true");
+    expect(picker).toHaveValue("Education");
+    expect(screen.queryByRole("button", { name: "Clear office" })).toBeNull();
+  });
+
+  it("a long department name is the option's full text and the closed box's title", async () => {
+    const long = "Department of School Education and Literacy, Elementary and Secondary";
+    const cat = catalogue(true);
+    cat.departments = cat.departments.map((d) => (d.code === "EDU" ? { ...d, name: long } : d));
+    browserApi({
+      "GET /me": stateMe(),
+      "GET /reports": cat,
+      "GET /reports/pending-cases": report("pending-cases", { scope: "department", department_code: "EDU" }),
+    });
+    renderWithClient(<ReportPage reportKey="pending-cases" params={{ department: "EDU" }} />);
+    const scope = await screen.findByRole("combobox", { name: "Scope" });
+    await waitFor(() => expect(scope).toHaveValue(long));
+    expect(scope).toHaveAttribute("title", long);
+    await userEvent.click(scope);
+    const option = within(await screen.findByRole("listbox")).getAllByRole("option")[0]!;
+    expect(option).toHaveTextContent(long);
   });
 });
 
@@ -206,6 +247,16 @@ describe("sections render from columns", () => {
     // design portal-names-and-labels, decision 26: the code column (screen: false) is for Excel only
     expect(headers).toEqual(["Department", "Active Cases", "Oldest Listing", "Days Pending", "A Column the Portal Does Not Know"]);
     expect(within(table).queryByText("EDU")).not.toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 5: text columns carry a minimum width, number columns do not
+    const head = within(table).getAllByRole("columnheader");
+    expect(head[0]!.className).toMatch(/textCell/);
+    expect(head[1]!.className).not.toMatch(/textCell/);
+    expect(head[4]!.className).toMatch(/textCell/);
+    const firstRow = within(table).getAllByRole("row")[1]!;
+    const cells = within(firstRow).getAllByRole("cell");
+    expect(cells[0]!.className).toMatch(/textCell/);
+    expect(cells[1]!.className).not.toMatch(/textCell/);
+    expect(cells[2]!.className).not.toMatch(/textCell/);
     expect(within(table).getByText("1,28,400")).toBeInTheDocument();
     expect(within(table).getByText("1 Oct 2026")).toBeInTheDocument();
     expect(within(table).getByText("server-only")).toBeInTheDocument();

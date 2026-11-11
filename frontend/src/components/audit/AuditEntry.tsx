@@ -5,24 +5,50 @@
  * who acted, the case, the record, the IP address and browser, then the before / after table, and links to all
  * entries for the same case, person or record. "Back to the search" goes back when the entry was opened from the
  * search, else to `/audit`. Viewing writes nothing.
+ * Design portal-screen-fixes-oversight, decision 9: Record shows the record type in words and the `ref_no` the entry's
+ * after or before values hold; the raw record id is never drawn, and stays as the value's title, in "All Entries for
+ * This Record" and behind "Copy Record ID". "By" shows the office by name (kit `OfficeName`).
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { CaseLink, DefinitionList, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
+import { CaseLink, CopyButton, DefinitionList, EmptyState, ErrorBanner, Loading, OfficeName, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { useOfficeNames } from "@/lib/api/hooks";
 import type { AuditRow } from "@/lib/api/types";
 import { actionName } from "@/lib/audit";
+import { labelFor } from "@/lib/displayLabels";
 import { formatDateTimeSeconds } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { officeName } from "@/lib/officeNames";
 import { queryString } from "@/lib/params";
 
 import { FROM_SEARCH_KEY } from "./AuditTable";
 import { BeforeAfter } from "./BeforeAfter";
 import s from "./audit.module.css";
+
+/** The reference readers know: a string `ref_no` in the entry's after values, else its before values. */
+export function recordRef(r: Pick<AuditRow, "before" | "after">): string | null {
+  for (const values of [r.after, r.before]) {
+    const ref = values && typeof values === "object" ? (values as Record<string, unknown>).ref_no : undefined;
+    if (typeof ref === "string" && ref) return ref;
+  }
+  return null;
+}
+
+/** Decision 9: the record type in words (an unlabelled code in Title Case), then its reference in the body font. */
+function RecordValue({ r }: { r: AuditRow }) {
+  const ref = recordRef(r);
+  const words = [labelFor({}, r.entity_type), ref].filter(Boolean).join(" ");
+  return (
+    <span className={s.recordValue}>
+      <span title={r.entity_id ?? undefined} data-record="">
+        {words}
+      </span>
+      {/* the normal 36 px size: it stands in a facts list, outside any row */}
+      {r.entity_id ? <CopyButton text={r.entity_id} label={T.audit.copyRecordId} size="md" /> : null}
+    </span>
+  );
+}
 
 function openedFromSearch(id: string): boolean {
   try {
@@ -34,7 +60,6 @@ function openedFromSearch(id: string): boolean {
 
 export function AuditEntry({ id }: { id: string }) {
   const router = useRouter();
-  const names = useOfficeNames();
   const entry = useQuery({
     queryKey: ["audit", "entry", id],
     queryFn: () => api<AuditRow>(`/audit/${encodeURIComponent(id)}`),
@@ -77,7 +102,19 @@ export function AuditEntry({ id }: { id: string }) {
 
   const r = entry.data;
   const a = r.actor;
-  const by = a.name ? [a.name, a.designation, a.office_code ? officeName(a.office_code, names.data) : null].filter(Boolean).join(", ") : T.audit.system;
+  const by = a.name ? (
+    <span key="by">
+      {[a.name, a.designation].filter(Boolean).join(", ")}
+      {a.office_code ? (
+        <>
+          {", "}
+          <OfficeName code={a.office_code} />
+        </>
+      ) : null}
+    </span>
+  ) : (
+    T.audit.system
+  );
   const links: { href: string; label: string }[] = [];
   if (r.case?.ref_no) links.push({ href: "/audit" + queryString({ case: r.case.ref_no }), label: T.audit.entriesForCase });
   if (a.user_id) links.push({ href: "/audit" + queryString({ user: a.user_id }), label: T.audit.entriesByPerson });
@@ -114,13 +151,7 @@ export function AuditEntry({ id }: { id: string }) {
             ],
             [T.audit.by, by],
             [T.audit.case, r.case?.ref_no ? <CaseLink key="case" value={{ ...r.case, ref_no: r.case.ref_no }} /> : null],
-            [
-              T.audit.record,
-              <span key="record" className={s.code}>
-                {r.entity_type}
-                {r.entity_id ? ` ${r.entity_id}` : ""}
-              </span>,
-            ],
+            [T.audit.record, <RecordValue key="record" r={r} />],
             [T.audit.ip, r.ip ? <span key="ip" className="mono">{r.ip}</span> : null],
             [T.audit.browser, r.user_agent],
           ]}

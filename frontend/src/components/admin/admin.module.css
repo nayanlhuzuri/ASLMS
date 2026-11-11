@@ -53,6 +53,18 @@
   min-width: 0;
 }
 
+/* design portal-screen-fixes-oversight, decision 10: the avatar before the name and post, in one row */
+.personRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.personRow > .avatar {
+  flex: none;
+}
+
 .person > span {
   overflow-wrap: anywhere;
 }
@@ -588,5 +600,29 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* design portal-screen-fixes-oversight, decision 11: a ticket named by kind and person, its reference muted under it in
+   the body font at the small size */
+.ticketCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* in the list, the name reads a few words to a line, never one */
+:global(td) .ticketCell {
+  min-width: 16ch;
+}
+
+.ticketCell > h2 {
+  margin: 0;
+}
+
+.ticketRef {
+  color: var(--text-3);
+  font-size: var(--t-sm);
   overflow-wrap: anywhere;
 }

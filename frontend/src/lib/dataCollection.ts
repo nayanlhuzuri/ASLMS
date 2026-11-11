@@ -241,6 +241,35 @@ export function familyWords(family: string | null | undefined): string {
   return labelFor(T.pf.families, family);
 }
 
+/** The first letter in capitals: the family words are written lower-case for use inside sentences. */
+function sentenceCase(text: string): string {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+/**
+ * A failed fetch's problem in plain words (design portal-screen-fixes-oversight, decision 7), read from the queue row's
+ * `last_error` (`"<ExceptionClass>: <message>"`, written by the runner): the words of the first known NAPIX family in
+ * the text, with an HTTP status when one appears as a three-digit 4xx or 5xx ("The court did not answer (busy or down)
+ * (502)"); "Another problem; see the details." with no known family; "No reason given" with no text. Every result
+ * starts with a capital letter. Nothing is parsed on the server; the raw text stays behind Details.
+ */
+export function problemWords(error: string | null | undefined): string {
+  const text = (error ?? "").trim();
+  if (!text) return sentenceCase(T.pf.unknownReason);
+  let found: { at: number; family: string } | null = null;
+  for (const family of Object.keys(T.pf.families)) {
+    const at = text.indexOf(family);
+    // the earliest family wins; a longer name at the same place wins over its prefix
+    if (at >= 0 && (!found || at < found.at || (at === found.at && family.length > found.family.length))) {
+      found = { at, family };
+    }
+  }
+  if (!found) return T.pf.otherProblem;
+  const status = /(?<!\d)[45]\d{2}(?!\d)/.exec(text);
+  const words = sentenceCase(T.pf.families[found.family]!);
+  return status ? `${words} (${status[0]})` : words;
+}
+
 /**
  * What a failed queue row was fetching, in words (decision 44): a cause-list day by its date, an order PDF by its
  * number, date and CNR, a provisional case by its printed number; any other reference as it is.

@@ -1,0 +1,34 @@
+/* Search's result rows (design portal-screen-fixes-oversight, decisions 1 and 2): the count at the head of the
+   summary strip, the case cell led by the number, and the one-badge Status cell; spacing from the scale only. */
+
+.count {
+  margin: 0;
+  font-weight: 500;
+}
+
+.caseCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.statusCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* each line stays inside the cell: an office name too long for it is cut by the kit's OfficeName (row 232) */
+.statusCell > * {
+  max-width: 100%;
+  min-width: 0;
+}

@@ -11,6 +11,8 @@
  * control, and "Only cases I can open" with words. Old links' `status=` and `office=` are read as `case_status` and
  * `owner`. "Only cases I can open" is ticked by default (design ownership-refinements, decision 8): the page sends
  * `visible_only=true` unless the address says `visible_only=false` (unticked); the API's own default stays `false`.
+ * One heading, one count (design portal-screen-fixes-oversight, decision 1): the count ("1,23,456+ cases", keeping the
+ * "+" of a capped total) heads the Layout B summary strip as on the Case Inbox, and the results heading has none.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -31,6 +33,7 @@ import { casePath } from "@/lib/refs";
 
 import { CaseResults } from "./CaseResults";
 import { CourtSearch } from "./CourtSearch";
+import s from "./search.module.css";
 import { TextSearch } from "./TextSearch";
 
 /** The local search's fields (`GET /cases/search?field=`); `auto` is the default and is not sent. */
@@ -93,14 +96,21 @@ function CaseSearch({ params }: { params: Params }) {
   return (
     <section className="stack" aria-label={T.search.cases}>
       {/* design portal-ui-polish-2, decision 23: Layout B with Search For as the hero; Case Type, Year and Department
-          on the right; the rest of the shared fields under More Filters; the total and the chips in the strip */}
+          on the right; the rest of the shared fields under More Filters; the count and the chips in the strip (design portal-screen-fixes-oversight,
+          decision 1) */}
       <FilterBar
         list="search"
         layout="card"
         hero="q"
         more={SEARCH_MORE}
         params={params}
-        total={list.data?.total}
+        countLine={
+          list.data ? (
+            <p className={s.count} aria-live="polite">
+              {T.search.total(formatNumber(list.data.total), !!list.data.total_capped)}
+            </p>
+          ) : null
+        }
         wordsLabel={T.search.searchFor}
         wordsHint={T.search.searchForHint}
         own={
@@ -121,10 +131,7 @@ function CaseSearch({ params }: { params: Params }) {
       {list.isPending || single ? <Loading /> : null}
       {list.data && !single ? (
         <>
-          <h2>
-            {words ? T.search.results : T.search.myCases}
-            <span className="muted"> · {T.search.total(formatNumber(list.data.total), !!list.data.total_capped)}</span>
-          </h2>
+          <h2>{words ? T.search.results : T.search.myCases}</h2>
           {found ? (
             <>
               <CaseResults items={list.data.items} caption={words ? T.search.results : T.search.myCases} />

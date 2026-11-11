@@ -128,7 +128,8 @@ describe("local search", () => {
     expect(text.closest("a")).toBeNull();
     const row = text.closest("tr")!;
     expect(within(row).getByText("In the Unclaimed Pool")).toBeInTheDocument();
-    expect(within(row).getByText("Court Details Not Yet Fetched")).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 2: the fetch state stays in the side panel
+    expect(within(row).queryByText("Court Details Not Yet Fetched")).toBeNull();
     await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
     expect(screen.getByRole("dialog", { name: "Claim This Case" })).toBeInTheDocument();
   });
@@ -521,7 +522,7 @@ describe("the Work list template on Search (portal-ui-redesign, decision 26)", (
     renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
     await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/1/2026" }));
     const panel = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
-    expect(within(panel).getByText("Owned by EDU")).toBeInTheDocument();
+    expect(within(panel).getByText("Owned by", { exact: false })).toHaveTextContent("Owned by EDU");
     expect(within(panel).getByText("ASHC010001002026")).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
@@ -681,7 +682,8 @@ describe("Layout B on Search (portal-ui-polish-2, decision 23)", () => {
       expect(within(more).getByLabelText(label)).toBeInTheDocument();
     }
     const strip = container.querySelector<HTMLElement>("[data-zone='summary']")!;
-    expect(await within(strip).findByText("2 cases match")).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 1: the page's count heads the strip
+    expect(await within(strip).findByText("2 cases")).toBeInTheDocument();
     expect(within(strip).getByText("Year: 2026")).toBeInTheDocument();
     // the same query keys as before
     const call = api.calls.find((c) => c.path.startsWith("/cases/search"))!;
@@ -689,5 +691,70 @@ describe("Layout B on Search (portal-ui-polish-2, decision 23)", () => {
     expect(call.url).toContain("year=2026");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/search?q=RAM+KUMAR&year=2026");
+  });
+});
+
+describe("one count and the case number first (portal-screen-fixes-oversight, decisions 1 and 2)", () => {
+  const NAMES = {
+    items: [{ code: "EDU", name: "Education", kind: "department", tier: "department", department_code: "EDU", is_active: true }],
+  };
+
+  it("the strip's first element is the count with the + of a capped total; the heading has none and no caption shows", async () => {
+    browserApi({
+      "GET /me": me(READER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [item(1)], total: 123456, total_capped: true },
+    });
+    const { container } = renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const strip = container.querySelector<HTMLElement>("[data-zone='summary']")!;
+    await waitFor(() => expect(strip.firstElementChild).toHaveTextContent("1,23,456+ cases"));
+    expect(within(strip).queryByText(/cases match/)).toBeNull();
+    const heading = screen.getByRole("heading", { name: "Results" });
+    expect(heading).toHaveTextContent(/^Results$/);
+    expect(container.textContent!.match(/1,23,456\+ cases/g)).toHaveLength(1);
+    const caption = screen.getByRole("table", { name: "Results" }).querySelector("caption")!;
+    expect(caption.className).toMatch(/srCaption/);
+  });
+
+  it("the case link comes before the parties; Status is one badge and one muted line with the owner's name", async () => {
+    browserApi({
+      "GET /me": me(READER),
+      "GET /reference/case-types": TYPES,
+      "GET /reference/offices": NAMES,
+      "GET /cases": { items: [item(1, { owner_office_code: "EDU" }), item(2, { in_pool: true }), item(3)], total: 3 },
+    });
+    renderWithClient(<Search params={{}} />);
+    const link = await screen.findByRole("link", { name: "WP(C)/1/2026" });
+    const row = link.closest("tr")!;
+    const parties = within(row).getByText("RAM KUMAR", { exact: false });
+    expect(link.compareDocumentPosition(parties) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const statusOf = (r: HTMLElement) => within(r).getAllByRole("cell")[1]!;
+    const status = statusOf(row);
+    expect(within(status).getByText("Pending")).toBeInTheDocument();
+    expect(status.querySelectorAll("[data-status-line]")).toHaveLength(1);
+    await waitFor(() => expect(status.querySelector("[data-status-line]")).toHaveTextContent("Owned by Education"));
+    expect(within(status).queryByText(/EDU/)).toBeNull();
+    const pool = statusOf(screen.getByRole("link", { name: "WP(C)/2/2026" }).closest("tr")!);
+    expect(pool.querySelector("[data-status-line]")).toHaveTextContent("In the Unclaimed Pool");
+    const plain = statusOf(screen.getByRole("link", { name: "WP(C)/3/2026" }).closest("tr")!);
+    expect(plain.querySelector("[data-status-line]")).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Status" })).toHaveStyle({ width: "calc(2 * var(--lead-w))" });
+  });
+
+  it("a case the caller cannot open shows the summary-only mark; the fetch state is in the side panel, not the row", async () => {
+    browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [item(4, { visible: false, dossier_status: "not_fetched" })], total: 1 },
+    });
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const text = await screen.findByText("WP(C)/4/2026");
+    const row = text.closest("tr")!;
+    expect(within(row).getByText("Court-public Summary Only")).toBeInTheDocument();
+    expect(within(row).queryByText("Court Details Not Yet Fetched")).toBeNull();
+    await userEvent.click(within(screen.getByRole("table")).getByRole("row", { name: "Details of WP(C)/4/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/4/2026" });
+    expect(within(panel).getByText("Court Details Not Yet Fetched")).toBeInTheDocument();
+    expect(within(panel).getByText("Court-public Summary Only")).toBeInTheDocument();
   });
 });

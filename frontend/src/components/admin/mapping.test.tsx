@@ -333,6 +333,14 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")[0]!.url).toContain("limit=100");
     expect(within(panel).getByRole("link", { name: "ASLMS/GHC/CASE/2026/000042" })).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2026%2F000042");
     expect(within(panel).getByText(/1,240 entries · last seen/)).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 12: the entries line under the code, in a column container
+    for (const code of ["SC, PWD", "SC, AGRI"]) {
+      const codeEl = within(panel).getByText(code);
+      const top = codeEl.parentElement!;
+      expect(top.className).toMatch(/recTop/);
+      expect(top.firstElementChild).toBe(codeEl);
+      expect(top.lastElementChild).toHaveTextContent(/entries · last seen/);
+    }
     const map = within(panel).getByRole("form", { name: "Map SC, PWD" });
     expect(within(map).getByRole("button", { name: "Map SC, PWD" })).toBeDisabled();
     await chooseOffice(within(map).getByRole("combobox", { name: "Office for SC, PWD" }), "Education");
@@ -344,6 +352,36 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     // the count drops by one in the cache, with no reload of the panel
     expect(within(panel).getByText("1 code not mapped")).toBeInTheDocument();
     expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(1);
+  });
+
+  it("the example case shows its case number and still searches by the reference; without a number the reference", async () => {
+    // design portal-screen-fixes-oversight, decision 12
+    const unmapped: UnmappedCode[] = [
+      {
+        code: "SC, PWD",
+        entries: 3,
+        last_listed: "2026-10-09",
+        example_case_ref: "ASLMS/GHC/CASE/2026/000042",
+        example_case_no: "WP(C)/4326/2025",
+        partial_matches: [],
+      },
+      { code: "SC, AGRI", entries: 2, last_listed: "2026-10-01", example_case_ref: "ASLMS/GHC/CASE/2026/000043", example_case_no: null, partial_matches: [] },
+    ];
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [], total: 0 },
+      "GET /admin/counsel-codes/unmapped/page": page(unmapped),
+    });
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    const numbered = await within(panel).findByRole("link", { name: "WP(C)/4326/2025" });
+    expect(numbered).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2026%2F000042");
+    expect(numbered).not.toHaveClass("mono");
+    expect(numbered).toHaveClass("cno");
+    const plain = within(panel).getByRole("link", { name: "ASLMS/GHC/CASE/2026/000043" });
+    expect(plain).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2026%2F000043");
+    expect(plain).toHaveClass("mono");
   });
 
   it("a partly matching code says so, and with one match in scope its picker starts on that office", async () => {
@@ -508,6 +546,10 @@ describe("keywords and name patterns", () => {
     });
     renderWithClient(<KeywordsAndPatterns />);
     expect(await screen.findByText(/4 cases found/)).toBeInTheDocument();
+    // design portal-screen-fixes-oversight, decision 13: the toggle's label is for screen readers only; the column
+    // header says "Search the Court" once
+    const toggle = screen.getByRole("checkbox", { name: "Search the court for DIRECTOR OF SECONDARY EDUCATION" });
+    expect(document.querySelector(`label[for='${toggle.id}']`)).toHaveClass("visually-hidden");
     await userEvent.click(screen.getByLabelText("Search the court for DIRECTOR OF SECONDARY EDUCATION"));
     await waitFor(() => expect(calls(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
     expect(calls(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ discover: false });

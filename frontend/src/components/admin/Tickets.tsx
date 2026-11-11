@@ -5,15 +5,17 @@
  * counts; a head-change proposal (`users.propose_head`); approve or reject (the super admin: the server's
  * `can_approve`), withdraw (the proposer: `can_withdraw`); government orders attached (the API's type check, scan
  * and limit), downloaded and archived. `[ref]` accepts the `-` form of the mail links.
+ * Design portal-screen-fixes-oversight, decision 11: a ticket is named by its kind and person ("Head Change: Anita
+ * Sharma Baruah") in the list's primary cell, its row name and the ticket page's heading; the reference follows muted.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, OfficeName, OfficePicker, Pagination, SelectField, Tabs, TextArea, TextField, UserPicker } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { useLabels, useMe } from "@/lib/api/hooks";
+import { useLabels, useMe, useOfficeNames } from "@/lib/api/hooks";
 import { labelFor, labelOf } from "@/lib/displayLabels";
 import type { TicketDetail, TicketDocument, TicketList, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin, usersStateWide } from "@/lib/can";
@@ -33,15 +35,29 @@ function statusBadge(status: string) {
   return <Badge tone={tone}>{labelFor(T.tickets.statuses, status)}</Badge>;
 }
 
+/** A ticket's name (decision 11): the kind's label, a colon and the target's name; the kind alone with no name. */
+export function ticketTitle(
+  t: { kind: string; target: { user_name?: string | null } },
+  kinds: readonly { code: string; label: string }[] | undefined,
+): string {
+  const kind = labelOf(kinds, t.kind);
+  return t.target.user_name ? `${kind}: ${t.target.user_name}` : kind;
+}
+
 export function TicketsList({ status }: { status: TicketStatus }) {
   const me = useMe();
   const router = useRouter();
   const labels = useLabels();
+  const names = useOfficeNames();
   const [offset, setOffset] = useState(0);
   const list = useQuery({
     queryKey: ["admin", "tickets", status, offset],
     queryFn: () => api<TicketList>("/admin/tickets", { query: { status, limit: PAGE_SIZE, offset } }),
   });
+  // the rows change when the kind labels or the office names arrive, so the table measures again whether it still fits
+  // (a department's name is longer than its code; design portal-screen-fixes-oversight, Deviations)
+  const items = list.data?.items;
+  const rows = useMemo(() => (items ? [...items] : []), [items, labels.data, names.data]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section className="stack" aria-label={T.tickets.title}>
       <div className={a.groupHead}>
@@ -72,29 +88,23 @@ export function TicketsList({ status }: { status: TicketStatus }) {
           <>
             <DataTable
               caption={T.tickets.title}
-              rows={list.data.items}
+              rows={rows}
               rowKey={(t) => t.ref_no}
-              rowLabel={(t) => t.ref_no}
+              rowLabel={(t) => ticketTitle(t, labels.data?.ticket_kinds)}
               onRowClick={(t) => router.push(`/admin/tickets/${refPath(t.ref_no)}`)}
               columns={[
                 {
-                  key: "ref",
-                  header: T.tickets.ref,
+                  key: "ticket",
+                  header: T.tickets.ticket,
                   primary: true,
                   cell: (t) => (
-                    <Link href={`/admin/tickets/${refPath(t.ref_no)}`} className="mono">
-                      {t.ref_no}
-                    </Link>
-                  ),
-                },
-                {
-                  key: "kind",
-                  header: T.tickets.kind,
-                  cell: (t) => (
-                    <>
-                      {labelOf(labels.data?.ticket_kinds, t.kind)}
-                      {t.operation ? <span className="muted"> · {t.operation}</span> : null}
-                    </>
+                    <span className={a.ticketCell}>
+                      <span>
+                        <Link href={`/admin/tickets/${refPath(t.ref_no)}`}>{ticketTitle(t, labels.data?.ticket_kinds)}</Link>
+                        {t.operation ? <span className="muted"> · {t.operation}</span> : null}
+                      </span>
+                      <span className={a.ticketRef}>{t.ref_no}</span>
+                    </span>
                   ),
                 },
                 { key: "department", header: T.tickets.department, cell: (t) => <OfficeName code={t.department_code} /> },
@@ -257,9 +267,12 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
 
   return (
     <div className="stack">
-      <section className="card stack" aria-label={t.ref_no}>
+      <section className="card stack" aria-label={ticketTitle(t, labels.data?.ticket_kinds)}>
         <div className={a.groupHead}>
-          <h2 className="mono">{t.ref_no}</h2>
+          <div className={a.ticketCell}>
+            <h2>{ticketTitle(t, labels.data?.ticket_kinds)}</h2>
+            <span className={a.ticketRef}>{t.ref_no}</span>
+          </div>
           {statusBadge(t.status)}
         </div>
         <dl className="facts">

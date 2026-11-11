@@ -45,6 +45,7 @@ import {
   failedWhat,
   POLL,
   familyWords,
+  problemWords,
   retryFunction,
   type CollectListCheck,
   type CollectOut,
@@ -248,6 +249,9 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
                 key: "retry",
                 header: <span className="visually-hidden">{T.pf.retryAll}</span>,
                 label: T.pf.retryAll,
+                // design portal-screen-fixes-oversight, decision 6: one look for both retry actions, at the right edge
+                align: "right",
+                width: "var(--lead-w)",
                 cell: (r) =>
                   can(me.data, retryFunction(r.kind)) ? (
                     <Button
@@ -283,16 +287,26 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
                         {
                           key: "problem",
                           header: T.pf.cols.problem,
-                          // raw paths and error lines may break anywhere (design portal-ui-kit-fixes, decision 16)
-                          cell: (r) => <span data-free-text="">{r.last_error ?? "—"}</span>,
+                          // design portal-screen-fixes-oversight, decision 7: the problem in plain words, the raw
+                          // text behind Details (raw paths and error lines may break anywhere, portal-ui-kit-fixes,
+                          // decision 16)
+                          cell: (r) => <ProblemCell error={r.last_error} />,
                         },
                         {
                           key: "retry",
                           header: <span className="visually-hidden">{T.pf.retry}</span>,
                           label: T.pf.retry,
+                          align: "right",
+                          width: "var(--lead-w)",
                           cell: (r) =>
                             can(me.data, retryFunction(r.kind)) ? (
-                              <Button variant="link" busy={action.busy} onClick={() => retry(r.id)}>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                busy={action.busy}
+                                onClick={() => retry(r.id)}
+                                aria-label={T.pf.retryOf(failedWhat(r.kind, r.ref))}
+                              >
                                 {T.pf.retry}
                               </Button>
                             ) : null,
@@ -311,6 +325,21 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
       )}
       {healthReader ? <RecordedProblems /> : null}
     </Section>
+  );
+}
+
+/** A failed fetch's problem (decision 7): the plain words, then the raw `last_error` behind a native Details. */
+function ProblemCell({ error }: { error: string | null | undefined }) {
+  return (
+    <div className={ds.problem}>
+      <span>{problemWords(error)}</span>
+      {error ? (
+        <details>
+          <summary>{T.pf.details}</summary>
+          <code data-free-text="">{error}</code>
+        </details>
+      ) : null}
+    </div>
   );
 }
 

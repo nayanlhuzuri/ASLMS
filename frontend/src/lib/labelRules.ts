@@ -89,6 +89,8 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   // design data-collection-redesign, round 2: reasons read inside the Court Connection line and the call log's result
   "pf.families.NapixNotFound": "a reason read inside a sentence",
   "pf.unknownReason": "a reason read inside a sentence",
+  // design portal-screen-fixes-oversight, decision 2
+  "search.ownedBy": "a fragment before an office name",
   "system.kpiSub.median": "a unit under a figure",
   "system.kpiSub.leftUnknown": "a value read in a sentence under a figure",
   "system.ms": "a unit abbreviation, written after a number",

@@ -7,7 +7,9 @@
  * today; the range limits are the server's and its refusal is shown under the period fields. Filter Layout B (design
  * portal-ui-polish-2, decision 23): the period, or "As Of" today for a report without one, is the card's hero; the
  * scope, the holder department and "List the cases" sit on the right with Show Report and Refresh; the report's scope
- * line is the summary strip; the downloads stay in the page header.
+ * line is the summary strip; the downloads stay in the page header. The scope or department is the kit Office Picker
+ * over the departments the page already holds (design portal-screen-fixes-oversight, decision 4): cleared is the whole
+ * State for a State-scope reader; a reader of several departments cannot clear it.
  */
 import { useState, type ReactNode } from "react";
 
@@ -30,8 +32,8 @@ import { labelFor } from "@/lib/displayLabels";
 import s from "./reports.module.css";
 
 /** The departments as Office Picker options: one level, no call (departments only). */
-export function holderChoices(holders: { code: string; name: string; kind?: string | null }[]): OfficeChoice[] {
-  return holders.map((d) => ({
+export function departmentChoices(departments: { code: string; name: string; kind?: string | null }[]): OfficeChoice[] {
+  return departments.map((d) => ({
     code: d.code,
     name: d.name,
     kind: d.kind ?? "department",
@@ -111,11 +113,14 @@ export function ReportForm({
     onShow(next);
   }
 
-  const options = item.departments.map((code) => {
-    const d = departments.find((x) => x.code === code);
-    const label = departmentLabel(code, departments);
-    return { value: code, label: d && !d.is_active ? `${label} — ${T.reports.inactive}` : label };
-  });
+  // decision 4: the full name (an inactive department keeps its "— inactive" suffix); the picker shows the code beside it
+  const scopeChoices = departmentChoices(
+    item.departments.map((code) => {
+      const d = departments.find((x) => x.code === code);
+      const name = d?.name || code;
+      return { code, name: d && !d.is_active ? `${name} — ${T.reports.inactive}` : name };
+    }),
+  );
   const shownError = problem ?? periodError ?? null;
   const choices = hasPeriod ? PERIOD_CHOICES[reportKey as "hearings-disposals" | "data-health"] : [];
 
@@ -168,11 +173,14 @@ export function ReportForm({
       summary={summary}
     >
       {reportKey === "data-health" ? null : stateScope || item.departments.length > 1 ? (
-        <SelectField
+        <OfficePicker
           label={stateScope ? T.reports.scope : T.reports.department}
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          options={stateScope ? [{ value: "", label: T.reports.wholeState }, ...options] : options}
+          options={scopeChoices}
+          placeholder={stateScope ? T.reports.wholeState : undefined}
+          required={!stateScope}
+          clearable={stateScope}
+          value={department || null}
+          onChange={(code) => setDepartment(code ?? (stateScope ? "" : department))}
         />
       ) : item.departments.length === 1 ? (
         <p className={s.fixedScope}>
@@ -184,7 +192,7 @@ export function ReportForm({
           {/* design portal-ui-polish-2, decision 30: the Office Picker over the departments the page already holds */}
           <OfficePicker
             label={T.reports.holder}
-            options={holderChoices(holders)}
+            options={departmentChoices(holders)}
             placeholder={T.reports.allHoldersPlaceholder}
             value={holder || null}
             onChange={(code) => setHolder(code ?? "")}

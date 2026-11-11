@@ -82,3 +82,11 @@
   margin: 0;
   padding: 0;
 }
+
+/* design portal-screen-fixes-oversight, decision 9: the record in words with Copy Record ID beside it */
+.recordValue {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}

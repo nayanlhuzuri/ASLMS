@@ -1125,7 +1125,6 @@ export const T = {
     types: "User Types",
     moreTypes: (n: number) => `+${n}`,
     openUser: (name: string) => `Open ${name}`,
-    avatar: "Initials",
     // design portal-ui-polish-2, decision 27: the one-line toolbar
     searchPlaceholder: "Name or e-mail",
     officePlaceholder: "Any office",
@@ -1480,6 +1479,8 @@ export const T = {
     title: "Tickets",
     statuses: { open: "Open", approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn", all: "All" },
     newTicket: "Propose a Head Change",
+    // design portal-screen-fixes-oversight, decision 11: the primary column names the ticket by kind and person
+    ticket: "Ticket",
     ref: "Reference",
     kind: "Kind",
     department: "Department",
@@ -1798,7 +1799,8 @@ export const T = {
     total: (n: string, capped: boolean) => `${n}${capped ? "+" : ""} cases`,
     none: "No case matches in the portal's database.",
     noneTitle: "No Cases Found",
-    owner: (code: string) => `Owned by ${code}`,
+    // design portal-screen-fixes-oversight, decision 2: "Owned by" before the owner's name (kit `OfficeName`)
+    ownedBy: "Owned by",
     inPool: "In the Unclaimed Pool",
     notVisible: "Court-public Summary Only",
     notFetched: "Court Details Not Yet Fetched",
@@ -2662,6 +2664,8 @@ export const T = {
     entriesForCase: "All Entries for This Case",
     entriesByPerson: "All Entries by This Person",
     entriesForRecord: "All Entries for This Record",
+    // design portal-screen-fixes-oversight, decision 9: the record id is copied, never drawn
+    copyRecordId: "Copy Record ID",
     backToSearch: "Back to the Search",
     noEntry: "No audit entry with this id.",
     trail: "Audit Trail",
@@ -3332,6 +3336,10 @@ export const T = {
       NapixProtocolError: "the court's answer could not be read",
     } as Record<string, string>,
     unknownReason: "no reason given",
+    // design portal-screen-fixes-oversight, decision 7: a failed fetch's problem with no known family, and the summary
+    // over the raw error text
+    otherProblem: "Another problem; see the details.",
+    details: "Details",
     // Failed Fetches (decision 44)
     failedTitle: "Failed Fetches",
     failedNone: "No fetch has failed.",
@@ -3342,6 +3350,8 @@ export const T = {
     retryAllOf: (kind: string) => `Retry All ${kind}`,
     retriedNote: (n: number, kind: string) => `${n} ${kind.toLowerCase()} will be fetched again.`,
     retry: "Retry",
+    // decision 6: the row's Retry button names what it fetches again
+    retryOf: (what: string) => `Retry ${what}`,
     retriedOne: "It will be fetched again.",
     failedRowsNote: "The failed items appear here for readers of the court connection's health.",
     // decision 3: the open failures by kind that the Health tab listed (problems recorded outside the queue)

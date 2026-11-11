@@ -217,7 +217,15 @@ def test_old_endpoint_unchanged(api, world):  # noqa: F811
     body = r.json()
     assert isinstance(body, list) and len(body) == 100
     assert [i["code"] for i in body] == _expected("entries", "desc")[:100]
-    assert set(body[0]) == {"code", "entries", "last_listed", "example_case_ref", "partial_matches"}
+    # design portal-screen-fixes-oversight, decision 12: `example_case_no` is the one addition, on both endpoints
+    assert set(body[0]) == {
+        "code",
+        "entries",
+        "last_listed",
+        "example_case_ref",
+        "partial_matches",
+        "example_case_no",
+    }
     assert body[0]["entries"] == 7 and body[0]["last_listed"] == "2025-01-07"
     page = api.get(PAGE, params={"limit": 100}, headers=root).json()
     assert page["items"] == body

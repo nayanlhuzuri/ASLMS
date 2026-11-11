@@ -91,6 +91,44 @@ def test_unmapped_partial_matches_scoped(api, world):  # noqa: F811
     assert api.get("/admin/counsel-codes/unmapped", headers=login(api, "edu_off1")).status_code == 403
 
 
+def test_unmapped_example_case_number(api, world):  # noqa: F811
+    """Design portal-screen-fixes-oversight, decision 12: each unmapped code's example case carries its printed number
+    (`example_case_no`) beside its reference; a provisional example without a number gives null; the partial matches
+    stay scoped to the caller's office subtree, on both the list and the page."""
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        numbered = make_case(s, case_no="WP(C)/4326/2025")
+        entry_with_codes(s, numbered, ["SC, EDU, DSE"], list_date=date(2026, 10, 23))
+        provisional = make_case(s)
+        provisional.cnr = None
+        provisional.case_no_text = None
+        provisional.is_provisional = True
+        s.flush()
+        entry_with_codes(s, provisional, ["SC, PWD"], list_date=date(2026, 10, 23))
+        s.commit()
+        refs = {"SC, EDU, DSE": numbered.ref_no, "SC, PWD": provisional.ref_no}
+    expected_no = {"SC, EDU, DSE": "WP(C)/4326/2025", "SC, PWD": None}
+    for key in ("root", "edu_admin", "health_admin"):
+        headers = login(api, key)
+        listed = api.get("/admin/counsel-codes/unmapped", headers=headers)
+        assert listed.status_code == 200, listed.text
+        paged = api.get("/admin/counsel-codes/unmapped/page", headers=headers)
+        assert paged.status_code == 200, paged.text
+        for rows in (listed.json(), paged.json()["items"]):
+            by_code = {r["code"]: r for r in rows}
+            assert set(by_code) == set(refs), key
+            for code, row in by_code.items():
+                assert row["example_case_ref"] == refs[code], (key, code)
+                assert row["example_case_no"] == expected_no[code], (key, code)
+            partial = by_code["SC, EDU, DSE"]["partial_matches"]
+            assert partial == (
+                []
+                if key == "health_admin"
+                else [{"code": "SC, EDU", "office_code": "EDU", "relation": "contained"}]
+            )
+    assert api.get("/admin/counsel-codes/unmapped", headers=login(api, "edu_off1")).status_code == 403
+
+
 def test_recommended_and_scores_carry_the_partial_reason(api, world):  # noqa: F811
     with world.Session() as s:
         s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))

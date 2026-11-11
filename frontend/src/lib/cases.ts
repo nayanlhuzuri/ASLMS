@@ -5,12 +5,22 @@
  *   the membership has no designation, and always as the title attribute;
  * - `isNewSince` and `sentDue`: the "New" mark of With Me and the Due line of Sent by Me (design
  *   portal-screen-fixes-work, decisions 3 and 5; the lead badge column is gone).
+ * - `statusTone`: the tone of the case status badge, shared by the case header and Search's Status cell (design
+ *   portal-screen-fixes-oversight, decision 2).
  * The whole-day countdown to a hearing is `lib/hearingDate.ts` (design next-hearing-highlight, decision 2).
  */
 import type { CustodyCard, CustodyLeg, OfficeNameMap, SentItem } from "./api/types";
 import { addDays, daysBetween, istDay } from "./format";
 import { T } from "./messages";
 import { officeName } from "./officeNames";
+
+/**
+ * The case status badge's tone (design portal-ui-redesign, decision 10.15): green means done (disposed); pending and
+ * unknown are neutral, amber is kept for due soon.
+ */
+export function statusTone(status: string | null | undefined): "success" | undefined {
+  return status === "disposed" ? "success" : undefined;
+}
 
 /** Who a case is with, or who sent it: the parts `withText` reads. */
 export interface WithParty {

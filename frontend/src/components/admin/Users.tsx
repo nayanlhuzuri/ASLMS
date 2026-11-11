@@ -223,27 +223,23 @@ export function UsersList({ params = {}, userId }: { params?: Params; userId?: s
               onRowClick={(u) => openUserDetails(router, u.id, list)}
               columns={[
                 {
-                  key: "avatar",
-                  header: <span className="visually-hidden">{T.users.avatar}</span>,
-                  label: T.users.avatar,
-                  width: "var(--s7)",
-                  cell: (u) => (
-                    <span className={a.avatar} data-lead="avatar" aria-hidden="true">
-                      {initials(u.full_name)}
-                    </span>
-                  ),
-                },
-                {
                   key: "person",
                   header: T.users.person,
                   primary: true,
+                  // design portal-screen-fixes-oversight, decision 10: the avatar leads the person in the one cell, so
+                  // a card shows no labelled "Initials" row
                   cell: (u) => {
                     const m = primaryMembership(u);
                     const post = [m?.designation ?? u.designation, m?.office.name ?? u.office?.name].filter(Boolean).join(", ");
                     return (
-                      <span className={a.person}>
-                        <span>{u.full_name}</span>
-                        <span className="muted">{post || u.email}</span>
+                      <span className={a.personRow}>
+                        <span className={a.avatar} data-lead="avatar" aria-hidden="true">
+                          {initials(u.full_name)}
+                        </span>
+                        <span className={a.person}>
+                          <span>{u.full_name}</span>
+                          <span className="muted">{post || u.email}</span>
+                        </span>
                       </span>
                     );
                   },

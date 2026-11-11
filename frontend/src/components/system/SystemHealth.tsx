@@ -172,8 +172,9 @@ function Overview({ data, services }: { data: SystemHealthData; services: Servic
           )}
         </RateRing>
         <div className={s.bandBody}>
+          {/* design portal-screen-fixes-oversight, decision 8: the sentence alone says the services' state; the tone
+              stays on the Services Working figure, and the ring is the court calls' answered rate */}
           <p className={s.sentence} aria-live="polite">
-            {overall ? <Badge tone={toneOf(overall.status)}>{T.system.serviceStatus[overall.status]}</Badge> : null}{" "}
             {sentence}
           </p>
           <div className={s.kpis}>

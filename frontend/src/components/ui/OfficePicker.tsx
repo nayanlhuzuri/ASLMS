@@ -113,6 +113,9 @@ export interface OfficePickerProps {
   hint?: ReactNode;
   error?: ReactNode;
   required?: boolean;
+  /** Whether the clear button is offered (default true); a choice that cannot be empty passes false (the Reports
+   * department of a reader of several departments, design portal-screen-fixes-oversight, decision 4). */
+  clearable?: boolean;
   disabled?: boolean;
   id?: string;
 }
@@ -132,6 +135,7 @@ export function OfficePicker({
   hint,
   error,
   required,
+  clearable = true,
   disabled,
   id,
 }: OfficePickerProps) {
@@ -344,6 +348,8 @@ export function OfficePicker({
           disabled={disabled}
           placeholder={placeholder ?? (hideLabel && typeof label === "string" ? label : T.officePicker.placeholderChoose)}
           value={text}
+          // the chosen office's full name, for a name cut with an ellipsis in the closed box
+          title={query === null && chosen ? chosen.name : undefined}
           onChange={(e) => {
             setQuery(e.target.value);
             setActive(0);
@@ -359,7 +365,7 @@ export function OfficePicker({
         <span ref={right} className={s.right}>
           {chosen || value ? <span className={s.codeTag}>{chosen?.code ?? value}</span> : null}
           {subtree?.value && hasChildren ? <span className={s.sub}>{T.officePicker.subMarker}</span> : null}
-          {value && !disabled ? (
+          {value && !disabled && clearable ? (
             <button
               type="button"
               className={s.clear}

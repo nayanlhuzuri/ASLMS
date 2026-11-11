@@ -385,3 +385,23 @@
   align-items: end;
   gap: var(--s3);
 }
+
+/* design portal-screen-fixes-oversight, decision 7: a failed fetch's problem in words, the raw text behind Details */
+.problem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.problem summary {
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.problem code {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--t-sm);
+}

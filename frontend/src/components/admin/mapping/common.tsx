@@ -275,12 +275,16 @@ function ChangeOfficeDialog<R>({
   );
 }
 
-/** A case reference linked through search (decision 7): search opens the case when visible, else its public summary. */
-export function SearchLink({ ref_no }: { ref_no: string | null | undefined }) {
+/**
+ * A case reference linked through search (decision 7): search opens the case when visible, else its public summary.
+ * With `label` (the case number, design portal-screen-fixes-oversight, decision 12) the link shows it in the body font
+ * and still searches by the reference; without one it shows the reference in mono.
+ */
+export function SearchLink({ ref_no, label }: { ref_no: string | null | undefined; label?: string | null }) {
   if (!ref_no) return <span className="muted">{T.mapping.notHeld}</span>;
   return (
-    <Link href={`/search?q=${encodeURIComponent(ref_no)}`} className="mono">
-      {ref_no}
+    <Link href={`/search?q=${encodeURIComponent(ref_no)}`} className={label ? "cno" : "mono"} title={label ? ref_no : undefined}>
+      {label || ref_no}
     </Link>
   );
 }

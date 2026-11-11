@@ -27066,6 +27066,17 @@
             "title": "Entries",
             "type": "integer"
           },
+          "example_case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Example Case No"
+          },
           "example_case_ref": {
             "anyOf": [
               {

@@ -39,3 +39,15 @@ def test_screen_fixes_read_only_additions_are_in_the_contract():
     assert "created_at" not in schemas["NoteRefOut"].get("required", [])
     assert schemas["AlertItemOut"]["properties"]["summary"]["type"] == "string"
     assert "summary" in schemas["AlertItemOut"]["required"]
+
+
+def test_unmapped_example_case_number_is_in_the_contract():
+    """Design portal-screen-fixes-oversight, decision 12: `UnmappedCodeOut.example_case_no` is an addition only, a
+    nullable string defaulting to null and not required."""
+    import json
+
+    schemas = json.loads(_tool().openapi_text())["components"]["schemas"]
+    number = schemas["UnmappedCodeOut"]["properties"]["example_case_no"]
+    assert {"type": "string"} in number["anyOf"] and number.get("default") is None
+    assert "example_case_no" not in schemas["UnmappedCodeOut"].get("required", [])
+    assert "example_case_ref" in schemas["UnmappedCodeOut"]["required"]

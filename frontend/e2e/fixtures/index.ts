@@ -713,6 +713,21 @@ function auditPage(): AuditPage {
   return { ...base, items, next_cursor: null };
 }
 
+/**
+ * One audit entry (design portal-screen-fixes-oversight, decision 9): a case note whose after values hold its `ref_no`,
+ * so Record reads "Case Note ASLMS/EDU/NOTE/2026/000003" and the raw record id stays out of sight.
+ */
+function auditEntry(): S["AuditRowOut"] {
+  const base = synthFor(`/audit/${SAMPLE.auditId}`)!.body as S["AuditRowOut"];
+  return {
+    ...base,
+    id: SAMPLE.auditId,
+    action: "notes.added",
+    entity_type: "case_note",
+    after: { ...(base.after ?? {}), ref_no: "ASLMS/EDU/NOTE/2026/000003" },
+  };
+}
+
 /** Three codes seen in cause lists with no mapping (decision 42). */
 function unmapped(): UnmappedCode[] {
   return [
@@ -721,6 +736,8 @@ function unmapped(): UnmappedCode[] {
       entries: STRESS.count,
       last_listed: "2026-10-23",
       example_case_ref: SAMPLE.caseRef,
+      // design portal-screen-fixes-oversight, decision 12: the example case shows its printed number
+      example_case_no: STRESS.caseNo,
       // design partial-code-match (`partial_relation` in services/matching.py): the department's code `SC, SEBA` has
       // parts {SC, SEBA}, all inside the printed code's parts, so the printed code partly matches it as "contained"
       partial_matches: [{ code: "SC, SEBA", office_code: "EDU", relation: "contained" }],
@@ -1465,6 +1482,7 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/admin\/users\/[^/]+\/memberships$/, () => userMemberships()],
   [/^\/admin\/users\/[^/]+\/memberships\/[^/]+\/permissions$/, (url) => membershipFunctions(url)],
   [/^\/audit$/, () => auditPage()],
+  [/^\/audit\/[^/]+$/, () => auditEntry()],
   // design portal-ui-polish-2, decisions 23-25: the cause-list day and the list PDF the View Cause List modal shows
   [/^\/causelists\/\d{4}-\d{2}-\d{2}$/, (url) => causelistDay(url)],
   [/^\/causelists\/lists\/[^/]+\/file$/, () => ({ note: "the browser check stands in for the court's PDF" })],

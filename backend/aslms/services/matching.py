@@ -1134,6 +1134,8 @@ class UnmappedCode:
     last_listed: date | None
     example_case_ref: str | None
     partial_matches: list[dict[str, str]] = field(default_factory=list)
+    # the example case's printed number (design portal-screen-fixes-oversight, decision 12); None when provisional
+    example_case_no: str | None = None
 
 
 PARTIAL_MATCHES_SHOWN = 5
@@ -1191,10 +1193,16 @@ def _unmapped_items(
     ordered: list[tuple[str, dict[str, Any]]],
     scope: Callable[[uuid.UUID], bool] | None,
 ) -> list[UnmappedCode]:
-    """Example references and partial matches for these codes only (one `RuleSet.load`)."""
+    """Example references and case numbers, and partial matches, for these codes only (one query for the examples,
+    one `RuleSet.load`)."""
     example_ids = [uuid.UUID(v["example"]) for _, v in ordered if v["example"]]
-    refs = (
-        dict(session.execute(select(Case.id, Case.ref_no).where(Case.id.in_(example_ids))).all())
+    examples: dict[uuid.UUID, tuple[str, str | None]] = (
+        {
+            cid: (ref, no or None)
+            for cid, ref, no in session.execute(
+                select(Case.id, Case.ref_no, Case.case_no_text).where(Case.id.in_(example_ids))
+            ).all()
+        }
         if example_ids
         else {}
     )
@@ -1215,10 +1223,12 @@ def _unmapped_items(
             code=k,
             entries=v["n"],
             last_listed=v["last"],
-            example_case_ref=refs.get(uuid.UUID(v["example"])) if v["example"] else None,
+            example_case_ref=example[0] if example else None,
             partial_matches=partly(k),
+            example_case_no=example[1] if example else None,
         )
         for k, v in ordered
+        for example in [examples.get(uuid.UUID(v["example"])) if v["example"] else None]
     ]
 
 

@@ -74,8 +74,10 @@ function DiscoverCell({ path, row, label, onDone }: { path: string; row: Keyword
   const last = row.discovery?.last_searched_at ? formatDateTime(row.discovery.last_searched_at) : null;
   return (
     <div className="stack">
+      {/* design portal-screen-fixes-oversight, decision 13: the column header says "Search the Court" once */}
       <CheckField
         label={T.discovery.searchCourt}
+        hideLabel
         aria-label={T.discovery.searchCourtFor(label)}
         checked={row.discover}
         disabled={regex || action.busy}

@@ -23,6 +23,14 @@ import s from "./reports.module.css";
 
 const NUMERIC = new Set(["int", "days"]);
 
+/** A cell's class by kind: numbers right-aligned; text columns with a minimum width, so a name or a pending action
+ * wraps between a few words, not one per line (design portal-screen-fixes-oversight, decision 5). */
+function kindClass(kind: string): string | undefined {
+  if (NUMERIC.has(kind)) return numCell;
+  if (kind === "text") return s.textCell;
+  return undefined;
+}
+
 export function ReportView({
   report,
   departments,
@@ -117,7 +125,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c.key} scope="col" className={NUMERIC.has(c.kind) ? numCell : undefined}>
+                    <th key={c.key} scope="col" className={kindClass(c.kind)}>
                       {c.label}
                     </th>
                   ))}
@@ -127,7 +135,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
                 {shown.map((row, i) => (
                   <tr key={offset + i}>
                     {columns.map((c) => (
-                      <td key={c.key} className={NUMERIC.has(c.kind) ? numCell : undefined}>
+                      <td key={c.key} className={kindClass(c.kind)}>
                         <Cell row={row} column={c} />
                       </td>
                     ))}
@@ -140,7 +148,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
                     {columns.map((c) => {
                       const v = totals[c.key];
                       return (
-                        <td key={c.key} className={NUMERIC.has(c.kind) ? numCell : undefined}>
+                        <td key={c.key} className={kindClass(c.kind)}>
                           {v === null || v === undefined || v === "" ? "" : cellText(v, c.kind)}
                         </td>
                       );

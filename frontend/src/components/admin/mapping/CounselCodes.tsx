@@ -450,7 +450,7 @@ function RecommendedCode({ item, onMapped, onConflict }: { item: UnmappedCode; o
         <span className="muted">{T.mapping.entriesLine(formatNumber(item.entries), formatDate(item.last_listed))}</span>
       </div>
       {partial.length > 0 ? <span className="muted">{T.mapping.partlyMatches(partial)}</span> : null}
-      {item.example_case_ref ? <SearchLink ref_no={item.example_case_ref} /> : null}
+      {item.example_case_ref ? <SearchLink ref_no={item.example_case_ref} label={item.example_case_no} /> : null}
       <form className={s.recMap} onSubmit={map} aria-label={T.mapping.mapCode(item.code)}>
         <OfficePicker label={T.mapping.officeFor(item.code)} hideLabel purpose="counsel_codes" value={office} onChange={setOffice} onChoose={setChosen} />
         <Button type="submit" variant="secondary" busy={action.busy} disabled={!office} aria-label={T.mapping.mapCode(item.code)}>

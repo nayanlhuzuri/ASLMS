@@ -238,14 +238,23 @@ export function CheckField({
   label,
   id,
   inline,
+  hideLabel,
   ...rest
-}: { label: ReactNode; inline?: boolean } & InputHTMLAttributes<HTMLInputElement>) {
+}: {
+  label: ReactNode;
+  inline?: boolean;
+  /** The label for screen readers only, as `FieldFrame` does for text fields: a column header already says it
+   * (design portal-screen-fixes-oversight, decision 13). */
+  hideLabel?: boolean;
+} & InputHTMLAttributes<HTMLInputElement>) {
   const auto = useId();
   const fieldId = id ?? auto;
   return (
     <div className={cx(s.check, inline && s.checkInline)} data-inline={inline || undefined}>
       <input id={fieldId} type="checkbox" {...rest} />
-      <label htmlFor={fieldId}>{label}</label>
+      <label htmlFor={fieldId} className={hideLabel ? "visually-hidden" : undefined}>
+        {label}
+      </label>
     </div>
   );
 }
