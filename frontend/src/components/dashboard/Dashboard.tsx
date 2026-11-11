@@ -21,7 +21,6 @@ import { useId, type ReactNode } from "react";
 
 import { useFilters } from "@/components/inbox/common";
 import { buttonClass, Collapsible, ErrorBanner, Loading, Notice, PageHeader, SegmentedSwitch } from "@/components/ui";
-import { FlashNotice } from "@/components/workflow/common";
 import { api } from "@/lib/api/client";
 import { useLabels, useMe } from "@/lib/api/hooks";
 import type { DashboardIndex, DashboardMe, DashboardState, TicketCounts } from "@/lib/api/types";
@@ -163,7 +162,6 @@ export function Dashboard({ params = {} }: { params?: Params }) {
   return (
     <div className="stack">
       <PageHeader title={greeting(personalName(me.data, typeLabels))} subtitle={greetingLine(me.data)} primary={primary} />
-      <FlashNotice />
       {index.isPending ? <Loading /> : null}
       {index.error ? <ErrorBanner error={index.error} onRetry={() => index.refetch()} /> : null}
       <div className={s.viewRow}>

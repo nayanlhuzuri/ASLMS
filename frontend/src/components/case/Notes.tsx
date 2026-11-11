@@ -20,7 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, Button, Card, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, Notice, Pagination } from "@/components/ui";
+import { Badge, Button, Card, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, Pagination, useToast } from "@/components/ui";
 import { DraftsPanel } from "@/components/workflow/DraftsPanel";
 import { NoteComposer } from "@/components/workflow/NoteComposer";
 import { api } from "@/lib/api/client";
@@ -54,11 +54,10 @@ function Writing({
   correcting: Note | null;
   onClearCorrection: () => void;
 }) {
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   return (
     <section className="card stack" aria-label={T.wf.writeNote} id="write-note">
       <h2>{T.wf.writeNote}</h2>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <NoteComposer
         key={correcting?.id ?? "new"}
         caseRef={caseRef}
@@ -67,7 +66,7 @@ function Writing({
         correcting={correcting}
         onCancel={correcting ? onClearCorrection : undefined}
         onDone={(text) => {
-          setNotice(text);
+          toast(text);
           onClearCorrection();
         }}
       />

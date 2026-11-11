@@ -24,6 +24,7 @@ import {
 import { T } from "@/lib/messages";
 
 import s from "./controls.module.css";
+import { useSlidingMark } from "./motion";
 
 export function cx(...names: (string | false | null | undefined)[]): string {
   return names.filter(Boolean).join(" ");
@@ -423,7 +424,9 @@ export function FilterChip({ label, onRemove }: { label: string; onRemove: () =>
 
 /**
  * A two- or three-way switch (`role="radiogroup"`, decision 17): one option is always chosen; the arrow keys move
- * the choice, as radio buttons do.
+ * the choice, as radio buttons do. The chosen option's ground is a thumb that slides to the new option over `--slow`
+ * (design portal-motion, decisions 9 and 10), measured by `useSlidingMark`; until it is measured, or when no option
+ * matches `value`, there is no thumb and the chosen option paints its own ground (`data-thumb` absent).
  */
 export function SegmentedSwitch({
   label,
@@ -441,6 +444,9 @@ export function SegmentedSwitch({
   describedBy?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const group = useRef<HTMLDivElement>(null);
+  const optionsKey = options.map((o) => `${o.value}|${o.label}`).join("~");
+  const thumb = useSlidingMark(group, "[aria-checked='true']", [value, optionsKey]);
   function onKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
     const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (!delta) return;
@@ -455,7 +461,14 @@ export function SegmentedSwitch({
     refs.current[next]?.focus();
   }
   return (
-    <div role="radiogroup" aria-label={label} aria-describedby={describedBy} className={s.segmented}>
+    <div
+      ref={group}
+      role="radiogroup"
+      aria-label={label}
+      aria-describedby={describedBy}
+      className={s.segmented}
+      data-thumb={thumb ? "" : undefined}
+    >
       {options.map((o, i) => {
         const checked = o.value === value;
         return (
@@ -479,6 +492,15 @@ export function SegmentedSwitch({
           </button>
         );
       })}
+      {thumb ? (
+        <span
+          className={s.thumb}
+          aria-hidden="true"
+          data-motion-layer=""
+          data-testid="segment-thumb"
+          style={{ left: thumb.left, width: thumb.width }}
+        />
+      ) : null}
     </div>
   );
 }

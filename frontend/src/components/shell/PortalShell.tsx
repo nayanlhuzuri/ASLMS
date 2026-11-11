@@ -17,7 +17,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
-import { cx, ErrorBanner, Loading, Menu, useOverlay } from "@/components/ui";
+import { cx, ErrorBanner, Loading, Menu, ToastProvider, useOverlay } from "@/components/ui";
 import { session } from "@/lib/api/client";
 import { useAlertCounts, useInboxCounts, useLabels, useMe, useMyCounts } from "@/lib/api/hooks";
 import { labelOf } from "@/lib/displayLabels";
@@ -282,6 +282,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
   }
   return (
     <div className={s.frame}>
+      {/* design portal-motion, decision 1: the toast host is the frame's last element, after SessionWatch */}
+      <ToastProvider>
       <a href="#main" className="skip-link">
         {T.skip}
       </a>
@@ -314,6 +316,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       </div>
       <BottomBar me={me.data} moreOpen={drawer} onMore={() => setDrawer(true)} />
       <SessionWatch />
+      </ToastProvider>
     </div>
   );
 }

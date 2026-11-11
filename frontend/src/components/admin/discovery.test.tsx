@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DepartmentNames } from "@/components/data/AutomaticCollection";
 import type { DiscoveryCase, DiscoverySummary, DiscoveryTerm, Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient, toastStatus } from "@/test/render";
 
 import { CourtSearch } from "./mapping/CourtSearch";
 import { MappingFrame } from "./mapping/MappingFrame";
@@ -209,7 +209,7 @@ describe("Search by Department Names", () => {
     const dialog = screen.getByRole("dialog", { name: "Queue a Discovery Sweep" });
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.click(within(dialog).getByRole("button", { name: "Search Every Name Now" }));
-    expect(await screen.findByText("6 searches queued for 3 names.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("6 searches queued for 3 names.")).toBeInTheDocument();
   });
 });
 

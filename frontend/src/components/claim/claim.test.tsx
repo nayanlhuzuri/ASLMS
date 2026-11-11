@@ -31,7 +31,7 @@ import {
   transfer,
 } from "@/test/claimFixtures";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, json, makeMe, renderWithClient, toastStatus, type BrowserCall } from "@/test/render";
 
 import { ClaimFrame } from "./ClaimFrame";
 import { courtNext } from "@/test/nextHearing";
@@ -312,10 +312,11 @@ describe("the details modal", () => {
     await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
     await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
     expect(posts(api.calls)[0]!.body).toEqual({ office_code: "EDU", note: "ours", officer_user_id: "u-7" });
-    // the modal closes and a notice names the action with "Open case page"
+    // the modal closes and the toast names the action with Open Case Page (design portal-motion, decisions 2 and 4)
     expect(nav.replace).toHaveBeenCalledWith("/claim/recommended");
-    expect(await screen.findByText("Claimed WP(C)/1/2026 for EDU.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", BASE);
+    await waitFor(() => expect(toastStatus()).toHaveTextContent("Claimed WP(C)/1/2026 for EDU. Open Case Page"));
+    const toast = screen.getByRole("group", { name: "Claimed WP(C)/1/2026 for EDU." });
+    expect(within(toast).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", BASE);
   });
 
   it("claim modal: Assign Now section (design claim-assign-wording, decision 2)", async () => {

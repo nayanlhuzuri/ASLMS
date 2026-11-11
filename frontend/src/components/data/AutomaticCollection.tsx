@@ -30,6 +30,7 @@ import {
   TabToolbar,
   TextField,
   useSecondsSince,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -322,7 +323,7 @@ export function OrderCard({ data, manage }: { data: DataLoad; manage: boolean })
   const action = useAction();
   const st = data.settings;
   const [form, setForm] = useState({ load_order: st.load_order, first_from: "", first_to: "", reason: "" });
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
   async function submit(e: FormEvent) {
     e.preventDefault();
     const out = await action.run(() =>
@@ -337,7 +338,7 @@ export function OrderCard({ data, manage }: { data: DataLoad; manage: boolean })
       }),
     );
     if (out.ok) {
-      setMessage(T.dc.orderSaved(out.value.reprioritised));
+      toast(T.dc.orderSaved(out.value.reprioritised));
       setForm({ ...form, reason: "" });
       await queryClient.invalidateQueries({ queryKey: DC_KEYS.all });
     }
@@ -392,7 +393,6 @@ export function OrderCard({ data, manage }: { data: DataLoad; manage: boolean })
               </div>
             </div>
             <ErrorBanner error={action.error} />
-            {message ? <Notice tone="success">{message}</Notice> : null}
           </form>
         ) : null}
         <p className={ds.line}>{now}</p>
@@ -575,13 +575,13 @@ export function DepartmentNames() {
   const queryClient = useQueryClient();
   const action = useAction();
   const [confirm, setConfirm] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
   const data = useQuery({ queryKey: DISCOVERY_KEY, queryFn: () => api<DiscoverySummary>("/admin/discovery") });
   async function sweep() {
     const out = await action.run(() => api<DiscoverySweep>("/admin/discovery/sweep", { method: "POST", body: {} }));
     if (out.ok) {
       setConfirm(false);
-      setMessage(T.discovery.swept(out.value.rows_queued, out.value.terms));
+      toast(T.discovery.swept(out.value.rows_queued, out.value.terms));
       await queryClient.invalidateQueries({ queryKey: DISCOVERY_KEY });
     }
   }
@@ -601,7 +601,6 @@ export function DepartmentNames() {
         <p className={ds.line}>{T.dc.namesIntro}</p>
         {data.isPending ? <Loading /> : null}
         <ErrorBanner error={data.error} onRetry={() => data.refetch()} />
-        {message ? <Notice tone="success">{message}</Notice> : null}
         {d && names === 0 ? (
           <EmptyState>
             <p>{T.dc.namesEmpty}</p>

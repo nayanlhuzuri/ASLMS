@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CounselCode, Keyword, Me, NamePattern, OfficeChoice, Permission, ScoringSettings, UnmappedCode, UnmappedCodePage, Watch } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, type BrowserCall, toastStatus } from "@/test/render";
 
 import { CounselCodes } from "./mapping/CounselCodes";
 import { CourtSearch } from "./mapping/CourtSearch";
@@ -171,7 +171,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     await userEvent.type(within(form).getByLabelText("Code"), "SC, DSE");
     await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Secondary Education");
     await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
-    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, DSE", office_code: "EDU-DSE", is_generic_state: false });
     // the add row's submit is secondary: the mapping page keeps no primary of its own
     expect(within(form).getByRole("button", { name: "Add Code" })).toHaveAttribute("data-variant", "secondary");
@@ -498,7 +498,7 @@ describe("keywords and name patterns", () => {
     await userEvent.type(within(form).getByLabelText("Word or Pattern"), "COMMISSIONER OF EDUCATION");
     await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
     await userEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/keywords")[0]!.body).toEqual({ keyword: "COMMISSIONER OF EDUCATION", office_code: "EDU" });
 
     await userEvent.type(within(form).getByLabelText("Word or Pattern"), "STATE OF");
@@ -610,12 +610,12 @@ describe("watchlist", () => {
     await userEvent.click(within(list).getByText("Education"));
     await userEvent.type(within(form).getByLabelText("CNR"), " ashc010099992026 ");
     await userEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(await screen.findByText(/its court details are queued/)).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText(/its court details are queued/)).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/watchlist")[0]!.body).toEqual({ cnr: "ASHC010099992026", office_code: "EDU" });
 
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
     await userEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("The case was scored again now.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("The case was scored again now.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/watchlist")[1]!.body).toEqual({ cnr: "ASHC010012342025", office_code: null });
     expect(calls(api, "GET", "/admin/offices/choices")[0]!.path).toContain("purpose=watchlist");
   });
@@ -975,7 +975,7 @@ describe("Recommended From Cause Lists lists every code (design list-search, dec
     await userEvent.click(within(map).getByRole("button", { name: "Map SC, C0100" }));
     await waitFor(() => expect(within(panel).queryByText("SC, C0100")).toBeNull());
     expect(within(panel).getByText("9 of 1,065 codes")).toBeInTheDocument();
-    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, C0100", office_code: "EDU", is_generic_state: false });
   });
 });

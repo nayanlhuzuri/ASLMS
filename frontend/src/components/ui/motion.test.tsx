@@ -1,12 +1,12 @@
-import { act, fireEvent, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithClient } from "@/test/render";
 
 import { ConfirmDialog, Dialog, Kpi, Modal, SidePanel } from "./index";
-import { useCountUp, usePrefersReducedMotion, usePresence } from "./motion";
+import { useCountUp, usePrefersReducedMotion, usePresence, useSlidingMark } from "./motion";
 
 /** Answers the reduced-motion media query as given. */
 function stubMotion(reduced: boolean) {
@@ -194,5 +194,66 @@ describe("a closing overlay is inert (review of round 1, fixed in round 2)", () 
     expect(overlay).toHaveAttribute("inert");
     fireEvent.click(overlay);
     expect(closed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useSlidingMark (design portal-motion, decision 10)", () => {
+  function Row({ current }: { current: string }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const box = useSlidingMark(ref, "[data-on='true']", [current]);
+    return (
+      <div ref={ref} data-testid="row">
+        {["a", "b"].map((k) => (
+          <span key={k} data-key={k} data-on={k === current ? "true" : undefined}>
+            {k}
+          </span>
+        ))}
+        {box ? <i aria-hidden="true" data-testid="mark" style={{ left: box.left, width: box.width }} /> : null}
+      </div>
+    );
+  }
+
+  it("returns the selected item's box and follows a resize", () => {
+    const sizes: Record<string, { left: number; width: number }> = { a: { left: 0, width: 40 }, b: { left: 50, width: 70 } };
+    const left = vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+      return sizes[this.dataset.key ?? ""]?.left ?? 0;
+    });
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return sizes[this.dataset.key ?? ""]?.width ?? 0;
+    });
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    class FakeResizeObserver {
+      els: Element[] = [];
+      constructor(cb: ResizeObserverCallback) {
+        observers.push({ cb, els: this.els });
+      }
+      observe(el: Element) {
+        this.els.push(el);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      const { rerender } = render(<Row current="a" />);
+      expect(screen.getByTestId("mark")).toHaveStyle({ left: "0px", width: "40px" });
+      rerender(<Row current="b" />);
+      expect(screen.getByTestId("mark")).toHaveStyle({ left: "50px", width: "70px" });
+      const watcher = observers[observers.length - 1]!;
+      expect(watcher.els).toContain(screen.getByTestId("row"));
+      expect(watcher.els).not.toContain(screen.getByTestId("mark"));
+      sizes.b = { left: 50, width: 90 };
+      act(() => watcher.cb([], watcher as unknown as ResizeObserver));
+      expect(screen.getByTestId("mark")).toHaveStyle({ width: "90px" });
+    } finally {
+      left.mockRestore();
+      width.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("returns null while nothing matches", () => {
+    render(<Row current="z" />);
+    expect(screen.queryByTestId("mark")).toBeNull();
   });
 });

@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 
-import { Badge, Button, ConfirmDialog, EmptyState, ErrorBanner, ItemHead, Loading, Notice } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, EmptyState, ErrorBanner, ItemHead, Loading, useToast } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useCaseTitle, useDrafts, useWorkflowCodes } from "@/lib/api/hooks";
 import type { Draft, DocumentItem } from "@/lib/api/types";
@@ -32,7 +32,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
 
   async function del() {
     const out = await remove.run(() => api(`/notes/drafts/${encodeURIComponent(draft.id)}`, { method: "DELETE" }));
@@ -45,13 +45,12 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
     const out = await attach.run(() =>
       api<Draft>(`/notes/drafts/${encodeURIComponent(draft.id)}`, { method: "PATCH", body: { document_refs: ids } }),
     );
-    if (out.ok) setNotice(T.wf.draftSaved);
+    if (out.ok) toast(T.wf.draftSaved);
     await refresh();
   }
 
   return (
     <li className={cs.note} aria-label={kindLabel}>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {editing ? (
         <NoteComposer
           caseRef={caseRef}
@@ -61,7 +60,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
           onCancel={() => setEditing(false)}
           onDone={(text) => {
             setEditing(false);
-            setNotice(text);
+            toast(text);
           }}
         />
       ) : (

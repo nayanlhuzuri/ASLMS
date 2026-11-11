@@ -548,6 +548,37 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(nav.replace).toHaveBeenLastCalledWith("/?view=department");
   });
 
+  it("switching My Work to Department slides the same thumb to a new place (design portal-motion, decision 11)", async () => {
+    const boxes: Record<string, { left: number; width: number }> = { "My Work": { left: 2, width: 80 }, Department: { left: 84, width: 104 } };
+    const left = vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "radio" ? (boxes[this.textContent ?? ""]?.left ?? 0) : 0;
+    });
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "radio" ? (boxes[this.textContent ?? ""]?.width ?? 0) : 0;
+    });
+    try {
+      browserApi({
+        ...mine(),
+        "GET /dashboard": { me: true, departments: [{ code: "EDU", name: "Education" }], state: false },
+        "GET /dashboard/department": department("EDU", "Education"),
+      });
+      const view = renderWithClient(<Dashboard />);
+      const group = await screen.findByRole("radiogroup", { name: "Dashboard View" });
+      const thumb = within(group).getByTestId("segment-thumb");
+      expect(thumb).toHaveStyle({ left: "2px", width: "80px" });
+      await userEvent.click(within(group).getByRole("radio", { name: "Department" }));
+      expect(nav.replace).toHaveBeenLastCalledWith("/?view=department");
+      // the address changes only `view`; the page renders again with it and the switch stays mounted
+      view.rerender(<Dashboard params={{ view: "department" }} />);
+      const after = within(screen.getByRole("radiogroup", { name: "Dashboard View" })).getByTestId("segment-thumb");
+      expect(after).toBe(thumb);
+      expect(after).toHaveStyle({ left: "84px", width: "104px" });
+    } finally {
+      left.mockRestore();
+      width.mockRestore();
+    }
+  });
+
   it("the Department view keeps the department figures as headline numbers", async () => {
     browserApi({
       ...mine(),

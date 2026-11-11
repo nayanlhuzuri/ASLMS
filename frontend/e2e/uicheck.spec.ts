@@ -204,8 +204,36 @@ interface State {
   widths?: number[];
   /** The session ping's answer for this state (design session-timeout). */
   activity?: Partial<typeof ACTIVITY_DEFAULT>;
+  /** Before the first navigation (design portal-motion, decision 15: a flash written into sessionStorage). */
+  init?: (page: Page) => Promise<void>;
   open: (page: Page) => Promise<void>;
 }
+
+/**
+ * Raises the confirmation toast without a writing request (design portal-motion, decision 15): the fixtures answer no
+ * write, so the flash the next page shows is written into sessionStorage before the page loads, and the toast host
+ * shows it. Hovering the toast pauses its timer before the screenshot.
+ */
+function withFlash(text: string): (page: Page) => Promise<void> {
+  return async (page) => {
+    await page.addInitScript((value) => {
+      try {
+        window.sessionStorage.setItem("aslms.flash", value);
+      } catch {
+        // storage unavailable: the state fails on its own wait
+      }
+    }, text);
+  };
+}
+
+async function hoverToast(page: Page, text: string): Promise<void> {
+  const toast = page.getByRole("group", { name: text });
+  await toast.waitFor({ state: "visible" });
+  await toast.hover();
+}
+
+const FLASH_SENT = "Case sent to Health Off. It is no longer with you.";
+const FLASH_SAVED = "Saved. The change is in the audit log.";
 
 const STATES: State[] = [
   {
@@ -704,6 +732,31 @@ const STATES: State[] = [
     },
   },
   {
+    // design portal-motion, decision 15: the confirmation toast at the bottom right, above the bottom bar on phones
+    name: "/ (confirmation toast)",
+    path: "/",
+    init: withFlash(FLASH_SENT),
+    open: async (page) => {
+      await hoverToast(page, FLASH_SENT);
+    },
+  },
+  {
+    // design portal-motion, decisions 7 and 15: the Save bar state with the toast risen above the bar
+    name: `/admin/access/${SAMPLE.userType} (toast above the Save bar)`,
+    path: `/admin/access/${SAMPLE.userType}`,
+    init: withFlash(FLASH_SAVED),
+    open: async (page) => {
+      // held first, so the 6 s timer cannot run out while the switches load; leaving it starts the 6 s again
+      await hoverToast(page, FLASH_SAVED);
+      const switches = page.locator("button[role='switch']:not([disabled])");
+      await switches.first().waitFor();
+      await switches.nth(0).click();
+      await switches.nth(1).click();
+      await page.getByText("2 unsaved changes").waitFor();
+      await hoverToast(page, FLASH_SAVED);
+    },
+  },
+  {
     // design portal-ui-polish-2, decisions 21-24: Layout B on the Cause List with More Filters open (List Type, Court)
     name: "/causelist (More Filters open)",
     path: `/causelist?date=${SAMPLE.causelistDate}&bench_id=${SAMPLE.benchId}`,
@@ -1042,6 +1095,7 @@ test.describe("interaction states", () => {
       const width = widthOf(page);
       test.skip(!!state.widths && !state.widths.includes(width), "not at this width");
       const run = await watch(page, state.name, width, false, state.activity);
+      await state.init?.(page);
       const visit = await run(async () => {
         await page.goto(state.path);
         await settle(page);

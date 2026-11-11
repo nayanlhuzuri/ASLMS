@@ -20,6 +20,7 @@ import {
   Badge,
   Button,
   CheckField,
+  type Column,
   DataTable,
   EmptyState,
   ErrorBanner,
@@ -27,7 +28,6 @@ import {
   ListSort,
   Loading,
   NoMatches,
-  Notice,
   OfficePicker,
   OrderLine,
   ScrollBox,
@@ -36,7 +36,7 @@ import {
   sortByColumn,
   sortOptionsOf,
   TextField,
-  type Column,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { MAPPING_KEY } from "@/lib/api/hooks";
@@ -107,7 +107,7 @@ export function KeywordsAndPatterns() {
       queryClient.invalidateQueries({ queryKey: KEYWORDS_KEY }),
       queryClient.invalidateQueries({ queryKey: PATTERNS_KEY }),
     ]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
 
   const all: Row[] = [
     ...(show !== "patterns"
@@ -168,7 +168,7 @@ export function KeywordsAndPatterns() {
           label={r.text}
           confirmText={T.mapping.ruleConfirm}
           onDone={() => {
-            setNotice(T.mapping.rescoreStarted);
+            toast(T.mapping.rescoreStarted);
             void refresh();
           }}
           onConflict={() => void refresh()}
@@ -208,12 +208,11 @@ export function KeywordsAndPatterns() {
       <AddWord
         known={known}
         onSaved={(line) => {
-          setNotice(line);
+          toast(line);
           void refresh();
         }}
         onConflict={() => void refresh()}
       />
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {pending ? <Loading /> : null}
       <ErrorBanner error={given(keywords.error ?? patterns.error)} onRetry={() => void refresh()} />
       {!pending && !keywords.error && !patterns.error ? (

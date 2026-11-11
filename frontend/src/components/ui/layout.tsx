@@ -17,7 +17,7 @@ import { crumbLabel, CRUMBS_WITHOUT_PAGE } from "@/lib/routes";
 
 import { Button, cx, SelectField } from "./controls";
 import s from "./layout.module.css";
-import { useCountUp } from "./motion";
+import { useCountUp, useSlidingMark } from "./motion";
 import { Menu } from "./overlays";
 
 // a layout effect in the browser (the underline is placed before paint), a plain effect on the server
@@ -174,7 +174,6 @@ export function Tabs({
 }) {
   const nav = useRef<HTMLElement>(null);
   const measure = useRef<HTMLDivElement>(null);
-  const [ink, setInk] = useState<{ left: number; width: number } | null>(null);
   // how many leading items stay in the row (`overflow="more"`); null: every item, as on the first paint
   const [fit, setFit] = useState<number | null>(null);
   const activeKey = [...items, ...(more ?? [])].find((t) => t.active)?.href ?? "";
@@ -228,34 +227,9 @@ export function Tabs({
   const moved = collapsing && fit !== null && fit < items.length ? items.slice(fit) : [];
   const moreItems = [...moved, ...(more ?? [])];
 
-  useIsoLayoutEffect(() => {
-    const el = nav.current;
-    if (!el) return;
-    const place = () => {
-      const current = el.querySelector<HTMLElement>("[data-tab-current='true']");
-      setInk(current ? { left: current.offsetLeft, width: current.offsetWidth } : null);
-    };
-    place();
-    // design portal-ui-polish, decision 1: one observer on the row and on every tab, so the underline follows a
-    // tab's own width (a count arriving, Inter loading after first paint); once more when the fonts are ready
-    let live = true;
-    const fonts = typeof document !== "undefined" ? (document as Document & { fonts?: FontFaceSet }).fonts : undefined;
-    fonts?.ready?.then(() => {
-      if (live) place();
-    });
-    if (typeof ResizeObserver === "undefined") {
-      return () => {
-        live = false;
-      };
-    }
-    const observer = new ResizeObserver(place);
-    observer.observe(el);
-    el.querySelectorAll<HTMLElement>("[data-tab]").forEach((tab) => observer.observe(tab));
-    return () => {
-      live = false;
-      observer.disconnect();
-    };
-  }, [activeKey, items.length, more?.length, fit]);
+  // design portal-ui-polish, decision 1, shared with the switch's thumb (portal-motion, decision 10): the underline
+  // follows a tab's own width (a count arriving, Inter loading after first paint) and the fonts becoming ready
+  const ink = useSlidingMark(nav, "[data-tab-current='true']", [activeKey, items.length, more?.length, fit]);
 
   const moreCurrent = moreItems.find((t) => t.active);
   const withCount = (t: TabItem) => (t.count !== undefined && t.count !== null ? `${t.label} (${formatNumber(t.count)})` : t.label);

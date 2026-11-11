@@ -16,7 +16,6 @@ import { Held, trackedDepartments } from "@/components/files/Held";
 import { Sent } from "@/components/files/Sent";
 import { DepartmentSummary, useCustodySummary } from "@/components/files/TrackingSummary";
 import { Collapsible, EmptyState, ErrorBanner, Loading, PageHeader, Tabs } from "@/components/ui";
-import { FlashNotice } from "@/components/workflow/common";
 import { useMe, useMyCounts } from "@/lib/api/hooks";
 import type { CustodySummary } from "@/lib/api/types";
 import { can, tracksDepartment } from "@/lib/can";
@@ -63,7 +62,6 @@ export function InboxFrame({ tab, params, children }: { tab: InboxTab; params: P
   return (
     <div className="stack">
       <PageHeader title={T.inbox.myTitle} subtitle={T.inbox.mySubtitle} />
-      <FlashNotice />
       <ErrorBanner error={counts.error ?? sel.error} onRetry={() => (counts.refetch(), sel.refetch())} />
       {tabs.length > 0 ? (
         <Tabs

@@ -25,6 +25,7 @@ import {
   Stepper,
   TextArea,
   TextField,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useCaseTitle, useDepartments, useWorkflowCodes } from "@/lib/api/hooks";
@@ -441,17 +442,16 @@ export function RecallDialog({
 }
 
 /**
- * Send file and Recall on a custody card, by the card's flags, with the notice of the last move. Both are secondary:
+ * Send file and Recall on a custody card, by the card's flags; the last move is confirmed by the toast. Both are secondary:
  * the card sits on the Custody and stage tab under the case header, which holds the page's one primary (decision 16;
  * design portal-ui-polish, decision 11).
  */
 export function CustodyActions({ caseRef, detail, card }: { caseRef: string; detail: CaseDetail; card: CustodyCard }) {
   const [open, setOpen] = useState<"send" | "recall" | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  if (!card.can_send && !card.can_recall && !notice) return null;
+  const toast = useToast();
+  if (!card.can_send && !card.can_recall) return null;
   return (
     <div className="stack">
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <div className="row">
         {card.can_send ? (
           <Button variant="secondary" onClick={() => setOpen("send")}>
@@ -464,9 +464,9 @@ export function CustodyActions({ caseRef, detail, card }: { caseRef: string; det
           </Button>
         ) : null}
       </div>
-      <SendDialog open={open === "send"} caseRef={caseRef} detail={detail} onClose={() => setOpen(null)} onDone={setNotice} />
+      <SendDialog open={open === "send"} caseRef={caseRef} detail={detail} onClose={() => setOpen(null)} onDone={toast} />
       {card.can_recall ? (
-        <RecallDialog open={open === "recall"} caseRef={caseRef} card={card} onClose={() => setOpen(null)} onDone={setNotice} />
+        <RecallDialog open={open === "recall"} caseRef={caseRef} card={card} onClose={() => setOpen(null)} onDone={toast} />
       ) : null}
     </div>
   );

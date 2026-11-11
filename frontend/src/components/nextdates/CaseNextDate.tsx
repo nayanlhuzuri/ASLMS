@@ -19,7 +19,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { fileUrl } from "@/components/case/Orders";
-import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, DataTable } from "@/components/ui";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, Pagination, useToast } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CaseNextDate, CaseNextDateList, NextDateReviewList } from "@/lib/api/types";
@@ -57,7 +57,7 @@ export function NextDateBlock({ caseRef, c, latestOrderId }: { caseRef: string; 
   const [dialog, setDialog] = useState<"report" | "correct" | null>(() =>
     search?.get("nd") === "correct" && c.workflow.next_date_correct ? "correct" : null,
   );
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [stale, setStale] = useState<unknown>(null);
   const row = c.next_date_from_orders ?? null;
   // the reading of the latest order the report and the correction are about (decision 17's row)
@@ -66,16 +66,14 @@ export function NextDateBlock({ caseRef, c, latestOrderId }: { caseRef: string; 
   const outcome: DialogOutcome = {
     onDone: (text) => {
       setStale(null);
-      setNotice(text);
+      toast(text);
     },
     onStale: (err) => {
-      setNotice(null);
       setStale(err);
     },
   };
   return (
     <>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       {row ? (
         <>

@@ -15,11 +15,11 @@ import {
   Dialog,
   ErrorBanner,
   FileField,
-  Notice,
   RadioGroup,
   SelectField,
   TextArea,
   TextField,
+  useToast,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useCaseTitle, useDocumentTypes } from "@/lib/api/hooks";
@@ -67,7 +67,7 @@ export function UploadForm({
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState("");
   const [tried, setTried] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const upload = types.data?.upload;
   const items = types.data?.items ?? [];
   const chosen = items.find((t) => t.code === docType);
@@ -78,7 +78,6 @@ export function UploadForm({
   function pick(files: File[]) {
     const f = files[0] ?? null;
     setFile(f);
-    setNotice(null);
     setProblem(f && upload ? checkFile(f, upload) : null);
   }
 
@@ -96,7 +95,6 @@ export function UploadForm({
 
   async function submit() {
     setTried(true);
-    setNotice(null);
     if (!file || problem || !docType || (chosen?.group_choosable && !group) || !dateOk || !descOk || !visibility) return;
     const form = new FormData();
     form.append("file", file, file.name);
@@ -109,8 +107,9 @@ export function UploadForm({
     await refresh();
     if (out.ok) {
       clear();
-      setNotice(T.wf.uploaded(out.value.ref_no ?? out.value.original_filename ?? ""));
-      await onUploaded?.(out.value);
+      // a caller with `onUploaded` confirms the upload itself (the dialogs), so the words are raised once
+      if (onUploaded) await onUploaded(out.value);
+      else toast(T.wf.uploaded(out.value.ref_no ?? out.value.original_filename ?? ""));
     }
   }
 
@@ -127,7 +126,6 @@ export function UploadForm({
         void submit();
       }}
     >
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <FileField
         label={T.wf.file}
         accept={acceptOf(upload)}

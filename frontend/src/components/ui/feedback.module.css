@@ -410,3 +410,122 @@
 :global(td) .scoreLine > :first-child {
   min-width: 0;
 }
+
+/* The confirmation toast (design portal-motion, decisions 6 to 8): a navy card at the bottom right, above dialogs and
+   the drawer, rising 24 px with a fade over --slow and leaving 12 px down over --med. The host lets clicks through
+   its empty corner; the empty card is hidden, so nothing in it can be focused. Under reduced motion the durations are
+   0 ms and transitions are off, so it appears and disappears in place. */
+.toastHost {
+  position: fixed;
+  right: var(--s5);
+  bottom: var(--s5);
+  z-index: 70;
+  max-width: 420px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-lg);
+  background: var(--panel-from);
+  box-shadow: var(--shadow-3);
+  color: var(--panel-strong);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: auto;
+  transform: translateY(var(--s5));
+  visibility: hidden;
+  transition:
+    opacity var(--slow) var(--ease),
+    transform var(--slow) var(--ease),
+    visibility 0s linear var(--med);
+}
+
+.toast[data-open] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity var(--slow) var(--ease),
+    transform var(--slow) var(--ease),
+    visibility 0s linear 0s;
+}
+
+.toast[data-closing] {
+  opacity: 0;
+  transform: translateY(var(--s3));
+  visibility: hidden;
+  transition:
+    opacity var(--med) var(--ease),
+    transform var(--med) var(--ease),
+    visibility 0s linear var(--med);
+}
+
+.toast:focus-visible,
+.toast :focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+
+.toastIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--panel-accent);
+}
+
+.toastText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toastLink {
+  flex: none;
+  color: var(--panel-strong);
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.toastClose {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--panel-text);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+
+.toastClose:hover {
+  background: var(--panel-hover);
+}
+
+/* above the user-type page's Save bar, so Save Changes stays visible beside "Saved" */
+:global(body:has([data-ui="save-bar"])) .toastHost {
+  bottom: calc(var(--s5) + var(--savebar-h) + var(--s3));
+}
+
+/* phones: the full width less the margins, just above the 64 px bottom bar */
+@media (max-width: 819px) {
+  .toastHost {
+    left: var(--s3);
+    right: var(--s3);
+    bottom: calc(var(--s7) + var(--s4) + var(--s3));
+    max-width: none;
+  }
+
+  :global(body:has([data-ui="save-bar"])) .toastHost {
+    bottom: calc(var(--s7) + var(--s4) + var(--s3) + var(--savebar-h) + var(--s3));
+  }
+}

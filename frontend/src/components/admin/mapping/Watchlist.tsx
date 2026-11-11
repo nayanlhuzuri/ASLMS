@@ -15,6 +15,7 @@ import { useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
+  type Column,
   DataTable,
   EmptyState,
   ErrorBanner,
@@ -22,14 +23,13 @@ import {
   ListSort,
   Loading,
   NoMatches,
-  Notice,
   OfficePicker,
   OrderLine,
   ScrollBox,
   sortByColumn,
   sortOptionsOf,
   TextField,
-  type Column,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { MAPPING_KEY } from "@/lib/api/hooks";
@@ -64,7 +64,7 @@ export function Watchlist() {
     queryFn: () => api<WatchList>("/admin/watchlist", { query: { include_inactive: inactive || undefined } }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: WATCH_KEY });
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const all = list.data?.items ?? [];
   const searching = state.applied !== "";
   const columns: Column<Watch>[] = [
@@ -103,7 +103,7 @@ export function Watchlist() {
           label={row.cnr}
           confirmText={T.mapping.watchConfirm}
           onDone={(r) => {
-            setNotice(savedLine(r));
+            toast(savedLine(r));
             void refresh();
           }}
           onConflict={() => void refresh()}
@@ -135,12 +135,11 @@ export function Watchlist() {
       />
       <AddWatch
         onSaved={(row) => {
-          setNotice(savedLine(row));
+          toast(savedLine(row));
           void refresh();
         }}
         onConflict={() => void refresh()}
       />
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {list.isPending ? <Loading /> : null}
       <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
       {list.data ? (

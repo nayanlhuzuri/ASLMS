@@ -36,7 +36,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { EnterNextDate } from "@/components/nextdates/Dialogs";
-import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, type MenuItem, Notice, OfficeName, Tabs } from "@/components/ui";
+import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, type MenuItem, Notice, OfficeName, Tabs, useToast } from "@/components/ui";
 import { useWorkflowRefresh } from "@/components/workflow/common";
 import { CloseCaseDialog } from "@/components/workflow/CloseCaseDialog";
 import { RecallDialog, SendDialog } from "@/components/workflow/CustodyDialogs";
@@ -325,20 +325,18 @@ export function ClosureLine({ c, caseRef }: { c: CaseDetail; caseRef: string }) 
 }
 
 /**
- * The summary header (decision 9). Without `onOpen` (the merged case) it offers no action. `notice` and `stale` are the
- * outcome of the latest dialog, shown under the facts.
+ * The summary header (decision 9). Without `onOpen` (the merged case) it offers no action. `stale` is the outcome of
+ * the latest dialog when it failed, shown under the facts; a success is the toast (design portal-motion, decision 2).
  */
 export function CaseHeader({
   c,
   caseRef,
   onOpen,
-  notice = null,
   stale = null,
 }: {
   c: CaseDetail;
   caseRef: string;
   onOpen?: (open: Open) => void;
-  notice?: string | null;
   stale?: unknown;
 }) {
   const me = useMe();
@@ -376,7 +374,6 @@ export function CaseHeader({
         <Fact label={T.rail.ownerFact}>{owner ? <OfficeName code={owner.office_code} name={owner.office_name} /> : T.case.unowned}</Fact>
         {/* design portal-screen-fixes-work, decision 6: the status shows once, as the badge beside the title */}
       </dl>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
     </section>
   );
@@ -419,7 +416,7 @@ function Workspace({ caseRef, c, children }: { caseRef: string; c: CaseDetail; c
   const wide = useMediaQuery(WIDE_CASE_PAGE) && (width === null || width >= RAIL_MIN_WORKSPACE);
   const remarks = useUrlOverlay("remarks", params, pathname || casePath(caseRef));
   const [open, setOpen] = useState<Open | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [stale, setStale] = useState<unknown>(null);
   const base = casePath(caseRef);
   const tab = (t: (typeof CASE_TABS)[number]) => {
@@ -439,7 +436,6 @@ function Workspace({ caseRef, c, children }: { caseRef: string; c: CaseDetail; c
         c={c}
         caseRef={caseRef}
         onOpen={setOpen}
-        notice={notice}
         stale={stale}
       />
       {c.portal.is_provisional ? <Notice>{T.case.provisional}</Notice> : null}
@@ -474,10 +470,9 @@ function Workspace({ caseRef, c, children }: { caseRef: string; c: CaseDetail; c
         onClose={() => setOpen(null)}
         onNotice={(text) => {
           setStale(null);
-          setNotice(text);
+          toast(text);
         }}
         onStale={(error) => {
-          setNotice(null);
           setStale(error);
         }}
       />

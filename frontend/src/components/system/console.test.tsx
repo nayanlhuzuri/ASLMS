@@ -1,6 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,9 +15,9 @@ const RAW = { api: "cnr", source: "send", response_id: "r", fetched_at: "2026-10
 
 type View = ReturnType<typeof renderWithClient>;
 
-/** A new address: the server page renders the screen again with the new query (inside the same query client). */
+/** A new address: the server page renders the screen again with the new query (the wrapper keeps the same client). */
 function navigate(view: View, ui: ReactElement) {
-  view.rerender(<QueryClientProvider client={view.client}>{ui}</QueryClientProvider>);
+  view.rerender(ui);
 }
 
 function consoleRoutes(extra: Record<string, unknown> = {}, data = summary()) {

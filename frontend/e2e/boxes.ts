@@ -45,7 +45,10 @@ export async function pinClock(page: Page): Promise<void> {
 
 /**
  * Runs in the page (self-contained, for `page.evaluate`): the box of every element under `body`, keyed by its path of
- * tag names and `nth-of-type` indexes. Script, style and template elements carry no box and are left out.
+ * tag names and `nth-of-type` indexes. Script, style and template elements carry no box and are left out. A motion
+ * layer (`data-motion-layer`: the switch's sliding thumb, the toast host; design portal-motion, decision 14) is left
+ * out with its subtree only while it is out of the flow (computed `position` absolute or fixed), and before the
+ * `nth-of-type` count, so no sibling's path changes; a marked element in the flow is recorded as usual.
  */
 export function collectBoxes(): Omit<BoxFile, "name" | "width"> {
   const SKIP = new Set(["script", "style", "noscript", "template", "link", "meta"]);
@@ -58,6 +61,10 @@ export function collectBoxes(): Omit<BoxFile, "name" | "width"> {
     for (const child of Array.from(el.children)) {
       const tag = child.tagName.toLowerCase();
       if (SKIP.has(tag)) continue;
+      if (child.hasAttribute("data-motion-layer")) {
+        const position = window.getComputedStyle(child).position;
+        if (position === "absolute" || position === "fixed") continue;
+      }
       const n = (counts.get(tag) ?? 0) + 1;
       counts.set(tag, n);
       const childPath = `${path}>${tag}:${n}`;

@@ -424,3 +424,33 @@ None. Each decision lists the alternatives; the owner may pick one of them at ap
 - toasts for every confirmation or only for Case Claim (decision 2);
 - the solid navy pill (decision 9);
 - the slide distance (decision 12).
+
+## Deviations
+
+Written by the developer during the build (feature/portal-motion).
+
+1. **Start Collecting's message stays inline** (decision 2). `data/AutomaticCollection.tsx` `StartDialog` keeps its
+   dialog open after Start to show what was queued beside the chosen dates, so its confirmation is a call site
+   "inside a dialog that stays open". It stays an inline `<Notice tone="success">` and is the fourth allow-list entry
+   of the guard (`components/ui/toastGuard.test.ts`), with its reason. The other two confirmations of that file (What
+   Goes First and Search by Department Names) are toasts. 25 call sites became toasts, not 26.
+2. **The claim notice's rule lived in `inbox/inbox.module.css`**, not `claim.module.css` (decision 13): `ClaimFrame`
+   imports the inbox styles. Its `.notice` rule is removed there; the layout signature names it under that file.
+3. **The upload form inside a dialog leaves its confirmation to the caller.** `workflow/Upload.tsx` raises the toast
+   only when no `onUploaded` is given (the Documents tab's panel). The dialogs (case page Upload, the draft's "Attach a
+   new file") already confirm through their caller, so the words are raised once, unchanged.
+4. **Focus goes back on close.** When the toast closes while focus is inside it (Close, Escape), focus returns to the
+   element it came from, if still in the page; otherwise it is released. The toast still never takes focus.
+5. **`useSlidingMark` watches the container's children that are not `aria-hidden`**, so the mark itself is never
+   watched and the hook keeps the signature `(containerRef, selector, deps)`. For `Tabs` this is the same set as
+   before (the tabs and the More group); for the switch, its options.
+6. **`CustodyActions` no longer stays rendered for its notice.** With neither Send nor Recall left it renders nothing;
+   the confirmation of the last move is in the toast host, outside it.
+7. **Test placement.** The Save bar's `data-ui="save-bar"` is asserted in `admin/userTypes.test.tsx`, where the bar
+   renders, rather than in `shell.test.tsx`. The motion rules test also accepts the `visibility 0s linear` switch
+   (at once or after `var(--med)`) in the toast's transitions, the side-menu children's pattern that decision 8 names.
+8. **The Save bar uicheck state hovers the toast first**, before clicking the two switches, and again at the end, so
+   the 6-second timer cannot run out while the page loads; the screenshot is taken with the pointer on the toast.
+9. **Screen tests** read a confirmation from the toast's status region through `toastStatus()` in `src/test/render.tsx`;
+   `renderWithClient` now renders through a `wrapper` (the query client and `ToastProvider`), so a `rerender` keeps
+   both.

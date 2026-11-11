@@ -5,14 +5,29 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { vi } from "vitest";
 
+import { ToastProvider } from "@/components/ui";
 import type { Me, Permission, ReferenceLabels, Role } from "@/lib/api/types";
 
+/** A fresh query client and the toast host (design portal-motion, Tests 8), as the shell gives a page. */
 export function renderWithClient(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-  return { client, ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>) };
+  // a wrapper, so a `rerender` keeps the client and the toast host
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
+  return { client, ...render(ui, { wrapper }) };
+}
+
+/** The toast's visually hidden status region (design portal-motion, decision 5): where a confirmation's words are read. */
+export function toastStatus(): HTMLElement {
+  const el = document.querySelector<HTMLElement>("[data-ui='toast-status']");
+  if (!el) throw new Error("no toast host: render inside a ToastProvider (renderWithClient has one)");
+  return el;
 }
 
 type Answer = unknown | ((call: BrowserCall) => Response | unknown);

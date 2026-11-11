@@ -15,7 +15,7 @@ import { setFlash } from "@/lib/flash";
 import { addDays, istDay } from "@/lib/format";
 import { admin, block, membership, myCase, officer, summary } from "@/test/claimFixtures";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, makeMe, renderWithClient, type BrowserCall, toastStatus } from "@/test/render";
 
 import { InboxFrame, InboxIndex } from "./InboxFrame";
 import { ClaimedRedirect, OldInboxRedirect } from "./Redirects";
@@ -211,14 +211,13 @@ describe("tabs (case-inbox-simplify, decisions 1 and 3)", () => {
     expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
   });
 
-  it("the notice of a case sent away shows once, above the tabs", async () => {
+  it("the notice of a case sent away shows once, as the toast (design portal-motion, decision 3)", async () => {
     resetNav("/inbox/sent");
     setFlash("Case sent to Health Off. It is no longer with you.");
     browserApi(routes({ "GET /me": officer() }));
     const { unmount } = renderWithClient(<InboxFrame tab="sent" params={{}} />);
-    const notice = await screen.findByText("Case sent to Health Off. It is no longer with you.");
-    const tabs = screen.getByRole("navigation", { name: "Case Inbox Sections" });
-    expect(notice.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await within(toastStatus()).findByText("Case sent to Health Off. It is no longer with you.")).toBeInTheDocument();
+    await screen.findByRole("navigation", { name: "Case Inbox Sections" });
     expect(sessionStorage.getItem("aslms.flash")).toBeNull();
     unmount();
     renderWithClient(<InboxFrame tab="sent" params={{}} />);

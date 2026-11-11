@@ -312,6 +312,20 @@
   white-space: nowrap;
 }
 
+/* design portal-motion, decision 12: on hover the icon and the words slide 4 px; the row, its padding, the count and
+   the chevron stay put. Pointer devices only, never the current item, never on keyboard focus. */
+.navIcon,
+.navLabel {
+  transition: transform var(--med) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav a:hover:not([aria-current="page"]) .navIcon,
+  .nav a:hover:not([aria-current="page"]) .navLabel {
+    transform: translateX(var(--s1));
+  }
+}
+
 /* the counts that need action are orange with navy text, current or not (design portal-navy-cream, decision 2) */
 .navCount {
   margin-left: auto;

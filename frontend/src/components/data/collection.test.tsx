@@ -12,7 +12,7 @@ import type { Coverage, DataLoad, Permission } from "@/lib/api/types";
 import { DC_KEYS, notAskedLine, POLL, type DataOverview, type DataPulse, type DataSchedule } from "@/lib/dataCollection";
 import { formatNumber as f } from "@/lib/format";
 import { nav as navState, resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, toastStatus } from "@/test/render";
 
 import { AutomaticCollection } from "./AutomaticCollection";
 import { CollectNow } from "./CollectNow";
@@ -536,7 +536,7 @@ describe("Automatic Collection (data-collection-redesign, decisions 34-41)", () 
     expect(screen.getByText("Now: Case Details First.")).toBeInTheDocument();
     await userEvent.type(within(form).getByLabelText(/^Reason/), "verification");
     await userEvent.click(within(form).getByRole("button", { name: "Save Priority" }));
-    expect(await screen.findByText("Priority saved; 29 waiting items reordered.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Priority saved; 29 waiting items reordered.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path === "/admin/data-load/order")?.body).toEqual({
       load_order: "cases_first",
       first_from: null,
@@ -787,7 +787,7 @@ describe("Collect Now (round 1 forms; round 3 carries them out at once)", () => 
     const dialog = await screen.findByRole("dialog", { name: "Already in the Database" });
     expect(within(dialog).getByText("That day is already held (done, 2 lists stored).")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
-    expect(await screen.findByText("Cause-list Days queued (pending).")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Cause-list Days queued (pending).")).toBeInTheDocument();
     expect(api.calls.filter((c) => c.path === "/admin/napix/refetch/day").map((c) => c.body)).toEqual([
       { date: "2025-01-06" },
       { date: "2025-01-06", force: true },

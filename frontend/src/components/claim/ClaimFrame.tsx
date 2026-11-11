@@ -9,12 +9,11 @@
  * when this page opened it, else replaces the address: `useUrlOverlay`, design portal-ui-polish, decision 10). After an action
  * the modal closes, a notice names the action with "Open case page", and the lists, counts and case are read again.
  */
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { DepartmentSelect, useInboxSelection } from "@/components/inbox/selection";
-import { DURATION, EmptyState, ErrorBanner, Loading, Notice, PageHeader, Tabs } from "@/components/ui";
+import { DURATION, EmptyState, ErrorBanner, Loading, PageHeader, Tabs, useToast } from "@/components/ui";
 import type { InboxCounts } from "@/lib/api/types";
 import { departmentsOf } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -23,7 +22,6 @@ import { casePath, refPath } from "@/lib/refs";
 import { CLAIM_TABS, type ClaimTab } from "@/lib/routes";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
-import s from "../inbox/inbox.module.css";
 import { CaseModal, type RowContext } from "./CaseModal";
 import type { ActionKind } from "./ModalActions";
 import { Pool } from "./Pool";
@@ -51,11 +49,6 @@ export function claimHref(tab: ClaimTab, department: string | null): string {
   return base + queryString({ department: department ?? undefined });
 }
 
-interface Done {
-  text: string;
-  caseRef: string;
-}
-
 /** The modal's case in the URL, kept through the exit animation so the closing modal keeps its content. */
 function useModalCase(params: Params) {
   const current = params.case || null;
@@ -76,7 +69,7 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
   const overlay = useUrlOverlay("case", params, pathname);
   const sel = useInboxSelection(params.department);
   const [row, setRow] = useState<RowContext | null>(null);
-  const [done, setDone] = useState<Done | null>(null);
+  const toast = useToast();
   const modal = useModalCase(params);
   if (sel.isPending) return <Loading />;
   const tabs = claimTabsFor(sel.block);
@@ -85,7 +78,6 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
   function open(next: RowContext) {
     const summary = next.kind === "recommended" ? next.rec.case : next.kind === "pool" ? next.item.case : next.transfer.case;
     setRow(next);
-    setDone(null);
     overlay.open(refPath(summary.ref_no));
   }
   function close() {
@@ -94,7 +86,9 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
   function finished(kind: ActionKind, label: string, department: string | null) {
     const text =
       kind === "claim" || kind === "suggest" ? T.claim.done[kind](label, department) : T.claim.done[kind](label);
-    setDone({ text, caseRef: modal.caseRef ?? "" });
+    // design portal-motion, decisions 2 and 4: the toast with Open Case Page, staying until it is closed
+    const ref = modal.caseRef ?? "";
+    toast(text, ref ? { href: casePath(ref), label: T.claim.openCasePage } : undefined);
     close();
   }
 
@@ -102,14 +96,6 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
     <div className="stack">
       <PageHeader title={T.claim.title} subtitle={T.claim.subtitle} />
       <ErrorBanner error={sel.error} onRetry={sel.refetch} />
-      {done ? (
-        <Notice tone="success">
-          <span className={s.notice}>
-            <span>{done.text}</span>
-            {done.caseRef ? <Link href={casePath(done.caseRef)}>{T.claim.openCasePage}</Link> : null}
-          </span>
-        </Notice>
-      ) : null}
       <DepartmentSelect sel={sel} hrefFor={(code) => claimHref(tab, code)} />
       {readOnly ? <p className="muted">{T.inbox.readOnly}</p> : null}
       {sel.block && tabs.length > 0 ? (

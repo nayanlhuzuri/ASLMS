@@ -40,6 +40,7 @@ import {
   TextArea,
   TextField,
   usePrefersReducedMotion,
+  useToast,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useLabels, useMe } from "@/lib/api/hooks";
@@ -195,7 +196,7 @@ export function SaveBar({
 }) {
   const reduced = usePrefersReducedMotion();
   return (
-    <div className={a.saveBar} role="region" aria-label={T.access.saveBar} data-count={count}>
+    <div className={a.saveBar} role="region" aria-label={T.access.saveBar} data-count={count} data-ui="save-bar">
       <div className={a.saveText} aria-live="polite">
         {/* the count bumps through the motion tokens; under reduced motion it changes without animation */}
         <span key={reduced ? "n" : count} className={reduced ? a.saveCount : `${a.saveCount} ${a.bump}`} aria-hidden="true">
@@ -393,7 +394,7 @@ export function UserTypePage({ role }: { role: string }) {
   const [draft, setDraft] = useState<Row | null>(null);
   const [query, setQuery] = useState("");
   const [onlyChanged, setOnlyChanged] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const save = useAction();
   const groups = useMemo(() => groupFunctions(permissions.data ?? []), [permissions.data]);
@@ -425,13 +426,11 @@ export function UserTypePage({ role }: { role: string }) {
   const shownGroups = groups.map((g) => ({ ...g, shown: g.items.filter(visible) })).filter((g) => g.shown.length > 0);
 
   function set(code: string, on: boolean) {
-    setNotice(null);
     save.reset();
     setDraft({ ...current, [code]: on });
   }
 
   function resetToDefault() {
-    setNotice(null);
     const next: Row = { ...current };
     for (const c of codes) if (!locked(c)) next[c] = !!dflt[c];
     setDraft(next);
@@ -445,7 +444,7 @@ export function UserTypePage({ role }: { role: string }) {
     if (!out.ok) return;
     queryClient.setQueryData(KEYS.type(role), out.value);
     setDraft(null);
-    setNotice(T.access.saved);
+    toast(T.access.saved);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: KEYS.overview }),
       queryClient.invalidateQueries({ queryKey: ["admin", "access", "types"] }),
@@ -499,7 +498,6 @@ export function UserTypePage({ role }: { role: string }) {
         ) : null}
       </div>
       {isSuper ? <Notice>{T.access.superAdminLine}</Notice> : null}
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {/* a refusal names the function, and the draft stays for the user to change */}
       <ErrorBanner error={save.error} messages={refusal ? { reserved: () => refusal, retired: () => refusal, bad_request: () => refusal } : undefined} />
 
@@ -558,7 +556,7 @@ export function UserTypePage({ role }: { role: string }) {
           onClose={() => setEditing(false)}
           onSaved={async (out) => {
             setEditing(false);
-            setNotice(out.changed ? T.access.nameSaved : null);
+            if (out.changed) toast(T.access.nameSaved);
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: KEYS.labels }),
               queryClient.invalidateQueries({ queryKey: KEYS.overview }),

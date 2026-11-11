@@ -29,6 +29,7 @@ import {
   TabToolbar,
   TextArea,
   TextField,
+  useToast,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -663,11 +664,10 @@ type Pending = { path: string; body: Record<string, unknown>; text: string } | n
 function useQueueAction() {
   const queryClient = useQueryClient();
   const action = useAction();
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
   const [warn, setWarn] = useState<Pending>(null);
   const [watch, setWatch] = useState<string | null>(null);
   async function queue(path: string, body: Record<string, unknown>) {
-    setMessage(null);
     setWarn(null);
     setWatch(null);
     const out = await action.run(() =>
@@ -683,7 +683,7 @@ function useQueueAction() {
       }),
     );
     if (out.ok && out.value) {
-      setMessage(T.data.queued(labelFor(T.dc.kinds, out.value.kind), out.value.status ?? "—"));
+      toast(T.data.queued(labelFor(T.dc.kinds, out.value.kind), out.value.status ?? "—"));
       if (out.value.request_id) setWatch(out.value.request_id);
       await queryClient.invalidateQueries({ queryKey: DC_KEYS.all });
       await queryClient.invalidateQueries({ queryKey: ["data-health"] });
@@ -703,7 +703,7 @@ function useQueueAction() {
     </Dialog>
   );
   const progress = watch ? <WatchedRequest id={watch} /> : null;
-  return { action, message, queue, warning, progress };
+  return { action, queue, warning, progress };
 }
 
 function RefetchCards() {
@@ -718,7 +718,6 @@ function RefetchCards() {
         <div className="stack">
           <h2 id="dc-one-day">{T.dc.oneDayTitle}</h2>
           <ErrorBanner error={day.action.error} />
-          {day.message ? <Notice tone="success">{day.message}</Notice> : null}
           <form
             className="row"
             aria-label={T.data.refetchDay}
@@ -740,7 +739,6 @@ function RefetchCards() {
         <div className="stack">
           <h2 id="dc-fetch-again">{T.dc.fetchAgainTitle}</h2>
           <ErrorBanner error={again.action.error} />
-          {again.message ? <Notice tone="success">{again.message}</Notice> : null}
           <form
             className="row"
             aria-label={T.data.refetchCase}
@@ -800,7 +798,6 @@ function ReferenceLists() {
           </Button>
         </div>
         <ErrorBanner error={sync.action.error ?? health.error} />
-        {sync.message ? <Notice tone="success">{sync.message}</Notice> : null}
         {sync.progress}
         {health.isPending ? <Loading /> : null}
         {health.data ? (

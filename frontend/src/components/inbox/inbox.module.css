@@ -47,13 +47,6 @@
   font-size: var(--t-sm);
 }
 
-.notice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s3);
-}
-
 /* design claim-assign-wording, decisions 2 and 3: the Assign section of the claim and Assign dialogs; the two fields
    share one field row (side by side from about 460 px of dialog body, stacked below that) */
 .assignHeading,

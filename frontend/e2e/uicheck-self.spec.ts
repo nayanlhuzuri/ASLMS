@@ -321,6 +321,26 @@ test("the box collector records each element's path and box and ignores a class 
   expect(renamed).toEqual(first);
 });
 
+test("the box collector skips a fixed or absolute motion layer with its subtree, and records one in the flow", async ({ page }) => {
+  // design portal-motion, decisions 14 and Tests 10: the switch's thumb and the toast host carry data-motion-layer
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setContent(`<!doctype html><html><body style="margin:0;font:14px sans-serif">
+    <main style="padding:16px;position:relative">
+      <div data-motion-layer style="position:fixed;right:24px;bottom:24px"><div role="group"><span>Saved.</span></div></div>
+      <div style="height:20px">One</div>
+      <span data-motion-layer style="position:absolute;top:2px;left:2px;width:40px;height:10px"></span>
+      <div style="height:20px">Two</div>
+      <div data-motion-layer style="height:20px">In the flow</div>
+    </main></body></html>`);
+  const boxes = await page.evaluate(collectBoxes);
+  expect(Object.keys(boxes.boxes)).toEqual(["body>main:1", "body>main:1>div:1", "body>main:1>div:2", "body>main:1>div:3"]);
+  // the siblings keep their paths: "One" is still div:1, as if the fixed layer were not there
+  expect(boxes.boxes["body>main:1>div:1"]).toEqual([16, 16, 1248, 20]);
+  expect(boxes.boxes["body>main:1>div:2"]).toEqual([16, 36, 1248, 20]);
+  // a marked element in the flow is recorded, so a misuse shows up as "extra"
+  expect(boxes.boxes["body>main:1>div:3"]).toEqual([16, 56, 1248, 20]);
+});
+
 function boxRun(boxes: Record<string, [number, number, number, number]>, scrollHeight = 800): Boxes {
   return { name: "/", width: 1280, scrollWidth: 1280, scrollHeight, boxes };
 }

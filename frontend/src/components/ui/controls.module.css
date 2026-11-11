@@ -322,6 +322,7 @@
 }
 
 .segmented {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   gap: 2px;
@@ -331,6 +332,8 @@
 }
 
 .segment {
+  position: relative;
+  z-index: 1;
   height: 30px;
   padding: 0 var(--s3);
   border: 0;
@@ -351,6 +354,26 @@
   background: var(--surface);
   color: var(--action);
   box-shadow: var(--shadow-1);
+}
+
+/* design portal-motion, decision 9: the chosen option's ground as a thumb under the words, sliding to the new option
+   over --slow; once it is placed (`data-thumb`) the chosen option paints no ground of its own */
+.thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  pointer-events: none;
+  transition:
+    left var(--slow) var(--ease),
+    width var(--slow) var(--ease);
+}
+
+.segmented[data-thumb] .segmentOn {
+  background-color: transparent;
+  box-shadow: none;
 }
 
 /* design case-workspace-admin, decision 25: an on/off switch (`role="switch"`) for the user-type page */

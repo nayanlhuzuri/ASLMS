@@ -23,6 +23,7 @@ import {
   Badge,
   Button,
   Card,
+  type Column,
   DataTable,
   EmptyState,
   ErrorBanner,
@@ -37,10 +38,10 @@ import {
   OrderLine,
   ScrollBox,
   sortByColumn,
+  type SortOption,
   sortOptionsOf,
   TextField,
-  type Column,
-  type SortOption,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { MAPPING_KEY, useOfficeChoices } from "@/lib/api/hooks";
@@ -90,13 +91,13 @@ export function CounselCodes() {
       }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: CODES_KEY });
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   // a generic code (on the root office) is managed only by a login whose scope holds the root office
   const choices = useOfficeChoices("counsel_codes");
   const editableGeneric = (choices.data?.items ?? []).some((o) => isRootChoice(o));
 
   function saved(row: CounselCode) {
-    setNotice(T.mapping.rescoreStarted);
+    toast(T.mapping.rescoreStarted);
     if (row.is_active) {
       // a new mapping, a reactivation or an office move: the code leaves the recommended panel without scanning the
       // cause lists again
@@ -193,7 +194,6 @@ export function CounselCodes() {
             count={<ListCount shown={list.data?.total} total={list.data?.total_all} noun={T.mapping.codesNoun} nounOne={T.mapping.codeNoun} searching={searching} />}
           />
           <AddCode onSaved={saved} onConflict={() => void refresh()} />
-          {notice ? <Notice tone="success">{notice}</Notice> : null}
           {list.isPending ? <Loading /> : null}
           <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
           {list.data ? (

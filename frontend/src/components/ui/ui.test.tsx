@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetNav } from "@/test/nav";
@@ -751,7 +752,8 @@ describe("badges and feedback", () => {
 
   it("Loading shows skeleton rows and keeps the visually hidden status text", () => {
     renderWithClient(<Loading />);
-    const status = screen.getByRole("status");
+    // the toast host's status region is the other status in the page (design portal-motion, decision 5)
+    const status = screen.getAllByRole("status").find((el) => el.getAttribute("data-ui") !== "toast-status")!;
     expect(within(status).getByText("Loading…")).toHaveClass("visually-hidden");
   });
 
@@ -1259,5 +1261,136 @@ describe("Collapsible bare and aside, ListRow stackTrail, CharCounter min, Score
     expect(weak!.firstElementChild).toHaveTextContent("Finance");
     expect(within(weak as HTMLElement).getByText("0.312")).toHaveClass("muted");
     expect(within(weak as HTMLElement).queryByText(/Strong|Possible/)).toBeNull();
+  });
+});
+
+describe("the sliding thumb of the SegmentedSwitch (design portal-motion, decisions 9 and 10)", () => {
+  const OPTIONS = [
+    { value: "mine", label: "My Work" },
+    { value: "department", label: "Department" },
+    { value: "state", label: "State" },
+  ];
+  const BOX: Record<string, { left: number; width: number }> = {
+    "My Work": { left: 2, width: 80 },
+    Department: { left: 84, width: 100 },
+    State: { left: 186, width: 60 },
+  };
+
+  /** Offsets by the option's words, as the browser would lay them out. */
+  function mockOffsets() {
+    const left = vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+      return BOX[this.textContent ?? ""]?.left ?? 0;
+    });
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return BOX[this.textContent ?? ""]?.width ?? 0;
+    });
+    return () => {
+      left.mockRestore();
+      width.mockRestore();
+    };
+  }
+
+  function Harness({ start = "mine", options = OPTIONS }: { start?: string; options?: typeof OPTIONS }) {
+    const [v, setV] = useState(start);
+    return <SegmentedSwitch label="View" value={v} onChange={setV} options={options} />;
+  }
+
+  it("sits at the checked option, hidden from screen readers and marked as a motion layer", () => {
+    const restore = mockOffsets();
+    try {
+      renderWithClient(<Harness />);
+      const group = screen.getByRole("radiogroup", { name: "View" });
+      const thumb = screen.getByTestId("segment-thumb");
+      expect(thumb).toHaveAttribute("aria-hidden", "true");
+      expect(thumb).toHaveAttribute("data-motion-layer");
+      expect(thumb).toHaveStyle({ left: "2px", width: "80px" });
+      expect(group).toHaveAttribute("data-thumb");
+      expect(group.lastElementChild).toBe(thumb);
+      // the thumb is never a radio, never focusable
+      expect(within(group).getAllByRole("radio")).toHaveLength(3);
+    } finally {
+      restore();
+    }
+  });
+
+  it("moves to the new option on a click and on an arrow key, keeping the same element", async () => {
+    const restore = mockOffsets();
+    try {
+      renderWithClient(<Harness />);
+      const thumb = screen.getByTestId("segment-thumb");
+      await userEvent.click(screen.getByRole("radio", { name: "Department" }));
+      expect(screen.getByTestId("segment-thumb")).toBe(thumb);
+      expect(thumb).toHaveStyle({ left: "84px", width: "100px" });
+      await userEvent.keyboard("{ArrowRight}");
+      expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
+      expect(thumb).toHaveStyle({ left: "186px", width: "60px" });
+    } finally {
+      restore();
+    }
+  });
+
+  it("follows a resize through the ResizeObserver", () => {
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    class FakeResizeObserver {
+      els: Element[] = [];
+      constructor(cb: ResizeObserverCallback) {
+        observers.push({ cb, els: this.els });
+      }
+      observe(el: Element) {
+        this.els.push(el);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    const restore = mockOffsets();
+    try {
+      renderWithClient(<Harness />);
+      const group = screen.getByRole("radiogroup", { name: "View" });
+      const mine = screen.getByRole("radio", { name: "My Work" });
+      const watcher = observers.find((o) => o.els.includes(mine));
+      expect(watcher).toBeDefined();
+      expect(watcher!.els).toContain(group);
+      // the thumb itself is not watched
+      expect(watcher!.els).not.toContain(screen.getByTestId("segment-thumb"));
+      BOX["My Work"] = { left: 2, width: 96 };
+      act(() => watcher!.cb([], watcher as unknown as ResizeObserver));
+      expect(screen.getByTestId("segment-thumb")).toHaveStyle({ width: "96px" });
+    } finally {
+      BOX["My Work"] = { left: 2, width: 80 };
+      restore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("there is no thumb before measurement or when the value matches no option; data-thumb only with a thumb", () => {
+    // the server render, before any measurement: the chosen option paints its own ground
+    const html = renderToString(<SegmentedSwitch label="View" value="mine" onChange={() => {}} options={OPTIONS} />);
+    expect(html).not.toContain("data-motion-layer");
+    expect(html).not.toContain("data-thumb");
+    renderWithClient(<Harness start="nothing" />);
+    const group = screen.getByRole("radiogroup", { name: "View" });
+    expect(screen.queryByTestId("segment-thumb")).toBeNull();
+    expect(group).not.toHaveAttribute("data-thumb");
+  });
+
+  it("keeps the radio roles, aria-checked, the roving tabIndex and disabled options", async () => {
+    const restore = mockOffsets();
+    try {
+      renderWithClient(
+        <Harness options={[OPTIONS[0]!, { ...OPTIONS[1]!, disabled: true } as (typeof OPTIONS)[number], OPTIONS[2]!]} />,
+      );
+      const mine = screen.getByRole("radio", { name: "My Work" });
+      expect(mine).toHaveAttribute("tabindex", "0");
+      expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("tabindex", "-1");
+      expect(screen.getByRole("radio", { name: "Department" })).toHaveAttribute("aria-disabled", "true");
+      mine.focus();
+      await userEvent.keyboard("{ArrowRight}");
+      // the disabled option is skipped
+      expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("segment-thumb")).toHaveStyle({ left: "186px" });
+    } finally {
+      restore();
+    }
   });
 });

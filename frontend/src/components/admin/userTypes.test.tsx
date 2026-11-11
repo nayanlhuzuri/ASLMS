@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Permission, PermissionInfo } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { browserApi, json, labels, makeMe, primaryActions, renderWithClient, toastStatus } from "@/test/render";
 
 import { groupFunctions, UserTypePage, UserTypesIndex } from "./UserTypes";
 
@@ -134,6 +134,8 @@ describe("the user-type page (decisions 25-27)", () => {
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
     const bar = screen.getByRole("region", { name: "Unsaved Changes" });
+    // design portal-motion, decision 7: the toast rises above the bar that carries this mark
+    expect(bar).toHaveAttribute("data-ui", "save-bar");
     expect(within(bar).getByText("No unsaved changes")).toBeInTheDocument();
     expect(within(bar).getByRole("button", { name: "Save Changes" })).toBeDisabled();
     await userEvent.click(sw("Add users"));
@@ -163,7 +165,7 @@ describe("the user-type page (decisions 25-27)", () => {
     await userEvent.click(sw("Recall cases"));
     expect(primaryActions(container)).toEqual(["Save Changes"]);
     await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
-    expect(await screen.findByText("Saved. The change is in the audit log.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Saved. The change is in the audit log.")).toBeInTheDocument();
     const puts = api.calls.filter((c) => c.method === "PUT");
     expect(puts).toHaveLength(1);
     expect(puts[0]!.path).toBe("/admin/access/types/dept_officer");
@@ -318,7 +320,7 @@ describe("Edit Name (design portal-ui-polish-2, decisions 12 and 13)", () => {
     expect(patch.path).toBe("/admin/access/types/dept_officer/name");
     expect(patch.body).toEqual({ label: "Department Officer (Legal)", description: "Works on cases." });
     expect(await screen.findByRole("heading", { level: 2, name: "Department Officer (Legal)" })).toBeInTheDocument();
-    expect(screen.getByText("Name saved. The change is recorded in the audit log.")).toBeInTheDocument();
+    expect(within(toastStatus()).getByText("Name saved. The change is recorded in the audit log.")).toBeInTheDocument();
     await waitFor(() => expect(api.calls.filter((c) => c.path.startsWith("/admin/access/overview")).length).toBeGreaterThan(before));
     // one primary per page: the dialog's Save is gone and Save Changes stays the page's primary
     expect(screen.getByRole("button", { name: "Save Changes" })).toHaveAttribute("data-variant", "primary");

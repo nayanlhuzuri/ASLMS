@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CauselistBench, CauselistDay, CauselistEntries, CauselistEntry, Permission } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, json, makeMe, renderWithClient, toastStatus } from "@/test/render";
 
 import { CauseList } from "./CauseList";
 import { courtNext } from "@/test/nextHearing";
@@ -236,7 +236,7 @@ describe("fetching a missing day", () => {
     const dialog = await screen.findByRole("dialog", { name: "Already Held" });
     expect(within(dialog).getByText(/published no cause list/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
-    expect(await screen.findByText(/Asked for/)).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText(/Asked for/)).toBeInTheDocument();
     const posts = api.calls.filter((c) => c.method === "POST" && c.path === "/admin/napix/refetch/day");
     expect(posts.map((c) => c.body)).toEqual([{ date: D }, { date: D, force: true }]);
   });

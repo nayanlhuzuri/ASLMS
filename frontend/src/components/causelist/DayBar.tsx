@@ -18,7 +18,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 
-import { Badge, Button, Dialog, ErrorBanner, Notice } from "@/components/ui";
+import { Badge, Button, Dialog, ErrorBanner, Notice, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { CAUSELISTS_KEY } from "@/lib/api/hooks";
 import type { CauselistDay } from "@/lib/api/types";
@@ -139,11 +139,10 @@ export function DayNotice({
 }) {
   const queryClient = useQueryClient();
   const action = useAction();
-  const [queued, setQueued] = useState(false);
+  const toast = useToast();
   const [held, setHeld] = useState<string | null>(null);
 
   async function fetchDay(force: boolean) {
-    setQueued(false);
     setHeld(null);
     const out = await action.run(() =>
       api<unknown>("/admin/napix/refetch/day", { method: "POST", body: force ? { date, force: true } : { date } }).then(
@@ -158,14 +157,14 @@ export function DayNotice({
       ),
     );
     if (out.ok && out.value) {
-      setQueued(true);
+      toast(T.causelist.fetchQueued);
       await queryClient.invalidateQueries({ queryKey: CAUSELISTS_KEY });
     }
   }
 
   const state = day?.state;
   const banner = state && state !== "held" ? T.causelist.banners[state] : null;
-  if (!banner && !queued && !action.error && held === null) return null;
+  if (!banner && !action.error && held === null) return null;
   return (
     <section className="stack" aria-label={T.causelist.date}>
       {banner ? (
@@ -190,7 +189,6 @@ export function DayNotice({
           </span>
         </Notice>
       ) : null}
-      {queued ? <Notice tone="success">{T.causelist.fetchQueued}</Notice> : null}
       <ErrorBanner error={action.error} />
       <Dialog open={held !== null} title={T.causelist.heldTitle} onClose={() => setHeld(null)}>
         <p>{held}</p>

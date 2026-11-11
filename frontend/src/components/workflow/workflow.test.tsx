@@ -6,7 +6,7 @@ import { Documents } from "@/components/case/Documents";
 import { Notes } from "@/components/case/Notes";
 import type { AlertItem, CaseDetail, CustodyCard, DocumentItem, Draft, Note, Permission, WorkflowCodes } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient, toastStatus } from "@/test/render";
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -222,7 +222,7 @@ describe("Send case and Recall case", () => {
         stage: null,
       }),
     );
-    expect(await screen.findByText("Case sent to Health Off, Under Secretary, Health.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Case sent to Health Off, Under Secretary, Health.")).toBeInTheDocument();
   });
 
   it("offers no stage without workflow.set_stage", async () => {
@@ -317,7 +317,7 @@ describe("Send case and Recall case", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
     expect(
-      await screen.findByText(/Made permanent: ASLMS\/EDU\/NOTE\/2026\/000004, ASLMS\/EDU\/NOTE\/2026\/000005/),
+      await within(toastStatus()).findByText(/Made permanent: ASLMS\/EDU\/NOTE\/2026\/000004, ASLMS\/EDU\/NOTE\/2026\/000005/),
     ).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
   });
@@ -353,7 +353,7 @@ describe("Send case and Recall case", () => {
     await userEvent.type(within(dialog).getByLabelText("Remark"), "needed back");
     await userEvent.click(within(dialog).getByRole("button", { name: "Recall Case" }));
     await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ remark: "needed back" }));
-    expect(await screen.findByText("The case is with you now, with 'Examine' pending.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("The case is with you now, with 'Examine' pending.")).toBeInTheDocument();
   });
 });
 
@@ -617,7 +617,7 @@ describe("writing notes", () => {
     expect(body.get("visibility")).toBe("counsel_shared");
     expect(body.getAll("document_refs")).toEqual(["d-1"]);
     expect(body.getAll("files")).toEqual([]);
-    expect(await screen.findByText("Draft saved.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Draft saved.")).toBeInTheDocument();
   });
 
   it("a permanent note sends multipart with files and file_doc_types; nothing pre-selected", async () => {
@@ -648,7 +648,7 @@ describe("writing notes", () => {
     expect((body.getAll("files") as File[]).map((f) => f.name)).toEqual(["reply.pdf"]);
     expect(body.getAll("file_doc_types")).toEqual(["office_note"]);
     expect(body.get("visibility")).toBe("case_scope");
-    expect(await screen.findByText("Note ASLMS/EDU/NOTE/2026/000001 added.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Note ASLMS/EDU/NOTE/2026/000001 added.")).toBeInTheDocument();
   });
 
   it("Correct shows only with can_correct, fixes kind and visibility, and permanent notes have no Edit or Delete", async () => {

@@ -806,6 +806,8 @@ export const T = {
   // the UI kit's own words (decision 17)
   kit: {
     more: "More",
+    // design portal-motion, decision 4: the confirmation toast's close button
+    closeMessage: "Close Message",
     // design portal-names-and-labels, decision 5: added to an office name's tooltip (its code) when inactive
     officeInactive: " · Inactive",
     actions: "More Actions",

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, Ownership, OwnershipActions, Permission } from "@/lib/api/types";
 import { caseDetail as detail } from "@/test/caseDetail";
 import { resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, PRIMARY_SELECTOR, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, PRIMARY_SELECTOR, renderWithClient, type BrowserCall, toastStatus } from "@/test/render";
 import { CustodyTab } from "@/components/workflow/CustodyTab";
 
 import { CaseFrame } from "./CaseFrame";
@@ -1360,7 +1360,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ next_date: day });
-    expect(await within(region).findByText("Saved. 1 Dec 2026 is the next date of WP(C)/1234/2026.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Saved. 1 Dec 2026 is the next date of WP(C)/1234/2026.")).toBeInTheDocument();
   });
 
   it("the Latest order card carries the order's reading", async () => {
@@ -1528,7 +1528,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     const post = api.calls.find((c) => c.method === "POST")!;
     expect(post.path).toBe("/next-dates/nd-1/report");
     expect(post.body).toEqual({ reason: "too short — the order says 27th" });
-    expect(await within(region).findByText("Reported. The people who correct dates have been told.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Reported. The people who correct dates have been told.")).toBeInTheDocument();
   });
 
   it("Correct posts the right date only when filled; Reading Is Right while a report is open", async () => {
@@ -1554,12 +1554,12 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     await userEvent.click(within(dialog).getByRole("button", { name: "Correct" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     expect(api.calls.filter((c) => c.method === "POST").at(-1)!.body).toEqual({ reason: "The order clearly says 27.11.2026" });
-    expect(await within(region).findByText("Corrected. The case now asks for the next date to be entered.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Corrected. The case now asks for the next date to be entered.")).toBeInTheDocument();
     await userEvent.click(within(region).getByRole("button", { name: "Correct It" }));
     dialog = screen.getByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Reading Is Right" }));
     await waitFor(() => expect(api.calls.some((c) => c.path === "/next-dates/nd-1/keep")).toBe(true));
-    expect(await within(region).findByText("Saved. The date read from the order stays.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Saved. The date read from the order stays.")).toBeInTheDocument();
   });
 });
 

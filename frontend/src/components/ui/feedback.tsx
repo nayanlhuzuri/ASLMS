@@ -4,10 +4,24 @@
  * Feedback of the UI kit (design portal-ui-redesign, decisions 10.6, 10.14, 11, 17 and 19): badges with fixed colour
  * meanings, the error banner with Retry, notices, skeletons while loading (with the visually hidden "Loading" status
  * text), empty states with an icon circle and a title, the score and severity badges, signal chips, the meter and
- * the stepper. Colour is never the only signal: every badge carries words.
+ * the stepper. Colour is never the only signal: every badge carries words. The confirmation toast (`ToastProvider`,
+ * `useToast`, design portal-motion, decisions 1 to 8) confirms an action just done on a shell page.
  */
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
+import { clearFlash, peekFlash } from "@/lib/flash";
 import { errorText, T, type ErrorTexts } from "@/lib/messages";
 import { signalText, type Signal } from "@/lib/signals";
 import { labelFor } from "@/lib/displayLabels";
@@ -15,6 +29,7 @@ import { hearingBand } from "@/lib/hearingDate";
 
 import { Button, cx } from "./controls";
 import s from "./feedback.module.css";
+import { DURATION, usePresence } from "./motion";
 import { OfficeName } from "./OfficeName";
 
 /** Red = urgent or overdue; ochre (`warning`) = due soon; green = done or confirmed; navy (`info`) = action or selection; none = neutral. */
@@ -362,5 +377,186 @@ export function ProgressLegend({ items }: { items: { tone: ProgressTone; label: 
         </li>
       ))}
     </ul>
+  );
+}
+
+/** How long a text-only toast stays, in milliseconds (design portal-motion, decision 4). */
+export const TOAST_MS = 6000;
+
+/** The link a toast may carry (Case Claim's Open Case Page). */
+export interface ToastLink {
+  href: string;
+  label: string;
+}
+
+type ToastFn = (text: string, link?: ToastLink) => void;
+
+const ToastContext = createContext<ToastFn | null>(null);
+
+/**
+ * The function that raises the confirmation toast: `toast(text, link?)`. Outside a `ToastProvider` it throws, so a
+ * confirmation is never lost silently (design portal-motion, decision 1).
+ */
+export function useToast(): ToastFn {
+  const toast = useContext(ToastContext);
+  if (!toast) throw new Error("useToast() needs a ToastProvider above it (PortalShell holds one for the shell pages)");
+  return toast;
+}
+
+/** A check in a circle (the toast's mark), hidden from screen readers. */
+export function CheckIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12.5 2.5 2.5L16 9.5" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+interface ToastState {
+  text: string;
+  link: ToastLink | null;
+  /** Raised on every `toast()`, so a replacement restarts the timer. */
+  seq: number;
+}
+
+/**
+ * The confirmation toast (design portal-motion, decisions 1 to 8): renders its children, then the toast host as its last
+ * child. One toast at a time; a new one replaces the text in place and restarts the timer. A text-only toast closes
+ * after `TOAST_MS`, paused while the pointer is over it or focus is inside it; a toast with a link stays until Close,
+ * Escape, a new toast or a change of page. A flash left by the previous page (`lib/flash.ts`) is shown on mount and on
+ * every change of pathname, then cleared; a change of the query string closes nothing. The toast never takes focus. A
+ * visually hidden polite status region, always in the document, carries the words to screen readers; the visible card
+ * is a group named by them, its text hidden from screen readers so it is not read twice.
+ */
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "/";
+  const [current, setCurrent] = useState<ToastState | null>(null);
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const seq = useRef(0);
+  const card = useRef<HTMLDivElement>(null);
+  // the element focus came from when it entered the toast, given back when the toast closes under it
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const lastPath = useRef<string | null>(null);
+  const presence = usePresence(open, DURATION.med);
+
+  const show = useCallback<ToastFn>((text, link) => {
+    seq.current += 1;
+    setCurrent({ text, link: link ?? null, seq: seq.current });
+    setOpen(true);
+  }, []);
+
+  const close = useCallback(() => {
+    const el = card.current;
+    if (el && typeof document !== "undefined" && el.contains(document.activeElement)) {
+      const back = returnFocus.current;
+      if (back && back.isConnected) back.focus();
+      else (document.activeElement as HTMLElement | null)?.blur();
+    }
+    returnFocus.current = null;
+    setHover(false);
+    setFocused(false);
+    setOpen(false);
+  }, []);
+
+  // the flash of the previous page, on mount and on every change of pathname; otherwise a change of page closes it
+  useEffect(() => {
+    const changed = lastPath.current !== null && lastPath.current !== pathname;
+    lastPath.current = pathname;
+    const flash = peekFlash();
+    if (flash) {
+      clearFlash();
+      show(flash);
+    } else if (changed) close();
+  }, [pathname, show, close]);
+
+  // the timer of a text-only toast, paused while hovered or focused; leaving starts the full time again
+  const seqNow = current?.seq;
+  const hasLink = !!current?.link;
+  useEffect(() => {
+    if (!open || hasLink || hover || focused) return;
+    const timer = setTimeout(close, TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [open, hasLink, hover, focused, seqNow, close]);
+
+  // the words stay until the exit ends; then the card is empty (and hidden)
+  const shown = presence.mounted ? current : null;
+
+  function onFocus(e: FocusEvent<HTMLDivElement>) {
+    const from = e.relatedTarget as HTMLElement | null;
+    if (!e.currentTarget.contains(from)) returnFocus.current = from;
+    setFocused(true);
+  }
+  function onBlur(e: FocusEvent<HTMLDivElement>) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+  }
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    close();
+  }
+
+  return (
+    <ToastContext.Provider value={show}>
+      {children}
+      <div className={s.toastHost} data-motion-layer="" data-ui="toast-host">
+        <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-ui="toast-status">
+          {shown ? (shown.link ? `${shown.text} ${shown.link.label}` : shown.text) : ""}
+        </div>
+        <div
+          ref={card}
+          className={s.toast}
+          role="group"
+          aria-label={shown?.text}
+          data-ui="toast"
+          data-open={open && shown ? "" : undefined}
+          data-closing={presence.closing && shown ? "" : undefined}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
+        >
+          {shown ? (
+            <>
+              <span className={s.toastIcon}>
+                <CheckIcon />
+              </span>
+              <span className={s.toastText} aria-hidden="true">
+                {shown.text}
+              </span>
+              {shown.link ? (
+                <Link href={shown.link.href} className={s.toastLink}>
+                  {shown.link.label}
+                </Link>
+              ) : null}
+              <button type="button" className={s.toastClose} aria-label={T.kit.closeMessage} onClick={close}>
+                <CloseIcon />
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </ToastContext.Provider>
   );
 }

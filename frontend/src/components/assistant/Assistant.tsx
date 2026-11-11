@@ -43,11 +43,13 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import {
   Badge,
   Button,
+  buttonClass,
   Card,
   CharCounter,
   Chip,
   ChipGroup,
   ConfirmDialog,
+  cx,
   Dialog,
   EmptyState,
   ErrorBanner,
@@ -56,8 +58,7 @@ import {
   PageHeader,
   SegmentedSwitch,
   TextArea,
-  buttonClass,
-  cx,
+  useToast,
 } from "@/components/ui";
 import type { NoteMode } from "@/components/workflow/NoteComposer";
 import { NoteDialog } from "@/components/workflow/NoteDialog";
@@ -707,7 +708,7 @@ function Workspace({
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [copying, setCopying] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [view, setView] = useState<"list" | "thread">("thread");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const toEnd = useRef(true);
@@ -739,7 +740,6 @@ function Workspace({
     const q = text.trim();
     if (q.length < 3 || pending !== null) return;
     setError(null);
-    setNotice(null);
     setPending(q);
     toEnd.current = true;
     try {
@@ -923,7 +923,6 @@ function Workspace({
       ) : null}
       <ErrorBanner error={error} messages={ASSISTANT_ERRORS} />
       {!confirming ? <ErrorBanner error={includeError} messages={ASSISTANT_ERRORS} /> : null}
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <Composer
         value={question}
         onChange={setQuestion}
@@ -997,7 +996,7 @@ function Workspace({
           initialVisibility={copyMessage ? (narrowestVisibility(copyMessage) ?? undefined) : undefined}
           warning={copyMessage?.internal_used ? A.copyInternalWarning : undefined}
           onClose={() => setCopying(null)}
-          onDone={(text) => setNotice(text)}
+          onDone={(text) => toast(text)}
         />
       ) : null}
       {mayInclude ? (

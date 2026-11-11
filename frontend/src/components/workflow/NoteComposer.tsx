@@ -20,6 +20,7 @@ import {
   RadioGroup,
   SelectField,
   TextArea,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useDocumentTypes, useWorkflowCodes } from "@/lib/api/hooks";
@@ -92,7 +93,7 @@ export function NoteComposer({
   const [files, setFiles] = useState<{ file: File; type: string }[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const limits = codes.data?.limits;
   const maxChars = limits?.note_max_chars ?? 20000;
   const maxFiles = limits?.attachments_max_files ?? 5;
@@ -151,7 +152,6 @@ export function NoteComposer({
 
   async function submit() {
     setTried(true);
-    setNotice(null);
     if (!kind || !bodyOk || !visibility) return;
     const out = await action.run(() => (draft ? submitEdit(draft) : submitNew()));
     await refresh();
@@ -169,7 +169,7 @@ export function NoteComposer({
       }
     }
     if (onDone) onDone(text);
-    else setNotice(text);
+    else toast(text);
   }
 
   return (
@@ -182,7 +182,6 @@ export function NoteComposer({
       }}
     >
       <Notice>{draftMode ? T.wf.composerDraft : T.wf.composerPermanent}</Notice>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {correcting ? (
         <p>
           <strong>{T.wf.correcting(correcting.ref_no)}</strong> <span className="muted">{T.wf.correctionFixed}</span>

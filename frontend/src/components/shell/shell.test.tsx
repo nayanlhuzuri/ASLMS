@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminFrame } from "@/components/admin/AdminFrame";
 import { MappingFrame } from "@/components/admin/mapping/MappingFrame";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, useToast } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
 import type { Permission } from "@/lib/api/types";
 import { bottomBarFor } from "@/lib/routes";
@@ -377,6 +377,35 @@ describe("header and sidebar foot", () => {
     );
     expect(await screen.findByText("page body")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "User Menu" })).toBeInTheDocument());
+  });
+
+  it("the toast host is the frame's last element, after SessionWatch (design portal-motion, decision 1)", async () => {
+    browserApi({
+      "GET /me": makeMe(OFFICER),
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 0, open: { critical: 0, high: 0, normal: 0 } },
+    });
+    function Confirming() {
+      const toast = useToast();
+      return (
+        <button type="button" onClick={() => toast("Saved.")}>
+          Save Here
+        </button>
+      );
+    }
+    renderWithClient(
+      <PortalShell>
+        <Confirming />
+      </PortalShell>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Save Here" }));
+    const main = screen.getByRole("main");
+    const frame = main.closest("[class*='frame']") as HTMLElement;
+    const host = frame.lastElementChild as HTMLElement;
+    expect(host).toHaveAttribute("data-ui", "toast-host");
+    expect(host).toHaveAttribute("data-motion-layer");
+    expect(within(host).getByRole("status")).toHaveTextContent("Saved.");
+    expect(within(host).getByRole("group", { name: "Saved." })).toBeInTheDocument();
   });
 
   it("the header search box opens /search?q= for case readers", async () => {

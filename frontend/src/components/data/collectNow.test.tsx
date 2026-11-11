@@ -13,7 +13,7 @@ import { DC_KEYS, REQUEST_POLL, requestCounts, requestWhat } from "@/lib/dataCol
 import { formatNumber as f } from "@/lib/format";
 import { PLAN, detail, requestsList, summary } from "@/test/collectFixtures";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { browserApi, json, makeMe, primaryActions, renderWithClient, toastStatus } from "@/test/render";
 
 import { CollectNow } from "./CollectNow";
 import { nb } from "@/test/dates";
@@ -317,7 +317,7 @@ describe("the Requests card (decisions 23, 31-32)", () => {
     expect(within(dialog).getByText(/The rest of this request \(61 items\) will be fetched in the normal turn/)).toBeInTheDocument();
     expect(api.calls.some((c) => c.path.endsWith("/stop"))).toBe(false);
     await userEvent.click(within(dialog).getByRole("button", { name: "Stop Using Everything" }));
-    expect(await screen.findByText("Stopped: 61 items go back to the normal turn.")).toBeInTheDocument();
+    expect(await within(toastStatus()).findByText("Stopped: 61 items go back to the normal turn.")).toBeInTheDocument();
     expect(api.calls.filter((c) => c.path === "/admin/data-load/requests/r-2/stop")).toHaveLength(1);
   });
 

@@ -12,7 +12,7 @@ import { useState } from "react";
 
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
-import { DataTable, EmptyState, ErrorBanner, Loading, Notice, Pagination } from "@/components/ui";
+import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, useToast } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { NextDateReviewItem, NextDateReviewList } from "@/lib/api/types";
@@ -50,7 +50,7 @@ export function ReviewList({ params }: { params: Params }) {
   const setFilters = useFilters(params);
   const offset = offsetOf(params);
   const filters = toApiQuery(params, "next_dates");
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [stale, setStale] = useState<unknown>(null);
   const list = useQuery({
     queryKey: [...NEXT_DATES_KEY, "review", filters, offset],
@@ -61,17 +61,15 @@ export function ReviewList({ params }: { params: Params }) {
   const outcome: DialogOutcome = {
     onDone: (text) => {
       setStale(null);
-      setNotice(text);
+      toast(text);
     },
     onStale: (err) => {
-      setNotice(null);
       setStale(err);
     },
   };
   return (
     <div className="stack">
       <FilterBar list="next_dates" params={params} total={list.data?.total} noun={T.nd.noun} />
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} messages={NEXT_DATE_ERRORS} />
       {list.isPending ? <Loading /> : null}

@@ -14,6 +14,7 @@ import {
   Badge,
   Button,
   CollectProgress,
+  type CollectStepState,
   ConfirmDialog,
   DataTable,
   EmptyState,
@@ -25,7 +26,7 @@ import {
   ScrollBox,
   SidePanel,
   StatusDot,
-  type CollectStepState,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -188,7 +189,7 @@ export function RequestsCard({ query }: { query: ReturnType<typeof useRequests> 
   const qc = useQueryClient();
   const [open, setOpen] = useState<CollectSummary | null>(null);
   const [stopping, setStopping] = useState<CollectSummary | null>(null);
-  const [stopped, setStopped] = useState<string | null>(null);
+  const toast = useToast();
   const stop = useAction();
   const items = query.data?.items ?? [];
   if (query.isPending) return <Loading />;
@@ -199,7 +200,7 @@ export function RequestsCard({ query }: { query: ReturnType<typeof useRequests> 
       api<{ request_id: string; moved: number }>(`/admin/data-load/requests/${stopping.request_id}/stop`, { method: "POST" }),
     );
     if (out.ok) {
-      setStopped(T.dc.stoppedNote(out.value.moved));
+      toast(T.dc.stoppedNote(out.value.moved));
       setStopping(null);
     }
     await qc.invalidateQueries({ queryKey: DC_KEYS.all });
@@ -209,7 +210,6 @@ export function RequestsCard({ query }: { query: ReturnType<typeof useRequests> 
       <div className="stack">
         <h2 id="dc-requests">{T.dc.requestsTitle}</h2>
         <ErrorBanner error={query.error} onRetry={() => query.refetch()} />
-        {stopped ? <Notice tone="success">{stopped}</Notice> : null}
         {items.length ? (
           <ScrollBox label={T.dc.requestListLabel}>
             <DataTable

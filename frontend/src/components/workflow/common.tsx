@@ -2,15 +2,12 @@
 
 /**
  * What the case-page workflow pieces share (design portal-workflow, decisions 4, 22): the re-read after a write, the
- * three visibility values with one line each, the flash notice, and the working bases that decide the case alerts
+ * three visibility values with one line each, and the working bases that decide the case alerts
  * tab's reader message.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
-import { Notice } from "@/components/ui";
 import { caseKey } from "@/lib/api/hooks";
-import { clearFlash, peekFlash } from "@/lib/flash";
 import { T } from "@/lib/messages";
 import { labelFor } from "@/lib/displayLabels";
 
@@ -39,15 +36,6 @@ export function useWorkflowRefresh(caseRef: string) {
 }
 
 export const WORKING_BASES = ["owner", "allotted", "custody", "counsel"];
-
-/** The notice left by the previous page (a file sent away), shown once. */
-export function FlashNotice() {
-  const [text] = useState(peekFlash);
-  useEffect(() => {
-    clearFlash();
-  }, []);
-  return text ? <Notice tone="success">{text}</Notice> : null;
-}
 
 /** Text length within bounds (trimmed), as the API counts it. */
 export function within(text: string, min: number, max: number): boolean {

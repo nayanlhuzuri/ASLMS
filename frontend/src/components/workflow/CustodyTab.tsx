@@ -13,7 +13,7 @@
  */
 import { useState } from "react";
 
-import { Badge, Button, DataTable, EmptyState, ErrorBanner, ItemHead, Loading, Notice, OfficeName, Pagination, useOfficeName } from "@/components/ui";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, ItemHead, Loading, OfficeName, Pagination, useOfficeName, useToast } from "@/components/ui";
 import { useCase, useJourney, useStages, useWorkflowCodes } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard } from "@/lib/api/types";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -144,7 +144,7 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
   const stages = useStages(caseRef);
   const codes = useWorkflowCodes();
   const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const nameOf = useOfficeName();
   const stageLabel = (code: string) => labelOf(codes.data?.stages, code);
   const data = stages.data;
@@ -152,7 +152,6 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
   return (
     <section className="card stack" aria-label={T.wf.stageBlock}>
       <h2>{T.wf.stageBlock}</h2>
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
       {stages.isPending ? <Loading /> : null}
       <ErrorBanner error={stages.error} onRetry={() => stages.refetch()} />
       {data ? (
@@ -228,7 +227,7 @@ function StageBlock({ caseRef, detail }: { caseRef: string; detail: CaseDetail }
           caseRef={caseRef}
           current={cur ? { stage: cur.stage, response_mode: cur.response_mode } : null}
           onClose={() => setOpen(false)}
-          onDone={setNotice}
+          onDone={toast}
         />
       ) : null}
     </section>

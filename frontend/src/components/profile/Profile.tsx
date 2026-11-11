@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { PreferenceFields, prefsBody, prefsFrom, type PrefsValue } from "@/components/auth/WelcomeForms";
-import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, SettingsLayout, DataTable, TextField } from "@/components/ui";
+import { Badge, Button, DataTable, ErrorBanner, Loading, PageHeader, SettingsLayout, TextField, useToast } from "@/components/ui";
 import { api, session } from "@/lib/api/client";
 import type { DeviceOut, NotificationPreferences, ProfileOut } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
@@ -62,6 +62,7 @@ function DetailsCard({ profile }: { profile: ProfileOut }) {
   const [name, setName] = useState(profile.full_name);
   const [mobile, setMobile] = useState(profile.mobile ?? "");
   const save = useAction();
+  const toast = useToast();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -69,6 +70,7 @@ function DetailsCard({ profile }: { profile: ProfileOut }) {
       api<ProfileOut>("/me/profile", { method: "PATCH", body: { full_name: name.trim(), mobile: mobile.trim() } }),
     );
     if (out.ok) {
+      toast(T.saved);
       queryClient.setQueryData(["me", "profile"], out.value);
       await queryClient.invalidateQueries({ queryKey: ["me"], exact: true });
     }
@@ -81,7 +83,6 @@ function DetailsCard({ profile }: { profile: ProfileOut }) {
       <TextField label={T.auth.fullName} required value={name} onChange={(e) => setName(e.target.value)} />
       <TextField label={T.auth.mobile} type="tel" hint={T.auth.mobileHint} required value={mobile} onChange={(e) => setMobile(e.target.value)} />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice tone="success">{T.saved}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.save}
@@ -94,20 +95,23 @@ function DetailsCard({ profile }: { profile: ProfileOut }) {
 function PreferencesCard({ profile }: { profile: ProfileOut }) {
   const [prefs, setPrefs] = useState<PrefsValue>(() => prefsFrom(profile));
   const save = useAction();
+  const toast = useToast();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const out = await save.run(() =>
       api<NotificationPreferences>("/me/notification-preferences", { method: "PUT", body: prefsBody(prefs) }),
     );
-    if (out.ok) setPrefs(prefsFrom({ notification_preferences: out.value }));
+    if (out.ok) {
+      setPrefs(prefsFrom({ notification_preferences: out.value }));
+      toast(T.saved);
+    }
   }
 
   return (
     <form className="card stack" onSubmit={submit} aria-label={T.prefs.title}>
       <PreferenceFields value={prefs} onChange={setPrefs} />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice tone="success">{T.saved}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.save}
@@ -123,6 +127,7 @@ function PasswordCard() {
   const [repeat, setRepeat] = useState("");
   const [mismatch, setMismatch] = useState(false);
   const save = useAction();
+  const toast = useToast();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -133,6 +138,7 @@ function PasswordCard() {
     setMismatch(false);
     const out = await save.run(() => session("password", { current_password: current, new_password: password }));
     if (out.ok) {
+      toast(T.profile.passwordChanged);
       setCurrent("");
       setPassword("");
       setRepeat("");
@@ -162,7 +168,6 @@ function PasswordCard() {
         onChange={(e) => setRepeat(e.target.value)}
       />
       <ErrorBanner error={save.error} />
-      {save.done ? <Notice tone="success">{T.profile.passwordChanged}</Notice> : null}
       <div>
         <Button type="submit" busy={save.busy}>
           {T.auth.setPassword}
