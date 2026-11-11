@@ -1,0 +1,98 @@
+diff --git a/frontend/e2e/global-setup.ts b/frontend/e2e/global-setup.ts
+index a4347c2..6759fd2 100644
+--- a/frontend/e2e/global-setup.ts
++++ b/frontend/e2e/global-setup.ts
+@@ -12,6 +12,7 @@ export default function globalSetup(): void {
+   const stamp = now.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+   const dir = join(process.env.UICHECK_OUT ?? "/out", stamp);
+   mkdirSync(join(dir, "results"), { recursive: true });
++  mkdirSync(join(dir, "sweep", "crops"), { recursive: true });
+   process.env.UICHECK_RUN_DIR = dir;
+   process.env.UICHECK_STARTED = String(Date.now());
+   if (boxesEnabled()) {
+diff --git a/frontend/e2e/uicheck.spec.ts b/frontend/e2e/uicheck.spec.ts
+index 12fe4d1..016c1e8 100644
+--- a/frontend/e2e/uicheck.spec.ts
++++ b/frontend/e2e/uicheck.spec.ts
+@@ -16,6 +16,65 @@ import { pageChecks, type PageFinding } from "./checks";
+ import { answer, CLOSE_CASES, SAMPLE, type ACTIVITY_DEFAULT } from "./fixtures";
+ import { OLD_CASE_REF_PATH } from "./fixtures/legacy";
+ import { kept, runDir, slug, writeResult, type Finding } from "./results";
++import { sweepChecks, type SweepFinding } from "./sweep";
++import { writeFileSync } from "node:fs";
++
++/** TEMPORARY (row 245 survey): the spacing sweep with a cropped screenshot of each finding. */
++async function sweep(page: Page, name: string, width: number): Promise<void> {
++  let found: SweepFinding[] = [];
++  try {
++    found = await page.evaluate(sweepChecks);
++  } catch (e) {
++    writeFileSync(join(runDir(), "sweep", `${slug(name)}-${width}.error.txt`), String(e));
++    return;
++  }
++  const dir = join(runDir(), "sweep");
++  mkdirSync(join(dir, "crops"), { recursive: true });
++  const rows: (SweepFinding & { name: string; width: number; crop: string | null })[] = [];
++  let n = 0;
++  for (const f of found) {
++    n += 1;
++    let crop: string | null = null;
++    if (n <= 40) {
++      try {
++        const clip = await page.evaluate((ids: number[]) => {
++          const els = ids.map((i) => document.querySelector(`[data-sweep-id="${i}"]`)).filter((e): e is HTMLElement => !!e);
++          if (!els.length) return null;
++          els[0]!.scrollIntoView({ block: "center", inline: "nearest" });
++          const colours = ["#e00", "#06f", "#0a0", "#c0c"];
++          els.forEach((e, i) => {
++            e.dataset.sweepOutline = e.style.outline;
++            e.style.outline = `2px solid ${colours[i % 4]}`;
++            e.style.outlineOffset = "0px";
++          });
++          let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
++          for (const e of els) {
++            const x = e.getBoundingClientRect();
++            l = Math.min(l, x.left); t = Math.min(t, x.top); r = Math.max(r, x.right); b = Math.max(b, x.bottom);
++          }
++          const vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 40;
++          const x = Math.max(0, l - m), y = Math.max(0, t - m);
++          return { x, y, width: Math.max(10, Math.min(vw, r + m) - x), height: Math.max(10, Math.min(vh, b + m) - y) };
++        }, f.ids);
++        if (clip) {
++          crop = `crops/${slug(name)}-${width}-${n}.png`;
++          await page.screenshot({ path: join(dir, crop), clip });
++        }
++        await page.evaluate((ids: number[]) => {
++          for (const i of ids) {
++            const e = document.querySelector<HTMLElement>(`[data-sweep-id="${i}"]`);
++            if (e) e.style.outline = e.dataset.sweepOutline ?? "";
++          }
++        }, f.ids);
++      } catch {
++        crop = null;
++      }
++    }
++    rows.push({ ...f, name, width, crop });
++  }
++  await page.evaluate(() => window.scrollTo(0, 0));
++  writeFileSync(join(dir, `${slug(name)}-${width}.json`), JSON.stringify(rows, null, 1));
++}
+ 
+ const APP = join(__dirname, "..", "src", "app");
+ const PUBLIC = new Set(["/login", "/login/code", "/forgot", "/forgot/code"]);
+@@ -167,6 +226,7 @@ test.describe("every page", () => {
+       const landed = new URL(page.url()).pathname;
+       if (landed !== route) redirect = landed + new URL(page.url()).search;
+       const findings = kept(visit.findings, redirect !== null);
++      if (!redirect) await sweep(page, route, width);
+       const screenshot = redirect ? null : await shoot(page, route, width);
+       if (!redirect) await writeBoxes(page, route, width);
+       writeResult({ name: route, width, screenshot, redirect, findings });
+@@ -1047,6 +1107,7 @@ test.describe("interaction states", () => {
+         await settle(page);
+         await state.open(page);
+       });
++      await sweep(page, state.name, width);
+       const screenshot = await shoot(page, state.name, width);
+       await writeBoxes(page, state.name, width);
+       writeResult({ name: state.name, width, screenshot, redirect: null, findings: visit.findings });

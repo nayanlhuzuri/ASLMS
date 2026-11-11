@@ -1,0 +1,1085 @@
+{
+ "raw_count": 229,
+ "items": [
+  {
+   "id": 1,
+   "screen": "/data/automatic",
+   "states": [
+    "/data/automatic",
+    "data-automatic-no-department-names",
+    "data-automatic-pause-dialog",
+    "data-automatic-priority",
+    "data-automatic-start-new",
+    "data-automatic-start-nothing-new"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Case Details First\"",
+    "input[data-ui=field].controls:input.controls:control \"input:date\""
+   ],
+   "detail": [
+    "field and field overlap by 53\u00d736 px"
+   ],
+   "likely_cause": "`components/data/collection.module.css` `.orderGrid` (`repeat(3, minmax(0, 1fr))`, fieldset spanning 2 with `repeat(2, minmax(0, 1fr))`) while each date field keeps `controls.module.css` `.field { min-width: 200px }`: the columns are narrower than the fields at 1280 px with the side menu",
+   "screenshot": "crops/001-overlap-data-automatic-1280-1.png"
+  },
+  {
+   "id": 2,
+   "screen": "/data/automatic",
+   "states": [
+    "/data/automatic",
+    "data-automatic-no-department-names",
+    "data-automatic-pause-dialog",
+    "data-automatic-priority",
+    "data-automatic-start-new",
+    "data-automatic-start-nothing-new"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[data-ui=field].controls:input.controls:control \"input:date\"",
+    "input[data-ui=field].controls:input.controls:control \"input:date\""
+   ],
+   "detail": [
+    "field and field overlap by 55\u00d736 px"
+   ],
+   "likely_cause": "`components/data/collection.module.css` `.orderGrid` (`repeat(3, minmax(0, 1fr))`, fieldset spanning 2 with `repeat(2, minmax(0, 1fr))`) while each date field keeps `controls.module.css` `.field { min-width: 200px }`: the columns are narrower than the fields at 1280 px with the side menu",
+   "screenshot": "crops/002-overlap-data-automatic-1280-2.png"
+  },
+  {
+   "id": 3,
+   "screen": "/audit",
+   "states": [
+    "/audit",
+    "/audit (Layout B with the Office Picker open)"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:Any office\"",
+    "select[data-ui=field].controls:input.controls:select \"select:Any Action\""
+   ],
+   "detail": [
+    "field and field overlap by 3\u00d736 px"
+   ],
+   "likely_cause": "the kit Office Picker (`officePicker.module.css` `.field { min-width: 220px }`, input with icon and code) in a filter grid track narrower than it, so it is drawn into the next track; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/003-overlap-audit-1280-1.png"
+  },
+  {
+   "id": 4,
+   "screen": "/reports/hearings-disposals",
+   "states": [
+    "/reports/hearings-disposals"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:Choose an office\"",
+    "button[data-ui=button].controls:button.controls:control \"Show Report\""
+   ],
+   "detail": [
+    "field and button overlap by 11\u00d736 px",
+    "field and button overlap by 3\u00d736 px"
+   ],
+   "likely_cause": "the kit Office Picker (`officePicker.module.css` `.field { min-width: 220px }`, input with icon and code) in a filter grid track narrower than it, so it is drawn into the next track; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/004-overlap-reports-hearings-disposals-1280-1.png"
+  },
+  {
+   "id": 5,
+   "screen": "/reports/pending-actions",
+   "states": [
+    "/reports/pending-actions"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:Choose an office\"",
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:All holders\""
+   ],
+   "detail": [
+    "field and field overlap by 11\u00d736 px",
+    "field and field overlap by 3\u00d736 px"
+   ],
+   "likely_cause": "the kit Office Picker (`officePicker.module.css` `.field { min-width: 220px }`, input with icon and code) in a filter grid track narrower than it, so it is drawn into the next track; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/005-overlap-reports-pending-actions-1280-1.png"
+  },
+  {
+   "id": 6,
+   "screen": "/reports/pending-cases",
+   "states": [
+    "/reports/pending-cases"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:Choose an office\"",
+    "button[data-ui=button].controls:button.controls:control \"Show Report\""
+   ],
+   "detail": [
+    "field and button overlap by 11\u00d736 px",
+    "field and button overlap by 3\u00d736 px"
+   ],
+   "likely_cause": "the kit Office Picker (`officePicker.module.css` `.field { min-width: 220px }`, input with icon and code) in a filter grid track narrower than it, so it is drawn into the next track; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/006-overlap-reports-pending-cases-1280-1.png"
+  },
+  {
+   "id": 7,
+   "screen": "/reports/pending-actions",
+   "states": [
+    "/reports/pending-actions"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "overlap",
+   "check": false,
+   "elements": [
+    "input[role=combobox][data-ui=field].controls:input.controls:control \"input:All holders\"",
+    "input \"input:checkbox\""
+   ],
+   "detail": [
+    "field and check overlap by 3\u00d716 px"
+   ],
+   "likely_cause": "the kit Office Picker (`officePicker.module.css` `.field { min-width: 220px }`, input with icon and code) in a filter grid track narrower than it, so it is drawn into the next track; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/007-overlap-reports-pending-actions-1280-2.png"
+  },
+  {
+   "id": 8,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (Assign dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More button focused)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More menu open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (next hearing header and next date from orders)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (send case, step 1)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/alerts",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (answer with references)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (source dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (sources of this answer)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/custody",
+    "/cases/ASLMS-GHC-CASE-2026-000001/details",
+    "/cases/ASLMS-GHC-CASE-2026-000001/documents",
+    "/cases/ASLMS-GHC-CASE-2026-000001/hearings",
+    "/cases/ASLMS-GHC-CASE-2026-000001/links",
+    "/cases/ASLMS-GHC-CASE-2026-000001/notes",
+    "/cases/ASLMS-GHC-CASE-2026-000001/orders",
+    "/cases/ASLMS-GHC-CASE-2026-000001/parties",
+    "/cases/ASLMS-GHC-CASE-2026-000001/timeline",
+    "/cases/ASLMS-GHC-CASE-2026-000001?remarks=all (remarks panel)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Close dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Ready to Close)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (Reopen dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (closed, Reopen Case)"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Upload a Document\""
+   ],
+   "detail": [
+    "button text runs 1 px past its left edge"
+   ],
+   "likely_cause": "`components/case/rail.module.css` `.quick` (`repeat(auto-fit, minmax(5.5rem, 1fr))`) makes equal tracks narrower than the longest label; the kit button keeps `white-space: nowrap`, so the text eats its padding and runs past its edge",
+   "screenshot": "crops/008-text-overrun-cases-aslms-ghc-case-2026-000001-1280-1.png"
+  },
+  {
+   "id": 9,
+   "screen": "/inbox/with-me",
+   "states": [
+    "/inbox/with-me",
+    "/inbox/with-me (Ready to Close chip)",
+    "/inbox/with-me (side panel)"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "text-overrun",
+   "check": false,
+   "elements": [
+    "button[role=radio].controls:segment \"With My Offices\"",
+    "div[role=radiogroup].controls:segmented \"Show\""
+   ],
+   "detail": [
+    "segment is 6 px wider than its group's frame; its text sits 6.0 px from the frame's edge (own padding 12 px)"
+   ],
+   "likely_cause": "`components/ui/controls.module.css` `.segmented` (inline-flex) / `.segment` (nowrap, does not shrink) inside a `.fcGrid` track narrower than the switch; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/009-text-overrun-inbox-with-me-768-1.png"
+  },
+  {
+   "id": 10,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001 (rail cards open)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "text-overrun",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Upload a Document\""
+   ],
+   "detail": [
+    "button text runs 20 px past its right edge"
+   ],
+   "likely_cause": "`components/case/rail.module.css` `.quick` (`repeat(auto-fit, minmax(5.5rem, 1fr))`) makes equal tracks narrower than the longest label; the kit button keeps `white-space: nowrap`, so the text eats its padding and runs past its edge",
+   "screenshot": "crops/010-text-overrun-cases-aslms-ghc-case-2026-000001-rail-cards-open-375-4.png"
+  },
+  {
+   "id": 11,
+   "screen": "/inbox/with-me",
+   "states": [
+    "/inbox/with-me?held=offices"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "text-overrun",
+   "check": false,
+   "elements": [
+    "button[role=radio].controls:segment.controls:segmentOn \"With My Offices\"",
+    "div[role=radiogroup].controls:segmented \"Show\""
+   ],
+   "detail": [
+    "segment is 6 px wider than its group's frame; its text sits 6.0 px from the frame's edge (own padding 12 px)"
+   ],
+   "likely_cause": "`components/ui/controls.module.css` `.segmented` (inline-flex) / `.segment` (nowrap, does not shrink) inside a `.fcGrid` track narrower than the switch; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/011-text-overrun-inbox-with-me-held-offices-768-1.png"
+  },
+  {
+   "id": 12,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (Assign dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More button focused)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More menu open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (next hearing header and next date from orders)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (rail cards open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (send case, step 1)",
+    "/cases/ASLMS-GHC-CASE-2026-000001?remarks=all (remarks panel)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Close dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Ready to Close)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (Reopen dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (closed, Reopen Case)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "td \"Enter Date\u2026\""
+   ],
+   "detail": [
+    "cell content spills 7 px past its cell"
+   ],
+   "likely_cause": "the Next Date review table drawn as cards at 375 px: the Enter Date button is wider than its value cell (`components/ui/data.module.css` card rows)",
+   "screenshot": "crops/012-text-overrun-cases-aslms-ghc-case-2026-000001-375-1.png"
+  },
+  {
+   "id": 13,
+   "screen": "/inbox/department",
+   "states": [
+    "/inbox/department",
+    "/inbox/department (quick filters)",
+    "/inbox/department?action=overdue&holder=elsewhere",
+    "/inbox/department?closure=closed"
+   ],
+   "widths": [
+    375,
+    768,
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Directorate of Secondary Education, Kahilipara, Guwahati-19\""
+   ],
+   "detail": [
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 297 px (cut off by the arrow area)",
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 314 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/013-text-overrun-inbox-department-1280-1.png"
+  },
+  {
+   "id": 14,
+   "screen": "/causelist",
+   "states": [
+    "/causelist (More Filters open)",
+    "/causelist (View Cause List modal, Original PDF)",
+    "/causelist (View Cause List modal, Printed Entries)"
+   ],
+   "widths": [
+    375,
+    768,
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Court 1 \u00b7 HONOURABLE THE CHIEF JUSTICE, HONOURABLE MR. JUSTICE SOUMITRA SAIKIA \u00b7 58\""
+   ],
+   "detail": [
+    "select's chosen text \"Court 1 \u00b7 HONOURABLE THE CHIEF JUSTICE, \" is 647 px, room 151 px (cut off by the arrow area)",
+    "select's chosen text \"Court 1 \u00b7 HONOURABLE THE CHIEF JUSTICE, \" is 647 px, room 159 px (cut off by the arrow area)",
+    "select's chosen text \"Court 1 \u00b7 HONOURABLE THE CHIEF JUSTICE, \" is 647 px, room 263 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/014-text-overrun-causelist-more-filters-open-1280-1.png"
+  },
+  {
+   "id": 15,
+   "screen": "/claim/recommended",
+   "states": [
+    "/claim/recommended",
+    "/claim/recommended (case claim modal)",
+    "/claim/recommended (case claim modal, Assign Now)"
+   ],
+   "widths": [
+    375,
+    768,
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Directorate of Secondary Education, Kahilipara, Guwahati-19\""
+   ],
+   "detail": [
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 297 px (cut off by the arrow area)",
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 314 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/015-text-overrun-claim-recommended-1280-1.png"
+  },
+  {
+   "id": 16,
+   "screen": "/claim/pool",
+   "states": [
+    "/claim/pool"
+   ],
+   "widths": [
+    375,
+    768,
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Directorate of Secondary Education, Kahilipara, Guwahati-19\""
+   ],
+   "detail": [
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 297 px (cut off by the arrow area)",
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 314 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/016-text-overrun-claim-pool-1280-1.png"
+  },
+  {
+   "id": 17,
+   "screen": "/claim/transfers",
+   "states": [
+    "/claim/transfers"
+   ],
+   "widths": [
+    375,
+    768,
+    1280
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Directorate of Secondary Education, Kahilipara, Guwahati-19\""
+   ],
+   "detail": [
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 297 px (cut off by the arrow area)",
+    "select's chosen text \"Directorate of Secondary Education, Kahi\" is 396 px, room 314 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/017-text-overrun-claim-transfers-1280-1.png"
+  },
+  {
+   "id": 18,
+   "screen": "/admin/tickets/new",
+   "states": [
+    "/admin/tickets/new",
+    "/admin/tickets/new (Incoming Head)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "select[data-ui=field].controls:input.controls:select \"select:Set a head (the department has none)\""
+   ],
+   "detail": [
+    "select's chosen text \"Set a head (the department has none)\" is 250 px, room 247 px (cut off by the arrow area)"
+   ],
+   "likely_cause": "a native `select` (`controls.module.css` `.select`) narrower than its chosen option; the browser cuts the text without an ellipsis",
+   "screenshot": "crops/018-text-overrun-admin-tickets-new-375-1.png"
+  },
+  {
+   "id": 19,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001 (rail cards open)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Add Note\""
+   ],
+   "detail": [
+    "button text eats into its padding (13 px left, 13 px right of 16/16 px)"
+   ],
+   "likely_cause": "the rail's Quick Actions at phone width (`rail.module.css` `.quick`): buttons squeezed below their label width",
+   "screenshot": "crops/019-text-overrun-cases-aslms-ghc-case-2026-000001-rail-cards-open-375-3.png"
+  },
+  {
+   "id": 20,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001 (rail cards open)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "text-overrun",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Set Stage\""
+   ],
+   "detail": [
+    "button text eats into its padding (13 px left, 13 px right of 16/16 px)"
+   ],
+   "likely_cause": "the rail's Quick Actions at phone width (`rail.module.css` `.quick`): buttons squeezed below their label width",
+   "screenshot": "crops/020-text-overrun-cases-aslms-ghc-case-2026-000001-rail-cards-open-375-5.png"
+  },
+  {
+   "id": 21,
+   "screen": "/reports/pending-actions",
+   "states": [
+    "/reports/pending-actions"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "tight-gap",
+   "check": false,
+   "elements": [
+    "span.controls:hint \"Narrows the cases with a pending action; overdue compliance \"",
+    "span.muted \"Adds one row per case you may open, 50 per page.\""
+   ],
+   "detail": [
+    "3.7 px between texts of two neighbouring fields (hint / hint) on one line"
+   ],
+   "likely_cause": "`ReportForm.tsx` puts List the Cases and its `muted` hint in a bare `<div>` as a `.fcGrid` item beside the Holder Department Office Picker, which is wider than its 180 px track and runs up to the hint; `components/ui/layout.module.css` `.fcGrid` (Filter Layout B: `repeat(auto-fill, minmax(min(180px, 100%), 1fr))`, `.fcGrid > * { min-width: 0 }`) gives the control a 180 px track it cannot shrink to",
+   "screenshot": "crops/021-tight-gap-reports-pending-actions-1280-3.png"
+  },
+  {
+   "id": 22,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (Assign dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More button focused)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More menu open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (next hearing header and next date from orders)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (send case, step 1)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/alerts",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (answer with references)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (source dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (sources of this answer)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/custody",
+    "/cases/ASLMS-GHC-CASE-2026-000001/details",
+    "/cases/ASLMS-GHC-CASE-2026-000001/documents",
+    "/cases/ASLMS-GHC-CASE-2026-000001/hearings",
+    "/cases/ASLMS-GHC-CASE-2026-000001/links",
+    "/cases/ASLMS-GHC-CASE-2026-000001/notes",
+    "/cases/ASLMS-GHC-CASE-2026-000001/orders",
+    "/cases/ASLMS-GHC-CASE-2026-000001/parties",
+    "/cases/ASLMS-GHC-CASE-2026-000001/timeline",
+    "/cases/ASLMS-GHC-CASE-2026-000001?remarks=all (remarks panel)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Close dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Ready to Close)"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"See All Remarks (5)\"",
+    "button[data-ui=button].controls:button.controls:control \"Recall Case\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div._479l4W_buttons"
+   ],
+   "likely_cause": "`components/case/rail.module.css` `.buttons` (flex-wrap) in the 300 px rail: the two buttons do not fit side by side; check whether stacking is intended",
+   "screenshot": "crops/022-misaligned-pair-cases-aslms-ghc-case-2026-000001-1280-2.png"
+  },
+  {
+   "id": 23,
+   "screen": "/causelist",
+   "states": [
+    "/causelist",
+    "/causelist (All Benches, note and heading PDF links)",
+    "/causelist (Choose a Bench open)",
+    "/causelist (Choose a Bench, Original PDF)",
+    "/causelist (More Filters open)",
+    "/causelist (View Cause List modal, Original PDF)",
+    "/causelist (View Cause List modal, Printed Entries)"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/023-misaligned-pair-causelist-768-1.png"
+  },
+  {
+   "id": 24,
+   "screen": "/inbox/my-cases",
+   "states": [
+    "/inbox/my-cases",
+    "/inbox/my-cases (Search Words on the first row)",
+    "/inbox/my-cases (badges)",
+    "/inbox/my-cases (next hearing bands)",
+    "/inbox/my-cases?closure=closed"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/024-misaligned-pair-inbox-my-cases-768-1.png"
+  },
+  {
+   "id": 25,
+   "screen": "/audit",
+   "states": [
+    "/audit",
+    "/audit (Layout B with the Office Picker open)"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Today\"",
+    "button[data-ui=button].controls:button.controls:control \"7 Days\" | button[data-ui=button].controls:button.controls:control \"30 Days\""
+   ],
+   "detail": [
+    "3 buttons of one group fall on 2 lines (2+1) in a flex parent div[role=group]._3K9Cxq_quick"
+   ],
+   "likely_cause": "`components/case/rail.module.css` `.quick` equal-width grid; the third button takes a second row (by design per `Rail.tsx`, but the tracks are narrower than \"Upload a Document\")",
+   "screenshot": "crops/025-misaligned-pair-audit-1280-2.png"
+  },
+  {
+   "id": 26,
+   "screen": "/audit",
+   "states": [
+    "/audit",
+    "/audit (Layout B with the Office Picker open)"
+   ],
+   "widths": [
+    375,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\" | button[data-ui=button].controls:button.controls:control \"Clear\" | button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "4 buttons of one group fall on 2 lines (2+2) in a flex parent div.JvSkDG_fcActions",
+    "4 buttons of one group fall on 2 lines (3+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/026-misaligned-pair-audit-1280-3.png"
+  },
+  {
+   "id": 27,
+   "screen": "/inbox/with-me",
+   "states": [
+    "/inbox/with-me",
+    "/inbox/with-me (Ready to Close chip)",
+    "/inbox/with-me (side panel)",
+    "/inbox/with-me?held=offices"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/027-misaligned-pair-inbox-with-me-768-2.png"
+  },
+  {
+   "id": 28,
+   "screen": "/inbox/department",
+   "states": [
+    "/inbox/department",
+    "/inbox/department (quick filters)",
+    "/inbox/department?closure=closed"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/028-misaligned-pair-inbox-department-768-2.png"
+  },
+  {
+   "id": 29,
+   "screen": "/inbox/sent",
+   "states": [
+    "/inbox/sent",
+    "/inbox/sent (still out)",
+    "/inbox/sent?earlier=true"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/029-misaligned-pair-inbox-sent-768-1.png"
+  },
+  {
+   "id": 30,
+   "screen": "/audit",
+   "states": [
+    "/audit",
+    "/audit (Layout B with the Office Picker open)"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\" | button[data-ui=button].controls:button.controls:control \"Clear\" | button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "4 buttons of one group fall on 3 lines (1+2+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/030-misaligned-pair-audit-768-2.png"
+  },
+  {
+   "id": 31,
+   "screen": "/inbox/department",
+   "states": [
+    "/inbox/department?action=overdue&holder=elsewhere"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters (2)\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/031-misaligned-pair-inbox-department-action-overdue-holder-elsewhere-1280-2.png"
+  },
+  {
+   "id": 32,
+   "screen": "/reports/data-health",
+   "states": [
+    "/reports/data-health"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Show Report\"",
+    "button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/032-misaligned-pair-reports-data-health-1280-1.png"
+  },
+  {
+   "id": 33,
+   "screen": "/reports/hearings-disposals",
+   "states": [
+    "/reports/hearings-disposals"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Show Report\"",
+    "button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/033-misaligned-pair-reports-hearings-disposals-1280-2.png"
+  },
+  {
+   "id": 34,
+   "screen": "/reports/pending-actions",
+   "states": [
+    "/reports/pending-actions"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Show Report\"",
+    "button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/034-misaligned-pair-reports-pending-actions-1280-4.png"
+  },
+  {
+   "id": 35,
+   "screen": "/reports/pending-cases",
+   "states": [
+    "/reports/pending-cases"
+   ],
+   "widths": [
+    768,
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Show Report\"",
+    "button[data-ui=button].controls:button.controls:control \"Refresh\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/035-misaligned-pair-reports-pending-cases-1280-2.png"
+  },
+  {
+   "id": 36,
+   "screen": "/search",
+   "states": [
+    "/search",
+    "/search (Layout B)"
+   ],
+   "widths": [
+    768
+   ],
+   "kind": "misaligned-pair",
+   "check": false,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Search\"",
+    "button[data-ui=button].controls:button.controls:control \"More Filters\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.JvSkDG_fcActions"
+   ],
+   "likely_cause": "`components/ui/layout.module.css` `.fcActions` (flex-wrap) sits in one `.fcGrid` track (about 180 px), too narrow for both buttons, so the second wraps under the first",
+   "screenshot": "crops/036-misaligned-pair-search-768-1.png"
+  },
+  {
+   "id": 37,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (Assign dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More button focused)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More menu open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (next hearing header and next date from orders)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (send case, step 1)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/alerts",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (answer with references)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (source dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/assistant (sources of this answer)",
+    "/cases/ASLMS-GHC-CASE-2026-000001/custody",
+    "/cases/ASLMS-GHC-CASE-2026-000001/details",
+    "/cases/ASLMS-GHC-CASE-2026-000001/documents",
+    "/cases/ASLMS-GHC-CASE-2026-000001/hearings",
+    "/cases/ASLMS-GHC-CASE-2026-000001/links",
+    "/cases/ASLMS-GHC-CASE-2026-000001/notes",
+    "/cases/ASLMS-GHC-CASE-2026-000001/orders",
+    "/cases/ASLMS-GHC-CASE-2026-000001/parties",
+    "/cases/ASLMS-GHC-CASE-2026-000001/timeline",
+    "/cases/ASLMS-GHC-CASE-2026-000001?remarks=all (remarks panel)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Close dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Ready to Close)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (Reopen dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (closed, Reopen Case)"
+   ],
+   "widths": [
+    1280
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Add Note\"",
+    "button[data-ui=button].controls:button.controls:control \"Upload a Document\" | button[data-ui=button].controls:button.controls:control \"Set Stage\""
+   ],
+   "detail": [
+    "3 buttons of one group fall on 2 lines (2+1) in a grid parent div._479l4W_quick"
+   ],
+   "likely_cause": "`components/case/rail.module.css` `.quick` (`repeat(auto-fit, minmax(5.5rem, 1fr))`) makes equal tracks narrower than the longest label; the kit button keeps `white-space: nowrap`, so the text eats its padding and runs past its edge",
+   "screenshot": "crops/037-misaligned-pair-cases-aslms-ghc-case-2026-000001-1280-3.png"
+  },
+  {
+   "id": 38,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (Assign dialog)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More button focused)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (More menu open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (next hearing header and next date from orders)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (rail cards open)",
+    "/cases/ASLMS-GHC-CASE-2026-000001 (send case, step 1)",
+    "/cases/ASLMS-GHC-CASE-2026-000001?remarks=all (remarks panel)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Close dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000071 (Ready to Close)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (Reopen dialog open)",
+    "/cases/ASLMS-GHC-CASE-2026-000072 (closed, Reopen Case)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Report Wrong Next Date\"",
+    "button[data-ui=button].controls:button.controls:control \"Correct It\" | button[data-ui=button].controls:button.controls:control \"Enter Next Date\""
+   ],
+   "detail": [
+    "3 buttons of one group fall on 2 lines (1+2) in a flex parent div.xaUKiG_toolbar"
+   ],
+   "likely_cause": "the next-date toolbar (`CaseNextDate.tsx`, `.toolbar`, flex-wrap) at phone width",
+   "screenshot": "crops/038-misaligned-pair-cases-aslms-ghc-case-2026-000001-375-3.png"
+  },
+  {
+   "id": 39,
+   "screen": "/admin/access/dept_officer",
+   "states": [
+    "/admin/access/dept_officer",
+    "/admin/access/dept_officer (Edit Name dialog)",
+    "/admin/access/dept_officer (two switches changed, Save bar)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button.controls:chip \"Only Changed From Default\"",
+    "button[data-ui=button].controls:button.controls:control \"Reset to Default\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div[role=search].row"
+   ],
+   "likely_cause": "`components/ui/controls.module.css` `.chips` (flex-wrap) at phone width",
+   "screenshot": "crops/039-misaligned-pair-admin-access-dept-officer-375-1.png"
+  },
+  {
+   "id": 40,
+   "screen": "/calendar",
+   "states": [
+    "/calendar"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Next Month\"",
+    "button[data-ui=button].controls:button.controls:control \"Today\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.lszbQG_head"
+   ],
+   "likely_cause": "the calendar header (flex-wrap) at phone width",
+   "screenshot": "crops/040-misaligned-pair-calendar-375-1.png"
+  },
+  {
+   "id": 41,
+   "screen": "/calendar",
+   "states": [
+    "/calendar"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button.controls:chip.controls:chipOn \"Hearings\"",
+    "button.controls:chip.controls:chipOn \"My Action Due\" | button.controls:chip.controls:chipOn \"Next Date to Enter\""
+   ],
+   "detail": [
+    "3 buttons of one group fall on 2 lines (2+1) in a flex parent div[role=group].JpILRG_chips"
+   ],
+   "likely_cause": "`components/ui/controls.module.css` `.chips` (flex-wrap) at phone width",
+   "screenshot": "crops/041-misaligned-pair-calendar-375-2.png"
+  },
+  {
+   "id": 42,
+   "screen": "/cases/[case] (case page, every tab)",
+   "states": [
+    "/cases/ASLMS-GHC-CASE-2026-000001/notes"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Edit\"",
+    "button[data-ui=button].controls:button.controls:control \"Attach a New File\" | button[data-ui=button].controls:button.controls:control \"Delete\""
+   ],
+   "detail": [
+    "3 buttons of one group fall on 2 lines (2+1) in a flex parent div.row"
+   ],
+   "likely_cause": "the global `.row` utility (flex-wrap) at phone width",
+   "screenshot": "crops/042-misaligned-pair-cases-aslms-ghc-case-2026-000001-notes-375-1.png"
+  },
+  {
+   "id": 43,
+   "screen": "/claim/recommended",
+   "states": [
+    "/claim/recommended (case claim modal)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Close\"",
+    "button[data-ui=button].controls:button.controls:control \"Suggest Elsewhere\" | button[data-ui=button].controls:button.controls:control \"Dismiss\" | button[data-ui=button].controls:button.controls:control \"Claim\""
+   ],
+   "detail": [
+    "4 buttons of one group fall on 2 lines (2+2) in a flex parent div.pueZSa_footer"
+   ],
+   "likely_cause": "the case claim modal footer (flex-wrap) at phone width",
+   "screenshot": "crops/043-misaligned-pair-claim-recommended-case-claim-modal-375-2.png"
+  },
+  {
+   "id": 44,
+   "screen": "/claim/recommended",
+   "states": [
+    "/claim/recommended (case claim modal, Assign Now)"
+   ],
+   "widths": [
+    375
+   ],
+   "kind": "misaligned-pair",
+   "check": true,
+   "elements": [
+    "button[data-ui=button].controls:button.controls:control \"Back\"",
+    "button[data-ui=button].controls:button.controls:control \"Claim for Sample value with a fair length\""
+   ],
+   "detail": [
+    "2 buttons of one group fall on 2 lines (1+1) in a flex parent div.pueZSa_footer"
+   ],
+   "likely_cause": "the case claim modal footer (flex-wrap) at phone width",
+   "screenshot": null
+  }
+ ],
+ "errors": []
+}
