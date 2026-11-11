@@ -126,8 +126,10 @@ export function bandLabel(band: string): string {
 }
 
 /** "Strong · EDU · 0.95" */
-export function recommendationText(r: { office_code: string; band: string; score: number }): string {
-  return `${bandLabel(r.band)} · ${r.office_code} · ${r.score.toFixed(2)}`;
+/** "Strong · Education · 0.95": the band, the department's name from the response's `names` (else its code) and the
+ * score (design portal-names-and-labels, decision 6, L1). */
+export function recommendationText(r: { office_code: string; band: string; score: number }, names: Record<string, string> = {}): string {
+  return `${bandLabel(r.band)} · ${names[r.office_code] ?? r.office_code} · ${r.score.toFixed(2)}`;
 }
 
 /** The value of the bench select for a bench (`b:<bench id>`, or `l:<list id>` for a court-wide file). */

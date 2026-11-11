@@ -118,7 +118,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
     const items = within(list).getAllByRole("listitem");
     expect(items.map((li) => li.querySelector("[data-lead='date']"))).not.toContain(null);
     expect(within(items[0]!).getByText("Sent by Joint Secretary, EDU to Section Officer, Secondary Education")).toBeInTheDocument();
-    expect(within(items[0]!).getByText("Action asked: Parawise comments")).toBeInTheDocument();
+    expect(within(items[0]!).getByText("Action asked: Parawise Comments")).toBeInTheDocument();
     expect(within(items[0]!).getByText("Due by: 5 Nov 2026")).toBeInTheDocument();
     // the full remark, never clamped: all seven lines in one pre-wrapped block
     expect(within(items[0]!).getByText(/Line one of remark 3[\s\S]*line seven/)).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
     expect(head.lastElementChild!.textContent).toBe("Everyone with the Case");
     expect(api.calls.find((c) => c.path.startsWith(`${BASE}/notes`))!.path).toContain("include_superseded=true");
     const kind = within(panel).getByLabelText("Kind");
-    await waitFor(() => expect(within(kind).getAllByRole("option").map((o) => o.textContent)).toEqual(["All Kinds", "Office note", "Remark"]));
+    await waitFor(() => expect(within(kind).getAllByRole("option").map((o) => o.textContent)).toEqual(["All Kinds", "Office Note", "Remark"]));
     await userEvent.selectOptions(kind, "file_noting");
     await waitFor(() => expect(within(panel).getAllByText(/^Body of note/)).toHaveLength(1));
     expect(api.calls.some((c) => c.path.startsWith(`${BASE}/notes`) && c.path.includes("kind=file_noting"))).toBe(true);

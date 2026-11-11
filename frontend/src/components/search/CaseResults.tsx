@@ -16,16 +16,18 @@ import { useState, type ReactNode } from "react";
 import { ClaimDialog } from "@/components/inbox/dialogs";
 import { ListingLine, PartiesLine } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
-import { Button, buttonClass, CaseLink, DataTable, HearingDate, KvList, SidePanel, type Column } from "@/components/ui";
+import { Button, buttonClass, CaseLink, type Column, DataTable, HearingDate, KvList, SidePanel, useOfficeName } from "@/components/ui";
 import type { CaseSearchItem } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { labelFor } from "@/lib/displayLabels";
 
 function StatusCell({ it }: { it: CaseSearchItem }) {
+  const nameOf = useOfficeName();
   return (
     <>
-      <div>{T.inbox.statuses[it.case.status] ?? it.case.status}</div>
-      {it.owner_office_code ? <div className="muted">{T.search.owner(it.owner_office_code)}</div> : null}
+      <div>{labelFor(T.inbox.statuses, it.case.status)}</div>
+      {it.owner_office_code ? <div className="muted">{T.search.owner(nameOf(it.owner_office_code) ?? "")}</div> : null}
       {it.in_pool ? <div className="muted">{T.search.inPool}</div> : null}
       {!it.visible ? <div className="muted">{T.search.notVisible}</div> : null}
       {it.dossier_status !== "fetched" ? <div className="muted">{T.search.notFetched}</div> : null}

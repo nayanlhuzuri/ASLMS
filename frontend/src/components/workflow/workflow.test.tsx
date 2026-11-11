@@ -174,7 +174,7 @@ describe("Send case and Recall case", () => {
     const dialog = screen.getByRole("dialog", { name: "Send the Case" });
     // step 1: who receives it (the stepper says where we are)
     expect(within(dialog).getByText("Step 1 of 3 · Who Receives It")).toBeInTheDocument();
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Health" })).toBeInTheDocument());
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).getByText("Required.")).toBeInTheDocument();
     expect(within(dialog).getByText("Step 1 of 3 · Who Receives It")).toBeInTheDocument();
@@ -191,7 +191,7 @@ describe("Send case and Recall case", () => {
     // step 2: what they should do — the sendable actions only, nothing pre-selected; the stage with the flag
     expect(within(dialog).getByText("Step 2 of 3 · What They Should Do")).toBeInTheDocument();
     const action = within(dialog).getByLabelText("Pending Action") as HTMLSelectElement;
-    await waitFor(() => expect(within(action).getByRole("option", { name: "Parawise comments" })).toBeInTheDocument());
+    await waitFor(() => expect(within(action).getByRole("option", { name: "Parawise Comments" })).toBeInTheDocument());
     expect(action.value).toBe("");
     expect(within(action).queryByRole("option", { name: "None" })).toBeNull();
     expect(within(dialog).getByLabelText("Stage (Optional)")).toBeInTheDocument();
@@ -211,7 +211,7 @@ describe("Send case and Recall case", () => {
     expect(within(dialog).getByText("Give a remark of 3 to 2,000 characters.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.type(within(dialog).getByLabelText("Remark"), "please comment");
-    expect(within(dialog).getByText("Send to Health Off, Under Secretary, HEALTH — Parawise comments")).toBeInTheDocument();
+    expect(within(dialog).getByText("Send to Health Off, Under Secretary, Health — Parawise Comments")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Send Case" }));
     await waitFor(() =>
       expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({
@@ -222,7 +222,7 @@ describe("Send case and Recall case", () => {
         stage: null,
       }),
     );
-    expect(await screen.findByText("Case sent to Health Off, Under Secretary, HEALTH.")).toBeInTheDocument();
+    expect(await screen.findByText("Case sent to Health Off, Under Secretary, Health.")).toBeInTheDocument();
   });
 
   it("offers no stage without workflow.set_stage", async () => {
@@ -244,7 +244,7 @@ describe("Send case and Recall case", () => {
   });
 
   async function chooseHealthOff(dialog: HTMLElement) {
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Health" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
     await waitFor(() => expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeInTheDocument());
     await userEvent.click(within(dialog).getByRole("radio", { name: /Health Off/ }));
@@ -270,7 +270,7 @@ describe("Send case and Recall case", () => {
     await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent?earlier=true"));
     expect(sessionStorage.getItem("aslms.flash")).toBe(
-      "Case sent to Health Off, Under Secretary, HEALTH. It is no longer with you. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
+      "Case sent to Health Off, Under Secretary, Health. It is no longer with you. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
     );
   });
 
@@ -346,7 +346,7 @@ describe("Send case and Recall case", () => {
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card({ can_send: false, can_recall: true })} />);
     await userEvent.click(screen.getByRole("button", { name: "Recall Case" }));
     const dialog = screen.getByRole("dialog", { name: "Recall the Case" });
-    expect(within(dialog).getByText("The case is with Officer One, SO, EDU-DSE — Secondary Education.")).toBeInTheDocument();
+    expect(within(dialog).getByText("The case is with Officer One, SO, Secondary Education.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Recall Case" }));
     expect(within(dialog).getByText("Give a remark of 3 to 2,000 characters.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
@@ -434,7 +434,7 @@ describe("the custody tab", () => {
     expect(rows).toHaveLength(3);
     expect(within(rows[1]!).getByText("Not Shown")).toBeInTheDocument();
     expect(within(rows[2]!).getByText("comments within a week")).toBeInTheDocument();
-    expect(await screen.findByText("Not recorded: Reply due")).toBeInTheDocument();
+    expect(await screen.findByText("Not recorded: Reply Due")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Set Stage" })).toBeNull();
   });
 
@@ -448,7 +448,7 @@ describe("the custody tab", () => {
     const block = await screen.findByRole("region", { name: "Stage" });
     await userEvent.click(await within(block).findByRole("button", { name: "Set Stage" }));
     const dialog = screen.getByRole("dialog", { name: "Set the Stage" });
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Reply filed (current)" })).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Reply Filed (current)" })).toBeInTheDocument());
     expect((within(dialog).getByLabelText("Response Mode") as HTMLSelectElement).value).toBe("department");
     await userEvent.selectOptions(within(dialog).getByLabelText("Stage"), "reply_filed");
     await userEvent.click(within(dialog).getByRole("button", { name: "Set Stage" }));
@@ -865,7 +865,7 @@ describe("the case alerts tab", () => {
     const items = within(list).getAllByRole("listitem");
     const head = items[0]!.querySelector("[data-ui='item-head']") as HTMLElement;
     expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
-    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing due");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing Due");
     expect(head.lastElementChild!.textContent).toMatch(/^Critical.*New/);
     expect(items[0]!.textContent).not.toContain("ASLMS/GOA/ALR/2026/000001");
     // an alert that never reached the reader is not "New" for them

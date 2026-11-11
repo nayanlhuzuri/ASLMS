@@ -1,0 +1,15 @@
+/* design portal-names-and-labels, decision 5: an office by its name, in the body font; cut with an ellipsis inside a
+   table cell, wrapped elsewhere */
+.name {
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+
+:global(td) .name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}

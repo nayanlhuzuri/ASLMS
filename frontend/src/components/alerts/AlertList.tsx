@@ -35,6 +35,7 @@ import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath, refPath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import { AlertLink, AnswerIt, markRead, useAlertRefresh } from "./AlertLink";
 
@@ -78,8 +79,8 @@ function AlertRow({ alert }: { alert: AlertItem }) {
       {/* the kind first, then its status; the severity and New badges at the end, no alert reference in sight
           (design portal-ui-kit-fixes, decision 13) */}
       <ItemHead
-        title={<strong>{alert.kind_label}</strong>}
-        meta={<span className="muted">{T.wf.alertStatus[alert.status] ?? alert.status}</span>}
+        title={<strong>{serverLabel(alert.kind_label)}</strong>}
+        meta={<span className="muted">{labelFor(T.wf.alertStatus, alert.status)}</span>}
         badges={
           <>
             <SeverityBadge severity={alert.severity} />
@@ -138,7 +139,7 @@ function CountsHeader() {
     <div className="row" aria-label={T.alerts.counts} role="group">
       <strong>{T.alerts.unread(formatNumber(c.unread))}</strong>
       {SEVERITIES.map((sev) => (
-        <span key={sev}>{T.alerts.open(T.wf.severity[sev] ?? sev, formatNumber(c.open[sev]))}</span>
+        <span key={sev}>{T.alerts.open(labelFor(T.wf.severity, sev), formatNumber(c.open[sev]))}</span>
       ))}
       {c.unread > 0 ? (
         <Button
@@ -188,7 +189,7 @@ export function AlertList({ params }: { params: Params }) {
             key: "status",
             kind: "select",
             label: T.alerts.status,
-            options: STATUSES.filter((st) => st).map((st) => ({ value: st, label: T.alerts.statuses[st] ?? st })),
+            options: STATUSES.filter((st) => st).map((st) => ({ value: st, label: labelFor(T.alerts.statuses, st) })),
             placeholder: T.alerts.statuses[""],
           },
           {
@@ -204,7 +205,7 @@ export function AlertList({ params }: { params: Params }) {
             kind: "select",
             label: T.alerts.severity,
             placeholder: T.alerts.allSeverities,
-            options: SEVERITIES.map((sev) => ({ value: sev, label: T.wf.severity[sev] ?? sev })),
+            options: SEVERITIES.map((sev) => ({ value: sev, label: labelFor(T.wf.severity, sev) })),
             more: true,
           },
           { key: "unread", kind: "check", label: T.alerts.unreadOnly, more: true },

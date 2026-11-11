@@ -688,6 +688,24 @@ describe("badges and feedback", () => {
     expect(screen.getByTitle("Solid").className).toBe(screen.getByTitle("Plain").className);
   });
 
+  it("Badge wrap lets a long office name wrap at word boundaries instead of widening its column (portal-names-and-labels, deviation 9)", () => {
+    renderWithClient(
+      <>
+        <Badge tone="success" title="DSE" wrap>
+          Claimed by Directorate of Secondary Education, Kahilipara, Guwahati-19
+        </Badge>
+        <Badge tone="success">Cut</Badge>
+      </>,
+    );
+    expect(screen.getByTitle("DSE")).toHaveAttribute("data-wrap");
+    expect(screen.getByTitle("Cut")).not.toHaveAttribute("data-wrap");
+    const css = readFileSync(join(process.cwd(), "src", "components", "ui", "feedback.module.css"), "utf-8");
+    const wrap = css.slice(css.indexOf(".badge[data-wrap] {"), css.indexOf("}", css.indexOf(".badge[data-wrap] {")));
+    expect(wrap).toMatch(/white-space: normal;/);
+    expect(wrap).toMatch(/height: auto;/);
+    expect(css).toMatch(/\.badge\[data-wrap\] \.badgeText \{\s*overflow-wrap: break-word;\s*\}/);
+  });
+
   it('ScoreBadge shows "Strong · 0.950" from band high, whatever the number', () => {
     renderWithClient(
       <>

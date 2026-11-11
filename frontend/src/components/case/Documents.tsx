@@ -15,7 +15,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, CheckField, DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
+import { Badge, CheckField, type Column, DataTable, EmptyState, ErrorBanner, Loading, OfficeName, Pagination } from "@/components/ui";
 import { DocumentActions } from "@/components/workflow/DocumentActions";
 import { UploadPanel } from "@/components/workflow/Upload";
 import { api } from "@/lib/api/client";
@@ -27,6 +27,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { PAGE } from "@/lib/params";
 import { apiCasePath } from "@/lib/refs";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import { documentUrl } from "./Orders";
 
@@ -46,7 +47,7 @@ function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Co
       header: T.case.type,
       cell: (d) => (
         <>
-          <div>{d.doc_type_label}</div>
+          <div>{serverLabel(d.doc_type_label)}</div>
           {d.ref_no ? <div className="mono muted">{d.ref_no}</div> : null}
           {d.archived_at ? <Badge>{T.case.archived}</Badge> : null}
         </>
@@ -61,10 +62,15 @@ function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Co
         d.uploaded_by ? (
           <>
             {d.uploaded_by.name}
-            {d.uploaded_by.office_code ? <span className="muted"> · {d.uploaded_by.office_code}</span> : null}
+            {d.uploaded_by.office_code ? (
+              <span className="muted">
+                {" · "}
+                <OfficeName code={d.uploaded_by.office_code} />
+              </span>
+            ) : null}
           </>
         ) : (
-          (d.office?.code ?? "—")
+          <OfficeName code={d.office?.code} name={d.office?.name} />
         ),
     },
     {
@@ -84,7 +90,7 @@ function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Co
       cell: (d) => (
         <div className="stack">
           {d.assistant_available ? <Badge tone="success">{T.case.inAssistant}</Badge> : <Badge>{T.case.notSent}</Badge>}
-          <Badge>{T.case.visibilities[d.visibility] ?? d.visibility}</Badge>
+          <Badge>{labelFor(T.case.visibilities, d.visibility)}</Badge>
           <span className="muted">
             {T.case.textStatus}: {textLabel(d)}
           </span>

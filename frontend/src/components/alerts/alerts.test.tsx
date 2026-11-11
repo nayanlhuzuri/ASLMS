@@ -77,7 +77,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     expect(await screen.findByText("You have no open alerts.")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
     await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
-    await waitFor(() => expect(screen.getByRole("option", { name: "File movement" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: "File Movement" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Kind"), "workflow");
     await userEvent.selectOptions(screen.getByLabelText("Severity"), "critical");
     await userEvent.click(screen.getByLabelText("Unread Only"));
@@ -344,7 +344,7 @@ describe("the alert row's head (design portal-ui-kit-fixes, decision 13)", () =>
     const head = row.querySelector("[data-ui='item-head']") as HTMLElement;
     expect(head.querySelector("[data-lead]")).toBeNull();
     expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
-    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing due");
+    expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Hearing Due");
     const badges = head.lastElementChild as HTMLElement;
     expect(badges.textContent).toMatch(/^High.*New/);
     expect(row.textContent).not.toContain("ASLMS/GOA/ALR/2026/000001");

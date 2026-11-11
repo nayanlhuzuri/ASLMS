@@ -68,6 +68,7 @@ import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
+import { labelFor } from "@/lib/displayLabels";
 
 import { BenchChooser } from "./BenchChooser";
 import { BenchSelect } from "./BenchSelect";
@@ -167,7 +168,7 @@ export function CauseList({ params }: { params: Params }) {
           value={query.list_type ? String(query.list_type) : ""}
           options={[
             { value: "", label: T.causelist.anyListType },
-            ...types.map((t) => ({ value: t, label: T.causelist.listTypes[t] ?? t })),
+            ...types.map((t) => ({ value: t, label: labelFor(T.causelist.listTypes, t) })),
           ]}
           onChange={(e) => setFilters({ list_type: e.target.value || undefined })}
         />
@@ -225,7 +226,7 @@ export function CauseList({ params }: { params: Params }) {
                 const key = COUNTED[v];
                 return {
                   value: v,
-                  label: key ? T.causelist.showOption(T.causelist.only[v] ?? v, formatNumber(counts[key])) : (T.causelist.only[v] ?? v),
+                  label: key ? T.causelist.showOption(labelFor(T.causelist.only, v), formatNumber(counts[key])) : (labelFor(T.causelist.only, v)),
                 };
               }),
             ]}

@@ -59,6 +59,7 @@ import { COLLECT_ERRORS, T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 import { HEALTH_READERS } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
+import { labelFor } from "@/lib/displayLabels";
 
 import ds from "./data.module.css";
 import { UseEverything } from "./CollectRequests";
@@ -215,7 +216,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
     setMessage(null);
     const out = await action.run(() => api<RetryFailed>("/admin/napix/queue/retry-failed", { method: "POST", body: { kind } }));
     if (out.ok) {
-      setMessage(T.pf.retriedNote(out.value.retried, T.dc.kinds[kind] ?? kind));
+      setMessage(T.pf.retriedNote(out.value.retried, labelFor(T.dc.kinds, kind)));
       await refresh();
     }
   }
@@ -241,7 +242,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
             rows={byKind}
             rowKey={(r) => r.kind}
             columns={[
-              { key: "kind", header: T.pf.cols.kindOfWork, primary: true, cell: (r) => T.dc.kinds[r.kind] ?? r.kind },
+              { key: "kind", header: T.pf.cols.kindOfWork, primary: true, cell: (r) => labelFor(T.dc.kinds, r.kind) },
               { key: "failed", header: T.dc.cols.failed, align: "right", cell: (r) => n(r.failed) },
               {
                 key: "retry",
@@ -254,7 +255,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
                       size="sm"
                       busy={action.busy}
                       onClick={() => retryAll(r.kind)}
-                      aria-label={T.pf.retryAllOf(T.dc.kinds[r.kind] ?? r.kind)}
+                      aria-label={T.pf.retryAllOf(labelFor(T.dc.kinds, r.kind))}
                     >
                       {T.pf.retryAll}
                     </Button>
@@ -277,7 +278,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
                       columns={[
                         { key: "when", header: T.pf.cols.when, cell: (r) => formatDateTime(r.finished_at ?? r.updated_at) },
                         { key: "what", header: T.pf.cols.what, primary: true, cell: (r) => <span title={r.ref}>{failedWhat(r.kind, r.ref)}</span> },
-                        { key: "kind", header: T.pf.cols.kindOfWork, cell: (r) => T.dc.kinds[r.kind] ?? r.kind },
+                        { key: "kind", header: T.pf.cols.kindOfWork, cell: (r) => labelFor(T.dc.kinds, r.kind) },
                         { key: "tries", header: T.pf.cols.tries, align: "right", cell: (r) => r.attempts },
                         {
                           key: "problem",
@@ -315,7 +316,7 @@ function FailedFetches({ data, healthReader }: { data: DataOverview; healthReade
 
 /** Words for a recorded problem's kind: its plain name, else the kind's own words. */
 function recordedKind(kind: string): string {
-  return T.pf.recordedKinds[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return labelFor(T.pf.recordedKinds, kind);
 }
 
 /** The open source failures by kind (counts only), as the Health tab listed them (decision 3). */
@@ -582,7 +583,7 @@ function CasesGap({ query, offset, onPage }: { query: GapsQuery; offset: number;
                     cell: (i) => (
                       <span title={i.problem ?? undefined}>
                         <Badge tone={i.state === "failed" ? "danger" : i.state === "being_fetched" ? "info" : undefined}>
-                          {T.pf.caseStates[i.state] ?? i.state}
+                          {labelFor(T.pf.caseStates, i.state)}
                         </Badge>
                         {i.problem ? (
                           <>
@@ -645,7 +646,7 @@ function OrdersGap({ query, offset, onPage }: { query: GapsQuery; offset: number
                   {
                     key: "state",
                     header: T.pf.cols.state,
-                    cell: (o) => <Badge tone={o.state === "failed" ? "danger" : undefined}>{T.pf.orderStates[o.state] ?? o.state}</Badge>,
+                    cell: (o) => <Badge tone={o.state === "failed" ? "danger" : undefined}>{labelFor(T.pf.orderStates, o.state)}</Badge>,
                   },
                   { key: "problem", header: T.pf.cols.problem, cell: (o) => o.problem ?? "—" },
                   ...(fixer

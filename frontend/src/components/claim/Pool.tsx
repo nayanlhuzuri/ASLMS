@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { CaseCell } from "@/components/inbox/rows";
-import { DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
+import { type Column, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, useOfficeName } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { PoolCase, PoolList } from "@/lib/api/types";
@@ -26,6 +26,7 @@ import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatche
 
 export function Pool({ params, department, onOpen }: { params: Params; department: string | null; onOpen: (row: RowContext) => void }) {
   const setFilters = useFilters(params);
+  const nameOf = useOfficeName();
   const offset = offsetOf(params);
   const query = {
     ...toApiQuery(params, "pool"),
@@ -51,12 +52,12 @@ export function Pool({ params, department, onOpen }: { params: Params; departmen
     {
       key: "best",
       header: T.claim.best,
-      cell: (p) => (p.best_score !== null ? T.inbox.best(p.best_score.toFixed(3), p.best_office_code) : <span className="muted">{T.inbox.noScore}</span>),
+      cell: (p) => (p.best_score !== null ? T.inbox.best(p.best_score.toFixed(3), nameOf(p.best_office_code)) : <span className="muted">{T.inbox.noScore}</span>),
     },
     {
       key: "dismissed",
       header: T.claim.dismissedBy,
-      cell: (p) => (p.dismissed_by.length > 0 ? p.dismissed_by.join(", ") : <span className="muted">—</span>),
+      cell: (p) => (p.dismissed_by.length > 0 ? p.dismissed_by.map((code) => nameOf(code)).join(", ") : <span className="muted">—</span>),
     },
   ];
   return (

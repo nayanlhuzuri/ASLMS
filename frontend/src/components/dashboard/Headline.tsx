@@ -15,6 +15,7 @@ import { formatDayLongYear, formatNumber, istHour } from "@/lib/format";
 import { hearingBand } from "@/lib/hearingDate";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import s from "./dashboard.module.css";
 
@@ -185,7 +186,7 @@ export function AttentionPanel({ items }: { items: DashboardMeAttention[] }) {
       ) : (
         <ul className={s.list} aria-label={T.dash.needsAttention}>
           {items.map((a) => {
-            const label = T.dash.leads[a.kind] ?? a.kind;
+            const label = labelFor(T.dash.leads, a.kind);
             return (
               <ListRow
                 as="li"
@@ -199,7 +200,7 @@ export function AttentionPanel({ items }: { items: DashboardMeAttention[] }) {
                 }
               >
                 <Link href={attentionHref(a)} className={s.title}>
-                  {a.title}
+                  {serverLabel(a.title)}
                 </Link>
                 <div className="muted">{T.dash.caseDetail(a.case.case_no_text || a.case.ref_no, a.detail ?? null)}</div>
               </ListRow>

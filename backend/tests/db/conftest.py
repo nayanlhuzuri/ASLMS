@@ -345,3 +345,41 @@ def world(engine):
     yield w
     with engine.begin() as conn:
         wipe(conn)
+
+
+# ------------------------------------------------------------------------------------------------ audit action registry
+# design portal-names-and-labels, decision 22: every action an `AuditLog` row is inserted with during the database
+# suite is in `aslms.domain.audit_actions.AUDIT_ACTIONS`, so the codes built at run time are held registered too.
+# Rows a test writes itself as fixtures use the `test.` prefix and are let through.
+
+_UNREGISTERED_AUDIT: list[str] = []
+
+
+def _check_audit_action(mapper, connection, target) -> None:
+    from aslms.domain.audit_actions import AUDIT_ACTIONS
+
+    action = target.action
+    if action in AUDIT_ACTIONS or (action or "").startswith("test."):
+        return
+    _UNREGISTERED_AUDIT.append(action)
+    raise AssertionError(f"audit action {action!r} is not in aslms/domain/audit_actions.py AUDIT_ACTIONS")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _audit_action_listener() -> Iterator[None]:
+    from aslms.domain.events import AuditLog
+
+    sa.event.listen(AuditLog, "before_insert", _check_audit_action)
+    yield
+    sa.event.remove(AuditLog, "before_insert", _check_audit_action)
+
+
+@pytest.fixture(autouse=True)
+def _audit_actions_registered() -> Iterator[None]:
+    """Fails the test that wrote an unregistered action, even when the code under test swallowed the error."""
+    _UNREGISTERED_AUDIT.clear()
+    yield
+    if _UNREGISTERED_AUDIT:
+        found = sorted(set(_UNREGISTERED_AUDIT))
+        _UNREGISTERED_AUDIT.clear()
+        pytest.fail(f"unregistered audit actions written: {found}", pytrace=False)

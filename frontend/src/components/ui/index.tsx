@@ -13,5 +13,6 @@ export * from "./charts";
 export * from "./OfficePicker";
 export * from "./UserPicker";
 export * from "./HearingDate";
+export * from "./OfficeName";
 export * from "./listSearch";
 export * from "./CollectProgress";

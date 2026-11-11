@@ -181,7 +181,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(cells[0]!.querySelector("[data-lead='lead']")).not.toBeNull();
     expect(within(cells[0]!).getByText("Overdue")).toBeInTheDocument();
     expect(within(first).getByText("RAM KUMAR vs STATE OF ASSAM")).toBeInTheDocument();
-    expect(within(first).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(first).getByText("Parawise Comments")).toBeInTheDocument();
     expect(within(first).getByText("10 Oct 2026")).toBeInTheDocument();
     // From: the sender's designation and office, the name as the title (decision 13)
     expect(within(first).getByText("Joint Secretary, EDU")).toHaveAttribute("title", "Edu Admin");
@@ -204,7 +204,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(api.calls.find((c) => c.path.startsWith("/custody/held"))!.path).toContain("scope=owned");
     expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
-    await waitFor(() => expect(screen.getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: "Health" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Department It Is With"), "HEALTH");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/department?holder_department=HEALTH");
@@ -425,14 +425,14 @@ describe("the filter bar on the Cases list (portal-filters)", () => {
     await waitFor(() => expect(within(owner).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any Department", "EDU"]));
     // the department it is with still offers every department
     const holder = screen.getByLabelText("Department It Is With");
-    await waitFor(() => expect(within(holder).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    await waitFor(() => expect(within(holder).getByRole("option", { name: "Health" })).toBeInTheDocument());
   });
 
   it("Cases with me offers every department as owner", async () => {
     browserApi({ "GET /me": tracker(), "GET /custody/held": held([]), "GET /custody/recipients": DEPTS });
     renderWithClient(<Held tab="with-me" params={{ owner: "HEALTH" }} />);
     const owner = await screen.findByLabelText("Department");
-    await waitFor(() => expect(within(owner).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    await waitFor(() => expect(within(owner).getByRole("option", { name: "Health" })).toBeInTheDocument());
     expect(screen.getByText("Department: HEALTH")).toBeInTheDocument();
   });
 });

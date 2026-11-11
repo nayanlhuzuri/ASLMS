@@ -96,6 +96,7 @@ describe("labels", () => {
     expect(bandLabel("high")).toBe("Strong");
     expect(bandLabel("medium")).toBe("Possible");
     expect(recommendationText({ office_code: "EDU", band: "high", score: 0.95 })).toBe("Strong · EDU · 0.95");
+    expect(recommendationText({ office_code: "EDU", band: "high", score: 0.95 }, { EDU: "Education" })).toBe("Strong · Education · 0.95");
   });
 
   it("bench values, URL keys and the case page's link", () => {

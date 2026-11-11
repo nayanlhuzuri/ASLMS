@@ -329,13 +329,17 @@ describe("the entries", () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D }} />);
     const owned = (await screen.findByText("WP(C)/4/2025")).closest("tr")!;
-    expect(within(owned).getByText("Claimed by EDU")).toBeInTheDocument();
+    expect(within(owned).getByText("Claimed by Education")).toBeInTheDocument();
     expect(within(owned).getByText("Your Department")).toBeInTheDocument();
     const watched = screen.getByText("WP(C)/6/2025").closest("tr")!;
-    expect(within(watched).getByText("Claimed by FIN")).toBeInTheDocument();
+    // design portal-names-and-labels, decision 6 (L1): the department by name, its code as the tooltip
+    expect(within(watched).getByText("Claimed by Finance")).toBeInTheDocument();
+    expect(within(watched).getByTitle("FIN")).toHaveTextContent("Claimed by Finance");
+    // deviation 9: a badge naming a department wraps at word boundaries, so a long name never widens the table
+    expect(within(watched).getByTitle("FIN")).toHaveAttribute("data-wrap");
     expect(within(watched).getByText("Your Department (Watching)")).toBeInTheDocument();
     const rec = screen.getByText("WP(C)/2/2025").closest("tr")!;
-    expect(within(rec).getByText("Strong · EDU · 0.95")).toBeInTheDocument();
+    expect(within(rec).getByText("Strong · Education · 0.95")).toBeInTheDocument();
     expect(within(rec).getByText("Unclaimed")).toBeInTheDocument();
   });
 
@@ -575,8 +579,8 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
     expect(within(dialog).getByText("Supplementary List")).toBeInTheDocument();
     const table = await within(dialog).findByRole("table", { name: "Cause-list Entries" });
     expect(within(table).getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
-    expect(within(table).getByText("Strong · EDU · 0.95")).toBeInTheDocument();
-    expect(within(table).getByText("Claimed by EDU")).toBeInTheDocument();
+    expect(within(table).getByText("Strong · Education · 0.95")).toBeInTheDocument();
+    expect(within(table).getByText("Claimed by Education")).toBeInTheDocument();
     expect(within(table).getAllByText("MR. A. BORA").length).toBeGreaterThan(0);
     // Claim stays on the page
     expect(within(dialog).queryByRole("button", { name: "Claim" })).toBeNull();

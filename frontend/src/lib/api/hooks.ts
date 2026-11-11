@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { serverLabel } from "../displayLabels";
 import { apiCasePath, refPath } from "../refs";
 import { api, ApiError } from "./client";
 import type {
@@ -21,6 +22,8 @@ import type {
   ListingList,
   Me,
   OfficeChoices,
+  OfficeNameMap,
+  OfficeNames,
   OfficePurpose,
   MyCaseCounts,
   RecipientList,
@@ -38,18 +41,44 @@ export function useMe() {
   return useQuery({ queryKey: ME_KEY, queryFn: () => api<Me>("/me"), staleTime: 60_000 });
 }
 
-/** The database's labels of user types, office kinds and ticket kinds (`GET /reference/labels`). */
+/** A server list's labels in Title Case (design portal-names-and-labels, decision 10), each item otherwise as sent. */
+function withServerLabels<I extends { label: string }>(items: readonly I[]): I[] {
+  return items.map((item) => ({ ...item, label: serverLabel(item.label) }));
+}
+
+/**
+ * The database's labels of user types, office kinds, ticket kinds and alert kinds (`GET /reference/labels`). The kind
+ * lists arrive in Title Case (decision 10); user type names are kept as stored, because administrators edit them, and
+ * are Title-Cased where shown through `labelOf`.
+ */
 export function useLabels() {
   return useQuery({
     queryKey: ["reference", "labels"],
     queryFn: () => api<ReferenceLabels>("/reference/labels"),
     staleTime: 10 * 60_000,
+    select: (data: ReferenceLabels): ReferenceLabels => ({
+      ...data,
+      office_kinds: withServerLabels(data.office_kinds),
+      ticket_kinds: withServerLabels(data.ticket_kinds),
+      alert_kinds: withServerLabels(data.alert_kinds),
+    }),
   });
 }
 
-export function labelOf(list: { code: string; label: string }[] | undefined, code: string | null | undefined): string {
-  if (!code) return "—";
-  return list?.find((x) => x.code === code)?.label ?? code;
+/** Every office's name (`GET /reference/offices`, decisions 1-5), as a map from code; refreshed after office edits. */
+export const OFFICE_NAMES_KEY = ["reference", "offices"] as const;
+
+export function useOfficeNames() {
+  return useQuery({
+    queryKey: OFFICE_NAMES_KEY,
+    queryFn: () => api<OfficeNames>("/reference/offices"),
+    staleTime: 10 * 60_000,
+    gcTime: 60 * 60_000,
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
+    // after a refusal (403) or a failure every OfficeName shows codes; a name mounting later does not ask again
+    retryOnMount: false,
+    select: (data: OfficeNames): OfficeNameMap => new Map(data.items.map((o) => [o.code, o])),
+  });
 }
 
 /** The active departments (`GET /custody/recipients` without a department), for department pickers. */
@@ -193,6 +222,15 @@ export function useWorkflowCodes(enabled = true) {
     queryFn: () => api<WorkflowCodes>("/workflow/codes"),
     staleTime: 10 * 60_000,
     enabled,
+    // decision 10: the option lists (Set Stage, Send Case's pending action, note kinds) in Title Case
+    select: (data: WorkflowCodes): WorkflowCodes => ({
+      ...data,
+      note_kinds: withServerLabels(data.note_kinds),
+      pending_actions: withServerLabels(data.pending_actions),
+      stages: withServerLabels(data.stages),
+      response_modes: withServerLabels(data.response_modes),
+      custody_reasons: withServerLabels(data.custody_reasons),
+    }),
   });
 }
 
@@ -203,6 +241,7 @@ export function useDocumentTypes(enabled = true) {
     queryFn: () => api<DocumentTypes>("/documents/types"),
     staleTime: 10 * 60_000,
     enabled,
+    select: (data: DocumentTypes): DocumentTypes => ({ ...data, items: withServerLabels(data.items) }),
   });
 }
 

@@ -13,6 +13,7 @@ import type { MyCalendarItem } from "@/lib/api/types";
 import { KIND_TONE, type Kind } from "@/lib/calendar";
 import { formatDate, formatDayLong } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import s from "./calendar.module.css";
 
@@ -32,7 +33,7 @@ function Detail({ item }: { item: MyCalendarItem }) {
   if (item.kind === "action_due") {
     return (
       <span className="muted">
-        {item.pending_action_label ?? item.pending_action}
+        {serverLabel(item.pending_action_label) ?? labelFor(undefined, item.pending_action)}
         {item.overdue ? ` · ${T.mycal.overdue}` : ""}
       </span>
     );
@@ -60,7 +61,7 @@ export function DayAgenda({ day, items }: { day: string | null; items: MyCalenda
                   as="li"
                   lead={
                     <Lead>
-                      <Badge tone={KIND_TONE[item.kind as Kind]}>{T.mycal.badges[item.kind] ?? item.kind}</Badge>
+                      <Badge tone={KIND_TONE[item.kind as Kind]}>{labelFor(T.mycal.badges, item.kind)}</Badge>
                     </Lead>
                   }
                 >

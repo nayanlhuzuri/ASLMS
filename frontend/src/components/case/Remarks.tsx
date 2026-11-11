@@ -18,12 +18,14 @@ import { useId, useState, type KeyboardEvent } from "react";
 
 import { Badge, Button, Collapsible, DateChip, EmptyState, ErrorBanner, ItemHead, ListRow, Loading, Notice, SelectField, SidePanel } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useMe, useWorkflowCodes } from "@/lib/api/hooks";
-import type { CaseDetail, CustodyHistory, CustodyLeg, Note, NoteList } from "@/lib/api/types";
+import { caseKey, useMe, useOfficeNames, useWorkflowCodes } from "@/lib/api/hooks";
+import type { CaseDetail, CustodyHistory, CustodyLeg, Note, NoteList, OfficeNameMap } from "@/lib/api/types";
 import { legActor, legHolder, withText } from "@/lib/cases";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath, refPath } from "@/lib/refs";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
+import { officeName } from "@/lib/officeNames";
 
 import { NoteAttachments } from "./Notes";
 import s from "./remarks.module.css";
@@ -69,22 +71,23 @@ export function useNotesTrail(caseRef: string, kind: string, enabled: boolean) {
 }
 
 /** Decision 15's heading of one movement. */
-export function legHeading(leg: CustodyLeg, meId?: string | null): string {
+export function legHeading(leg: CustodyLeg, meId?: string | null, names?: OfficeNameMap): string {
   const to = withText(legHolder(leg), meId).text;
-  const actor = legActor(leg);
+  const actor = legActor(leg, names);
   const by = actor ? withText(actor).text : "—";
   if (leg.reason === "sent") return T.remarks.sentHeading(by, to);
   if (leg.reason === "recalled") return T.remarks.recalledHeading(by);
-  return T.remarks.otherHeading(leg.reason_label, by, to);
+  return T.remarks.otherHeading(serverLabel(leg.reason_label), by, to);
 }
 
 function RemarkEntry({ leg, meId }: { leg: CustodyLeg; meId: string | null }) {
+  const names = useOfficeNames().data;
   return (
     <ListRow as="li" lead={<DateChip date={leg.started_at} />}>
       <div className={s.entry}>
         <div className={s.when}>{formatDateTime(leg.started_at)}</div>
-        <div className={s.heading}>{legHeading(leg, meId)}</div>
-        <div>{T.remarks.actionAsked(leg.pending_action_label)}</div>
+        <div className={s.heading}>{legHeading(leg, meId, names)}</div>
+        <div>{T.remarks.actionAsked(serverLabel(leg.pending_action_label))}</div>
         <div className="muted">{leg.due_date ? T.remarks.dueBy(formatDate(leg.due_date)) : T.remarks.noDue}</div>
         {leg.remark ? <div className={s.full}>{leg.remark}</div> : null}
       </div>
@@ -127,11 +130,13 @@ function noteAnchor(seq: number): string {
 }
 
 function NoteHead({ n }: { n: Note }) {
-  const author = withText({ designation: n.author.designation, office: n.author.office_code, name: n.author.name });
+  const names = useOfficeNames().data;
+  const office = n.author.office_code ? officeName(n.author.office_code, names) : null;
+  const author = withText({ designation: n.author.designation, office, name: n.author.name });
   return (
     // the kind as the title, as on the Notes tab; the visibility badge at the end (design portal-ui-kit-fixes, 14)
     <ItemHead
-      title={<strong>{n.kind_label}</strong>}
+      title={<strong>{serverLabel(n.kind_label)}</strong>}
       meta={
         <>
           <span className="mono muted">{n.ref_no}</span>
@@ -139,7 +144,7 @@ function NoteHead({ n }: { n: Note }) {
           <span className="muted">{formatDateTime(n.created_at)}</span>
         </>
       }
-      badges={<Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>}
+      badges={<Badge>{labelFor(T.case.visibilities, n.visibility)}</Badge>}
     />
   );
 }

@@ -10,13 +10,14 @@ import { useState } from "react";
 
 import { DateChip, EmptyState, ErrorBanner, ListRow, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useLabels, useWorkflowCodes } from "@/lib/api/hooks";
+import { caseKey, useLabels, useOfficeNames, useWorkflowCodes } from "@/lib/api/hooks";
 import type { TimelineList } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
 import { timelineDetail, type TimelineLabels } from "@/lib/timeline";
+import { serverLabel } from "@/lib/displayLabels";
 
 import s from "./case.module.css";
 
@@ -28,12 +29,14 @@ function toMap(list: { code: string; label: string }[] | undefined): Record<stri
 export function useTimelineLabels(): TimelineLabels {
   const codes = useWorkflowCodes();
   const refLabels = useLabels();
+  const offices = useOfficeNames();
   return {
     reasons: toMap(codes.data?.custody_reasons),
     actions: toMap(codes.data?.pending_actions),
     kinds: toMap(codes.data?.note_kinds),
     stages: toMap(codes.data?.stages),
     alertKinds: toMap(refLabels.data?.alert_kinds),
+    offices: offices.data,
   };
 }
 
@@ -59,7 +62,7 @@ export function Timeline({ caseRef }: { caseRef: string }) {
                 return (
                   <ListRow key={`${e.occurred_at}-${i}`} as="li" lead={<DateChip date={e.occurred_at} />}>
                     <div className={s.noteHead}>
-                      <strong>{e.label}</strong>
+                      <strong>{serverLabel(e.label)}</strong>
                       <span className="muted">{formatDateTime(e.occurred_at)}</span>
                       {e.actor_name ? <span>{e.actor_name}</span> : null}
                     </div>

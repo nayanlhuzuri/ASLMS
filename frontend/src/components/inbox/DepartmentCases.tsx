@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
-import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
+import { Chip, ChipGroup, type Column, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, OfficeName, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useDepartmentPeople } from "@/lib/api/hooks";
 import type { InboxCounts, Ownership, OwnershipList } from "@/lib/api/types";
@@ -27,6 +27,7 @@ import { FIELD_KEYS, LIST_FILTERS, toApiQuery, type SharedField } from "@/lib/fi
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath } from "@/lib/refs";
+import { nameOptions } from "@/lib/officeNames";
 
 import { useFilters } from "./common";
 import { isFiltered, useStageOptions } from "./MyCases";
@@ -66,7 +67,7 @@ function AllotmentCell({ row }: { row: Ownership }) {
   if (!row.unit && !row.officer) return <span className="muted">{T.inbox.notAssigned}</span>;
   return (
     <span>
-      {row.unit ? <span className="mono">{row.unit.code}</span> : null}
+      {row.unit ? <OfficeName code={row.unit.code} name={row.unit.name} /> : null}
       {row.unit && row.officer ? " · " : null}
       {row.officer ? row.officer.full_name : null}
     </span>
@@ -128,7 +129,7 @@ export function DepartmentCases({ params, department, block }: { params: Params;
           key: "unit",
           kind: "select",
           label: T.inbox.unitSelect,
-          options: units.map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` })),
+          options: nameOptions(units),
           placeholder: T.inbox.anyUnit,
           first: true,
         }

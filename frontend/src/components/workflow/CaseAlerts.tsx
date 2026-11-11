@@ -35,6 +35,7 @@ import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 
 import cs from "@/components/case/case.module.css";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import { useWorkflowRefresh, WORKING_BASES } from "./common";
 
@@ -140,10 +141,10 @@ export function CaseAlerts({ caseRef }: { caseRef: string }) {
                   {/* the kind first, then its status and due time; the severity and New badges at the end, no
                       alert reference in sight (design portal-ui-kit-fixes, decision 13) */}
                   <ItemHead
-                    title={<strong>{a.kind_label}</strong>}
+                    title={<strong>{serverLabel(a.kind_label)}</strong>}
                     meta={
                       <>
-                        <span className="muted">{T.wf.alertStatus[a.status] ?? a.status}</span>
+                        <span className="muted">{labelFor(T.wf.alertStatus, a.status)}</span>
                         {a.due_at ? <span className="muted">{T.wf.dueAt(formatDateTime(a.due_at))}</span> : null}
                       </>
                     }

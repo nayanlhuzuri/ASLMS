@@ -6,10 +6,11 @@
  * the file is; the next hearing is the kit's `HearingDate` (design next-hearing-highlight, decision 11). A row opens by
  * click or Enter, so the case number is plain text here (the row is the link).
  */
-import { Badge, ListCount, SegmentedSwitch } from "@/components/ui";
+import { Badge, ListCount, OfficeName, SegmentedSwitch } from "@/components/ui";
 import type { CaseSummary, CustodyBrief, StageBrief } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { serverLabel } from "@/lib/displayLabels";
 
 import s from "./inbox.module.css";
 
@@ -57,7 +58,7 @@ export function ClosureSwitch({ value, onChange }: { value: "open" | "closed"; o
 
 export function StageCell({ stage }: { stage: StageBrief | null | undefined }) {
   if (!stage) return <span className="muted">{T.inbox.noStage}</span>;
-  return <span>{stage.label}</span>;
+  return <span>{serverLabel(stage.label)}</span>;
 }
 
 /** The pending action and due date of the file, with the red "Overdue n days" or amber "Due <date>" badge. */
@@ -65,7 +66,7 @@ export function ActionCell({ custody }: { custody: CustodyBrief | null | undefin
   if (!custody || custody.pending_action === "none") return <span className="muted">—</span>;
   return (
     <span className={s.action}>
-      <span>{custody.pending_action_label}</span>
+      <span>{serverLabel(custody.pending_action_label)}</span>
       {custody.overdue ? (
         <Badge tone="danger">{T.inbox.overdueDays(custody.overdue_days)}</Badge>
       ) : custody.due_date ? (
@@ -84,11 +85,16 @@ export function HolderCell({ custody }: { custody: CustodyBrief | null | undefin
       <span>
         {custody.holder_user.full_name}
         {custody.holder_user.designation ? <span className="muted">, {custody.holder_user.designation}</span> : null}
-        {custody.holder_office ? <span className="muted"> · {custody.holder_office.code}</span> : null}
+        {custody.holder_office ? (
+          <span className="muted">
+            {" · "}
+            <OfficeName code={custody.holder_office.code} name={custody.holder_office.name} />
+          </span>
+        ) : null}
       </span>
     );
   }
-  return <span>{custody.holder_office?.name ?? custody.holder_office?.code ?? "—"}</span>;
+  return <OfficeName code={custody.holder_office?.code} name={custody.holder_office?.name} />;
 }
 
 export function Chevron() {

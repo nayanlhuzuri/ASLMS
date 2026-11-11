@@ -7,6 +7,7 @@
  * active step pulses; under reduced motion nothing moves. Presentational only: the caller passes the figures.
  */
 import { T } from "@/lib/messages";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./collectProgress.module.css";
 import { cx } from "./controls";
@@ -55,7 +56,7 @@ export function CollectProgress({
           <li className={s.step}>
             <span className={s.stepName}>{T.kit.collect.detailsLabel}</span>
             <span className={cx(s.state, s[`state-${details}`], details === "fetching" && s.pulse)} aria-live="polite">
-              {T.kit.collect.states[details] ?? details}
+              {labelFor(T.kit.collect.states, details)}
             </span>
           </li>
         ) : null}

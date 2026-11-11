@@ -18,6 +18,7 @@ import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
 import cs from "@/components/case/case.module.css";
+import { labelFor } from "@/lib/displayLabels";
 
 import { useWorkflowRefresh } from "./common";
 import { NoteComposer } from "./NoteComposer";
@@ -80,7 +81,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
             badges={
               <>
                 <Badge tone="warning">{T.wf.draftBadge}</Badge>
-                <Badge>{T.case.visibilities[draft.visibility] ?? draft.visibility}</Badge>
+                <Badge>{labelFor(T.case.visibilities, draft.visibility)}</Badge>
               </>
             }
           />

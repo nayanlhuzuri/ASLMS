@@ -35,6 +35,8 @@ import { CUSTODY_ERRORS, T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 import { dueDateBounds } from "@/lib/workflow";
+import { nameOptions } from "@/lib/officeNames";
+import { serverLabel } from "@/lib/displayLabels";
 
 import { useWorkflowRefresh, within } from "./common";
 import s from "./workflow.module.css";
@@ -44,18 +46,18 @@ const REMARK_MAX = 2000;
 const PEOPLE_PAGE = 50;
 
 function personLabel(p: Recipient): string {
-  return [p.full_name, p.designation, `${p.office_code} — ${p.office_name}`, p.role_label].filter(Boolean).join(", ");
+  return [p.full_name, p.designation, p.office_name, serverLabel(p.role_label)].filter(Boolean).join(", ");
 }
 
 function personShort(p: Recipient): string {
-  return [p.full_name, p.designation, p.office_code].filter(Boolean).join(", ");
+  return [p.full_name, p.designation, p.office_name].filter(Boolean).join(", ");
 }
 
 function holderText(card: CustodyCard): string {
   const who = card.holder_user
     ? [card.holder_user.full_name, card.holder_user.designation].filter(Boolean).join(", ")
     : null;
-  const office = card.holder_office ? `${card.holder_office.code} — ${card.holder_office.name}` : null;
+  const office = card.holder_office ? card.holder_office.name || card.holder_office.code : null;
   return [who, office].filter(Boolean).join(", ") || "—";
 }
 
@@ -103,7 +105,7 @@ function PeopleCards({
           </span>
           <span className={s.personText} aria-hidden="true">
             <strong>{p.full_name}</strong>
-            <span className="muted">{[p.designation, `${p.office_code} — ${p.office_name}`].filter(Boolean).join(" · ")}</span>
+            <span className="muted">{[p.designation, p.office_name].filter(Boolean).join(" · ")}</span>
           </span>
         </label>
       ))}
@@ -268,7 +270,7 @@ export function SendDialog({
         <div className={cx("stack", s.pane)} key="who">
           <SelectField
             label={T.wf.department}
-            options={(departments.data?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }))}
+            options={nameOptions(departments.data?.departments ?? [])}
             placeholder={T.wf.chooseDepartment}
             value={department}
             aria-required

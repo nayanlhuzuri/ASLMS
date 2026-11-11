@@ -178,6 +178,10 @@ export type DiscoverySummary = S["DiscoverySummaryOut"];
 // portal-workflow: custody, stages, notes and drafts, uploads, case alerts
 export type CaseWorkflowActions = S["CaseWorkflowActionsOut"];
 export type WorkflowCodes = S["WorkflowCodesOut"];
+// design portal-names-and-labels, decisions 1-5: every office's name, by code
+export type OfficeNames = S["OfficeNamesOut"];
+export type OfficeNameItem = S["OfficeNameOut"];
+export type OfficeNameMap = Map<string, OfficeNameItem>;
 export type WorkflowLimits = S["WorkflowLimitsOut"];
 export type CodeLabel = S["CodeLabelOut"];
 export type StageCode = S["StageCodeOut"];

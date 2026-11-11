@@ -32,7 +32,8 @@ import {
 import { createPortal } from "react-dom";
 
 import { ApiError, apiPage } from "@/lib/api/client";
-import { labelOf, useLabels } from "@/lib/api/hooks";
+import { useLabels } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { MembershipOut, UserChoice, UserTypeLabel } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 
@@ -83,7 +84,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
-/** The person's offices as "<code> · <designation> · <type>" (a Head badge on a head), or the no-office badge. */
+/** The person's offices as "<office name> · <designation> · <type>" (a Head badge on a head), or the no-office badge. */
 export function OfficesLine({ user, types }: { user: UserChoice; types: UserTypeLabel[] | undefined }) {
   const offices = activeOffices(user);
   if (offices.length === 0) {
@@ -92,8 +93,8 @@ export function OfficesLine({ user, types }: { user: UserChoice; types: UserType
   return (
     <span className={u.offices}>
       {offices.slice(0, MAX_OFFICES).map((m) => (
-        <span key={m.id} className={u.office} data-office={m.office.code}>
-          {[m.office.code, m.designation, labelOf(types, m.role)].filter(Boolean).join(" · ")}
+        <span key={m.id} className={u.office} data-office={m.office.code} title={m.office.code}>
+          {[m.office.name || m.office.code, m.designation, labelOf(types, m.role)].filter(Boolean).join(" · ")}
           {m.role === "dept_head" ? (
             <>
               {" "}

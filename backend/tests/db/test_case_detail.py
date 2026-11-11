@@ -143,6 +143,46 @@ def test_overview_carries_every_typed_column(api, world, loaded):
     ]
 
 
+def test_overview_list_blocks_use_named_fields(api, world, loaded):
+    """Design portal-names-and-labels, decision 18: each list-block dict's keys equal its named tuple, which the
+    export tool carries to the portal's Details labels test."""
+    from aslms.domain.cases import (
+        CaseApplication,
+        CaseLowerCourt,
+        CaseObjection,
+        CaseTransfer,
+        CaseWritInfo,
+        LowerCourtLevel,
+    )
+    from aslms.services import case_detail as cd
+
+    with world.Session() as s:
+        s.add_all(
+            [
+                CaseLowerCourt(case_id=loaded, level=LowerCourtLevel.APPELLATE, court_name="District Court"),
+                CaseApplication(case_id=loaded, ia_number="IA(C)/1/2026", status="P"),
+                CaseObjection(case_id=loaded, objection="Index missing", scrutiny_date=date(2026, 7, 1)),
+                CaseTransfer(case_id=loaded, to_court_text="Court 2"),
+                CaseWritInfo(case_id=loaded, appellate_case_number="WA/1/2026"),
+            ]
+        )
+        s.commit()
+    body = api.get(f"/cases/{loaded}", headers=login(api, "edu_admin")).json()
+    blocks = {
+        "acts": cd.ACT_FIELDS,
+        "lower_courts": cd.LOWER_COURT_FIELDS,
+        "applications": cd.APPLICATION_FIELDS,
+        "objections": cd.OBJECTION_FIELDS,
+        "court_transfers": cd.TRANSFER_FIELDS,
+        "writ_info": cd.WRIT_FIELDS,
+    }
+    for key, fields in blocks.items():
+        assert body[key], key
+        for item in body[key]:
+            assert tuple(item) == fields, key
+    assert body["lower_courts"][0]["level"] == "appellate" and body["applications"][0]["status"] == "P"
+
+
 def test_overview_of_a_pool_and_a_merged_case(api, world):
     with world.Session() as s:
         pool = make_case(s, pet="POOL CASE")

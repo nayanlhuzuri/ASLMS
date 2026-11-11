@@ -27,6 +27,7 @@ import { toApiQuery } from "@/lib/filters";
 import { formatDate, formatDateTime, istDay } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
+import { serverLabel } from "@/lib/displayLabels";
 
 import { FilePanel } from "./FilePanel";
 import { CaseCell, DueCell, LeadCell, WithCell } from "./Held";
@@ -63,7 +64,7 @@ export function Sent({ params }: { params: Params }) {
       primary: true,
       cell: (r) => <CaseCell c={r.case} visible={r.visible} mark={r.leg.reason === "recalled" ? T.cases.recalledMark : null} />,
     },
-    { key: "action", header: T.files.action, cell: (r) => r.leg.pending_action_label },
+    { key: "action", header: T.files.action, cell: (r) => serverLabel(r.leg.pending_action_label) },
     { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.leg.due_date} overdue={overdue(r)} /> },
     { key: "to", header: T.cases.sentTo, cell: (r) => <WithCell party={legHolder(r.leg)} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
@@ -104,10 +105,10 @@ export function Sent({ params }: { params: Params }) {
         remark={leg?.remark}
         facts={[
           [T.cases.sentTo, open ? <WithCell party={legHolder(open.leg)} /> : null],
-          [T.files.action, leg?.pending_action_label ?? null],
+          [T.files.action, serverLabel(leg?.pending_action_label) ?? null],
           [T.files.since, formatDateTime(leg?.started_at)],
           [T.files.due, leg?.due_date ? formatDate(leg.due_date) : null],
-          [T.files.reason, leg?.reason_label ?? null],
+          [T.files.reason, serverLabel(leg?.reason_label) ?? null],
         ]}
       />
     </div>

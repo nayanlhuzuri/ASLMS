@@ -25,9 +25,9 @@ function perm(code: string, label: string, group: string | null, group_label: st
 // deliberately out of order: the page follows group and sort_in_group, not the list order
 const PERMS: PermissionInfo[] = [
   perm("custody.recall", "Recall cases", "case_work", "Case Work", 2),
-  perm("users.view", "See users", "people", "People and access", 1),
+  perm("users.view", "See users", "people", "People and Access", 1),
   perm("custody.move", "Send cases held by an office", "case_work", "Case Work", 1),
-  perm("users.create", "Add users", "people", "People and access", 2),
+  perm("users.create", "Add users", "people", "People and Access", 2),
   perm("admin.tickets", "Decide admin tickets", "administration", "Administration", 1),
   perm("requests.send", "Send requests", null, null, null),
 ];
@@ -68,13 +68,13 @@ describe("the user-type cards (case-workspace-admin, decision 24)", () => {
     const { container } = renderWithClient(<UserTypesIndex />);
     const list = await screen.findByRole("list", { name: "User Types" });
     const cards = within(list).getAllByRole("link");
-    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Super admin", "Dept officer"]);
-    const officer = within(list).getByRole("link", { name: "Dept officer" });
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Super Admin", "Dept Officer"]);
+    const officer = within(list).getByRole("link", { name: "Dept Officer" });
     expect(officer).toHaveAttribute("href", "/admin/access/dept_officer");
     expect(within(officer).getByText("12 users")).toBeInTheDocument();
     expect(within(officer).getByText("2 of 5 functions on")).toBeInTheDocument();
     expect(within(officer).getByText("1 changed from default")).toBeInTheDocument();
-    const root = within(list).getByRole("link", { name: "Super admin" });
+    const root = within(list).getByRole("link", { name: "Super Admin" });
     expect(within(root).getByText("1 user")).toBeInTheDocument();
     expect(within(root).queryByText(/changed from default/)).toBeNull();
     // the index has no primary (decision 28)
@@ -87,11 +87,11 @@ describe("the user-type page (decisions 25-27)", () => {
     routes();
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
-    expect(screen.getByRole("heading", { level: 2, name: "Dept officer" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Dept Officer" })).toBeInTheDocument();
     expect(screen.getByText("12 users · 2 of 5 functions on")).toBeInTheDocument();
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(["Case Work", "People and access", "Administration"]);
-    const people = screen.getByRole("list", { name: "People and access" });
+    expect(headings).toEqual(["Case Work", "People and Access", "Administration"]);
+    const people = screen.getByRole("list", { name: "People and Access" });
     expect(within(people).getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["See users", "Add users"]);
     const work = screen.getByRole("list", { name: "Case Work" });
     expect(within(work).getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["Send cases held by an office", "Recall cases"]);
@@ -106,7 +106,7 @@ describe("the user-type page (decisions 25-27)", () => {
     const groups = groupFunctions(PERMS);
     expect(groups.map((g) => [g.label, g.items.map((p) => p.code)])).toEqual([
       ["Case Work", ["custody.move", "custody.recall"]],
-      ["People and access", ["users.view", "users.create"]],
+      ["People and Access", ["users.view", "users.create"]],
       ["Administration", ["admin.tickets"]],
     ]);
     expect(groups.flatMap((g) => g.items).length).toBe(PERMS.filter((p) => p.is_active).length);
@@ -332,7 +332,7 @@ describe("Edit Name (design portal-ui-polish-2, decisions 12 and 13)", () => {
     const links = within(jump).getAllByRole("link");
     expect(links.map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
       ["Case Work", "#group-case_work"],
-      ["People and access", "#group-people"],
+      ["People and Access", "#group-people"],
       ["Administration", "#group-administration"],
     ]);
     for (const l of links) expect(document.querySelector(l.getAttribute("href")!)).not.toBeNull();
@@ -341,7 +341,7 @@ describe("Edit Name (design portal-ui-polish-2, decisions 12 and 13)", () => {
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
       "Choose a Group",
       "Case Work",
-      "People and access",
+      "People and Access",
       "Administration",
     ]);
   });

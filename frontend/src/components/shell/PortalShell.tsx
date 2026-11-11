@@ -19,7 +19,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 
 import { cx, ErrorBanner, Loading, Menu, useOverlay } from "@/components/ui";
 import { session } from "@/lib/api/client";
-import { labelOf, useAlertCounts, useInboxCounts, useLabels, useMe, useMyCounts } from "@/lib/api/hooks";
+import { useAlertCounts, useInboxCounts, useLabels, useMe, useMyCounts } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { Me } from "@/lib/api/types";
 import { can, canAny } from "@/lib/can";
 import { T } from "@/lib/messages";

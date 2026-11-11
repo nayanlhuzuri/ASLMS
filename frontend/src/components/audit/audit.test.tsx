@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -205,7 +208,9 @@ describe("the search", () => {
     const table = await screen.findByRole("table");
     const [, first, second] = within(table).getAllByRole("row");
     expect(within(first!).getByText("14 Oct 2026, 14:34:07")).toBeInTheDocument();
-    expect(within(first!).getByRole("link", { name: "ownership.claim" })).toHaveAttribute(
+    // design portal-names-and-labels, decision 20: the action by name, its code as the title
+    expect(within(first!).getByRole("link", { name: "Case Claimed" })).toHaveAttribute("title", "ownership.claim");
+    expect(within(first!).getByRole("link", { name: "Case Claimed" })).toHaveAttribute(
       "href",
       "/audit?from=2026-10-01&action=ownership.claim",
     );
@@ -231,7 +236,7 @@ describe("the search", () => {
     expect(within(select).getByRole("option", { name: "Any Action" })).toHaveValue("");
     expect(within(select).getByRole("option", { name: "All Custody Actions" })).toHaveValue("custody.");
     expect(within(select).getByRole("option", { name: "All Sign-in and Password Actions" })).toHaveValue("auth.");
-    expect(within(select).getByRole("option", { name: "custody.recalled" })).toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "Case Recalled" })).toHaveValue("custody.recalled");
     const groups = within(select).getAllByRole("group").map((g) => g.getAttribute("label"));
     expect(groups).toEqual(["Custody", "Ownership", "Sign-in and Password"]);
     await userEvent.selectOptions(select, "custody.");
@@ -327,7 +332,9 @@ describe("the search", () => {
     const api = routes();
     renderWithClient(<AuditSearch params={{}} />);
     await screen.findByRole("table");
-    const before = api.calls.length;
+    // the office names (GET /reference/offices) load on their own once the rows show; only searches are counted
+    const searches = () => api.calls.filter((c) => c.path !== "/reference/offices").length;
+    const before = searches();
     await userEvent.type(screen.getByLabelText("Name Contains"), "S");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Give 2 to 100 characters.")).toBeInTheDocument();
@@ -342,7 +349,7 @@ describe("the search", () => {
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText(/A record id looks like/)).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
-    expect(api.calls.length).toBe(before);
+    expect(searches()).toBe(before);
   });
 
   it("a hand-typed URL that fails the browser checks is not sent", async () => {
@@ -381,7 +388,10 @@ describe("the entry page", () => {
       }),
     });
     renderWithClient(<AuditEntry id={ID} />);
+    // decision 20: the name, then the code an auditor quotes
     expect(await screen.findByText("office.update")).toBeInTheDocument();
+    expect(screen.getByText("Office Changed")).toBeInTheDocument();
+    expect(screen.getByText("office.update").tagName).toBe("CODE");
     expect(screen.getByText("14 Oct 2026, 14:34:07")).toBeInTheDocument();
     expect(screen.getByText("Anita Sharma, Under Secretary, EDU")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.5")).toBeInTheDocument();
@@ -450,7 +460,7 @@ describe("the Work list template (design portal-ui-redesign, decision 26)", () =
     expect(nav.push).toHaveBeenLastCalledWith("/audit/r-2");
     // a link inside a row does its own job, not the row's
     nav.push.mockReset();
-    await userEvent.click(within(second!).getByRole("link", { name: "custody.sent" }));
+    await userEvent.click(within(second!).getByRole("link", { name: "Case Sent" }));
     expect(nav.push).not.toHaveBeenCalledWith("/audit/r-2");
     expect(screen.getByText("2 entries")).toBeInTheDocument();
     expect(primaryActions(container)).toEqual(["Search"]);
@@ -493,5 +503,20 @@ describe("Layout B on the Audit Log (portal-ui-polish-2, decision 23)", () => {
     expect(within(hero).getByRole("button", { name: "7 Days" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(within(strip).getByRole("button", { name: "Remove filter Name Contains: Sharma" }));
     expect(nav.push).toHaveBeenLastCalledWith("/audit?entity_type=case");
+  });
+});
+
+describe("the list's cells never split a word (design portal-ui-kit-fixes, decision 15; portal-names-and-labels, deviation 8)", () => {
+  const dir = join(process.cwd(), "src", "components", "audit");
+  const css = readFileSync(join(dir, "audit.module.css"), "utf-8");
+  const rule = (selector: string) => css.slice(css.indexOf(`${selector} {`), css.indexOf("}", css.indexOf(`${selector} {`)));
+
+  it("the record type breaks a word only when it cannot fit its line, and the action never mid-word", () => {
+    expect(rule(".record")).toMatch(/overflow-wrap: break-word;/);
+    expect(rule(".record")).not.toMatch(/anywhere/);
+    expect(rule(".action")).toMatch(/overflow-wrap: normal;/);
+    const table = readFileSync(join(dir, "AuditTable.tsx"), "utf-8");
+    expect(table).toContain("<span className={s.record}>{r.entity_type}</span>");
+    expect(table).not.toMatch(/className=\{s\.code\}/);
   });
 });

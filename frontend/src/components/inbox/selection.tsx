@@ -13,6 +13,7 @@ import { useDepartments, useInboxCounts, useMe } from "@/lib/api/hooks";
 import type { InboxCounts, Me } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { T } from "@/lib/messages";
+import { nameOptions } from "@/lib/officeNames";
 
 export interface Selection {
   me: Me | undefined;
@@ -45,7 +46,8 @@ export function useInboxSelection(requested: string | undefined): Selection {
       : blocks[0];
   const names = new Map((all.data?.departments ?? []).map((d) => [d.code, d.name]));
   const codes = viewAll ? [...new Set([...ownCodes, ...(all.data?.departments ?? []).map((d) => d.code)])] : ownCodes;
-  const options = codes.map((code) => ({ code, label: names.get(code) ? `${code} — ${names.get(code)}` : code }));
+  // design portal-names-and-labels, decision 8: names alone, sorted by name
+  const options = nameOptions(codes.map((code) => ({ code, name: names.get(code) ?? code }))).map((o) => ({ code: o.value, label: o.label }));
   return {
     me: me.data,
     department,

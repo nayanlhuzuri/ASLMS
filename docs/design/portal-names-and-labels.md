@@ -697,3 +697,59 @@ recommended answers".
 ## Owner's answers (10 Nov 2026)
 
 All open questions answered with the recommended answers.
+
+## Deviations (developer, 11 Nov 2026)
+
+1. **"as" is not a small word.** The shared Title Case rule (design portal-ui-polish-2, decision 2, pinned in both
+   suites) does not lower-case "as", so `serverLabel("Next date reported as wrong")` gives "Next Date Reported As
+   Wrong", and the Details label of `closed_at` is "Recorded As Disposed". The rule was left unchanged: changing it
+   touches both suites and five existing `T` labels ("Keep As Is"…). The pinned example in `displayLabels.test.ts`
+   says so.
+2. **Server lists are Title-Cased once, in the hooks.** `useLabels` (office, ticket and alert kinds),
+   `useWorkflowCodes` (note kinds, pending actions, stages, response modes, custody reasons) and `useDocumentTypes`
+   apply `serverLabel` in their `select`, so every option list built from them (Set Stage, Send Case, note and
+   document types, the alert-kind filter) is in Title Case without a call at each site. User type names are kept as
+   stored there, because administrators edit them (Edit Name), and are Title-Cased where shown through `labelOf`.
+   `*_label` fields on other responses are wrapped at each site, as decision 12's guard requires.
+3. **The guards use the TypeScript parser** (`src/test/sourceScan.ts`). A value counts as shown in a JSX child, a
+   `DataTable` `cell:`, a `T.*` builder's arguments or the value side of a `[T.x, value]` fact pair; attributes,
+   object literals, comparisons, index lookups and the arguments of lookup calls are not, while the receiver of a
+   `.filter(Boolean).join(...)` chain is. The server-label guard names the stage, timeline and attention receivers
+   per file. Both start with an empty allowlist.
+4. **Enum-label registry details.** A `LABELLED` entry may be marked `sentence` (the map holds sentences or sentence
+   parts, such as `T.nd.reasons`; checked for coverage, not for Title Case) and may list `extra` keys the screen shows
+   beyond the enum (the `outside_queue` lane, the `note_attachment` source kind, the console's `typed` source, the
+   `keyword` rule kind). A domain enum name defined in two modules is exported as `<module>.<Name>`
+   (`causelists.FetchStatus`, `ops.FetchStatus`). The stale-label check removed `T.wf.alertStatus.superseded`, which
+   no `AlertStatus` value has.
+5. **The audit-action listener** in `tests/db/conftest.py` lets fixture rows whose action starts with `test.` through,
+   and also fails a test after the fact when the code under test swallowed the error.
+6. **Retired codes (decision 23):** `SELECT DISTINCT action FROM audit_log` on the dev database (read only, 11 Nov
+   2026) gave 44 codes, all in `AUDIT_ACTIONS`; none is retired. `T.audit.groups` gained `next_date` and
+   `next_dates`.
+7. **`useOfficeNames`** does not retry after a 403 and does not refetch when another `OfficeName` mounts after an error
+   (`retryOnMount: false`), so a login without the functions asks once and sees codes.
+8. **The Audit Log's Record cell breaks a word only when it cannot fit.** With the Action cell no longer breaking
+   mid-word (decision 20), the Record cell (`entity_type`, still `.code` with `overflow-wrap: anywhere`) was the one
+   column the table could squeeze, and the screen check found "Sample" and "length" split at 1280 px. It now has its
+   own `.record` rule, mono with `overflow-wrap: break-word` (design portal-ui-kit-fixes, decision 15). `.code` keeps
+   `anywhere` for the entry page's before / after values.
+9. **A badge naming a department wraps.** The cause-list Ownership badges ("Claimed by …", "Strong · … · 0.95") now
+   carry the name (decision 6) and the kit `Badge` never wrapped, so a long name widened the entries table past the
+   page at 1280 px. The kit `Badge` gained `wrap` (`data-wrap`: the text wraps at word boundaries, `height: auto`), used
+   by those two badges, which also carry the code as their own `title` (the wrapping titled spans are gone, since the
+   badge's own title hid theirs).
+10. **Row 41's design is updated.** `docs/design/portal-audit-health.md`, decision 5, notes that its "Action (the code,
+    monospace)" and office code are superseded by U1 (decisions 20-23).
+11. **Review advisories.** `labelFor` reads the map before answering "—" for an empty code, so the date presets' ""
+    option reads "Any"; `useReportCatalogue` and `useAuditActions` no longer set `retryOnMount: false`; the
+    `system.migrated` action is named "Database Migrated", since it is written for downgrades too.
+8. **Report label "Median duration (ms)"** became "Median Duration in Milliseconds": the rule would write "(Ms)".
+   The synthetic group rows ("Not claimed — recommended", "Whole department (no responsible unit)") are row values
+   and keep their sentence case (decision 10). The export header's scope line ("Department EDU") and the report
+   form's "Name (CODE)" department labels are unchanged; the design does not name them.
+9. **Office names beyond the listed places.** The timeline's one-line details (`lib/timeline.ts`) name offices from
+   the map (`TimelineLabels.offices`); the pool's "Dismissed by" codes, the Case Inbox's holder cell, the Users
+   list's membership line and the User Picker's office line show names; the custody and Send Case dialogs show the
+   recipient's `office_name` alone.
+10. **`HIDDEN_FIELDS` keeps `id`**, the overview's own key, though no block exports it; the stale check skips it.

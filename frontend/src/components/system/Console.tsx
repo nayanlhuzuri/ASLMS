@@ -43,6 +43,7 @@ import type {
 import { formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { CONSOLE_ERRORS, errorText, T } from "@/lib/messages";
 import { sendBlock, signatureWord, toneOf } from "@/lib/systemHealth";
+import { labelFor } from "@/lib/displayLabels";
 
 import { ApiHistory } from "./ApiPanel";
 import s from "./system.module.css";
@@ -107,7 +108,7 @@ export function ModalTabs<K extends string>({
             onClick={() => onSelect(t)}
             onKeyDown={(e) => onKey(e, i)}
           >
-            {labels[t] ?? t}
+            {labelFor(labels, t)}
           </button>
         ))}
       </div>
@@ -193,7 +194,7 @@ function RequestView({
           {console.fields.map((f) => {
             const source = typed.has(f.name) ? "typed" : f.source;
             const hint = [
-              `${C.source[source] ?? source} · ${f.mandatory ? C.mandatory : C.optional}`,
+              `${labelFor(C.source, source)} · ${f.mandatory ? C.mandatory : C.optional}`,
               `${f.format}. ${f.meaning}`,
               f.hint,
             ]
@@ -485,7 +486,7 @@ function ResponseView({
   return (
     <div className="stack" aria-live="polite">
       <p className={s.outcome}>
-        <Badge tone={toneOf(view.status)}>{C.outcome[view.status] ?? view.status}</Badge>
+        <Badge tone={toneOf(view.status)}>{labelFor(C.outcome, view.status)}</Badge>
       </p>
       <KvList items={items} />
       <section className="stack" aria-label={C.requestSent}>

@@ -52,7 +52,8 @@ def scope_text(report: Report) -> str:
 
 def generated_by_text(report: Report) -> str:
     g = report.generated_by or {}
-    parts = [g.get("name"), g.get("designation"), g.get("office_code")]
+    # design portal-names-and-labels, decision 9: the office by name (its code only when no name is known)
+    parts = [g.get("name"), g.get("designation"), g.get("office_name") or g.get("office_code")]
     return ", ".join(p for p in parts if p)
 
 
@@ -81,6 +82,12 @@ def section_note(section: Section) -> str | None:
     if section.truncated and cap not in note:
         note = f"{cap} {note}".strip()
     return note or None
+
+
+def shown_columns(section: Section) -> list[Column]:
+    """The columns the screen and the PDF show: every column but the `screen=False` code columns (design
+    `portal-names-and-labels`, decision 26). Excel keeps every column."""
+    return [c for c in section.columns if c.screen]
 
 
 def _cell_text(column: Column, value: Any) -> str:
@@ -235,16 +242,19 @@ def _draw(writer, content: str) -> None:
 
 
 def to_pdf(report: Report) -> bytes:
-    """A4 landscape: the report header on page 1, one table per section (each section from a new page), the
+    """A4 landscape: the report header on page 1, one table per section (each section from a new page) without the
+    code columns (decision 26), the
     column headers repeated on every page of a table, totals in bold, "first N of M rows" on a capped section and
     "Page n of m" in the footer. Every value is HTML-escaped."""
     buf = io.BytesIO()
     writer = pymupdf.DocumentWriter(buf)
     first = True
     for section in report.sections:
-        rows_html = [_row_html(section.columns, row, i) for i, row in enumerate(section.rows)]
+        # decision 26: code columns are for Excel only
+        columns = shown_columns(section)
+        rows_html = [_row_html(columns, row, i) for i, row in enumerate(section.rows)]
         if section.totals is not None:
-            rows_html.append(_row_html(section.columns, section.totals, len(rows_html), "total"))
+            rows_html.append(_row_html(columns, section.totals, len(rows_html), "total"))
         ids = [f"r{i}" for i in range(len(rows_html))]
         start, cont = 0, False
         while True:
@@ -259,14 +269,14 @@ def to_pdf(report: Report) -> bytes:
                 first = False
                 break
             remaining = rows_html[start:]
-            content = intro + _table_html(section.columns, remaining)
+            content = intro + _table_html(columns, remaining)
             n, all_fit = _place(content, ids[start:])
             if all_fit and n >= len(remaining):
                 _draw(writer, content)
                 first = False
                 break
             n = max(1, n)
-            _draw(writer, intro + _table_html(section.columns, remaining[:n]))
+            _draw(writer, intro + _table_html(columns, remaining[:n]))
             first = False
             start += n
             cont = True

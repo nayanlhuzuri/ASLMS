@@ -22,6 +22,7 @@ import { canIn, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
+import { nameOptions } from "@/lib/officeNames";
 
 import ib from "./inbox.module.css";
 
@@ -61,7 +62,8 @@ function casePathOf(caseRef: string, tail: string): string {
 }
 
 export function departmentOptions(codes: { code: string; name: string }[], exclude: (string | null | undefined)[] = []): Option[] {
-  return codes.filter((d) => !exclude.includes(d.code)).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }));
+  // design portal-names-and-labels, decision 8: names alone, sorted by name; the value stays the code
+  return nameOptions(codes, exclude);
 }
 
 export function officerOptions(items: Recipient[] | undefined): Option[] {
@@ -72,7 +74,7 @@ export function officerOptions(items: Recipient[] | undefined): Option[] {
     seen.add(p.user_id);
     out.push({
       value: p.user_id,
-      label: [p.full_name, p.designation, p.office_code].filter(Boolean).join(", "),
+      label: [p.full_name, p.designation, p.office_name].filter(Boolean).join(", "),
     });
   }
   return out;
@@ -114,7 +116,7 @@ export function ClaimAssignNow({
       <SelectField
         label={T.own.unit}
         hint={T.own.unitHint}
-        options={(people?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
+        options={nameOptions(people?.units ?? [])}
         placeholder={T.own.noUnit}
         value={unit}
         onChange={(e) => onUnit(e.target.value)}
@@ -531,7 +533,7 @@ export function AllotDialog({
             options={[
               { value: KEEP, label: keep(now?.unit?.code) },
               { value: CLEAR, label: T.own.clearUnit },
-              ...(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` })),
+              ...nameOptions(people.data?.units ?? []),
             ]}
             value={unit}
             onChange={(e) => setUnit(e.target.value)}

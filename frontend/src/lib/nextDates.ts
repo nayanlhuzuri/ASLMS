@@ -2,20 +2,17 @@
  * Plain words for next dates read from orders (design portal-next-dates, decisions 8, 11 and 12): where a date came
  * from, its review status, the one-line hint of a reading rule, an order's reading on the Orders tab, and whether a
  * queue item is a scanned order. Pure functions over the API's codes; no screen shows a rule code, a confidence or a
- * score. An unknown code shows the code with underscores as spaces (the portal's fallback); an unknown rule shows no
+ * score. An unknown code shows the code as words in Title Case (`labelFor`, the portal's fallback); an unknown rule shows no
  * hint at all.
  */
 import type { NextDate, NextDateReviewItem } from "./api/types";
+import { labelFor } from "./displayLabels";
 import { formatDate } from "./format";
 import { T } from "./messages";
 
-function fallback(code: string): string {
-  return code.replace(/_/g, " ");
-}
-
 /** The source of a next date in words (`order_period` → "Counted from the order"). */
 export function sourceLabel(code: string): string {
-  return T.nd.sources[code] ?? fallback(code);
+  return labelFor(T.nd.sources, code);
 }
 
 /**
@@ -23,7 +20,7 @@ export function sourceLabel(code: string): string {
  * an old pending row reads "In Use" like any other row in use; a rejected one "Marked Wrong".
  */
 export function statusLabel(code: string): string {
-  return T.nd.statuses[code] ?? fallback(code);
+  return labelFor(T.nd.statuses, code);
 }
 
 /** The one line under a suggested date; null for an unknown or missing rule. */
@@ -48,7 +45,7 @@ export interface Reading {
 export function readingLabel(order: OrderReadingLike): Reading | null {
   const status = order.next_date_status;
   if (!status) return null;
-  const words = T.nd.reading[status] ?? fallback(status);
+  const words = labelFor(T.nd.reading, status);
   const dated = status === "specific" || status === "period";
   return { date: dated && order.next_date_found ? formatDate(order.next_date_found) : null, words };
 }

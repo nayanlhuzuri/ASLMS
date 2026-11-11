@@ -1,0 +1,814 @@
+{
+  "audit_actions": [
+    "access.matrix",
+    "access.matrix_default_changed",
+    "access.matrix_default_kept",
+    "access.override",
+    "access.rule_changed",
+    "access.type_edited",
+    "alert.acknowledged",
+    "alert.done",
+    "assistant.answered",
+    "assistant.asked",
+    "assistant.court_order_opened",
+    "assistant.internal_included",
+    "auth.device_revoked",
+    "auth.locked",
+    "auth.login",
+    "auth.login_failed",
+    "auth.logout",
+    "auth.new_device",
+    "auth.otp_failed",
+    "auth.otp_sent",
+    "auth.password_changed",
+    "auth.password_reset",
+    "auth.password_reset_requested",
+    "auth.refresh_reused",
+    "auth.session_limit",
+    "auth.signed_out",
+    "auth.signed_out_idle",
+    "case.closed",
+    "case.court_duplicate_linked",
+    "case.fetch_court",
+    "case.merged",
+    "case.ref_renumbered",
+    "case.reopened",
+    "case.search_court",
+    "counsel_code.create",
+    "counsel_code.deactivate",
+    "counsel_code.reactivate",
+    "counsel_code.update",
+    "custody.recalled",
+    "custody.sent",
+    "data_load.collect_requested",
+    "data_load.collect_stopped",
+    "data_load.dedupe_scan",
+    "data_load.details_requested",
+    "data_load.gaps_queued",
+    "data_load.order_changed",
+    "data_load.paused",
+    "data_load.pdfs_after_details",
+    "data_load.resumed",
+    "data_load.started",
+    "designation.create",
+    "designation.deactivate",
+    "designation.reactivate",
+    "designation.update",
+    "discovery.sweep",
+    "document.archived",
+    "document.downloaded",
+    "document.upload_rejected",
+    "document.uploaded",
+    "document.visibility_changed",
+    "keyword.create",
+    "keyword.deactivate",
+    "keyword.reactivate",
+    "keyword.update",
+    "membership.added",
+    "membership.ended",
+    "membership.exit",
+    "membership.primary_changed",
+    "membership.reactivated",
+    "membership.super_admin_replaced",
+    "membership.updated",
+    "name_pattern.create",
+    "name_pattern.deactivate",
+    "name_pattern.reactivate",
+    "name_pattern.update",
+    "napix.api_tested",
+    "napix.call_log_purged",
+    "napix.health_checked",
+    "napix.masters_sync_requested",
+    "napix.queue_retry",
+    "napix.queue_retry_failed",
+    "napix.refetch_requested",
+    "napix.response_viewed",
+    "napix.token_checked",
+    "next_date.confirm",
+    "next_date.correct",
+    "next_date.enter",
+    "next_date.reject",
+    "next_date.report_kept",
+    "next_date.report_wrong",
+    "next_date.superseded_by_court",
+    "next_dates.direct_apply",
+    "next_dates.hearing_refresh",
+    "next_dates.reread",
+    "note.added",
+    "note.draft_deleted",
+    "note.draft_saved",
+    "note.draft_updated",
+    "note.finalised",
+    "notification_preferences.changed",
+    "office.admin_added",
+    "office.admin_replaced",
+    "office.create",
+    "office.deactivate",
+    "office.reactivate",
+    "office.update",
+    "ownership.allot",
+    "ownership.claim",
+    "ownership.reallotted_on_exit",
+    "ownership.take_over",
+    "ownership.unwatch",
+    "profile.confirmed",
+    "profile.updated",
+    "recommendation.close_claimed_backfill",
+    "recommendation.dismiss",
+    "recommendation.suggest",
+    "report.exported",
+    "scoring_settings.update",
+    "sourcetrace.retry_all_failed",
+    "sourcetrace.retry_requested",
+    "stage.set",
+    "system.migrated",
+    "system.restored",
+    "ticket.approve_refused",
+    "ticket.approved",
+    "ticket.document_archived",
+    "ticket.document_attached",
+    "ticket.opened",
+    "ticket.rejected",
+    "ticket.withdrawn",
+    "transfer.accept",
+    "transfer.decline",
+    "transfer.request",
+    "transfer.withdraw",
+    "user.create",
+    "user.disable",
+    "user.email_changed",
+    "user.enable",
+    "user.set_password",
+    "user.update",
+    "watchlist.create",
+    "watchlist.deactivate",
+    "watchlist.reactivate",
+    "watchlist.update"
+  ],
+  "case_detail_fields": {
+    "acts": [
+      "act_name_as_listed",
+      "national_act_code",
+      "section"
+    ],
+    "applications": [
+      "ia_number",
+      "party_name",
+      "status",
+      "filing_date"
+    ],
+    "classification": [
+      "bench_id",
+      "napix_bench_id",
+      "bench_name",
+      "bench_type_code",
+      "coram",
+      "coram_designation",
+      "judicial_branch",
+      "category",
+      "category_code",
+      "sub_category"
+    ],
+    "court_transfers": [
+      "transfer_date",
+      "from_court_text",
+      "to_court_text"
+    ],
+    "identity": [
+      "cnr",
+      "court_est_name",
+      "case_type_id",
+      "case_type_text",
+      "reg_no",
+      "reg_year",
+      "case_no_text",
+      "filing_case_type_id",
+      "filing_case_type_text",
+      "filing_no",
+      "filing_year",
+      "filing_no_text",
+      "filing_date",
+      "registration_date",
+      "date_first_list"
+    ],
+    "lower_courts": [
+      "level",
+      "court_name",
+      "case_no_text",
+      "decision_date"
+    ],
+    "objections": [
+      "seq",
+      "objection",
+      "scrutiny_date",
+      "compliance_by_date",
+      "receipt_date"
+    ],
+    "parties_as_printed": [
+      "petitioner_summary",
+      "respondent_summary",
+      "pet_advocate",
+      "res_advocate"
+    ],
+    "place": [
+      "state_id",
+      "district_id",
+      "state_name_as_listed",
+      "district_name_as_listed",
+      "filing_state_code",
+      "filing_district_code",
+      "fir_no",
+      "fir_year",
+      "police_station",
+      "police_st_code",
+      "uniform_code",
+      "main_matter_text"
+    ],
+    "portal": [
+      "is_provisional",
+      "is_tracked",
+      "first_seen_source",
+      "last_full_refresh_at",
+      "last_status_refresh_at",
+      "dossier_stale",
+      "merged_into_case_id",
+      "closed_at",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by"
+    ],
+    "portal_added": [
+      "court",
+      "est_code",
+      "sitting_bench",
+      "judges"
+    ],
+    "status": [
+      "status",
+      "disposal_date",
+      "disposal_nature",
+      "disposal_type",
+      "short_order",
+      "date_filing_disp",
+      "reason_for_rej",
+      "date_judgement_pronounced",
+      "date_judgement_reserved",
+      "goshwara_no",
+      "next_hearing_date",
+      "next_purpose",
+      "last_hearing_date"
+    ],
+    "writ_info": [
+      "appellate_case_number",
+      "appellate_authority"
+    ]
+  },
+  "enums": {
+    "AdvocateSide": [
+      "petitioner",
+      "respondent"
+    ],
+    "AlertKind": [
+      "hearing_due",
+      "next_date_changed",
+      "new_order",
+      "status_changed",
+      "compliance_due",
+      "request_due",
+      "recommendation",
+      "ownership",
+      "new_document",
+      "admin_ticket",
+      "workflow",
+      "next_date_review",
+      "new_note",
+      "listed_tomorrow",
+      "next_date_reported"
+    ],
+    "AlertStatus": [
+      "open",
+      "acknowledged",
+      "done",
+      "expired"
+    ],
+    "AssistantScope": [
+      "case",
+      "research",
+      "my_cases"
+    ],
+    "CaseStatus": [
+      "pending",
+      "disposed",
+      "unknown"
+    ],
+    "Channel": [
+      "in_app",
+      "email",
+      "sms"
+    ],
+    "CourtLevel": [
+      "hc",
+      "dc"
+    ],
+    "DigestMode": [
+      "none",
+      "daily"
+    ],
+    "DistrictKind": [
+      "district",
+      "agency"
+    ],
+    "DocGroup": [
+      "court_record",
+      "court_filing",
+      "internal"
+    ],
+    "DocKind": [
+      "causelist",
+      "order",
+      "upload",
+      "attachment",
+      "admin"
+    ],
+    "DocType": [
+      "causelist",
+      "order",
+      "judgment",
+      "petition",
+      "affidavit",
+      "counter_affidavit",
+      "rejoinder",
+      "written_submission",
+      "reply",
+      "interlocutory_application",
+      "annexure",
+      "parawise_comments",
+      "legal_opinion",
+      "compliance_report",
+      "correspondence",
+      "instructions_to_counsel",
+      "other",
+      "government_order"
+    ],
+    "DownloadStatus": [
+      "pending",
+      "stored",
+      "failed",
+      "not_available"
+    ],
+    "EntrySource": [
+      "napix_details",
+      "pdf_parse"
+    ],
+    "EventType": [
+      "case_created",
+      "case_updated",
+      "case_disposed",
+      "case_linked",
+      "listed",
+      "listed_supplementary",
+      "next_date_extracted",
+      "next_date_changed",
+      "status_changed",
+      "order_found",
+      "order_stored",
+      "document_uploaded",
+      "recommendation_made",
+      "claimed",
+      "dismissed",
+      "suggested_elsewhere",
+      "transfer_requested",
+      "transfer_decided",
+      "ownership_released",
+      "allotted",
+      "custody_moved",
+      "request_sent",
+      "request_answered",
+      "stage_set",
+      "note_added",
+      "alert_raised",
+      "source_failed",
+      "masters_synced",
+      "config_changed",
+      "user_created",
+      "user_updated",
+      "access_changed",
+      "case_taken_over",
+      "case_merged",
+      "next_date_reviewed",
+      "next_date_entered",
+      "recommendation_closed",
+      "listing_changed",
+      "next_date_differs",
+      "case_closed",
+      "case_reopened"
+    ],
+    "EventVisibility": [
+      "tracking_card",
+      "scoped"
+    ],
+    "FetchKind": [
+      "masters",
+      "causelist_day",
+      "dossier",
+      "status_batch",
+      "order_pdf",
+      "party_search",
+      "search_rows",
+      "causelist_recheck"
+    ],
+    "FetchLane": [
+      "request",
+      "daily",
+      "discovery",
+      "load"
+    ],
+    "FirstSeenSource": [
+      "causelist",
+      "search",
+      "discovery",
+      "link"
+    ],
+    "HearingSource": [
+      "dossier",
+      "show_business",
+      "causelist"
+    ],
+    "JobStatus": [
+      "running",
+      "succeeded",
+      "partial",
+      "failed"
+    ],
+    "LinkKind": [
+      "main_matter",
+      "connected",
+      "linked",
+      "ia_in",
+      "appeal_of",
+      "contempt_of",
+      "with",
+      "court_duplicate"
+    ],
+    "LinkSource": [
+      "dossier",
+      "causelist",
+      "manual",
+      "dedupe"
+    ],
+    "ListSource": [
+      "napix",
+      "ghc_website",
+      "local_dir"
+    ],
+    "ListType": [
+      "daily",
+      "supplementary",
+      "lawazima",
+      "vacation",
+      "other"
+    ],
+    "LoadOrder": [
+      "cases_first",
+      "lists_first",
+      "cases_with_orders"
+    ],
+    "LowerCourtLevel": [
+      "appellate",
+      "trial"
+    ],
+    "MasterKind": [
+      "state",
+      "district",
+      "bench",
+      "case_type",
+      "act"
+    ],
+    "MessageRole": [
+      "user",
+      "assistant",
+      "system"
+    ],
+    "NextDateSource": [
+      "causelist",
+      "current_status",
+      "order_specific",
+      "order_period",
+      "manual"
+    ],
+    "NextHearingBasis": [
+      "court",
+      "order",
+      "around",
+      "confirmed",
+      "manual"
+    ],
+    "NoteKind": [
+      "general",
+      "decision",
+      "instruction",
+      "hearing",
+      "counsel_advice",
+      "compliance",
+      "file_noting",
+      "correction",
+      "opinion",
+      "hand_over",
+      "closing",
+      "reopening"
+    ],
+    "NoteSource": [
+      "user",
+      "system"
+    ],
+    "NotificationStatus": [
+      "queued",
+      "sent",
+      "failed",
+      "read"
+    ],
+    "OfficeKind": [
+      "state",
+      "central",
+      "department",
+      "directorate",
+      "advocate_general",
+      "unit"
+    ],
+    "OrderKind": [
+      "interim",
+      "final",
+      "judgment"
+    ],
+    "OrderNextDateStatus": [
+      "pending",
+      "specific",
+      "period",
+      "unclear",
+      "none",
+      "no_text"
+    ],
+    "OtpPurpose": [
+      "login",
+      "password_reset",
+      "new_device"
+    ],
+    "OwnershipRole": [
+      "primary",
+      "watcher"
+    ],
+    "OwnershipStatus": [
+      "active",
+      "transferred",
+      "released"
+    ],
+    "ParseStatus": [
+      "pending",
+      "parsed",
+      "failed",
+      "empty"
+    ],
+    "PartyRole": [
+      "petitioner",
+      "respondent"
+    ],
+    "PatternKind": [
+      "exact",
+      "prefix",
+      "regex"
+    ],
+    "PendingAction": [
+      "none",
+      "examine",
+      "reply",
+      "file",
+      "comply",
+      "review",
+      "parawise_comments",
+      "report",
+      "documents",
+      "opinion",
+      "instructions",
+      "clarification",
+      "other"
+    ],
+    "Permission": [
+      "users.view",
+      "users.create",
+      "users.edit",
+      "users.set_type",
+      "users.enable_disable",
+      "users.grant",
+      "users.reset_password",
+      "users.propose_head",
+      "access.manage_types",
+      "offices.manage",
+      "admin.counsel_codes",
+      "admin.keywords",
+      "admin.watchlist",
+      "admin.masters_sync",
+      "admin.napix_refetch",
+      "admin.config",
+      "admin.designations",
+      "admin.scoring",
+      "admin.tickets",
+      "admin.sourcetrace",
+      "admin.data_load",
+      "admin.service_health",
+      "cases.view_scope",
+      "cases.view_all",
+      "cases.view_private_all",
+      "cases.search_court",
+      "cases.claim",
+      "cases.dismiss",
+      "cases.suggest_elsewhere",
+      "cases.transfer_request",
+      "cases.transfer_decide",
+      "cases.allot",
+      "cases.release",
+      "cases.take_over",
+      "custody.move",
+      "custody.recall",
+      "custody.track",
+      "requests.send",
+      "requests.answer",
+      "stages.set",
+      "notes.add",
+      "notes.view_counsel_shared",
+      "notes.view_private_office",
+      "documents.upload",
+      "documents.view",
+      "documents.download",
+      "alerts.acknowledge",
+      "next_dates.review",
+      "next_dates.report_wrong",
+      "next_dates.correct",
+      "reports.department",
+      "reports.state",
+      "dashboard.state",
+      "assistant.use",
+      "audit.view",
+      "cases.close",
+      "cases.reopen"
+    ],
+    "PermissionEffect": [
+      "grant",
+      "deny"
+    ],
+    "RecommendationOrigin": [
+      "cause_list",
+      "rescore",
+      "search",
+      "suggestion",
+      "watchlist",
+      "discovery"
+    ],
+    "RecommendationStatus": [
+      "recommended",
+      "claimed",
+      "dismissed",
+      "suggested_elsewhere",
+      "expired",
+      "claimed_elsewhere"
+    ],
+    "RecordType": [
+      "CASE",
+      "REQ",
+      "NOTE",
+      "DOC",
+      "TRF",
+      "NXT",
+      "ALR",
+      "TKT"
+    ],
+    "ResolutionStatus": [
+      "resolved",
+      "provisional",
+      "unresolved"
+    ],
+    "ResponseMode": [
+      "department",
+      "counsel",
+      "none"
+    ],
+    "ReviewStatus": [
+      "not_needed",
+      "pending",
+      "confirmed",
+      "rejected",
+      "superseded",
+      "expired"
+    ],
+    "Role": [
+      "super_admin",
+      "state_oversight",
+      "dept_head",
+      "dept_admin",
+      "dept_officer",
+      "directorate_user",
+      "referral_reviewer",
+      "standing_counsel",
+      "central_operator",
+      "auditor"
+    ],
+    "ScanStatus": [
+      "pending",
+      "clean",
+      "infected",
+      "failed",
+      "skipped"
+    ],
+    "ScoreBand": [
+      "high",
+      "medium"
+    ],
+    "SessionEndReason": [
+      "signed_out",
+      "idle",
+      "limit",
+      "replaced",
+      "ended"
+    ],
+    "Severity": [
+      "critical",
+      "high",
+      "normal"
+    ],
+    "SnapshotSource": [
+      "cnr",
+      "current_status"
+    ],
+    "SourcetraceStatus": [
+      "not_applicable",
+      "pending",
+      "ingested",
+      "failed"
+    ],
+    "Stage": [
+      "notice_received",
+      "parawise_comments_sought",
+      "parawise_comments_received",
+      "counsel_briefed",
+      "affidavit_drafted",
+      "affidavit_vetted",
+      "affidavit_filed",
+      "hearing_pending",
+      "order_received",
+      "order_under_examination",
+      "compliance_in_progress",
+      "compliance_reported",
+      "appeal_under_consideration",
+      "appeal_filed",
+      "contempt_notice",
+      "contempt_reply_filed",
+      "closed",
+      "review_petition_filed",
+      "appeal_dismissed",
+      "appeal_allowed",
+      "further_appeal_filed",
+      "complied_after_dismissal",
+      "vakalatnama_submitted",
+      "contempt_disposed"
+    ],
+    "TextStatus": [
+      "pending",
+      "extracted",
+      "failed",
+      "none"
+    ],
+    "TicketKind": [
+      "head_change"
+    ],
+    "TicketStatus": [
+      "open",
+      "approved",
+      "rejected",
+      "withdrawn"
+    ],
+    "TransferStatus": [
+      "requested",
+      "accepted",
+      "declined",
+      "withdrawn"
+    ],
+    "Visibility": [
+      "case_scope",
+      "counsel_shared",
+      "private_to_office"
+    ],
+    "causelists.FetchStatus": [
+      "pending",
+      "fetched",
+      "failed",
+      "not_available"
+    ],
+    "ops.FetchStatus": [
+      "pending",
+      "running",
+      "done",
+      "failed",
+      "skipped"
+    ]
+  }
+}

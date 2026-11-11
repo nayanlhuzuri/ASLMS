@@ -177,9 +177,11 @@ describe("fieldOfError", () => {
 });
 
 describe("action names (design portal-ui-polish-2, decision 13)", () => {
-  it("names Edit Name's action and leaves other codes as they are", async () => {
+  it("names every action, and a code with no name shows itself (design portal-names-and-labels, decision 20)", async () => {
     const { actionName } = await import("./audit");
     expect(actionName("access.type_edited")).toBe("User Type Name Changed");
-    expect(actionName("access.matrix")).toBe("access.matrix");
+    expect(actionName("access.matrix")).toBe("User Type Functions Changed");
+    expect(actionName("ownership.claim")).toBe("Case Claimed");
+    expect(actionName("retired.unknown_code")).toBe("retired.unknown_code");
   });
 });

@@ -9,6 +9,7 @@ import type { AssistantCitation, AssistantMessage, AssistantScope, AssistantStat
 import { INLINE_PDF } from "./documents";
 import { formatDate } from "./format";
 import { T } from "./messages";
+import { labelFor } from "./displayLabels";
 
 export interface Segment {
   text: string;
@@ -71,7 +72,7 @@ export function sourceLink(c: AssistantCitation, messageId: string, inlinePdf: b
 const KINDS: Record<string, string> = T.assistant.kinds;
 
 function kindWord(kind: string): string {
-  return KINDS[kind] ?? kind;
+  return labelFor(KINDS, kind);
 }
 
 /** A source's kind in Title Case words (design assistant-ollama, decision 14). */

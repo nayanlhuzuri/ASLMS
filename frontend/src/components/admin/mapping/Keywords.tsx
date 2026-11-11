@@ -48,6 +48,7 @@ import { given } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 import { useListState } from "@/lib/useListState";
+import { labelFor } from "@/lib/displayLabels";
 
 import { conflictAware, OfficeCell, RuleMenu, RuleToolbar, SwitchLine } from "./common";
 import s from "./mapping.module.css";
@@ -114,7 +115,7 @@ export function KeywordsAndPatterns() {
       ? (patterns.data?.items ?? []).map((r): Row => ({ type: "pattern", key: `np-${r.id}`, text: r.pattern, row: r }))
       : []),
   ];
-  const kindText = (r: Row) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind));
+  const kindText = (r: Row) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (labelFor(T.mapping.kindShort, r.row.kind)));
   const searching = state.applied !== "";
   const pending = keywords.isPending || patterns.isPending;
   const known = new Set([...(keywords.data?.items ?? []), ...(patterns.data?.items ?? [])].map((r) => r.id));

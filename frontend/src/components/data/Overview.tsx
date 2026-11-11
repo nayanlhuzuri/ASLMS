@@ -52,6 +52,7 @@ import {
 import { formatDate, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { COLLECT_FUNCTIONS } from "@/lib/routes";
+import { labelFor } from "@/lib/displayLabels";
 
 import ds from "./data.module.css";
 
@@ -137,7 +138,7 @@ function StatusLine({ data }: { data: DataOverview }) {
             tone={state === "running" ? "info" : state === "paused" ? "warning" : state === "finished" ? "success" : undefined}
             title={state === "paused" && st.reason ? st.reason : undefined}
           >
-            {T.dc.states[state] ?? state}
+            {labelFor(T.dc.states, state)}
           </Badge>
         </span>
       </li>
@@ -303,7 +304,7 @@ function LeftTile({ data }: { data: DataOverview }) {
           rowKey={(r) => r.kind}
           empty={<EmptyState compact>{T.dc.nothingLeft}</EmptyState>}
           columns={[
-            { key: "kind", header: T.dc.cols.kind, primary: true, cell: (r) => T.dc.kinds[r.kind] ?? r.kind },
+            { key: "kind", header: T.dc.cols.kind, primary: true, cell: (r) => labelFor(T.dc.kinds, r.kind) },
             { key: "total", header: T.dc.cols.total, align: "right", cell: (r) => n(r.total) },
             ...LANES.map((lane) => ({
               key: lane,
@@ -374,7 +375,7 @@ function RightNow({
                 <ul className={ds.chips}>
                   {[...fetching.entries()].map(([kind, count]) => (
                     <li key={kind} className={ds.pulse}>
-                      <Badge tone="info">{`${T.dc.kinds[kind] ?? kind} · ${n(count)}`}</Badge>
+                      <Badge tone="info">{`${labelFor(T.dc.kinds, kind)} · ${n(count)}`}</Badge>
                     </li>
                   ))}
                 </ul>
@@ -590,7 +591,7 @@ function DaysCell({ m }: { m: MonthRow }) {
         text={T.dc.daysOf(n(done), n(m.days.calendar))}
       />
       <span>
-        <Badge tone={monthTone(state)}>{T.dc.monthStates[state] ?? state}</Badge>
+        <Badge tone={monthTone(state)}>{labelFor(T.dc.monthStates, state)}</Badge>
       </span>
     </span>
   );
@@ -614,8 +615,8 @@ function DaysDialog({ month, onClose }: { month: string; onClose: () => void }) 
             empty={<EmptyState>{T.dc.daysDialogEmpty}</EmptyState>}
             columns={[
               { key: "date", header: T.dc.cols.date, primary: true, cell: (r) => formatDate(r.ref) },
-              { key: "status", header: T.dc.cols.status, cell: (r) => T.dc.dayStates[r.status] ?? r.status },
-              { key: "lane", header: T.dc.cols.kindOfWork, cell: (r) => T.dc.lanes[r.lane] ?? r.lane },
+              { key: "status", header: T.dc.cols.status, cell: (r) => labelFor(T.dc.dayStates, r.status) },
+              { key: "lane", header: T.dc.cols.kindOfWork, cell: (r) => labelFor(T.dc.lanes, r.lane) },
               { key: "attempts", header: T.dc.cols.attempts, align: "right", cell: (r) => r.attempts },
             ]}
           />

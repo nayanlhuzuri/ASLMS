@@ -1,7 +1,7 @@
 /**
  * The rules of the Title Case guard over `T` (design portal-ui-polish-2, decision 4), read by `labels.test.ts`.
  *
- * - **Label paths** must pass `isTitleCase`: `nav.**`, `tabs.**`, `crumbs.**`, `crumbPaths.**`; a last key such as
+ * - **Label paths** must pass `isTitleCase`: `nav.**`, `tabs.**`, `crumbs.**`, `crumbPaths.**`, `audit.actionNames.**`; a last key such as
  *   `title`, `label`, `button` or ending in `Title`, `Label`, `Button`…; a parent key such as `cols`, `fields`,
  *   `badges`, `statuses`.
  * - **Sentence paths** (hints, help, placeholders, descriptions, notes, empty states, messages…) are not checked.
@@ -31,7 +31,11 @@ export const SENTENCE_KEY =
   /(hint|help|placeholder|description|desc|note|notice|empty|body|message|error|confirm|intro|subtitle|tooltip|aria|explain|why|detail)/i;
 const SENTENCE_START = /^(no|none|nothing)([A-Z0-9_]|$)/;
 
+/** Label paths whose keys contain dots (design portal-names-and-labels, decision 21: the audit action names). */
+const LABEL_PREFIXES = ["audit.actionNames."];
+
 export function isLabelPath(path: string): boolean {
+  if (LABEL_PREFIXES.some((p) => path.startsWith(p))) return true;
   const keys = path.split(".");
   if (LABEL_ROOTS.includes(keys[0] ?? "")) return true;
   const last = keys[keys.length - 1] ?? "";

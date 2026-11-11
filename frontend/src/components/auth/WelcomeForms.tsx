@@ -11,7 +11,8 @@ import { useState, type FormEvent } from "react";
 
 import { Button, CheckField, ErrorBanner, Loading, SelectField, TextField } from "@/components/ui";
 import { api, ApiError, session } from "@/lib/api/client";
-import { labelOf, useLabels } from "@/lib/api/hooks";
+import { useLabels } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { NextStep, ProfileOut } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { safeNext } from "@/lib/safeNext";

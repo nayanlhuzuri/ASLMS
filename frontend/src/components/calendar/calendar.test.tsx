@@ -87,7 +87,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     expect(call.path).toBe("/me/calendar?from=2026-09-28&to=2026-11-01");
     const day = within(grid).getByRole("button", { name: /^Thursday, 22 October:/ });
     // " (Today)" when the suite runs on 22 Oct 2026 itself
-    expect(day).toHaveAccessibleName(/^Thursday, 22 October: 1 hearing, 1 action due, 1 next date to confirm( \(Today\))?$/);
+    expect(day).toHaveAccessibleName(/^Thursday, 22 October: 1 hearing, 1 action due, 1 next date to enter( \(Today\))?$/);
     const kinds = Array.from(day.querySelectorAll("[data-kind]")).map((e) => e.getAttribute("data-kind"));
     // up to two events, then "+1 more"
     expect(kinds).toEqual(["hearing", "action_due"]);
@@ -109,7 +109,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     await userEvent.click(hearings);
     expect(hearings).toHaveAttribute("aria-pressed", "false");
     const day = within(grid).getByRole("button", { name: /^Thursday, 22 October:/ });
-    expect(day).toHaveAccessibleName(/^Thursday, 22 October: 1 action due, 1 next date to confirm( \(Today\))?$/);
+    expect(day).toHaveAccessibleName(/^Thursday, 22 October: 1 action due, 1 next date to enter( \(Today\))?$/);
     expect(day.querySelector("[data-kind='hearing']")).toBeNull();
     const agenda = screen.getByRole("region", { name: "Agenda" });
     expect(within(agenda).queryByText("Hearing")).toBeNull();
@@ -163,7 +163,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     }
     expect(within(rows[0]!).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     expect(within(rows[0]!).getByText("Court 3 · item 14 · Admission")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Parawise Comments")).toBeInTheDocument();
     expect(within(rows[2]!).getByRole("link", { name: "Open the Review" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
   });
 

@@ -93,7 +93,7 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     expect(within(row("WA/2/2026")).getByText(/Next Date/)).toBeInTheDocument();
     expect(within(row("WA/3/2026")).queryByText("This Week")).toBeNull();
     expect(within(row("WA/3/2026")).getByText(/Court Records/)).toBeInTheDocument();
-    expect(within(row("WA/4/2026")).getByText(/mystery/)).toBeInTheDocument();
+    expect(within(row("WA/4/2026")).getByText(/Mystery/)).toBeInTheDocument();
     // dates ascending
     const heads = within(agenda).getAllByRole("heading", { level: 3 }).map((h) => h.id);
     expect(heads).toEqual(["d-2026-10-14", "d-2026-10-20"]);
@@ -137,7 +137,7 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     });
     const { unmount } = renderWithClient(<Calendar params={{}} />);
     expect(await screen.findByText("Choose a department to see its hearings.")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("option", { name: "EDU — Education" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: "Education" })).toBeInTheDocument());
     expect(calendarCalls(api.calls)).toHaveLength(0);
     await userEvent.selectOptions(screen.getByLabelText("Department"), "EDU");
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?department=EDU");

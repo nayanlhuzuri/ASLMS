@@ -33,6 +33,21 @@
   text-overflow: ellipsis;
 }
 
+/* a badge that names an office (design portal-names-and-labels, deviation 9): the text wraps at word boundaries, so
+   its min-content is the longest word and a long name never widens its column; a word longer than the line still
+   breaks rather than overflow */
+.badge[data-wrap] {
+  height: auto;
+  min-height: 22px;
+  padding-block: 2px;
+  border-radius: var(--r-md);
+  white-space: normal;
+}
+
+.badge[data-wrap] .badgeText {
+  overflow-wrap: break-word;
+}
+
 .badge-danger {
   background: var(--red-soft);
   color: var(--red-text);

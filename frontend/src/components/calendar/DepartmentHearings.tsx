@@ -23,6 +23,8 @@ import type { Params } from "@/lib/params";
 import { monthGrid, monthOf, monthRange, parseMonth, shiftMonth, todayIst } from "@/lib/workflow";
 
 import cs from "@/components/case/case.module.css";
+import { nameOptions } from "@/lib/officeNames";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./hearings.module.css";
 
@@ -50,7 +52,7 @@ function calendarErrors(error: unknown): ErrorTexts {
 }
 
 function sourceLabel(source: string): string {
-  return T.cal.sources[source] ?? source;
+  return labelFor(T.cal.sources, source);
 }
 
 /** Items by date, ascending (the API's order kept within a day). */
@@ -193,7 +195,7 @@ export function DepartmentHearings({ params }: { params: Params }) {
         <SelectField
           label={T.cal.department}
           placeholder={T.cal.pickDepartment}
-          options={(departments.data?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }))}
+          options={nameOptions(departments.data?.departments ?? [])}
           value={department ?? ""}
           onChange={(e) => setFilters({ department: e.target.value || undefined })}
         />

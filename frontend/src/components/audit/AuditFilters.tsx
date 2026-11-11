@@ -143,7 +143,8 @@ export function AuditFilters({
     label: g.label,
     options: [
       ...(g.prefix ? [{ value: g.prefix, label: T.audit.allActions(g.label) }] : []),
-      ...g.codes.map((c) => ({ value: c, label: actionName(c) })),
+      // decision 20: the names within their group, by name; the value (and the URL) stays the code
+      ...g.codes.map((c) => ({ value: c, label: actionName(c) })).sort((x, y) => x.label.localeCompare(y.label)),
     ],
   }));
   const listed = actionOptions.some((g) => g.options.some((o) => o.value === form.action));

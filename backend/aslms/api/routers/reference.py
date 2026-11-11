@@ -2,11 +2,12 @@
 each user type with `assignable` for the caller. Reachable during the first-sign-in steps (`/welcome/profile`).
 `/reference/case-types` (design `portal-cases`, decision 14e): the High Court's active case types, for case
 readers. `/reference/benches` (design `portal-filters`, decision 12): the court numbers and bench texts of recent
-cause lists, for the filter pickers."""
+cause lists, for the filter pickers. `/reference/offices` (design `portal-names-and-labels`, decisions 1-4): the name of
+every office, so the portal shows names where responses carry codes."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
@@ -23,6 +24,26 @@ def labels(
     session: Session = Depends(get_session), user: User = Depends(current_user_pending)
 ) -> schemas.ReferenceLabelsOut:
     return schemas.ReferenceLabelsOut(**reference.labels(session, user))
+
+
+@router.get("/offices", response_model=schemas.OfficeNamesOut)
+def offices(
+    response: Response,
+    session: Session = Depends(get_session),
+    user: User = Depends(
+        require_any(
+            Permission.CASES_VIEW_SCOPE,
+            Permission.CASES_VIEW_ALL,
+            Permission.USERS_VIEW,
+            Permission.AUDIT_VIEW,
+        )
+    ),
+) -> schemas.OfficeNamesOut:
+    """The name of every office, active and inactive, at every tier, ordered by path, with its kind, tier,
+    Department-tier code and whether it is active. Office names only, the same for every caller who passes the
+    gate; no case data. Reads only; no audit row."""
+    response.headers["Cache-Control"] = "private, max-age=300"
+    return schemas.OfficeNamesOut(items=[schemas.OfficeNameOut(**row) for row in reference.offices(session)])
 
 
 @router.get("/case-types", response_model=list[schemas.CaseTypeOut])

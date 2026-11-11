@@ -208,7 +208,7 @@ describe("dashboard", () => {
     await screen.findByText("Open Tickets");
     const panel = screen.getByRole("region", { name: "Tickets Awaiting Action" });
     expect(within(panel).getByText("Departments Without a Head")).toBeInTheDocument();
-    expect(await within(panel).findByRole("rowheader", { name: "Head change" })).toBeInTheDocument();
+    expect(await within(panel).findByRole("rowheader", { name: "Head Change" })).toBeInTheDocument();
     expect(within(panel).getByRole("rowheader", { name: "EDU" })).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Open the Tickets List" })).toHaveAttribute("href", "/admin/tickets");
     const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
@@ -490,8 +490,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(4);
     for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "lead");
-    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Enter", "Due Soon", "New"]);
-    expect(within(rows[0]!).getByRole("link", { name: "Parawise comments" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
+    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Next Date to Enter", "Due Soon", "Case Received"]);
+    expect(within(rows[0]!).getByRole("link", { name: "Parawise Comments" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(rows[0]!).getByText("WP(C)/1234/2026 · Overdue 6 days")).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("link", { name: "Next Date to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
   });
@@ -937,7 +937,7 @@ describe("More About My Work (design dashboard-my-work-polish)", () => {
     expect(overdue.closest("[title]")).toHaveAttribute("title", nb("7 Nov 2026"));
     expect(rows[1]).toHaveTextContent("15 Nov 2026");
     expect(within(rows[2]!).getByText("No Due Date")).toHaveClass("muted");
-    expect(within(rows[0]!).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Parawise Comments")).toBeInTheDocument();
     expect(within(table).queryByText("parawise_comments")).toBeNull();
     expect(within(table).queryByText("Overdue")).toBeNull();
   });
@@ -1032,7 +1032,7 @@ describe("More About My Work (design dashboard-my-work-polish)", () => {
     const block = await screen.findByRole("region", { name: "Department: Education" });
     const table = await within(block).findByRole("table", { name: "Pending Actions" });
     expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Case", "Pending Action", "Due", "Overdue"]);
-    expect(within(table).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(table).getByText("Parawise Comments")).toBeInTheDocument();
     expect(within(table).queryByText("parawise_comments")).toBeNull();
   });
 });

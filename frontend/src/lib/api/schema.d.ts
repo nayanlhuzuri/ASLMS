@@ -4631,6 +4631,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reference/offices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Offices
+         * @description The name of every office, active and inactive, at every tier, ordered by path, with its kind, tier,
+         *     Department-tier code and whether it is active. Office names only, the same for every caller who passes the
+         *     gate; no case data. Reads only; no audit row.
+         */
+        get: operations["offices_reference_offices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports": {
         parameters: {
             query?: never;
@@ -11552,6 +11574,34 @@ export interface components {
          * @enum {string}
          */
         OfficeKind: "state" | "central" | "department" | "directorate" | "advocate_general" | "unit";
+        /**
+         * OfficeNameOut
+         * @description Design `portal-names-and-labels`, decision 1: an office's display name, nothing else.
+         */
+        OfficeNameOut: {
+            /** Code */
+            code: string;
+            /** Department Code */
+            department_code: string | null;
+            /** Is Active */
+            is_active: boolean;
+            kind: components["schemas"]["OfficeKind"];
+            /** Name */
+            name: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "state" | "department" | "directorate";
+        };
+        /**
+         * OfficeNamesOut
+         * @description `GET /reference/offices`: every office, active and inactive, ordered by path.
+         */
+        OfficeNamesOut: {
+            /** Items */
+            items: components["schemas"]["OfficeNameOut"][];
+        };
         /** OfficeNodeOut */
         OfficeNodeOut: {
             /** Children */
@@ -12471,6 +12521,11 @@ export interface components {
             kind: string;
             /** Label */
             label: string;
+            /**
+             * Screen
+             * @default true
+             */
+            screen: boolean;
         };
         /** ReportDepartmentOut */
         ReportDepartmentOut: {
@@ -12489,6 +12544,8 @@ export interface components {
             name: string;
             /** Office Code */
             office_code: string | null;
+            /** Office Name */
+            office_name?: string | null;
         };
         /** ReportOut */
         ReportOut: {
@@ -25875,6 +25932,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReferenceLabelsOut"];
+                };
+            };
+        };
+    };
+    offices_reference_offices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficeNamesOut"];
                 };
             };
         };

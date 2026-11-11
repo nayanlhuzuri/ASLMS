@@ -28,6 +28,7 @@ import { T } from "@/lib/messages";
 import { apiCasePath, refPath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 import { acceptOf, checkFile } from "@/lib/workflow";
+import { serverLabel } from "@/lib/displayLabels";
 
 import { useWorkflowRefresh, visibilityOptions } from "./common";
 import { problemText } from "./Upload";
@@ -228,7 +229,7 @@ export function NoteComposer({
         {docs.map((d) => (
           <CheckField
             key={d.id}
-            label={`${d.doc_type_label}${d.ref_no ? ` · ${d.ref_no}` : ""}${d.description ? ` — ${d.description}` : ""}`}
+            label={`${serverLabel(d.doc_type_label)}${d.ref_no ? ` · ${d.ref_no}` : ""}${d.description ? ` — ${d.description}` : ""}`}
             checked={links.includes(d.id)}
             onChange={(e) => setLinks((prev) => (e.target.checked ? [...prev, d.id] : prev.filter((x) => x !== d.id)))}
           />

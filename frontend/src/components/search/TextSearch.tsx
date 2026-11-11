@@ -20,6 +20,7 @@ type Hit = DocumentSearch["items"][number];
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
+import { serverLabel } from "@/lib/displayLabels";
 
 export function TextSearch({ params }: { params: Params }) {
   const setFilters = useFilters(params);
@@ -48,7 +49,7 @@ export function TextSearch({ params }: { params: Params }) {
       primary: true,
       cell: (it) => (
         <>
-          <div>{it.document.doc_type_label}</div>
+          <div>{serverLabel(it.document.doc_type_label)}</div>
           <div className="muted">
             {[it.document.order ? `${it.document.order.kind} ${it.document.order.order_no}` : null, formatDate(it.document.doc_date)]
               .filter(Boolean)

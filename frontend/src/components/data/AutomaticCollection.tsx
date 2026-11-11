@@ -39,6 +39,7 @@ import { dailyStatus, DC_KEYS, minutesToReset, POLL, PROBLEM_LINKS, type DataSch
 import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+import { labelFor } from "@/lib/displayLabels";
 
 import ds from "./data.module.css";
 import { usePulse } from "./Overview";
@@ -113,7 +114,7 @@ function LoadControl({ data, manage }: { data: DataLoad; manage: boolean }) {
             [T.dc.facts.since, st.version > 0 ? formatDateTime(st.changed_at) : null],
             [T.dc.facts.reason, st.version > 0 ? st.reason : null],
             [T.dc.facts.period, data.period ? `${formatDate(data.period.from)} – ${formatDate(data.period.to)}` : T.dc.noPeriodNote],
-            [T.dc.facts.order, T.data.presets[st.load_order] ?? st.load_order],
+            [T.dc.facts.order, labelFor(T.data.presets, st.load_order)],
             [T.dc.facts.connection, data.napix_enabled ? T.dc.connectionOn : T.dc.connectionOff],
           ]}
         />
@@ -342,7 +343,7 @@ export function OrderCard({ data, manage }: { data: DataLoad; manage: boolean })
     }
   }
   const now = T.dc.orderNow(
-    T.data.presets[st.load_order] ?? st.load_order,
+    labelFor(T.data.presets, st.load_order),
     st.first_from ? formatDate(st.first_from) : null,
     st.first_to ? formatDate(st.first_to) : null,
   );
@@ -447,7 +448,7 @@ function AllowanceCard({ data }: { data: DataLoad }) {
           rows={[...LANES]}
           rowKey={(lane) => lane}
           columns={[
-            { key: "lane", header: T.dc.cols.kindOfWork, primary: true, cell: (lane) => T.dc.lanes[lane] ?? lane },
+            { key: "lane", header: T.dc.cols.kindOfWork, primary: true, cell: (lane) => labelFor(T.dc.lanes, lane) },
             { key: "calls", header: T.dc.cols.calls, align: "right", cell: (lane) => n(a.used[lane]) },
           ]}
         />
@@ -527,7 +528,7 @@ function ScheduleCards() {
                   cell: (e) =>
                     e.result ? (
                       <Badge tone={e.result === "succeeded" ? "success" : e.result === "failed" ? "danger" : undefined}>
-                        {T.dc.results[e.result] ?? e.result}
+                        {labelFor(T.dc.results, e.result)}
                       </Badge>
                     ) : (
                       "—"
@@ -555,7 +556,7 @@ function ScheduleCards() {
                 {
                   key: "recheck",
                   header: T.dc.cols.recheck,
-                  cell: (d) => (d.recheck ? (T.dc.recheckStates[d.recheck.status] ?? d.recheck.status) : "—"),
+                  cell: (d) => (d.recheck ? (labelFor(T.dc.recheckStates, d.recheck.status)) : "—"),
                 },
               ]}
             />
@@ -643,7 +644,7 @@ export function DepartmentNames() {
                   rows={d.latest_failures}
                   rowKey={(f) => `${f.kind}:${f.ref}`}
                   columns={[
-                    { key: "kind", header: T.dc.cols.kindOfWork, cell: (f) => T.dc.kinds[f.kind] ?? f.kind },
+                    { key: "kind", header: T.dc.cols.kindOfWork, cell: (f) => labelFor(T.dc.kinds, f.kind) },
                     { key: "ref", header: T.data.ref, primary: true, cell: (f) => <span className="mono">{f.ref}</span> },
                     { key: "error", header: T.data.lastError, cell: (f) => f.last_error ?? "—" },
                     { key: "at", header: T.dc.cols.when, cell: (f) => formatDateTime(f.finished_at) },

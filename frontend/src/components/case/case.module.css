@@ -266,3 +266,9 @@
   margin: 0;
   color: var(--text-2);
 }
+
+/* the Details tab and the claim modal's Case Details: every definition list shares one label column, so the Identity,
+   Status and Classification cards line up (design portal-names-and-labels, decision 19) */
+.details {
+  --dl-label-w: min(15rem, 40%);
+}

@@ -365,7 +365,7 @@ describe("My Cases (decision 4)", () => {
     expect(badges(3)).toEqual(["Assigned to Me", "Claimed by Me", "With Me"]);
     const row3 = screen.getByRole("row", { name: "Open WP(C)/3/2026" });
     expect(row3.querySelector("[data-band]")).toHaveAttribute("data-band", "disposed");
-    expect(within(screen.getByRole("row", { name: "Open WP(C)/1/2026" })).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: "Open WP(C)/1/2026" })).getByText("Parawise Comments")).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).queryByText("Parawise comments")).toBeNull();
     expect(screen.getByText("3 cases")).toBeInTheDocument();
     expect(lastUrl(api.calls, "/inbox/mine?")).toContain("view=all");
@@ -389,7 +389,7 @@ describe("My Cases (decision 4)", () => {
     browserApi(routes());
     renderWithClient(<InboxFrame tab="mine" params={{}} />);
     const stage = await screen.findByLabelText("Stage");
-    await waitFor(() => expect(within(stage).getByRole("option", { name: "Counsel briefed" })).toBeInTheDocument());
+    await waitFor(() => expect(within(stage).getByRole("option", { name: "Counsel Briefed" })).toBeInTheDocument());
     expect(screen.queryByLabelText("Year")).toBeNull();
     expect(screen.getByLabelText(/^Words/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
@@ -435,9 +435,9 @@ describe("Department (decisions 9 to 14)", () => {
     browserApi(routes());
     renderWithClient(<InboxFrame tab="department" params={{}} />);
     const row = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
-    expect(within(row).getByText("EDU-DSE")).toBeInTheDocument();
+    expect(within(row).getByText("Secondary Education")).toBeInTheDocument();
     expect(within(row).getByText("Officer One", { exact: false })).toBeInTheDocument();
-    expect(within(row).getByText("Affidavit filed")).toBeInTheDocument();
+    expect(within(row).getByText("Affidavit Filed")).toBeInTheDocument();
     expect(within(row).getByText("Health Officer", { exact: false })).toBeInTheDocument();
     for (const label of ["Responsible Unit", "Dealing Officer", "Stage", "Next Hearing"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Words/)).toBeInTheDocument();

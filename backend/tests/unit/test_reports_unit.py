@@ -160,3 +160,133 @@ def test_filename_format():
     assert report_export.filename(r, "pdf", datetime(2026, 1, 2, 18, 45, tzinfo=UTC)) == (
         "aslms-pending-actions-state-20260103-0015.pdf"
     )
+
+
+# ------------------------------------------------------------------------------------------------ portal-names-and-labels
+
+
+def _report_source_literals() -> tuple[list[str], list[str], list[tuple[str, bool]]]:
+    """Every literal `Column(key, label, ...)` and `Section(key, title, ...)` in `services/reports.py`: the labels,
+    the titles and each column's key with its `screen` flag."""
+    import ast
+    from pathlib import Path
+
+    from aslms.services import reports
+
+    tree = ast.parse(Path(reports.__file__).read_text(encoding="utf-8"))
+    labels: list[str] = []
+    titles: list[str] = []
+    columns: list[tuple[str, bool]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        args = node.args
+        if len(args) < 2:
+            continue
+        literal = [
+            a.value if isinstance(a, ast.Constant) and isinstance(a.value, str) else None for a in args[:2]
+        ]
+        if node.func.id == "Column" and literal[1] is not None:
+            labels.append(literal[1])
+            screen = next(
+                (
+                    kw.value.value
+                    for kw in node.keywords
+                    if kw.arg == "screen" and isinstance(kw.value, ast.Constant)
+                ),
+                True,
+            )
+            if literal[0] is not None:
+                columns.append((literal[0], screen))
+        elif node.func.id == "Section" and literal[1] is not None:
+            titles.append(literal[1])
+    return labels, titles, columns
+
+
+def test_report_texts_are_title_case():
+    """Decision 13 (R1): catalogue titles, section titles, column labels and age-band labels in Title Case at the
+    source, so the screen, Excel and PDF agree."""
+    from aslms.core.titlecase import is_title_case
+    from aslms.services.reports import (
+        ACTION_COLUMNS,
+        CASE_COLUMNS,
+        COMPLIANCE_COLUMNS,
+        HEALTH_COLUMNS,
+        HEARING_MEASURES,
+        PENDING_MEASURES,
+        Scope,
+        _by_group_title,
+        _group_columns,
+    )
+
+    labels, titles, _ = _report_source_literals()
+    assert len(labels) > 40 and len(titles) >= 8
+    texts = [e["title"] for e in CATALOGUE.values()] + labels + titles
+    for cols in (
+        ACTION_COLUMNS,
+        CASE_COLUMNS,
+        COMPLIANCE_COLUMNS,
+        HEARING_MEASURES,
+        HEALTH_COLUMNS,
+        PENDING_MEASURES,
+    ):
+        texts += [c.label for c in cols]
+    for scope in (Scope("state", None, None), Scope("department", object(), None)):
+        texts += [c.label for c in _group_columns(scope)]
+        texts += [_by_group_title(scope), _by_group_title(scope) + " and Court"]
+    texts += [label for _k, label, _l, _h in AGE_BANDS] + [AGE_UNKNOWN[1]]
+    bad = [t for t in texts if not is_title_case(t)]
+    assert bad == []
+    assert CATALOGUE["pending-cases"]["title"] == "Pending Cases by Department, Court and Age"
+    assert CATALOGUE["data-health"]["title"] == "Data Collection Health"
+
+
+def test_code_columns_are_not_shown_on_screen():
+    """Decision 26 (R2): every column whose key ends in `_code` is for Excel only; every other column is shown."""
+    from aslms.services.reports import ACTION_COLUMNS, CASE_COLUMNS, COMPLIANCE_COLUMNS, Scope, _group_columns
+
+    _, _, literal_columns = _report_source_literals()
+    columns = list(literal_columns)
+    for cols in (ACTION_COLUMNS, CASE_COLUMNS, COMPLIANCE_COLUMNS):
+        columns += [(c.key, c.screen) for c in cols]
+    for scope in (Scope("state", None, None), Scope("department", object(), None)):
+        columns += [(c.key, c.screen) for c in _group_columns(scope)]
+    assert {k for k, _ in columns} >= {"group_code", "court_code", "holder_office_code", "holder_office"}
+    for key, screen in columns:
+        assert screen is (not key.endswith("_code")), key
+    assert Column("x_code", "X Code", screen=False).to_dict()["screen"] is False
+    assert Column("x", "X").to_dict() == {"key": "x", "label": "X", "kind": "text", "screen": True}
+
+
+def test_totals_label_on_first_shown_column():
+    from aslms.services.reports import ACTION_COLUMNS, COMPLIANCE_COLUMNS, _totals
+
+    rows = [{"held": 2, "open": 1}, {"held": 3, "open": 4}]
+    action = _totals(ACTION_COLUMNS, rows, "holder_department_code")
+    assert action["holder_department"] == "Total" and action["holder_department_code"] is None
+    assert action["held"] == 5
+    comp = _totals(COMPLIANCE_COLUMNS, rows, "department_code")
+    assert comp["office_name"] == "Total" and comp["department_code"] is None and comp["office_code"] is None
+    # a shown label column keeps the label
+    shown = [Column("group_code", "Department Code", screen=False), Column("group", "Department")]
+    assert _totals(shown, rows, "group")["group"] == "Total"
+
+
+def test_pdf_omits_hidden_columns_and_names_the_office():
+    report = _report(rows=2)
+    report.generated_by = {
+        "name": "Asha Das",
+        "designation": "Joint Secretary",
+        "office_code": "EDU",
+        "office_name": "Education Department",
+    }
+    for section in report.sections:
+        section.columns = [Column("office_code", "Office Code", screen=False), *section.columns]
+        for row in section.rows:
+            row["office_code"] = "CODE-HIDDEN"
+    _, text = _text(report_export.to_pdf(report))
+    assert "Office Code" not in text and "CODE-HIDDEN" not in text
+    assert "Asha Das, Joint Secretary, Education Department" in text
+    sheets = _sheets(report_export.to_xlsx(report))
+    first = sheets[sorted(k for k in sheets if not k.endswith(":raw"))[0]]
+    assert "Office Code" in first and "CODE-HIDDEN" in first

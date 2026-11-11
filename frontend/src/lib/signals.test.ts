@@ -23,7 +23,7 @@ describe("signal chips", () => {
   });
 
   it("an unknown kind shows its name and match, never raw JSON", () => {
-    expect(signalText({ kind: "new_kind", matched: "x", ref: { a: 1 } })).toBe("new kind: x");
+    expect(signalText({ kind: "new_kind", matched: "x", ref: { a: 1 } })).toBe("New Kind: x");
     expect(signalText({})).toBe("Signal");
   });
 });

@@ -95,6 +95,9 @@ calls); the hardening of the audit API (row 42); the four optional follow-ups (d
    these filters." A 503 `search_timeout` shows the API's message ("the search took too long; narrow the search") in
    the `ErrorBanner` with "Try again". IP address, browser and the before / after values are on the entry page only,
    so the list stays readable.
+   - *Superseded in part (11 Nov 2026) by row 232's U1 (design `portal-names-and-labels`, decisions 20-23): the
+     Action column shows the action by name in the body font, with the code as its title and on the entry page; the
+     office is shown by name.*
 6. **The entry page.** `GET /audit/{id}`: a `DefinitionList` of When, Action, By (name, designation, office), Case
    (link), Record (type and id), IP address and Browser (`user_agent`), then **Before and after**: one table with a
    row per key of the union of `before` and `after` (keys in the order they appear), columns Field, Before, After, and a

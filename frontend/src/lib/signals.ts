@@ -4,6 +4,8 @@
  * `Watchlist`, `Suggested unit: …`. An unknown kind shows its own name and match. A partial counsel code (design
  * partial-code-match, decision 13) shows the server's `reason`, or `Partial code: <matched> in <printed>` without one.
  */
+import { labelFor } from "./displayLabels";
+
 export type Signal = Record<string, unknown>;
 
 function text(value: unknown): string {
@@ -25,7 +27,7 @@ const LABELS: Record<string, string> = {
 
 export function signalText(signal: Signal): string {
   const kind = text(signal.kind);
-  const label = LABELS[kind] ?? (kind ? kind.replace(/_/g, " ") : "Signal");
+  const label = kind ? labelFor(LABELS, kind) : "Signal";
   if (kind === "watchlist") return label;
   if (kind === "counsel_code_partial") {
     const reason = text(signal.reason);

@@ -23,6 +23,7 @@ import { headingsOf } from "@/lib/causelist";
 import { canViewInline } from "@/lib/documents";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { labelFor } from "@/lib/displayLabels";
 
 import { listFileUrl } from "./ListStrip";
 import { OwnershipCell } from "./OwnershipCell";
@@ -34,7 +35,7 @@ const TEXTS = {
   court: T.causelist.courtHeading,
   bench: (label: string | null, benchId: number | null) =>
     label ?? (benchId !== null ? T.causelist.benchNumber(benchId) : T.causelist.courtWide),
-  list: (listType: string) => T.causelist.listTypes[listType] ?? listType,
+  list: (listType: string) => labelFor(T.causelist.listTypes, listType),
 };
 
 export function caseNo(e: CauselistEntry): string {

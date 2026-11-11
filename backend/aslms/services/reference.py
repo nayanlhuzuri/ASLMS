@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import get_settings
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import CaseType, Court
-from aslms.domain.org import User
+from aslms.domain.org import Office, User
 from aslms.domain.reference import (
     Permission,
     RefAlertKind,
@@ -24,6 +24,7 @@ from aslms.domain.reference import (
 )
 from aslms.services import access
 from aslms.services.case_filters import bench_sql
+from aslms.services.offices import tier_of
 from aslms.services.reporting_common import today_ist
 
 
@@ -56,6 +57,34 @@ def labels(session: Session, user: User) -> dict:
         "ticket_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefTicketKind)],
         "alert_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefAlertKind)],
     }
+
+
+def offices(session: Session) -> list[dict]:
+    """Every office, active and inactive, at every tier, by `path`: code, name, kind, tier, the Department-tier
+    ancestor's code (the office's own for a department, null at the State tier) and `is_active` (design
+    `portal-names-and-labels`, decisions 1-3). Names only: no notes, parent, head, counts or people. One
+    statement; the department is read from `path` on the loaded rows (the `access.department_of` rule)."""
+    rows = session.scalars(select(Office).order_by(Office.path)).all()
+    by_code = {o.code: o for o in rows}
+
+    def department_code(office: Office) -> str | None:
+        parts = office.path.split("/")
+        if len(parts) < 2:
+            return None
+        dept = by_code.get(parts[1])
+        return dept.code if access.is_department(dept) else None
+
+    return [
+        {
+            "code": o.code,
+            "name": o.name,
+            "kind": o.kind,
+            "tier": tier_of(o),
+            "department_code": department_code(o),
+            "is_active": bool(o.is_active),
+        }
+        for o in rows
+    ]
 
 
 def case_types(session: Session, est_code: str | None = None) -> list[dict]:

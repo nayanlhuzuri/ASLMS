@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 
 import { errorText, T, type ErrorTexts } from "@/lib/messages";
 import { signalText, type Signal } from "@/lib/signals";
+import { labelFor } from "@/lib/displayLabels";
 
 import { Button, cx } from "./controls";
 import s from "./feedback.module.css";
@@ -25,17 +26,22 @@ export function Badge({
   tone,
   title,
   look,
+  wrap,
   children,
 }: {
   tone?: Tone;
   title?: string;
   look?: "solid" | "outline";
+  /** The text wraps at word boundaries instead of being cut: for a badge that names an office, so a long name never
+   * widens its table column (design portal-names-and-labels, deviation 9). */
+  wrap?: boolean;
   children: ReactNode;
 }) {
   return (
     <span
       className={cx(s.badge, tone && s[`badge-${tone}`])}
       data-look={look}
+      data-wrap={wrap ? "" : undefined}
       title={title ?? (typeof children === "string" ? children : undefined)}
     >
       <span className={s.badgeText}>{children}</span>
@@ -159,7 +165,7 @@ export function ScoreBadge({ score, band }: { score: number; band: string }) {
 /** The API's severity of an alert (critical / high / normal), never computed in the browser. */
 export function SeverityBadge({ severity }: { severity: string }) {
   const tone = severity === "critical" ? "danger" : severity === "high" ? "warning" : undefined;
-  return <Badge tone={tone}>{T.wf.severity[severity] ?? severity}</Badge>;
+  return <Badge tone={tone}>{labelFor(T.wf.severity, severity)}</Badge>;
 }
 
 export function SignalChip({ signal }: { signal: Signal }) {

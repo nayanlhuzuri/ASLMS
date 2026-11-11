@@ -30,13 +30,13 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
     expect(sourceLabel("order_specific")).toBe("Date in the Order");
     expect(sourceLabel("order_period")).toBe("Counted From the Order");
     expect(sourceLabel("manual")).toBe("Entered by Hand");
-    expect(sourceLabel("something_new")).toBe("something new");
+    expect(sourceLabel("something_new")).toBe("Something New");
     expect(statusLabel("not_needed")).toBe("In Use");
     expect(statusLabel("confirmed")).toBe("Confirmed");
     expect(statusLabel("rejected")).toBe("Marked Wrong");
     expect(statusLabel("superseded")).toBe("Replaced by a Later Date");
     expect(statusLabel("expired")).toBe("Date Passed");
-    expect(statusLabel("odd_state")).toBe("odd state");
+    expect(statusLabel("odd_state")).toBe("Odd State");
   });
 
   it("an old pending date reads In Use: a date read from an order is shown directly (design next-date-direct)", () => {

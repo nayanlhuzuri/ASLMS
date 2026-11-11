@@ -37,7 +37,8 @@ import {
   type MenuItem,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { labelOf, useLabels, useMe, useOfficeChoices } from "@/lib/api/hooks";
+import { useLabels, useMe, useOfficeChoices } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { AuditPage, Me, MembershipFunctions, MembershipOut, UserOut, UserTypeLabel } from "@/lib/api/types";
 import { actionName } from "@/lib/audit";
 import { can, canAny, readsAudit } from "@/lib/can";

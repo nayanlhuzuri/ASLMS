@@ -14,6 +14,7 @@ import type { ApiCall, ApiCard, ApiDetail } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { toneOf } from "@/lib/systemHealth";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./system.module.css";
 
@@ -74,7 +75,7 @@ export function ApiHistory({ apiKey, card, version }: { apiKey: string; card: Ap
                 { key: "ms", header: T.system.ms, cell: (r) => formatNumber(r.duration_ms), align: "right" },
                 { key: "statuses", header: T.system.statuses, cell: statuses },
                 { key: "reason", header: T.system.reason, cell: (r) => r.reason },
-                { key: "who", header: T.system.who, cell: (r) => T.system.by[r.by] ?? r.by },
+                { key: "who", header: T.system.who, cell: (r) => labelFor(T.system.by, r.by) },
               ]}
             />
           </section>

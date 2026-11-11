@@ -19,7 +19,7 @@ import { useState, type KeyboardEvent } from "react";
 import { IdentityDetails } from "@/components/case/Details";
 import { Hearings } from "@/components/case/Hearings";
 import { Parties } from "@/components/case/Parties";
-import { Badge, CaseLink, cx, EmptyState, ErrorBanner, HearingDate, KvList, Loading, Modal, ScoreBadge } from "@/components/ui";
+import { Badge, CaseLink, cx, EmptyState, ErrorBanner, HearingDate, KvList, Loading, Modal, OfficeName, ScoreBadge, useOfficeName } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useMe, useOwnership } from "@/lib/api/hooks";
 import type { CaseDetail, CaseSummary, LinkList, OwnershipActions, PoolCase, Recommendation, Transfer } from "@/lib/api/types";
@@ -28,6 +28,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import type { ClaimTab } from "@/lib/routes";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./claim.module.css";
 import { ModalActions, type ActionKind } from "./ModalActions";
@@ -153,6 +154,7 @@ export function CaseModal({
   onDone: (kind: ActionKind, label: string, department: string | null) => void;
 }) {
   const me = useMe();
+  const nameOf = useOfficeName();
   const detail = useQuery({
     queryKey: [...caseKey(caseRef), "overview"],
     queryFn: () => api<CaseDetail>(apiCasePath(caseRef)),
@@ -179,9 +181,9 @@ export function CaseModal({
   const respondent = c?.parties_as_printed.respondent_summary ?? summary?.respondent_summary ?? null;
 
   let origin: string;
-  if (tab === "transfers") origin = T.claim.transferFrom(transfer?.from_office_code ?? rowTransfer?.from_office_code ?? null);
+  if (tab === "transfers") origin = T.claim.transferFrom(nameOf(transfer?.from_office_code ?? rowTransfer?.from_office_code ?? null));
   else if (tab === "pool") origin = T.claim.inPool;
-  else if (rec?.origin === "suggestion" && rec.suggested_by_office_code) origin = T.claim.suggestedBy(rec.suggested_by_office_code, rec.reason);
+  else if (rec?.origin === "suggestion" && rec.suggested_by_office_code) origin = T.claim.suggestedBy(nameOf(rec.suggested_by_office_code) ?? "", rec.reason);
   else if (rec?.origin === "discovery") origin = T.claim.discovered;
   else origin = T.claim.suggestedFor(summary?.last_listing ? formatDate(summary.last_listing.list_date) : null);
 
@@ -193,11 +195,15 @@ export function CaseModal({
   const status = c?.status.status ?? summary?.status ?? null;
   const owner =
     view?.primary?.office_code ?? c?.ownership.primary?.office_code ?? rec?.current_owner_code ?? (notVisible ? (rowTransfer?.from_office_code ?? null) : null);
-  const ownerText = !owner
-    ? T.claim.notClaimed
-    : tab !== "transfers" && owner !== department
-      ? T.claim.ownedWatcher(owner)
-      : T.claim.ownedBy(owner);
+  const ownerName = c?.ownership.primary?.office_code === owner ? (c?.ownership.primary?.office_name ?? null) : null;
+  const ownerText = !owner ? (
+    T.claim.notClaimed
+  ) : (
+    <>
+      <OfficeName code={owner} name={ownerName} />
+      {tab !== "transfers" && owner !== department ? <span className="muted"> · {T.claim.watcherNote}</span> : null}
+    </>
+  );
 
   // a 404 transfer row: the API decides on the call; the footer offers what the row allows
   const fallbackActions: OwnershipActions | null =
@@ -228,7 +234,7 @@ export function CaseModal({
         </div>
         <div>
           <dt>{T.claim.factStatus}</dt>
-          <dd>{status ? <Badge tone={status === "disposed" ? "success" : undefined}>{T.inbox.statuses[status] ?? status}</Badge> : "—"}</dd>
+          <dd>{status ? <Badge tone={status === "disposed" ? "success" : undefined}>{labelFor(T.inbox.statuses, status)}</Badge> : "—"}</dd>
         </div>
         <div>
           <dt>{T.claim.factFiled}</dt>
@@ -263,7 +269,7 @@ export function CaseModal({
           {rowTransfer ? (
             <KvList
               items={[
-                [T.claim.fromDepartment, rowTransfer.from_office_code ?? "—"],
+                [T.claim.fromDepartment, <OfficeName key="from" code={rowTransfer.from_office_code} />],
                 [T.claim.reason, rowTransfer.reason ?? "—"],
                 [T.claim.requested, T.inbox.requested(rowTransfer.requested_by?.full_name ?? "—", formatDateTime(rowTransfer.requested_at))],
               ]}

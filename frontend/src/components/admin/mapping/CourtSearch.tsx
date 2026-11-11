@@ -17,28 +17,7 @@ import { useId, useState, type FormEvent } from "react";
 
 import { ClaimDialog } from "@/components/inbox/dialogs";
 import { PartiesLine } from "@/components/inbox/common";
-import {
-  Badge,
-  Button,
-  CaseLink,
-  EmptyState,
-  ErrorBanner,
-  ListCount,
-  ListSearch,
-  ListSort,
-  ListToolbar,
-  Loading,
-  NoMatches,
-  Notice,
-  OrderLine,
-  Pagination,
-  ScoreBadge,
-  SelectField,
-  DataTable,
-  sortOptionsOf,
-  TextField,
-  type Column,
-} from "@/components/ui";
+import { Badge, Button, CaseLink, type Column, DataTable, EmptyState, ErrorBanner, ListCount, ListSearch, ListSort, ListToolbar, Loading, NoMatches, Notice, OfficeName, OrderLine, Pagination, ScoreBadge, SelectField, sortOptionsOf, TextField, useOfficeName } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, MAPPING_KEY } from "@/lib/api/hooks";
 import type { DiscoveryCase, DiscoveryCaseList, DiscoverySearch, DiscoveryTerm, DiscoveryTermList } from "@/lib/api/types";
@@ -48,6 +27,7 @@ import { CASE_MIN_CHARS, searchShown } from "@/lib/listSearch";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 import { useListState } from "@/lib/useListState";
+import { labelFor } from "@/lib/displayLabels";
 
 export const DISCOVERY_KEY = [...MAPPING_KEY, "discovery"] as const;
 const LIMIT = 50;
@@ -65,6 +45,7 @@ function termsQuery(q: string, sort: string | undefined, dir: string | undefined
 
 export function CourtSearch() {
   const queryClient = useQueryClient();
+  const nameOf = useOfficeName();
   const [selected, setSelected] = useState<DiscoveryTerm | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const state = useListState({ mode: "local", search: "server", sortKeys: TERM_SORTS });
@@ -95,7 +76,7 @@ export function CourtSearch() {
     {
       key: "rules",
       header: T.discovery.rules,
-      cell: (t) => t.rules.map((r) => `${T.mapping.kindShort[r.kind] ?? T.mapping.keyword} · ${r.office_code}`).join("; "),
+      cell: (t) => t.rules.map((r) => `${T.mapping.kindShort[r.kind] ?? T.mapping.keyword} · ${nameOf(r.office_code)}`).join("; "),
     },
     { key: "done", header: T.discovery.yearsDone, align: "right", cell: (t) => formatNumber(t.years.done) },
     { key: "waiting", header: T.discovery.yearsWaiting, align: "right", cell: (t) => formatNumber(t.years.waiting) },
@@ -296,14 +277,14 @@ function TermCases({ term }: { term: DiscoveryTerm }) {
       sort: { key: "last_found", type: "date" },
       cell: (item) => formatDateTime(item.last_found_at),
     },
-    { key: "owner", header: T.discovery.owner, cell: (item) => item.owner_office_code ?? "—" },
+    { key: "owner", header: T.discovery.owner, cell: (item) => <OfficeName code={item.owner_office_code} /> },
     {
       key: "recommendation",
       header: T.discovery.recommendation,
       cell: (item) =>
         item.recommendation ? (
           <>
-            <ScoreBadge score={item.recommendation.score} band={item.recommendation.band} /> {item.recommendation.office_code}
+            <ScoreBadge score={item.recommendation.score} band={item.recommendation.band} /> <OfficeName code={item.recommendation.office_code} />
           </>
         ) : (
           "—"
@@ -344,7 +325,7 @@ function TermCases({ term }: { term: DiscoveryTerm }) {
           label={T.discovery.only}
           hideLabel
           value={only}
-          options={ONLY.map((value) => ({ value, label: T.discovery.onlyOptions[value] ?? value }))}
+          options={ONLY.map((value) => ({ value, label: labelFor(T.discovery.onlyOptions, value) }))}
           onChange={(e) => {
             setOnly(e.target.value as (typeof ONLY)[number]);
             setOffset(0);

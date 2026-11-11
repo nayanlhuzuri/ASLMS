@@ -17,6 +17,7 @@ import type { AssistantCourtOrderView } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./assistant.module.css";
 
@@ -54,7 +55,7 @@ export function CourtOrderView({ orderId, messageId }: { orderId: string; messag
       <PageHeader
         title={A.courtRecordTitle(c.case_no_text ?? c.cnr ?? A.courtRecord)}
         titleClassName={c.case_no_text ? "cno" : "mono"}
-        subtitle={`${A.orderKinds[order.kind] ?? order.kind} · ${formatDate(order.order_date)}`}
+        subtitle={`${labelFor(A.orderKinds, order.kind)} · ${formatDate(order.order_date)}`}
         actions={
           <>
             {case_visible && c.cnr ? (
@@ -80,7 +81,7 @@ export function CourtOrderView({ orderId, messageId }: { orderId: string; messag
             items={[
               [F.orderNo, order.order_no],
               [F.orderDate, formatDate(order.order_date)],
-              [F.kind, A.orderKinds[order.kind] ?? order.kind],
+              [F.kind, labelFor(A.orderKinds, order.kind)],
               [F.judge, order.judge],
             ]}
           />
@@ -95,7 +96,7 @@ export function CourtOrderView({ orderId, messageId }: { orderId: string; messag
               [F.bench, c.bench],
               [F.caseType, c.case_type],
               [F.year, c.year],
-              [F.status, c.status ? (T.inbox.statuses[c.status] ?? c.status) : null],
+              [F.status, c.status ? (labelFor(T.inbox.statuses, c.status)) : null],
               [F.parties, list(c.parties)],
               [F.advocates, list(c.advocates)],
               [F.acts, list(c.acts)],

@@ -6,6 +6,7 @@
  */
 import { addDays, formatDate, istDay } from "./format";
 import type { Params } from "./params";
+import { labelFor } from "./displayLabels";
 
 /** The shared fields a list may declare (decision 11). */
 export type SharedField =
@@ -337,7 +338,7 @@ function dateChip(params: Params, kind: "listed" | "next", texts: ChipTexts): st
     if (from && to) return texts.range(formatDate(from), formatDate(to));
     return from ? texts.from(formatDate(from)) : texts.to(formatDate(to));
   }
-  return (kind === "listed" ? texts.listedPresets : texts.nextPresets)[mode] ?? mode;
+  return labelFor(kind === "listed" ? texts.listedPresets : texts.nextPresets, mode);
 }
 
 /** One chip per applied shared field of the list, in the bar's order. */
@@ -349,7 +350,7 @@ export function chipsOf(params: Params, list: ListKey, texts: ChipTexts): Chip[]
     const keys = [...FIELD_KEYS[field]];
     let value: string | null;
     if (field === "listed" || field === "next") value = dateChip(p, field, texts);
-    else if (field === "case_status") value = p.case_status ? (texts.statuses[p.case_status] ?? p.case_status) : null;
+    else if (field === "case_status") value = p.case_status ? (labelFor(texts.statuses, p.case_status)) : null;
     else if (field === "next_differs") {
       // a check: the chip is the label alone while ticked
       if (p.next_differs === "true") out.push({ keys, label: texts.field[field] });

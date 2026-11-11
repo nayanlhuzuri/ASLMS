@@ -102,7 +102,7 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     renderRail(detail());
     const task = await screen.findByRole("region", { name: "Your Task" });
     expect(await within(task).findByText("Your Task", { selector: "div" })).toBeInTheDocument();
-    expect(within(task).getByText("Prepare reply")).toBeInTheDocument();
+    expect(within(task).getByText("Prepare Reply")).toBeInTheDocument();
     expect(within(task).getByText("Commissioner and Secretary, EDU")).toHaveAttribute("title", "Edu Head");
     expect(within(task).getByText(/30 Nov 2099/)).toBeInTheDocument();
     expect(within(task).getByText(/days left/)).toBeInTheDocument();

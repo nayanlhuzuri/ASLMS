@@ -221,6 +221,10 @@ describe("the details modal", () => {
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     expect(await within(dialog).findByText("Suggested for your department · cause list of 25 Sep 2026")).toBeInTheDocument();
     expect(within(dialog).getByText("Not Claimed")).toBeInTheDocument();
+    // design portal-names-and-labels, decision 31 (C3): the owner as a labelled fact, the tab names with "and"
+    expect(within(dialog).getByText("Owner Department", { selector: "dt" }).nextElementSibling).toHaveTextContent("Not Claimed");
+    expect(within(dialog).getByRole("tab", { name: "Parties and Advocates" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "Hearings and Listings" })).toBeInTheDocument();
     expect(within(dialog).getByText("10 Jan 2026")).toBeInTheDocument();
     // the Next Hearing fact: the medium badge with the weekday, then the court and item of that day's listing
     const next = within(dialog).getByText("Next Hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
@@ -337,7 +341,7 @@ describe("the details modal", () => {
     // the two fields share one field row
     expect(unit.closest(".row")).not.toBeNull();
     expect(unit.closest(".row")).toBe(officer.closest(".row"));
-    await waitFor(() => expect(within(unit).getByRole("option", { name: /EDU-DSE/ })).toBeInTheDocument());
+    await waitFor(() => expect(within(unit).getByRole("option", { name: "Secondary Education" })).toBeInTheDocument());
     await userEvent.selectOptions(unit, "EDU-DSE");
     await userEvent.selectOptions(officer, "u-7");
     await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
@@ -392,8 +396,8 @@ describe("the details modal", () => {
     await userEvent.click(await within(dialog).findByRole("button", { name: "Suggest Elsewhere" }));
     const step = within(dialog).getByRole("group", { name: "Suggest Another Department" });
     const target = within(step).getByLabelText("Department");
-    await waitFor(() => expect(within(target).getByRole("option", { name: /^HEALTH/ })).toBeInTheDocument());
-    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a Department", "HEALTH — Health"]);
+    await waitFor(() => expect(within(target).getByRole("option", { name: /^Health/ })).toBeInTheDocument());
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a Department", "Health"]);
     await userEvent.selectOptions(target, "HEALTH");
     await userEvent.click(within(step).getByRole("button", { name: "Confirm" }));
     expect(within(step).getByText("A reason is required.")).toBeInTheDocument();

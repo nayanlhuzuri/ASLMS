@@ -37,7 +37,8 @@ import {
   UserPicker,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { OFFICE_NAMES_KEY, useLabels, useMe } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { Designation, OfficeDetail, OfficeKind, OfficeNode, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin, readsAudit } from "@/lib/can";
 import { formatDate, formatNumber } from "@/lib/format";
@@ -232,6 +233,7 @@ export function HeadSection({
 
 export function NewOfficeForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useSearchParams();
   const labels = useLabels();
   const designations = useDesignations();
@@ -285,6 +287,8 @@ export function NewOfficeForm() {
     );
     if (out.ok) {
       clearOfficeDraft();
+      // design portal-names-and-labels, decision 4: the portal's office names include the new office
+      void queryClient.invalidateQueries({ queryKey: OFFICE_NAMES_KEY });
       router.push(`/admin/offices/${encodeURIComponent(out.value.code)}`);
     }
   }
@@ -408,7 +412,9 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
     if (fromAddress) router.replace(officePath, { scroll: false });
   }
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
+  // an edit, deactivation or reactivation also refreshes the portal's office names (decision 4)
+  const refresh = () =>
+    Promise.all([queryClient.invalidateQueries({ queryKey: ["admin"] }), queryClient.invalidateQueries({ queryKey: OFFICE_NAMES_KEY })]);
 
   if (office.isPending) return <Loading />;
   if (office.error || !office.data) return <ErrorBanner error={office.error} onRetry={() => office.refetch()} />;

@@ -168,7 +168,8 @@
   min-width: 0;
 }
 
-/* a badge wrapped in its titled span still truncates inside a narrow card (portal-ui-polish) */
+/* a badge never grows past a narrow card (portal-ui-polish); the ones naming a department wrap instead of widening
+   the table (portal-names-and-labels, deviation 9) */
 .badges > span {
   display: inline-flex;
   min-width: 0;

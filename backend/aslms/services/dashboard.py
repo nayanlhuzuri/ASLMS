@@ -379,28 +379,40 @@ def me_block(
 
 ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "ready_to_close", "file_received")
 RECEIVED_DAYS = 7
-# design next-date-direct, decision 9: the item of the queue is now a date to enter (the API kind keeps its name)
-CONFIRM_TITLE = "Next date to enter"
-ENTER_DETAIL = {
-    "unclear": "The order gives no clear date",
-    "none": "The order gives no next date",
-    "no_text": "This order is a scanned copy and could not be read",
-    "marked_wrong": "The date read from this order was marked wrong",
+# design portal-names-and-labels, decision 24 (D1): one statement of state per row. The portal's badge names the
+# kind (Overdue, Next Date to Enter, Due Soon, Ready to Close, Case Received); the title is the thing to act on and
+# the detail the extra fact, never the badge's words. The next-date item's title says why a date is to be entered.
+ENTER_TITLE = {
+    "unclear": "No clear date in the order",
+    "none": "No next date in the order",
+    "no_text": "Scanned order, not readable",
+    "marked_wrong": "Date read was marked wrong",
 }
-RECEIVED_TITLE = "Case received"
-READY_TITLE = "Ready to Close"  # design close-case, decision 21
+READY_TITLE = "Close this case"
 
 
-def _due_words(days: int) -> str:
-    if days <= 0:
-        return "Due today"
-    if days == 1:
-        return "Due tomorrow"
-    return f"Due in {days} days"
+def _day(d: date) -> str:
+    """`2 Nov 2026`: the day without a leading zero, the short month and the year."""
+    return f"{d.day} {d.strftime('%b')} {d.year}"
 
 
-def _sender_text(name: str | None, designation: str | None, office_code: str | None) -> str | None:
-    who = ", ".join(p for p in (name, designation) if p) or office_code
+def _days_word(n: int) -> str:
+    return f"{n} day{'s' if n != 1 else ''}"
+
+
+def _overdue_words(due: date, today: date) -> str:
+    return f"Was due {_day(due)}, {_days_word((today - due).days)} ago"
+
+
+def _due_words(due: date, today: date) -> str:
+    days = (due - today).days
+    when = "today" if days <= 0 else "tomorrow" if days == 1 else f"in {days} days"
+    return f"By {_day(due)}, {when}"
+
+
+def _sender_text(name: str | None, designation: str | None, office_name: str | None) -> str | None:
+    """`From Name, Designation`; with no person on the move, `From <office name>` (decision 9)."""
+    who = ", ".join(p for p in (name, designation) if p) or office_name
     return f"From {who}" if who else None
 
 
@@ -496,16 +508,16 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
     attention: list[dict[str, Any]] = []
     room = cfg.list_size
     leg = aliased(CustodyHistory, name="attention_leg")
+    sender_office = aliased(Office, name="attention_sender_office")
 
     def file_rows(*conds, order, limit):
         if limit <= 0:
             return []
         return session.execute(
-            select(
-                held, Case, leg.actor_user_id, leg.actor_name, leg.actor_designation, leg.actor_office_code
-            )
+            select(held, Case, leg.actor_user_id, leg.actor_name, leg.actor_designation, sender_office.name)
             .join(Case, Case.id == held.case_id)
             .outerjoin(leg, leg.id == held.current_leg_id)
+            .outerjoin(sender_office, sender_office.code == leg.actor_office_code)
             .where(*file_conds, *conds)
             .order_by(*order)
             .limit(limit)
@@ -516,7 +528,7 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
         return {
             "kind": kind,
             "case": calendar.case_ref(c),
-            "title": PENDING_ACTION_LABELS[act] if act != PendingAction.NONE else RECEIVED_TITLE,
+            "title": PENDING_ACTION_LABELS[act],
             "date": day,
             "detail": detail,
             "pending_action": act.value,
@@ -528,10 +540,7 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
     for h, c, *_ in file_rows(
         action, held.due_date < today, order=(held.due_date, held.since, held.case_id), limit=room
     ):
-        days = (today - h.due_date).days
-        attention.append(
-            file_entry("overdue_action", h, c, f"Overdue {days} day{'s' if days != 1 else ''}", h.due_date)
-        )
+        attention.append(file_entry("overdue_action", h, c, _overdue_words(h.due_date, today), h.due_date))
         listed.add(c.id)
     room = cfg.list_size - len(attention)
 
@@ -553,9 +562,9 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
                 {
                     "kind": "confirm_next_date",
                     "case": calendar.case_ref(c),
-                    "title": CONFIRM_TITLE,
+                    "title": ENTER_TITLE.get(reason or "", ENTER_TITLE["unclear"]),
                     "date": d,
-                    "detail": ENTER_DETAIL.get(reason or "", ENTER_DETAIL["unclear"]),
+                    "detail": f"Answer by {_day(d)}" if d is not None else None,
                     "pending_action": None,
                     "overdue_days": 0,
                     "next_date_id": None,
@@ -571,7 +580,7 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
         order=(held.due_date, held.since, held.case_id),
         limit=room,
     ):
-        attention.append(file_entry("due_soon", h, c, _due_words((h.due_date - today).days), h.due_date))
+        attention.append(file_entry("due_soon", h, c, _due_words(h.due_date, today), h.due_date))
         listed.add(c.id)
     room = cfg.list_size - len(attention)
 
@@ -607,7 +616,7 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
                     "title": READY_TITLE,
                     "date": c.disposal_date,
                     "detail": (
-                        f"Disposed by the court on {c.disposal_date.strftime('%d %b %Y')}"
+                        f"Disposed by the court on {_day(c.disposal_date)}"
                         if c.disposal_date is not None
                         else "Disposed by the court"
                     ),
@@ -626,9 +635,9 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
         order=(held.since.desc(), held.case_id),
         limit=room,
     )
-    for h, c, _actor_id, name, designation, office_code in received:
+    for h, c, _actor_id, name, designation, office_name in received:
         attention.append(
-            file_entry("file_received", h, c, _sender_text(name, designation, office_code), ist_date(h.since))
+            file_entry("file_received", h, c, _sender_text(name, designation, office_name), ist_date(h.since))
         )
 
     return {"headline": headline, "upcoming": upcoming, "attention": attention}

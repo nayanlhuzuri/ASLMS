@@ -27,7 +27,7 @@ import {
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { labelOf } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type {
   ExitPreview,
   Me,
@@ -44,6 +44,8 @@ import { can } from "@/lib/can";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+import { officeName } from "@/lib/officeNames";
+import { useOfficeNames } from "@/lib/api/hooks";
 
 import { assignableOptions, DesignationInput, MembershipFields, type MembershipDraft } from "./Users";
 
@@ -239,6 +241,7 @@ export function ExitDialog({
   onClose: () => void;
 }) {
   const refresh = useRefreshUser(userId);
+  const names = useOfficeNames();
   const preview = useQuery({
     queryKey: [...userKey(userId), "exit", membership.id],
     queryFn: () => api<ExitPreview>(`/admin/users/${userId}/memberships/${membership.id}/exit-preview`),
@@ -314,7 +317,7 @@ export function ExitDialog({
                       placeholder={T.exit.choose}
                       options={preview.data.targets.map((t) => ({
                         value: t.membership,
-                        label: `${t.name}${t.designation ? `, ${t.designation}` : ""} (${t.office_code})`,
+                        label: `${t.name}${t.designation ? `, ${t.designation}` : ""} (${officeName(t.office_code, names.data)})`,
                       }))}
                       onChange={(e) => setChoice({ ...choice, [i.key]: e.target.value })}
                     />

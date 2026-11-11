@@ -36,7 +36,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { EnterNextDate } from "@/components/nextdates/Dialogs";
-import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, Notice, Tabs, type MenuItem } from "@/components/ui";
+import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, type MenuItem, Notice, OfficeName, Tabs } from "@/components/ui";
 import { useWorkflowRefresh } from "@/components/workflow/common";
 import { CloseCaseDialog } from "@/components/workflow/CloseCaseDialog";
 import { RecallDialog, SendDialog } from "@/components/workflow/CustodyDialogs";
@@ -57,6 +57,7 @@ import { CASE_TABS, showsAssistant } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
 import { RAIL_MIN_WORKSPACE, useElementWidth, useMediaQuery, WIDE_CASE_PAGE } from "@/lib/useMediaQuery";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import s from "./case.module.css";
 import { closerName, openClosure, Rail, type RailAction } from "./Rail";
@@ -125,7 +126,13 @@ function OwnerBadge({ c, me }: { c: CaseDetail; me: Me | undefined }) {
   const owner = c.ownership.primary;
   if (!owner?.office_code) return null;
   const mine = departmentsOf(me).includes(owner.office_code);
-  return mine ? <Badge tone="info">{T.case.yourDepartment}</Badge> : <Badge>{owner.office_code}</Badge>;
+  return mine ? (
+    <Badge tone="info">{T.case.yourDepartment}</Badge>
+  ) : (
+    <Badge>
+      <OfficeName code={owner.office_code} name={owner.office_name} />
+    </Badge>
+  );
 }
 
 /** Decision 9: "Action due <date>" while the case is with the caller and has a due date; danger once overdue. */
@@ -350,7 +357,7 @@ export function CaseHeader({
   const owner = c.ownership.primary;
   const pet = c.parties_as_printed.petitioner_summary;
   const res = c.parties_as_printed.respondent_summary;
-  const status = T.inbox.statuses[c.status.status] ?? c.status.status;
+  const status = labelFor(T.inbox.statuses, c.status.status);
   return (
     <section className={s.header} aria-label={T.case.summary}>
       <Breadcrumb />
@@ -376,8 +383,8 @@ export function CaseHeader({
         <Fact label={T.rail.withFact}>
           <WithFact c={c} me={me.data} />
         </Fact>
-        <Fact label={T.case.stage}>{c.stage ? c.stage.label : <span className="muted">{T.case.noStage}</span>}</Fact>
-        <Fact label={T.rail.ownerFact}>{owner ? (owner.office_name ?? owner.office_code ?? "—") : T.case.unowned}</Fact>
+        <Fact label={T.case.stage}>{c.stage ? serverLabel(c.stage.label) : <span className="muted">{T.case.noStage}</span>}</Fact>
+        <Fact label={T.rail.ownerFact}>{owner ? <OfficeName code={owner.office_code} name={owner.office_name} /> : T.case.unowned}</Fact>
         <Fact label={T.rail.statusFact} status>
           {status}
         </Fact>

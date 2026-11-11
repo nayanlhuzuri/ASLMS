@@ -42,7 +42,8 @@ import {
   usePrefersReducedMotion,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { useLabels, useMe } from "@/lib/api/hooks";
+import { labelFor, labelOf, serverLabel } from "@/lib/displayLabels";
 import type { PermissionInfo } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -90,7 +91,7 @@ export function groupFunctions(permissions: PermissionInfo[]): { code: string; l
   for (const p of shown) {
     let g = groups.find((x) => x.code === p.group);
     if (!g) {
-      g = { code: p.group!, label: p.group_label ?? p.group!, items: [], first: groups.length };
+      g = { code: p.group!, label: serverLabel(p.group_label) ?? labelFor(undefined, p.group), items: [], first: groups.length };
       groups.push(g);
     }
     g.items.push(p);
@@ -116,7 +117,7 @@ export function UserTypesIndex() {
       <ul className={a.typeCards} aria-label={T.access.cards}>
         {overview.data.map((card) => {
           const type = types.find((t) => t.code === card.code);
-          const label = type?.label ?? card.code;
+          const label = labelOf(labels.data?.user_types, card.code);
           return (
             <li key={card.code}>
               <Link href={`/admin/access/${card.code}`} className={a.typeCard} aria-label={label}>
@@ -461,7 +462,7 @@ export function UserTypePage({ role }: { role: string }) {
       : null;
 
   return (
-    <section className="stack" aria-label={type?.label ?? role}>
+    <section className="stack" aria-label={type ? labelOf(labels.data?.user_types, role) : role}>
       <div>
         <Link href="/admin/access">← {T.access.back}</Link>
       </div>

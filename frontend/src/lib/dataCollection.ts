@@ -6,6 +6,7 @@
 import type { components } from "./api/schema";
 import { dayMonth, formatDate, formatDayLongYear, formatMonthYear, formatNumber } from "./format";
 import { T } from "./messages";
+import { labelFor } from "./displayLabels";
 
 type S = components["schemas"];
 export type DataOverview = S["DataLoadOverviewOut"];
@@ -168,7 +169,7 @@ export const PROBLEM_LINKS: Record<string, string | null> = {
 export function estimateText(line: EstimateLine, which: "details" | "all"): string {
   const details = which === "details";
   if (line.reason) {
-    const why = T.dc.reasons[line.reason] ?? line.reason;
+    const why = labelFor(T.dc.reasons, line.reason);
     return details ? T.dc.estimateDetailsNone(why) : T.dc.estimateAllNone(why);
   }
   if (!line.calls_needed) return details ? T.dc.estimateDetailsDone : T.dc.estimateAllDone;
@@ -237,7 +238,7 @@ export function minutesToReset(seconds: number | null | undefined, fetchedAt: nu
 /** A NAPIX error family in plain words (decision 47); the family itself when it has no words. */
 export function familyWords(family: string | null | undefined): string {
   if (!family) return T.pf.unknownReason;
-  return T.pf.families[family] ?? family;
+  return labelFor(T.pf.families, family);
 }
 
 /**

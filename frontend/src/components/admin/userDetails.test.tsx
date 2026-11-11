@@ -234,7 +234,7 @@ describe("Overview (decision 33)", () => {
     expect(within(person).getByText("Full Name")).toBeInTheDocument();
     const office = within(dialog).getByRole("region", { name: "Primary Office" });
     await waitFor(() => expect(within(office).getByText("2 active")).toBeInTheDocument());
-    expect(within(office).getByText("Directorate user")).toBeInTheDocument();
+    expect(within(office).getByText("Directorate User")).toBeInTheDocument();
     expect(within(dialog).getByText(/Sign-in uses a 6-digit code/)).toBeInTheDocument();
   });
 });
@@ -353,7 +353,7 @@ describe("Functions (decision 35)", () => {
   it("lists the held functions by group with the Given and Taken marks and the line", async () => {
     routes(makeMe(DEPT_ADMIN, "dept_admin"));
     const dialog = await openModal({ tab: "functions" });
-    expect(await within(dialog).findByText("Holds 2 functions here: those of Directorate user, 1 given, 1 taken.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Holds 2 functions here: those of Directorate User, 1 given, 1 taken.")).toBeInTheDocument();
     const cases = within(dialog).getByRole("heading", { name: "Cases" }).closest("section")!;
     expect(within(cases).getByText("See Cases")).toBeInTheDocument();
     const taken = within(cases).getByText("Add Notes");
@@ -365,8 +365,8 @@ describe("Functions (decision 35)", () => {
     expect(within(dialog).queryByText("Send Cases")).toBeNull();
     const select = within(dialog).getByLabelText("Office");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Secondary Education · Directorate user",
-      "Education · Dept officer",
+      "Secondary Education · Directorate User",
+      "Education · Dept Officer",
     ]);
     expect(within(dialog).getByRole("button", { name: "Change Exceptions" })).toBeInTheDocument();
   });

@@ -237,3 +237,156 @@ def test_benches_need_case_reading(api):
 
 def test_benches_signed_out_401(api):
     assert api.get("/reference/benches").status_code == 401
+
+
+# ------------------------------------------------------------------------------------------------ offices (portal-names-and-labels 1-4)
+
+OFFICE_KEYS = {"code", "name", "kind", "tier", "department_code", "is_active"}
+
+
+def _add_inactive_unit(api) -> None:
+    from aslms.domain.org import Office
+
+    with api.app.state.session_factory() as s:
+        health = s.scalar(sa.select(Office).where(Office.code == "HEALTH"))
+        s.add(
+            Office(
+                code="HEALTH-OLD",
+                name="Old Health Unit",
+                kind=OfficeKind.DIRECTORATE,
+                parent_id=health.id,
+                path="GOA/HEALTH/HEALTH-OLD",
+                is_active=False,
+            )
+        )
+        s.commit()
+
+
+def _offices(api, email):
+    r = api.get("/reference/offices", headers=headers(api, email))
+    assert r.status_code == 200, r.text
+    return r.json()["items"]
+
+
+def test_offices_lists_every_office_with_tier_and_department(api):
+    _add_inactive_unit(api)
+    items = _offices(api, "anil.kumar@example.org")
+    by_code = {i["code"]: i for i in items}
+    assert [i["code"] for i in items] == ["GOA", "EDU", "EDU-DSE", "HEALTH", "HEALTH-OLD"]
+    assert by_code["GOA"]["tier"] == "state" and by_code["GOA"]["department_code"] is None
+    assert by_code["EDU"] == {
+        "code": "EDU",
+        "name": "Education",
+        "kind": "department",
+        "tier": "department",
+        "department_code": "EDU",
+        "is_active": True,
+    }
+    assert by_code["EDU-DSE"]["tier"] == "directorate" and by_code["EDU-DSE"]["department_code"] == "EDU"
+    assert by_code["EDU-DSE"]["name"] == "Secondary Education"
+    old = by_code["HEALTH-OLD"]
+    assert (
+        old["is_active"] is False and old["department_code"] == "HEALTH" and old["name"] == "Old Health Unit"
+    )
+
+
+def test_offices_gate(api):
+    from aslms.domain.org import Office, PermissionEffect, User
+    from aslms.domain.reference import Permission
+    from aslms.services import access
+    from aslms.services.audit import Actor
+    from aslms.services.users import create_user
+    from tests.db.auth_support import ready
+    from tests.db.portal_support import PW
+
+    # a department officer (`cases.view_scope`), the super admin, a department admin
+    for email in ("anil.kumar@example.org", "root@example.org", "admin.edu@example.org"):
+        assert _offices(api, email)
+    with api.app.state.session_factory() as s:
+        create_user(
+            s,
+            Actor.system("test"),
+            email="auditor@example.org",
+            password=PW,
+            full_name="State Auditor",
+            role=Role.AUDITOR,
+            office=s.scalar(sa.select(Office).where(Office.code == "GOA")),
+        )
+        create_user(
+            s,
+            Actor.system("test"),
+            email="waiting@example.org",
+            password=PW,
+            full_name="No Office Yet",
+            role=None,
+            office=None,
+        )
+        # a login whose only reading function is `users.view`
+        root = s.scalar(sa.select(User).where(User.email == "root@example.org"))
+        officer = s.scalar(sa.select(User).where(User.email == "anil.kumar@example.org"))
+        actor = access.actor_for(root)
+        for perm in (Permission.CASES_VIEW_SCOPE, Permission.CASES_VIEW_ALL, Permission.AUDIT_VIEW):
+            access.set_override(s, actor, root, officer, perm, PermissionEffect.DENY, reason="test")
+        access.set_override(
+            s, actor, root, officer, Permission.USERS_VIEW, PermissionEffect.GRANT, reason="test"
+        )
+        s.commit()
+    ready(api, "auditor@example.org")
+    ready(api, "waiting@example.org")
+    assert _offices(api, "auditor@example.org")
+    assert _offices(api, "anil.kumar@example.org")
+    assert api.get("/reference/offices", headers=headers(api, "waiting@example.org")).status_code == 403
+    # without any of the four functions: 403
+    with api.app.state.session_factory() as s:
+        root = s.scalar(sa.select(User).where(User.email == "root@example.org"))
+        officer = s.scalar(sa.select(User).where(User.email == "anil.kumar@example.org"))
+        access.set_override(
+            s,
+            access.actor_for(root),
+            root,
+            officer,
+            Permission.USERS_VIEW,
+            PermissionEffect.DENY,
+            reason="test",
+        )
+        s.commit()
+    assert api.get("/reference/offices", headers=headers(api, "anil.kumar@example.org")).status_code == 403
+    # a first-sign-in step: 403 through `current_user`
+    h = headers(api, "anita.sharma@example.org")
+    with api.app.state.session_factory() as s:
+        s.execute(
+            sa.update(User).where(User.email == "anita.sharma@example.org").values(must_change_password=True)
+        )
+        s.commit()
+    r = api.get("/reference/offices", headers=h)
+    assert r.status_code == 403
+    assert api.get("/reference/offices").status_code == 401
+
+
+def test_offices_returns_names_only(api):
+    items = _offices(api, "anita.sharma@example.org")
+    assert items and all(set(i) == OFFICE_KEYS for i in items)
+
+
+def test_offices_cache_header(api):
+    r = api.get("/reference/offices", headers=headers(api, "anita.sharma@example.org"))
+    assert r.headers["Cache-Control"] == "private, max-age=300"
+
+
+def test_offices_statement_count(api):
+    from aslms.services import reference
+
+    _add_inactive_unit(api)
+    with api.app.state.session_factory() as s:
+        engine = s.get_bind()
+        hits: list[str] = []
+
+        def hit(conn, cursor, statement, *args):
+            hits.append(statement)
+
+        sa.event.listen(engine, "before_cursor_execute", hit)
+        try:
+            rows = reference.offices(s)
+        finally:
+            sa.event.remove(engine, "before_cursor_execute", hit)
+    assert len(rows) == 5 and len(hits) <= 2, hits

@@ -47,6 +47,7 @@ import { formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { COLLECT_ERRORS, T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
+import { labelFor } from "@/lib/displayLabels";
 
 import ds from "./data.module.css";
 
@@ -325,13 +326,13 @@ function ItemsPanel({ summary, onClose }: { summary: CollectSummary; onClose: ()
               rowKey={(i) => `${i.kind}:${i.ref}`}
               columns={[
                 { key: "what", header: T.dc.itemCols.what, primary: true, cell: (i) => <span title={i.ref}>{failedWhat(i.kind, i.ref)}</span> },
-                { key: "kind", header: T.dc.itemCols.kind, cell: (i) => T.dc.kinds[i.kind] ?? i.kind },
+                { key: "kind", header: T.dc.itemCols.kind, cell: (i) => labelFor(T.dc.kinds, i.kind) },
                 {
                   key: "state",
                   header: T.dc.itemCols.state,
                   cell: (i) => (
                     <>
-                      <span className={i.state === "fetching" ? ds.pulse : undefined}>{T.kit.collect.states[i.state] ?? i.state}</span>
+                      <span className={i.state === "fetching" ? ds.pulse : undefined}>{labelFor(T.kit.collect.states, i.state)}</span>
                       {i.state === "waiting_retry" && i.not_before ? (
                         <>
                           <br />

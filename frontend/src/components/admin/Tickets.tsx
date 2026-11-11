@@ -11,23 +11,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-import {
-  Badge,
-  Button,
-  DataTable,
-  EmptyState,
-  ErrorBanner,
-  Loading,
-  OfficePicker,
-  Pagination,
-  SelectField,
-  Tabs,
-  TextArea,
-  TextField,
-  UserPicker,
-} from "@/components/ui";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, OfficeName, OfficePicker, Pagination, SelectField, Tabs, TextArea, TextField, UserPicker } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { useLabels, useMe } from "@/lib/api/hooks";
+import { labelFor, labelOf } from "@/lib/displayLabels";
 import type { TicketDetail, TicketDocument, TicketList, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin, usersStateWide } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
@@ -43,7 +30,7 @@ import { assignableOptions, PAGE_SIZE, useDesignations } from "./Users";
 
 function statusBadge(status: string) {
   const tone = status === "approved" ? "success" : status === "rejected" ? "danger" : status === "open" ? "warning" : undefined;
-  return <Badge tone={tone}>{T.tickets.statuses[status as TicketStatus] ?? status}</Badge>;
+  return <Badge tone={tone}>{labelFor(T.tickets.statuses, status)}</Badge>;
 }
 
 export function TicketsList({ status }: { status: TicketStatus }) {
@@ -110,7 +97,7 @@ export function TicketsList({ status }: { status: TicketStatus }) {
                     </>
                   ),
                 },
-                { key: "department", header: T.tickets.department, cell: (t) => <span className="mono">{t.department_code ?? "—"}</span> },
+                { key: "department", header: T.tickets.department, cell: (t) => <OfficeName code={t.department_code} /> },
                 { key: "target", header: T.tickets.target, cell: (t) => t.target.user_name ?? "—" },
                 { key: "by", header: T.tickets.requestedBy, cell: (t) => t.requested_by.name ?? "—" },
                 { key: "age", header: T.tickets.age, align: "right", cell: (t) => formatNumber(t.age_days) },
@@ -282,7 +269,9 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
             {t.operation ? ` · ${t.operation}` : ""}
           </dd>
           <dt>{T.tickets.department}</dt>
-          <dd className="mono">{t.department_code ?? "—"}</dd>
+          <dd>
+            <OfficeName code={t.department_code} />
+          </dd>
           <dt>{T.tickets.target}</dt>
           <dd>
             {t.target.user_name ?? "—"}
@@ -294,7 +283,14 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
           <dt>{T.tickets.requestedBy}</dt>
           <dd>
             {t.requested_by.name ?? "—"}
-            {t.requested_by.office_code ? ` (${t.requested_by.office_code})` : ""} · {formatDateTime(t.created_at)}
+            {t.requested_by.office_code ? (
+              <>
+                {" ("}
+                <OfficeName code={t.requested_by.office_code} />
+                {")"}
+              </>
+            ) : null}{" "}
+            · {formatDateTime(t.created_at)}
           </dd>
           {t.request_remark ? (
             <>

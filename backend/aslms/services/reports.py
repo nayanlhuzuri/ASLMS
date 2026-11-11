@@ -26,6 +26,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, aliased
 
 from aslms.core.config import Settings, get_settings
+from aslms.core.titlecase import title_case
 from aslms.domain.alerts import Alert
 from aslms.domain.cases import Case, CaseHearing, CaseStatus
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
@@ -78,22 +79,22 @@ CALL_LOG_NOTE = (
 
 CATALOGUE: dict[str, dict[str, Any]] = {
     "pending-cases": {
-        "title": "Pending cases by department, court and age",
+        "title": "Pending Cases by Department, Court and Age",
         "params": ["department"],
         "scopes": ("state", "department"),
     },
     "hearings-disposals": {
-        "title": "Hearings and disposals over a period",
+        "title": "Hearings and Disposals Over a Period",
         "params": ["from", "to", "department"],
         "scopes": ("state", "department"),
     },
     "pending-actions": {
-        "title": "Pending actions and overdue compliance by office",
+        "title": "Pending Actions and Overdue Compliance by Office",
         "params": ["department", "holder_department", "include_cases"],
         "scopes": ("state", "department"),
     },
     "data-health": {
-        "title": "Data collection health",
+        "title": "Data Collection Health",
         "params": ["from", "to"],
         "scopes": ("state",),
     },
@@ -108,9 +109,12 @@ class Column:
     key: str
     label: str
     kind: ColumnKind = "text"
+    # design portal-names-and-labels, decision 26: code columns are for Excel only; the screen and the PDF leave
+    # out `screen=False` columns
+    screen: bool = True
 
-    def to_dict(self) -> dict[str, str]:
-        return {"key": self.key, "label": self.label, "kind": self.kind}
+    def to_dict(self) -> dict[str, Any]:
+        return {"key": self.key, "label": self.label, "kind": self.kind, "screen": self.screen}
 
 
 @dataclass
@@ -306,10 +310,16 @@ def check_period(from_: date | None, to: date | None, max_days: int, *, today: d
 
 
 def _generated_by(session: Session, user: User | Member, scope: Scope) -> dict[str, Any]:
+    """Who ran the report: name, designation and the membership's office code and name (decision 9)."""
     member = scope.member or access.primary_member(session, user)
     if member is None:
-        return {"name": user.full_name, "designation": None, "office_code": None}
-    return {"name": member.full_name, "designation": member.designation, "office_code": member.office.code}
+        return {"name": user.full_name, "designation": None, "office_code": None, "office_name": None}
+    return {
+        "name": member.full_name,
+        "designation": member.designation,
+        "office_code": member.office.code,
+        "office_name": member.office.name,
+    }
 
 
 def _report(
@@ -408,15 +418,24 @@ class _Groups:
 
 def _group_columns(scope: Scope) -> list[Column]:
     if scope.department is None:
-        return [Column("group_code", "Department code"), Column("group", "Department")]
-    return [Column("group_code", "Responsible unit code"), Column("group", "Responsible unit")]
+        return [Column("group_code", "Department Code", screen=False), Column("group", "Department")]
+    return [Column("group_code", "Responsible Unit Code", screen=False), Column("group", "Responsible Unit")]
+
+
+def _by_group_title(scope: Scope) -> str:
+    return "By Department" if scope.department is None else "By Unit"
 
 
 def _totals(columns: list[Column], rows: list[dict[str, Any]], label_key: str, label: str = "Total") -> dict:
+    """The totals row: int columns summed, `label` under `label_key`, or under the first column the screen shows
+    when `label_key` is a hidden code column (decision 26), so "Total" never disappears with it."""
     out: dict[str, Any] = {c.key: None for c in columns}
     for c in columns:
         if c.kind == "int":
             out[c.key] = sum(int(r.get(c.key) or 0) for r in rows)
+    named = next((c for c in columns if c.key == label_key), None)
+    if named is not None and not named.screen:
+        label_key = next(c.key for c in columns if c.screen)
     out[label_key] = label
     return out
 
@@ -426,11 +445,11 @@ def _totals(columns: list[Column], rows: list[dict[str, Any]], label_key: str, l
 
 PENDING_MEASURES = (
     [
-        Column("total", "Active cases", "int"),
-        Column("pending", "Status pending", "int"),
-        Column("unknown", "Status unknown", "int"),
+        Column("total", "Active Cases", "int"),
+        Column("pending", "Status Pending", "int"),
+        Column("unknown", "Status Unknown", "int"),
         Column("provisional", "Provisional", "int"),
-        Column("watching", "Watching (not owned)", "int"),
+        Column("watching", "Watching (Not Owned)", "int"),
     ]
     + [Column(k, label, "int") for k, label, _l, _h in AGE_BANDS]
     + [Column(AGE_UNKNOWN[0], AGE_UNKNOWN[1], "int")]
@@ -511,7 +530,9 @@ def pending_cases(
                 {"group_code": code, "group": label, "court_code": ccode, "court_name": cname, **counts}
             )
     court_cols = (
-        gcols + [Column("court_code", "Court code"), Column("court_name", "Court")] + PENDING_MEASURES
+        gcols
+        + [Column("court_code", "Court Code", screen=False), Column("court_name", "Court")]
+        + PENDING_MEASURES
     )
     note = (
         "Active cases: status pending or unknown, merged duplicates excluded. 'Active cases' = pending + unknown; "
@@ -521,7 +542,7 @@ def pending_cases(
     sections = [
         Section(
             "by_group",
-            "By " + ("department" if scope.department is None else "unit"),
+            _by_group_title(scope),
             gcols + PENDING_MEASURES,
             group_rows,
             totals=_totals(gcols + PENDING_MEASURES, group_rows, "group"),
@@ -529,7 +550,7 @@ def pending_cases(
         ),
         Section(
             "by_group_court",
-            "By " + ("department" if scope.department is None else "unit") + " and court",
+            _by_group_title(scope) + " and Court",
             court_cols,
             court_rows,
             totals=_totals(court_cols, court_rows, "group"),
@@ -552,8 +573,8 @@ def pending_cases(
 
 HEARING_MEASURES = [
     Column("listings", "Listings", "int"),
-    Column("cases_heard", "Cases listed", "int"),
-    Column("proceedings", "Proceedings (dossiers)", "int"),
+    Column("cases_heard", "Cases Listed", "int"),
+    Column("proceedings", "Proceedings (Dossiers)", "int"),
     Column("disposed", "Disposed", "int"),
 ]
 
@@ -651,7 +672,7 @@ def hearings_disposals(
     sections = [
         Section(
             "by_group",
-            "By " + ("department" if scope.department is None else "unit"),
+            _by_group_title(scope),
             gcols + HEARING_MEASURES,
             group_rows,
             totals=group_totals,
@@ -663,7 +684,7 @@ def hearings_disposals(
         ),
         Section(
             "by_month",
-            "By calendar month",
+            "By Calendar Month",
             month_cols,
             month_rows,
             totals=month_totals,
@@ -686,38 +707,39 @@ def hearings_disposals(
 
 
 ACTION_COLUMNS = [
-    Column("holder_department_code", "Holder department code"),
-    Column("holder_department", "Holder department"),
-    Column("office_code", "Holder office code"),
-    Column("office_name", "Holder office"),
+    Column("holder_department_code", "Holder Department Code", screen=False),
+    Column("holder_department", "Holder Department"),
+    Column("office_code", "Holder Office Code", screen=False),
+    Column("office_name", "Holder Office"),
     Column("officer", "Officer"),
     Column("designation", "Designation"),
-    Column("held", "Cases with a pending action", "int"),
-    Column("due_soon", "Due soon", "int"),
+    Column("held", "Cases with a Pending Action", "int"),
+    Column("due_soon", "Due Soon", "int"),
     Column("overdue", "Overdue", "int"),
-    Column("no_due_date", "No due date", "int"),
-    Column("oldest_since", "Oldest since", "date"),
-    Column("max_overdue_days", "Most days overdue", "days"),
+    Column("no_due_date", "No Due Date", "int"),
+    Column("oldest_since", "Oldest Since", "date"),
+    Column("max_overdue_days", "Most Days Overdue", "days"),
 ]
 COMPLIANCE_COLUMNS = [
-    Column("department_code", "Department code"),
-    Column("office_code", "Addressed office code"),
-    Column("office_name", "Addressed office"),
+    Column("department_code", "Department Code", screen=False),
+    Column("office_code", "Addressed Office Code", screen=False),
+    Column("office_name", "Addressed Office"),
     Column("open", "Open", "int"),
-    Column("due_soon", "Due soon", "int"),
+    Column("due_soon", "Due Soon", "int"),
     Column("overdue", "Overdue", "int"),
 ]
 CASE_COLUMNS = [
-    Column("case_no", "Case number"),
+    Column("case_no", "Case Number"),
     Column("cnr", "CNR"),
     Column("ref_no", "Reference"),
-    Column("holder_office_code", "Holder office"),
+    Column("holder_office", "Holder Office"),
+    Column("holder_office_code", "Holder Office Code", screen=False),
     Column("officer", "Officer"),
     Column("designation", "Designation"),
-    Column("pending_action", "Pending action"),
+    Column("pending_action", "Pending Action"),
     Column("since", "Since", "date"),
-    Column("due_date", "Due date", "date"),
-    Column("overdue_days", "Days overdue", "days"),
+    Column("due_date", "Due Date", "date"),
+    Column("overdue_days", "Days Overdue", "days"),
 ]
 
 
@@ -839,7 +861,7 @@ def pending_actions(
     sections = [
         Section(
             "by_holder",
-            "Cases with a pending action, by who has them",
+            "Cases with a Pending Action, by Who Has Them",
             ACTION_COLUMNS,
             action_rows,
             totals=action_totals,
@@ -851,7 +873,7 @@ def pending_actions(
         ),
         Section(
             "compliance",
-            "Overdue compliance by office",
+            "Overdue Compliance by Office",
             COMPLIANCE_COLUMNS,
             comp_rows,
             totals=_totals(COMPLIANCE_COLUMNS, comp_rows, "department_code"),
@@ -862,7 +884,7 @@ def pending_actions(
     if include_cases:
         cap = row_cap if row_cap is not None else cfg.xlsx_max_rows
         case_stmt = (
-            select(held, Case, holder.code, leg.holder_user_name, leg.holder_designation)
+            select(held, Case, holder.code, holder.name, leg.holder_user_name, leg.holder_designation)
             .select_from(held)
             .join(Case, Case.id == held.case_id)
             .join(holder, holder.id == held.holder_office_id)
@@ -874,17 +896,18 @@ def pending_actions(
             case_stmt.order_by(held.due_date.asc().nulls_last(), held.since, held.case_id).limit(cap)
         ).all()
         rows_out = []
-        for h, c, hcode, officer, designation in file_rows:
+        for h, c, hcode, hname, officer, designation in file_rows:
             late_days = (today - h.due_date).days if h.due_date is not None and h.due_date < today else 0
             rows_out.append(
                 {
                     "case_no": c.case_no_text,
                     "cnr": c.cnr,
                     "ref_no": c.ref_no,
+                    "holder_office": hname,
                     "holder_office_code": hcode,
                     "officer": officer,
                     "designation": designation,
-                    "pending_action": PENDING_ACTION_LABELS[PendingAction(h.pending_action)],
+                    "pending_action": title_case(PENDING_ACTION_LABELS[PendingAction(h.pending_action)]),
                     "since": ist_date(h.since),
                     "due_date": h.due_date,
                     "overdue_days": late_days,
@@ -894,7 +917,7 @@ def pending_actions(
         sections.append(
             Section(
                 "files",
-                "Cases with a pending action",
+                "Cases with a Pending Action",
                 CASE_COLUMNS,
                 rows_out,
                 note=(f"First {len(rows_out)} of {total} rows. " if truncated else "")
@@ -924,22 +947,22 @@ def pending_actions(
 
 HEALTH_COLUMNS = [
     Column("date", "Date", "date"),
-    Column("causelist_day_status", "Cause-list day"),
+    Column("causelist_day_status", "Cause List Day"),
     Column("causelist_day_attempts", "Attempts", "int"),
-    Column("lists_stored", "Lists stored", "int"),
-    Column("entries_parsed", "Entries parsed", "int"),
-    Column("lists_parse_failed", "Lists failed to parse", "int"),
-    Column("status_batches_done", "Status batches done", "int"),
-    Column("status_batches_failed", "Status batches failed", "int"),
-    Column("napix_calls", "NAPIX calls", "int"),
-    Column("napix_failed", "NAPIX calls failed", "int"),
-    Column("napix_error_families", "Failures by family"),
-    Column("dossiers_done", "Dossiers done", "int"),
-    Column("dossiers_failed", "Dossiers failed", "int"),
-    Column("order_pdfs_done", "Order PDFs done", "int"),
-    Column("order_pdfs_failed", "Order PDFs failed", "int"),
-    Column("sourcetrace_ok", "SourceTrace sent", "int"),
-    Column("sourcetrace_failed", "SourceTrace failed", "int"),
+    Column("lists_stored", "Lists Stored", "int"),
+    Column("entries_parsed", "Entries Parsed", "int"),
+    Column("lists_parse_failed", "Lists Failed to Parse", "int"),
+    Column("status_batches_done", "Status Batches Done", "int"),
+    Column("status_batches_failed", "Status Batches Failed", "int"),
+    Column("napix_calls", "NAPIX Calls", "int"),
+    Column("napix_failed", "NAPIX Calls Failed", "int"),
+    Column("napix_error_families", "Failures by Family"),
+    Column("dossiers_done", "Dossiers Done", "int"),
+    Column("dossiers_failed", "Dossiers Failed", "int"),
+    Column("order_pdfs_done", "Order PDFs Done", "int"),
+    Column("order_pdfs_failed", "Order PDFs Failed", "int"),
+    Column("sourcetrace_ok", "SourceTrace Sent", "int"),
+    Column("sourcetrace_failed", "SourceTrace Failed", "int"),
 ]
 
 
@@ -1060,7 +1083,7 @@ def data_health(
         Column("api", "API"),
         Column("calls", "Calls", "int"),
         Column("failed", "Failed", "int"),
-        Column("median_ms", "Median duration (ms)", "int"),
+        Column("median_ms", "Median Duration in Milliseconds", "int"),
     ]
     api_rows = [
         {
@@ -1105,13 +1128,13 @@ def data_health(
         {"measure": "due now", "count": st["due_now"]},
     ]
     sections = [
-        Section("by_date", "By date", HEALTH_COLUMNS, day_rows, totals=totals, note=CALL_LOG_NOTE),
+        Section("by_date", "By Date", HEALTH_COLUMNS, day_rows, totals=totals, note=CALL_LOG_NOTE),
         Section(
-            "napix_by_api", "NAPIX calls by API", api_cols, api_rows, totals=api_totals, note=CALL_LOG_NOTE
+            "napix_by_api", "NAPIX Calls by API", api_cols, api_rows, totals=api_totals, note=CALL_LOG_NOTE
         ),
         Section(
             "source_failures",
-            "Open source failures by kind",
+            "Open Source Failures by Kind",
             fail_cols,
             fail_rows,
             totals=_totals(fail_cols, fail_rows, "kind"),
@@ -1119,7 +1142,7 @@ def data_health(
         ),
         Section(
             "sourcetrace",
-            "SourceTrace status now",
+            "SourceTrace Status Now",
             st_cols,
             st_rows,
             note=f"Connector state: {st['state']}. Court orders and uploaded court filings only.",

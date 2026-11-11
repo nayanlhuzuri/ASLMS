@@ -150,4 +150,14 @@ describe("the wording guard", () => {
     );
     expect(bad).toEqual([]);
   });
+
+  // design portal-names-and-labels, decisions 29, 30 and 32 (S3, A3, L2): one word for each thing
+  it("finds no 'CINO', no 'versus' and no 'Next Date to Confirm' in messages.ts or the components", () => {
+    const RETIRED = /CINO|versus|next dates? to confirm/i;
+    const texts = [
+      ...stringsOf(join(SRC, "lib", "messages.ts")).map((s) => ({ file: "lib/messages.ts", ...s })),
+      ...componentFiles(join(SRC, "components")).flatMap((f) => jsxTextOf(f).map((s) => ({ file: f.slice(SRC.length + 1), ...s }))),
+    ];
+    expect(texts.filter((s) => RETIRED.test(s.text))).toEqual([]);
+  });
 });

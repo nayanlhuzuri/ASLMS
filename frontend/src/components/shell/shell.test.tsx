@@ -382,7 +382,7 @@ describe("header and sidebar foot", () => {
   it("the header search box opens /search?q= for case readers", async () => {
     browserApi({});
     renderWithClient(<HeaderSearch me={makeMe(OFFICER)} />);
-    const box = screen.getByRole("searchbox", { name: "Search by CINO, case number or party name" });
+    const box = screen.getByRole("searchbox", { name: "Search by CNR, case number or party name" });
     await userEvent.type(box, "WP(C) 4326/2025");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.push).toHaveBeenCalledWith("/search?q=WP(C)%204326%2F2025");
@@ -506,7 +506,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
     );
     await screen.findByText("page body");
     expect(screen.getAllByRole("search")).toHaveLength(2);
-    expect(document.getElementById("drawer-search")).toHaveAccessibleName("Search by CINO, case number or party name");
+    expect(document.getElementById("drawer-search")).toHaveAccessibleName("Search by CNR, case number or party name");
   });
 
   it("the bottom bar shows at most three entries plus More, which opens the drawer", async () => {

@@ -7,9 +7,10 @@
  *   row's custody brief only when the case is with the caller (design case-inbox-merge, decision 8).
  * The whole-day countdown to a hearing is `lib/hearingDate.ts` (design next-hearing-highlight, decision 2).
  */
-import type { CustodyCard, CustodyLeg, HeldItem, MyCase, SentItem } from "./api/types";
+import type { CustodyCard, CustodyLeg, HeldItem, MyCase, OfficeNameMap, SentItem } from "./api/types";
 import { addDays, daysBetween, istDay } from "./format";
 import { T } from "./messages";
+import { officeName } from "./officeNames";
 
 /** Who a case is with, or who sent it: the parts `withText` reads. */
 export interface WithParty {
@@ -46,11 +47,11 @@ export function cardHolder(card: CustodyCard | null | undefined): WithParty | nu
   };
 }
 
-/** Who sent the case to the current holder (the current leg's sender). */
-export function cardSender(card: CustodyCard | null | undefined): WithParty | null {
+/** Who sent the case to the current holder (the current leg's sender), the office by name (design portal-names-and-labels). */
+export function cardSender(card: CustodyCard | null | undefined, names?: OfficeNameMap): WithParty | null {
   const by = card?.sent_by;
   if (!by || (!by.name && !by.designation && !by.office_code)) return null;
-  return { designation: by.designation, office: by.office_code, name: by.name };
+  return { designation: by.designation, office: by.office_code ? officeName(by.office_code, names) : null, name: by.name };
 }
 
 /** The holder a leg names. */
@@ -63,10 +64,14 @@ export function legHolder(leg: CustodyLeg): WithParty {
   };
 }
 
-/** The person who wrote a leg (the sender, recaller or ownership actor). */
-export function legActor(leg: CustodyLeg): WithParty | null {
+/** The person who wrote a leg (the sender, recaller or ownership actor), the office by name. */
+export function legActor(leg: CustodyLeg, names?: OfficeNameMap): WithParty | null {
   if (!leg.actor_name && !leg.actor_designation && !leg.actor_office_code) return null;
-  return { designation: leg.actor_designation, office: leg.actor_office_code, name: leg.actor_name };
+  return {
+    designation: leg.actor_designation,
+    office: leg.actor_office_code ? officeName(leg.actor_office_code, names) : null,
+    name: leg.actor_name,
+  };
 }
 
 export type CasesTab = "with-me" | "pending" | "sent" | "working";

@@ -97,6 +97,7 @@ import { canAny } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
 import { ASSISTANT_ERRORS, ASSISTANT_FAILURES, T } from "@/lib/messages";
 import { CASE_READERS, showsAssistant } from "@/lib/routes";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./assistant.module.css";
 
@@ -860,7 +861,7 @@ function Workspace({
     scopes.length > 1 ? (
       <SegmentedSwitch
         label={A.searchIn}
-        options={scopes.map((v) => ({ value: v, label: A.scopes[v] ?? v }))}
+        options={scopes.map((v) => ({ value: v, label: labelFor(A.scopes, v) }))}
         value={scope}
         onChange={changeScope}
       />

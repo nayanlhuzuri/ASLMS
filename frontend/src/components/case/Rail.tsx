@@ -21,12 +21,13 @@ import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
 import { Badge, Button, Collapsible, EmptyState, ErrorBanner, HearingDate, Loading, Notice } from "@/components/ui";
-import { useJourney, useLatestListing, useMe } from "@/lib/api/hooks";
+import { useJourney, useLatestListing, useMe, useOfficeNames } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg, Listing } from "@/lib/api/types";
 import { cardHolder, cardSender, daysUntil, legActor, legHolder, withText } from "@/lib/cases";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { serverLabel } from "@/lib/displayLabels";
 
 import s from "./rail.module.css";
 
@@ -127,6 +128,7 @@ export function YourTask({
   onRemarks: () => void;
 }) {
   const me = useMe();
+  const names = useOfficeNames().data;
   const card = c.custody;
   if (!card) return <p className="muted">{T.rail.unclaimed}</p>;
   const closed = openClosure(c);
@@ -147,7 +149,7 @@ export function YourTask({
   }
   const meId = me.data?.user.id ?? null;
   const mine = !!card.holder_user && !!meId && card.holder_user.id === meId;
-  const sender = cardSender(card);
+  const sender = cardSender(card, names);
   const holder = withText(cardHolder(card), meId);
   const recall = card.can_recall ? (
     <Button variant="danger" onClick={() => onAction("recall")}>
@@ -159,7 +161,7 @@ export function YourTask({
       <div className={s.eyebrow} title={holder.title}>
         {mine ? T.rail.yourTask : T.rail.withWhom(holder.text)}
       </div>
-      <div className={s.taskAction}>{card.pending_action_label}</div>
+      <div className={s.taskAction}>{serverLabel(card.pending_action_label)}</div>
       <dl className={s.kv}>
         {sender ? (
           <>
@@ -235,11 +237,12 @@ export function QuickActions({ c, onAction }: { c: CaseDetail; onAction: (a: Rai
 }
 
 function legLine(leg: CustodyLeg): string | null {
-  return leg.reason === "sent" ? null : leg.reason_label;
+  return leg.reason === "sent" ? null : serverLabel(leg.reason_label);
 }
 
 export function Journey({ caseRef, journey }: { caseRef: string; journey: ReturnType<typeof useJourney> }) {
   const me = useMe();
+  const names = useOfficeNames().data;
   const meId = me.data?.user.id ?? null;
   return (
     <div className={s.journey}>
@@ -252,7 +255,7 @@ export function Journey({ caseRef, journey }: { caseRef: string; journey: Return
           <ol className={s.trail} aria-label={T.rail.journey}>
             {journey.data.legs.slice(0, 4).map((leg, i) => {
               const to = withText(legHolder(leg), meId);
-              const by = legActor(leg);
+              const by = legActor(leg, names);
               const reason = legLine(leg);
               return (
                 <li key={leg.seq_no} className={i === 0 ? `${s.leg} ${s.now}` : s.leg} aria-current={i === 0 ? "step" : undefined}>

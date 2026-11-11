@@ -229,7 +229,7 @@ describe("the frame", () => {
     expect(badge()).toHaveTextContent(/^Tomorrow · Fri, 20 Nov 2026$/);
     await waitFor(() => expect(within(fact("Next Hearing")).getByText("Court 3 · Item 14")).toHaveClass("muted"));
     expect(fact("With")).toHaveTextContent("Under Secretary, Secondary Education (you)");
-    expect(fact("Stage")).toHaveTextContent("Reply due");
+    expect(fact("Stage")).toHaveTextContent("Reply Due");
     expect(fact("Owner Department")).toHaveTextContent("Education");
     expect(fact("Status")).toHaveTextContent("Pending");
     expect(within(header).getByText("Status", { selector: "dt" }).parentElement).toHaveAttribute("data-fact", "status");
@@ -255,7 +255,7 @@ describe("the frame", () => {
     expect(within(header).queryByText(/Action due|Overdue since/)).toBeNull();
   });
 
-  it("another department's owner shows its code; the case is with a colleague; no owner says Not claimed", async () => {
+  it("another department's owner shows its name; the case is with a colleague; no owner says Not claimed", async () => {
     browserApi({
       "GET /me": me(),
       [`GET ${BASE}`]: detail({
@@ -264,7 +264,7 @@ describe("the frame", () => {
     });
     const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const header = await screen.findByRole("region", { name: "Case Summary" });
-    expect(within(header).getByText("HEALTH")).toBeInTheDocument();
+    expect(within(header).getAllByText("Health")[0]).toHaveAttribute("title", "HEALTH");
     expect(within(header).queryByText("Your Department")).toBeNull();
     const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
     expect(fact("With")).toHaveTextContent("SO, Secondary Education");
@@ -379,6 +379,9 @@ describe("the overview and the ownership card", () => {
     renderWithClient(<Overview caseRef={REF} />);
     const latest = await screen.findByRole("region", { name: "Latest Order" });
     expect(await within(latest).findByText("Affidavit within four weeks.")).toBeInTheDocument();
+    // design portal-names-and-labels, decision 28 (P4): the order kind by name
+    expect(within(latest).getByText("Interim Order", { exact: false })).toBeInTheDocument();
+    expect(within(latest).queryByText(/· interim$/)).toBeNull();
     // design portal-ui-kit-fixes, decision 22: the kit HeadLink, "View All" with the target named for screen readers
     expect(within(latest).getByRole("link", { name: "View All Orders" })).toHaveAttribute("href", `${BASE}/orders`);
     const recent = await screen.findByRole("region", { name: "Recent Activity" });
@@ -426,7 +429,7 @@ describe("the overview and the ownership card", () => {
     await openOwnership();
     const card = await screen.findByRole("region", { name: "Ownership" });
     const primary = (await within(card).findByText("Officer Two", { exact: false })).closest("li, p, div")!;
-    expect(primary.textContent).toContain("Responsible unit EDU-DSE");
+    expect(primary.textContent).toContain("Responsible unit Secondary Education");
     expect(primary.textContent).toContain("Dealing officer Officer Two");
     expect(card.textContent).not.toMatch(/allot/i);
     // the HEALTH watcher has neither: no label shows for it
@@ -461,8 +464,8 @@ describe("the overview and the ownership card", () => {
     await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Claim" }));
     const dialog = screen.getByRole("dialog", { name: "Claim This Case" });
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "FIN — Finance" })).toBeInTheDocument());
-    expect(within(dialog).getByRole("option", { name: "EDU — Education" })).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Finance" })).toBeInTheDocument());
+    expect(within(dialog).getByRole("option", { name: "Education" })).toBeInTheDocument();
   });
 
   it("take over sends the department and the officer the screen showed", async () => {
@@ -511,8 +514,8 @@ describe("the overview and the ownership card", () => {
     await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Request Transfer" }));
     const dialog = screen.getByRole("dialog", { name: "Request a Transfer" });
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
-    expect(within(dialog).queryByRole("option", { name: "EDU — Education" })).toBeNull();
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Health" })).toBeInTheDocument());
+    expect(within(dialog).queryByRole("option", { name: "Education" })).toBeNull();
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
     await userEvent.type(within(dialog).getByLabelText("Reason (Required)"), "health matter");
     await userEvent.click(within(dialog).getByLabelText("Stay as a watcher after the transfer"));
@@ -640,14 +643,14 @@ describe("tabs", () => {
             },
     });
     renderWithClient(<Notes caseRef={REF} />);
-    expect(await screen.findByRole("link", { name: "corrected by ASLMS/EDU/NOTE/2026/000002" })).toHaveAttribute("href", "#note-2");
+    expect(await screen.findByRole("link", { name: "Corrected by ASLMS/EDU/NOTE/2026/000002" })).toHaveAttribute("href", "#note-2");
     // design portal-ui-kit-fixes, decision 14: the kind first as a <strong>, the visibility badge in the badges slot
     const head = document.querySelector("#note-1 [data-ui='item-head']") as HTMLElement;
     expect(head.firstElementChild!.firstElementChild!.tagName).toBe("STRONG");
     expect(head.firstElementChild!.firstElementChild!.textContent).toBe("Remark");
     expect(head.lastElementChild!.textContent).toBe("Everyone with the Case");
     expect(head.querySelector("[data-lead]")).toBeNull();
-    expect(screen.getByRole("link", { name: "corrects ASLMS/EDU/NOTE/2026/000001" })).toHaveAttribute("href", "#note-1");
+    expect(screen.getByRole("link", { name: "Corrects ASLMS/EDU/NOTE/2026/000001" })).toHaveAttribute("href", "#note-1");
     await userEvent.click(screen.getByLabelText("Hide Corrected Notes"));
     await waitFor(() => expect(screen.queryByText("body 1")).toBeNull());
     expect(api.calls.some((c) => c.url.includes("include_superseded=false"))).toBe(true);
@@ -675,6 +678,16 @@ describe("tabs", () => {
     expect(screen.getByText("G-17")).toBeInTheDocument(); // goshwara
     expect(screen.getByText("WA/5/2026")).toBeInTheDocument(); // writ information
     expect(screen.getByText("Index missing")).toBeInTheDocument(); // objections
+    // design portal-names-and-labels, decisions 17-19 (P9): plain labels, coded values named, ids hidden by name
+    for (const label of ["CNR", "Registration Number", "Filing Disposal Date", "Goshwara Number", "First Seen From"]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.queryByText("Reg no")).toBeNull();
+    expect(screen.queryByText("Date filing disp")).toBeNull();
+    expect(screen.queryByText("Case type id")).toBeNull();
+    expect(screen.queryByText("Is tracked")).toBeNull();
+    const status = screen.getByRole("region", { name: "Status" });
+    expect(within(status).getByText("Pending")).toBeInTheDocument();
   });
 
   it("linked cases: hidden ones are text, the graph draws nodes and edges and says when truncated", async () => {
@@ -846,11 +859,11 @@ describe("the department that acts (portal-cases-followups)", () => {
     const dialog = screen.getByRole("dialog", { name: "Suggest Another Department" });
     await userEvent.selectOptions(within(dialog).getByLabelText("Suggest From"), "HEALTH");
     const target = within(dialog).getByLabelText("Department");
-    await waitFor(() => expect(within(target).getByRole("option", { name: "EDU — Education" })).toBeInTheDocument());
+    await waitFor(() => expect(within(target).getByRole("option", { name: "Education" })).toBeInTheDocument());
     expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual([
       "Choose a Department",
-      "EDU — Education",
-      "REV — Revenue",
+      "Education",
+      "Revenue",
     ]);
     await userEvent.selectOptions(target, "EDU");
     await userEvent.type(within(dialog).getByLabelText("Reason (Required)"), "education matter");
@@ -873,7 +886,7 @@ describe("the department that acts (portal-cases-followups)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Suggest Department" }));
     const dialog = screen.getByRole("dialog", { name: "Suggest Another Department" });
     expect(within(dialog).queryByLabelText("Suggest From")).toBeNull();
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "FIN — Finance" })).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Finance" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "FIN");
     await userEvent.type(within(dialog).getByLabelText("Reason (Required)"), "theirs");
     await userEvent.click(within(dialog).getByRole("button", { name: "Suggest Department" }));
@@ -885,7 +898,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       ...overviewRoutes(detail(), twoRows(actions({ allot: true, allot_departments: ["EDU", "HEALTH"] }))),
       "GET /custody/recipients": (call: { url: string }) =>
         call.url.includes("department=HEALTH")
-          ? { departments: [], units: [], total: 1, items: [{ user_id: "u-10", full_name: "New Officer", designation: null, office_code: "HEALTH" }] }
+          ? { departments: [], units: [], total: 1, items: [{ user_id: "u-10", full_name: "New Officer", designation: null, office_code: "HEALTH", office_name: "Health" }] }
           : DEPTS,
       [`POST ${BASE}/allot`]: {},
     });
@@ -900,7 +913,7 @@ describe("the department that acts (portal-cases-followups)", () => {
     await userEvent.selectOptions(within(dialog).getByLabelText("For"), "HEALTH");
     expect(within(dialog).getByRole("option", { name: "Keep As Is (Health Officer)" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("option", { name: "Keep As Is (Officer Two)" })).toBeNull();
-    await waitFor(() => expect(within(dialog).getByRole("option", { name: "New Officer, HEALTH" })).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "New Officer, Health" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText("Dealing Officer"), "u-10");
     await userEvent.click(within(dialog).getByRole("button", { name: "Assign" }));
     await waitFor(() => expect(posted(api, `${BASE}/allot`)).toEqual([{ office_code: "HEALTH", officer_user_id: "u-10" }]));
@@ -1551,7 +1564,7 @@ describe("the Timeline tab (portal-ui-redesign, decision 15)", () => {
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "date");
-    expect(within(rows[0]!).getByText("File sent")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("File Sent")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("12")).toBeInTheDocument();
   });
 });

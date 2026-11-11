@@ -56,6 +56,16 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     );
   });
 
+  it("the date presets' empty option reads Any, never a dash", () => {
+    browserApi(ROUTES);
+    renderWithClient(<FilterBar list="recommended" params={{}} />);
+    for (const name of ["Cause-list Date", "Next Hearing"]) {
+      const first = within(screen.getByLabelText(name)).getAllByRole("option")[0]!;
+      expect(first).toHaveValue("");
+      expect(first).toHaveTextContent(/^Any$/);
+    }
+  });
+
   it("Enter in a field submits", async () => {
     browserApi(ROUTES);
     renderWithClient(<FilterBar list="recommended" params={{}} />);

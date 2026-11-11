@@ -10,9 +10,10 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, HeadLink, HearingDate, Kpi, Loading, SelectField } from "@/components/ui";
+import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, HeadLink, HearingDate, Kpi, Loading, OfficeName, SelectField } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { useLabels, useMe } from "@/lib/api/hooks";
+import { labelOf, serverLabel } from "@/lib/displayLabels";
 import type {
   AlertCase,
   DashboardAlert,
@@ -29,7 +30,6 @@ import { can, canAny, canIn } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { sourceLabel, statusLabel } from "@/lib/nextDates";
-import { titleCase } from "@/lib/titleCase";
 import { DATA_READERS, navFor } from "@/lib/routes";
 
 import s from "./dashboard.module.css";
@@ -110,7 +110,7 @@ function FileList({
       rowKey={(f) => `${f.case.id}-${f.since}`}
       columns={[
         { key: "case", header: T.dash.case, primary: true, cell: (f) => <CaseRef value={f.case} /> },
-        { key: "action", header: T.dash.action, cell: (f) => f.pending_action_label },
+        { key: "action", header: T.dash.action, cell: (f) => serverLabel(f.pending_action_label) },
         ...(mergedDue
           ? [{ key: "due", header: T.dash.due, cell: (f: DashboardFile) => <DueCell file={f} /> }]
           : [
@@ -283,7 +283,7 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
                 primary: true,
                 cell: (o) => (
                   <>
-                    {o.office_name} <span className="mono muted">{o.office_code}</span>
+                    <OfficeName code={o.office_code} name={o.office_name} />
                   </>
                 ),
               },
@@ -347,7 +347,7 @@ function AlertTypeBadge({ alert }: { alert: DashboardAlert }) {
       </Badge>
     );
   }
-  return <Badge>{titleCase(alert.kind_label)}</Badge>;
+  return <Badge>{serverLabel(alert.kind_label)}</Badge>;
 }
 
 type OwnCases = DashboardMe["cases"][number];
@@ -402,7 +402,7 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
                 key: "department",
                 header: T.dash.department,
                 primary: true,
-                cell: (c) => <span title={c.department_code}>{c.department_name}</span>,
+                cell: (c) => <OfficeName code={c.department_code} name={c.department_name} />,
               },
               figure("allotted", T.dash.allotted, (c) => c.allotted_active),
               figure("disposed", T.dash.disposed, (c) => c.allotted_disposed),
@@ -521,7 +521,7 @@ export function StateBlock({ data }: { data: DashboardState }) {
               cell: ({ d }) =>
                 d ? (
                   <>
-                    {d.name} <span className="mono muted">{d.code}</span>
+                    <OfficeName code={d.code} name={d.name} />
                   </>
                 ) : (
                   T.dash.notClaimed
@@ -572,7 +572,7 @@ export function StateBlock({ data }: { data: DashboardState }) {
                 rows={[...rows]}
                 rowKey={(r) => r.code}
                 columns={[
-                  { key: "code", header: T.dash.office, primary: true, rowHeader: true, cell: (r) => <span className="mono">{r.code}</span> },
+                  { key: "code", header: T.dash.office, primary: true, rowHeader: true, cell: (r) => <OfficeName code={r.code} /> },
                   { key: "overdue", header: T.dash.overdueCol, align: "right", cell: (r) => n(r.overdue) },
                 ]}
               />
@@ -629,7 +629,7 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
               rows={departments}
               rowKey={([code]) => code}
               columns={[
-                { key: "department", header: T.dash.department, primary: true, rowHeader: true, cell: ([code]) => <span className="mono">{code}</span> },
+                { key: "department", header: T.dash.department, primary: true, rowHeader: true, cell: ([code]) => <OfficeName code={code} /> },
                 { key: "open", header: T.dash.ticketsOpenCol, align: "right", cell: ([, count]) => formatNumber(count) },
               ]}
             />

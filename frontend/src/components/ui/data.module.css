@@ -348,7 +348,8 @@
 
 .dl {
   display: grid;
-  grid-template-columns: minmax(140px, max-content) 1fr;
+  /* a screen with several lists side by side sets one label width (design portal-names-and-labels, decision 19) */
+  grid-template-columns: var(--dl-label-w, minmax(140px, max-content)) minmax(0, 1fr);
   gap: var(--s2) var(--s4);
   margin: 0;
 }

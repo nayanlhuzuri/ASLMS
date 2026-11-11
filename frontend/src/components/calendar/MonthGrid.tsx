@@ -3,7 +3,7 @@
 /**
  * My calendar's month grid (design portal-ui-redesign, decision 8): a `<table>` with a caption and weekday headers,
  * Monday first, the days of the neighbouring months dimmed, weekends muted and today circled (IST). A day shows up to
- * two events, coloured by kind (red hearing, amber action due, blue next date to confirm), and "+n more"; on phones
+ * two events, coloured by kind (red hearing, amber action due, blue next date to enter), and "+n more"; on phones
  * the events become dots. Each day is a button whose accessible name says what it holds ("22 October: 1 hearing, 1
  * action due"), so colour is never the only signal; pressing it fills the agenda. Hidden kinds (the legend) are left
  * out of the cells and the names.

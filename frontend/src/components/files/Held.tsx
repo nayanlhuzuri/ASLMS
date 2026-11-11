@@ -23,13 +23,15 @@ import { Badge, CaseLink, Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, H
 import inboxStyles from "@/components/inbox/inbox.module.css";
 import { ClosureBadge } from "@/components/inbox/rows";
 import { api } from "@/lib/api/client";
-import { useDepartments, useMe } from "@/lib/api/hooks";
+import { useDepartments, useMe, useOfficeNames } from "@/lib/api/hooks";
 import type { HeldItem, HeldList, Me } from "@/lib/api/types";
 import { cardHolder, cardSender, leadBadge, withText, type WithParty } from "@/lib/cases";
 import { toApiQuery } from "@/lib/filters";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
+import { serverLabel } from "@/lib/displayLabels";
+import { nameOptions } from "@/lib/officeNames";
 
 import { FilePanel } from "./FilePanel";
 import { TRACK_ERRORS } from "./TrackingSummary";
@@ -113,6 +115,7 @@ export function trackedDepartments(me: Me | undefined): { value: string; label: 
 export function Held({ tab, params, department }: { tab: "with-me" | "pending"; params: Params; department?: string }) {
   const setFilters = useFilters(params);
   const me = useMe();
+  const names = useOfficeNames().data;
   const meId = me.data?.user.id ?? null;
   const [open, setOpen] = useState<HeldItem | null>(null);
   const scope: HeldScope = tab === "pending" ? "owned" : params.held === "offices" ? "office" : "me";
@@ -143,7 +146,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
             kind: "select" as const,
             label: T.files.holderDepartment,
             placeholder: T.files.allDepartments,
-            options: (departments.data?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` })),
+            options: nameOptions(departments.data?.departments ?? []),
             more: true,
           },
         ]
@@ -161,7 +164,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
           },
           { key: "overdue", kind: "check", label: T.files.overdueOnly },
         ];
-  const who = (r: HeldItem): WithParty | null => (scope === "owned" ? cardHolder(r.card) : cardSender(r.card));
+  const who = (r: HeldItem): WithParty | null => (scope === "owned" ? cardHolder(r.card) : cardSender(r.card, names));
   const whoHeader = scope === "owned" ? T.cases.with : T.cases.from;
   const columns: Column<HeldItem>[] = [
     {
@@ -182,7 +185,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
           <ClosureBadge c={r.case} />
         </span>
       ) }]),
-    { key: "action", header: T.files.action, cell: (r) => r.card?.pending_action_label ?? "—" },
+    { key: "action", header: T.files.action, cell: (r) => serverLabel(r.card?.pending_action_label) ?? "—" },
     { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.card?.due_date} overdue={!!r.card?.overdue} /> },
     { key: "who", header: whoHeader, cell: (r) => <WithCell party={who(r)} meId={meId} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
@@ -239,7 +242,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
         remark={card?.remark}
         facts={[
           [T.files.holder, open ? <WithCell party={cardHolder(open.card)} meId={meId} /> : null],
-          [T.files.action, card?.pending_action_label ?? null],
+          [T.files.action, serverLabel(card?.pending_action_label) ?? null],
           [T.files.since, formatDateTime(card?.since)],
           [
             T.files.due,
@@ -250,7 +253,7 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
               </span>
             ) : null,
           ],
-          [T.files.from, open ? <WithCell party={cardSender(open.card)} /> : null],
+          [T.files.from, open ? <WithCell party={cardSender(open.card, names)} /> : null],
         ]}
       />
     </div>

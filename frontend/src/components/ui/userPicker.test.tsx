@@ -101,7 +101,7 @@ describe("the User Picker (design office-head-picker, decision 2)", () => {
     expect(ravi).toHaveTextContent("ravi@example.org");
     expect(ravi.querySelector("mark")).toHaveTextContent("Ra");
     const offices = [...ravi.querySelectorAll("[data-office]")].map((e) => e.textContent);
-    expect(offices[0]).toMatch(/^EDU · Secretary · Dept head/);
+    expect(offices[0]).toMatch(/^EDU · Secretary · Dept Head/);
     expect(offices).toHaveLength(3);
     expect(within(ravi).getAllByText("Head")).toHaveLength(2);
     expect(ravi).toHaveTextContent("+ 1 more");

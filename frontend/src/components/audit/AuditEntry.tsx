@@ -12,10 +12,12 @@ import { useRouter } from "next/navigation";
 
 import { CaseLink, DefinitionList, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
+import { useOfficeNames } from "@/lib/api/hooks";
 import type { AuditRow } from "@/lib/api/types";
 import { actionName } from "@/lib/audit";
 import { formatDateTimeSeconds } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { officeName } from "@/lib/officeNames";
 import { queryString } from "@/lib/params";
 
 import { FROM_SEARCH_KEY } from "./AuditTable";
@@ -32,6 +34,7 @@ function openedFromSearch(id: string): boolean {
 
 export function AuditEntry({ id }: { id: string }) {
   const router = useRouter();
+  const names = useOfficeNames();
   const entry = useQuery({
     queryKey: ["audit", "entry", id],
     queryFn: () => api<AuditRow>(`/audit/${encodeURIComponent(id)}`),
@@ -74,7 +77,7 @@ export function AuditEntry({ id }: { id: string }) {
 
   const r = entry.data;
   const a = r.actor;
-  const by = a.name ? [a.name, a.designation, a.office_code].filter(Boolean).join(", ") : T.audit.system;
+  const by = a.name ? [a.name, a.designation, a.office_code ? officeName(a.office_code, names.data) : null].filter(Boolean).join(", ") : T.audit.system;
   const links: { href: string; label: string }[] = [];
   if (r.case?.ref_no) links.push({ href: "/audit" + queryString({ case: r.case.ref_no }), label: T.audit.entriesForCase });
   if (a.user_id) links.push({ href: "/audit" + queryString({ user: a.user_id }), label: T.audit.entriesByPerson });
@@ -94,9 +97,20 @@ export function AuditEntry({ id }: { id: string }) {
             [T.audit.when, formatDateTimeSeconds(r.at)],
             [
               T.audit.action,
-              <span key="action" className={s.code}>
-                {actionName(r.action) === r.action ? r.action : `${actionName(r.action)} (${r.action})`}
-              </span>,
+              // decision 20: the name, then the code an auditor quotes in mono muted text; a code with no name shows itself
+              actionName(r.action) === r.action ? (
+                <span key="action" className={s.code}>
+                  {r.action}
+                </span>
+              ) : (
+                <span key="action">
+                  {actionName(r.action)}
+                  <span className="muted">
+                    {" · "}
+                    <code className={s.code}>{r.action}</code>
+                  </span>
+                </span>
+              ),
             ],
             [T.audit.by, by],
             [T.audit.case, r.case?.ref_no ? <CaseLink key="case" value={{ ...r.case, ref_no: r.case.ref_no }} /> : null],

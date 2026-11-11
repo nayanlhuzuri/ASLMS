@@ -12,13 +12,14 @@ import { Notice } from "@/components/ui";
 import { caseKey } from "@/lib/api/hooks";
 import { clearFlash, peekFlash } from "@/lib/flash";
 import { T } from "@/lib/messages";
+import { labelFor } from "@/lib/displayLabels";
 
 export const VISIBILITIES = ["case_scope", "counsel_shared", "private_to_office"] as const;
 
 export function visibilityOptions(current?: string | null) {
   return VISIBILITIES.map((v) => ({
     value: v,
-    label: `${T.case.visibilities[v] ?? v}${current === v ? ` (${T.wf.currentMarkShort})` : ""}`,
+    label: `${labelFor(T.case.visibilities, v)}${current === v ? ` (${T.wf.currentMarkShort})` : ""}`,
     hint: T.wf.visibilityHelp[v],
   }));
 }

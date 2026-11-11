@@ -129,13 +129,19 @@ def test_attention_order_and_limits(world):
             ("file_received", newest.id),
             ("file_received", later.id),
         ]
-        assert att[0]["overdue_days"] == 5 and att[0]["detail"] == "Overdue 5 days"
+        day = dashboard._day
+        assert att[0]["overdue_days"] == 5
+        assert att[0]["detail"] == f"Was due {day(today() - timedelta(days=5))}, 5 days ago"
         assert att[0]["title"] == "Parawise comments" and att[0]["date"] == today() - timedelta(days=5)
-        assert att[1]["detail"] == "Overdue 1 day"
+        assert att[1]["detail"] == f"Was due {day(today() - timedelta(days=1))}, 1 day ago"
         assert att[2]["next_date_id"] is None and att[2]["date"] == today() + timedelta(days=29)
-        assert att[2]["title"] == "Next date to enter" and att[2]["detail"] == "The order gives no clear date"
+        assert att[2]["title"] == "No clear date in the order"
+        assert att[2]["detail"] == f"Answer by {day(today() + timedelta(days=29))}"
         assert att[2]["pending_action"] is None
-        assert att[3]["detail"] == "Due tomorrow" and att[3]["overdue_days"] == 0
+        assert (
+            att[3]["detail"] == f"By {day(today() + timedelta(days=1))}, tomorrow"
+            and att[3]["overdue_days"] == 0
+        )
         sender = world.user(s, "edu_off1").full_name
         assert att[4]["detail"].startswith(f"From {sender}")
         for n in (1, 2, 3, 5):
@@ -246,3 +252,54 @@ def test_attention_keeps_overdue_and_confirm_on_one_case(world):
         _enter_item(s, case)
         att = [(i["kind"], i["case"]["id"]) for i in _me(s, world, "edu_off2")["attention"]]
         assert att == [("overdue_action", case.id), ("confirm_next_date", case.id)]
+
+
+def test_attention_badge_words_not_repeated(world):
+    """Design portal-names-and-labels, decision 24 (D1): the badge names the kind, the title is the thing to act on
+    and the detail the extra fact; neither repeats the badge's words. A received case with no action reads "No
+    action pending"; a move with no person names the sending office by name."""
+    from datetime import date
+
+    from aslms.domain.workflow import CustodyHistory, PendingAction
+
+    assert dashboard._day(date(2026, 11, 2)) == "2 Nov 2026"
+    with world.Session() as s:
+        _sent(s, world, -3, ago_hours=200)
+        _sent(s, world, 0, ago_hours=200)
+        _sent(s, world, 2, ago_hours=200)
+        quiet = _sent(s, world, None, ago_hours=2)
+        row = s.get(Custody, quiet.id)
+        row.pending_action = PendingAction.NONE
+        s.flush()
+        # a move with no person on it (custody_history is append-only: the trigger is set aside for the fixture)
+        s.execute(sa.text("SET LOCAL session_replication_role = replica"))
+        s.execute(
+            sa.update(CustodyHistory)
+            .where(CustodyHistory.id == row.current_leg_id)
+            .values(actor_name=None, actor_designation=None, actor_office_code="EDU")
+        )
+        s.execute(sa.text("SET LOCAL session_replication_role = origin"))
+        att = _me(s, world, "edu_off2")["attention"]
+        by_kind = [(i["kind"], i["title"], i["detail"]) for i in att]
+        t = today()
+        assert by_kind == [
+            (
+                "overdue_action",
+                "Parawise comments",
+                f"Was due {dashboard._day(t - timedelta(days=3))}, 3 days ago",
+            ),
+            ("due_soon", "Parawise comments", f"By {dashboard._day(t)}, today"),
+            ("due_soon", "Parawise comments", f"By {dashboard._day(t + timedelta(days=2))}, in 2 days"),
+            ("file_received", "No action pending", f"From {world.offices['EDU'].name}"),
+        ]
+        badges = ("overdue", "due soon", "next date to enter", "ready to close", "case received", "new")
+        for _kind, title, detail in by_kind:
+            for word in badges:
+                assert not title.lower().startswith(word) and not (detail or "").lower().startswith(word)
+        assert dashboard.ENTER_TITLE == {
+            "unclear": "No clear date in the order",
+            "none": "No next date in the order",
+            "no_text": "Scanned order, not readable",
+            "marked_wrong": "Date read was marked wrong",
+        }
+        assert dashboard.READY_TITLE == "Close this case"

@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { CaseCell } from "@/components/inbox/rows";
-import { Badge, DataTable, EmptyState, ErrorBanner, Loading, Pagination, SegmentedSwitch, type Column } from "@/components/ui";
+import { Badge, type Column, DataTable, EmptyState, ErrorBanner, Loading, Pagination, SegmentedSwitch, useOfficeName } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { Transfer, TransferList } from "@/lib/api/types";
@@ -20,6 +20,7 @@ import { toApiQuery } from "@/lib/filters";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
+import { labelFor } from "@/lib/displayLabels";
 
 import type { RowContext } from "./CaseModal";
 import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
@@ -38,6 +39,7 @@ export function transferStatusOf(params: Params): string {
 
 export function Transfers({ params, department, onOpen }: { params: Params; department: string; onOpen: (row: RowContext) => void }) {
   const setFilters = useFilters(params);
+  const nameOf = useOfficeName();
   const direction = params.direction === "out" ? "out" : "in";
   const status = transferStatusOf(params);
   const offset = offsetOf(params);
@@ -58,7 +60,7 @@ export function Transfers({ params, department, onOpen }: { params: Params; depa
     {
       key: "other",
       header: T.inbox.direction,
-      cell: (t) => <span className="mono">{T.inbox.fromTo(t.from_office_code, t.to_office_code)}</span>,
+      cell: (t) => T.inbox.fromTo(nameOf(t.from_office_code), nameOf(t.to_office_code)),
     },
     { key: "reason", header: T.claim.reason, cell: (t) => t.reason ?? <span className="muted">—</span> },
     {
@@ -75,7 +77,7 @@ export function Transfers({ params, department, onOpen }: { params: Params; depa
       key: "status",
       header: T.claim.status,
       width: "var(--lead-w)",
-      cell: (t) => <Badge tone={statusTone(t.status)}>{T.inbox.transferStatuses[t.status] ?? t.status}</Badge>,
+      cell: (t) => <Badge tone={statusTone(t.status)}>{labelFor(T.inbox.transferStatuses, t.status)}</Badge>,
     },
   ];
   return (

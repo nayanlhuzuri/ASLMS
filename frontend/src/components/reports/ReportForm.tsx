@@ -25,6 +25,7 @@ import {
   type PeriodChoice,
   type ReportKey,
 } from "@/lib/reports";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./reports.module.css";
 
@@ -91,7 +92,7 @@ export function ReportForm({
       if (choice === "custom") {
         const bad = checkPeriod(from || undefined, to || undefined, today);
         if (bad) {
-          setProblem(T.reports.periodProblems[bad] ?? bad);
+          setProblem(labelFor(T.reports.periodProblems, bad));
           return;
         }
         next.from = from;
@@ -128,7 +129,7 @@ export function ReportForm({
           setChoice(e.target.value as PeriodChoice);
           setProblem(null);
         }}
-        options={choices.map((c) => ({ value: c, label: T.reports.choices[c] ?? c }))}
+        options={choices.map((c) => ({ value: c, label: labelFor(T.reports.choices, c) }))}
         error={choice === "custom" ? undefined : shownError}
       />
       {choice === "custom" ? (

@@ -46,22 +46,22 @@ describe("timeline lines", () => {
       ),
     ).toBe(nb("Sent · HEALTH · Health Off, Under Secretary · Parawise comments · due 20 Oct 2026"));
     expect(timelineDetail("custody_moved", { reason: "recalled", office_code: "EDU", pending_action: "examine" }, labels)).toBe(
-      "Recalled · EDU · examine",
+      "Recalled · EDU · Examine",
     );
-    expect(timelineDetail("stage_set", { stage: "reply_due", label: "Reply due", office_code: "EDU" })).toBe("Reply due · EDU");
+    expect(timelineDetail("stage_set", { stage: "reply_due", label: "Reply due", office_code: "EDU" })).toBe("Reply Due · EDU");
     expect(timelineDetail("note_added", { kind: "opinion", ref_no: "ASLMS/EDU/NOTE/2026/000003", finalised: true }, labels)).toBe(
       "Opinion · ASLMS/EDU/NOTE/2026/000003 · from a draft",
     );
     expect(timelineDetail("note_added", { kind: "opinion", ref_no: "N/1", finalised: false }, labels)).toBe("Opinion · N/1");
     expect(timelineDetail("document_uploaded", { doc_type: "counter_affidavit", office_code: "EDU" })).toBe(
-      "counter affidavit · EDU",
+      "Counter Affidavit · EDU",
     );
     expect(timelineDetail("alert_raised", { kind: "file_received", title: "x" }, labels)).toBe("File received");
   });
 
   it("never shows a remark, and never raw JSON from workflow payloads", () => {
     const line = timelineDetail("custody_moved", { reason: "sent", remark: "secret remark", office_code: { x: 1 } });
-    expect(line).toBe("sent");
+    expect(line).toBe("Sent");
     expect(line).not.toContain("secret");
     expect(timelineDetail("note_added", { kind: ["x"], ref_no: { y: 1 } })).toBeNull();
   });
@@ -122,5 +122,15 @@ describe("next_date_differs (design next-date-direct, decision 5)", () => {
       timelineDetail("next_date_differs", { court_date: "2026-11-25", order_next_date: "2026-11-20", order_date: "2026-10-12" }),
     ).toBe(nb("The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026"));
     expect(timelineDetail("next_date_differs", { court_date: "2026-11-25" })).toBeNull();
+  });
+
+  it("names the offices of a payload when the names are given (design portal-names-and-labels, decision 6)", () => {
+    const offices = new Map([
+      ["EDU", { code: "EDU", name: "Education", kind: "department" as const, tier: "department" as const, department_code: "EDU", is_active: true }],
+    ]);
+    expect(timelineDetail("claimed", { office_code: "EDU", role: "primary" }, { offices })).toBe("Education · primary");
+    expect(timelineDetail("transfer_requested", { from_office_code: "EDU", to_office_code: "HEALTH", ref_no: "T/1" }, { offices })).toBe(
+      "Education → HEALTH · T/1",
+    );
   });
 });

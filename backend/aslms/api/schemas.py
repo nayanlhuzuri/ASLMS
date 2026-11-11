@@ -251,6 +251,23 @@ class ReferenceLabelsOut(BaseModel):
     alert_kinds: list[LabelOut]  # design portal-workflow, decision 20f: active `ref_alert_kind` rows
 
 
+class OfficeNameOut(BaseModel):
+    """Design `portal-names-and-labels`, decision 1: an office's display name, nothing else."""
+
+    code: str
+    name: str
+    kind: OfficeKind
+    tier: Literal["state", "department", "directorate"]
+    department_code: str | None
+    is_active: bool
+
+
+class OfficeNamesOut(BaseModel):
+    """`GET /reference/offices`: every office, active and inactive, ordered by path."""
+
+    items: list[OfficeNameOut]
+
+
 class CourtNumberOut(BaseModel):
     """A court number printed in the cause lists of the window (trimmed)."""
 
@@ -2929,6 +2946,8 @@ class ReportColumnOut(BaseModel):
     key: str
     label: str
     kind: str
+    # design portal-names-and-labels, decision 26: false for the code columns, which only Excel shows
+    screen: bool = True
 
 
 class ReportSectionOut(BaseModel):
@@ -2946,6 +2965,7 @@ class ReportGeneratedByOut(BaseModel):
     name: str
     designation: str | None
     office_code: str | None
+    office_name: str | None = None  # design portal-names-and-labels, decision 9
 
 
 class ReportOut(BaseModel):

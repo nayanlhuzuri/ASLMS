@@ -13,7 +13,7 @@
  */
 import { useState } from "react";
 
-import { Badge, Button, ErrorBanner, Loading, ScoreBadge, SignalChips } from "@/components/ui";
+import { Badge, Button, ErrorBanner, Loading, OfficeName, ScoreBadge, SignalChips, useOfficeName } from "@/components/ui";
 import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { ApiError } from "@/lib/api/client";
 import { useMe, useOwnership } from "@/lib/api/hooks";
@@ -22,17 +22,20 @@ import { departmentsOf } from "@/lib/can";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import type { Signal } from "@/lib/signals";
+import { labelFor } from "@/lib/displayLabels";
 
 import s from "./case.module.css";
 
 function Row({ o }: { o: Ownership }) {
   return (
     <>
-      <strong className="mono">{o.office_code ?? "—"}</strong>
+      <strong>
+        <OfficeName code={o.office_code} />
+      </strong>
       {o.unit ? (
         <span>
           {" · "}
-          {T.case.responsibleUnit} <span className="mono">{o.unit.code}</span>
+          {T.case.responsibleUnit} <OfficeName code={o.unit.code} name={o.unit.name} />
         </span>
       ) : null}
       {o.officer ? (
@@ -58,6 +61,7 @@ export function OwnershipCard({
   secondaryOnly?: boolean;
 }) {
   const me = useMe();
+  const nameOf = useOfficeName();
   const view = useOwnership(caseRef);
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   if (view.isPending) return <Loading />;
@@ -67,7 +71,7 @@ export function OwnershipCard({
     return (
       <section className="card" aria-label={T.case.ownership}>
         <h3>{T.case.ownership}</h3>
-        <p>{p ? `${p.office_code ?? ""}${p.office_name ? ` — ${p.office_name}` : ""}` : T.case.noOwner}</p>
+        <p>{p ? <OfficeName code={p.office_code} name={p.office_name} /> : T.case.noOwner}</p>
       </section>
     );
   }
@@ -113,8 +117,8 @@ export function OwnershipCard({
           <ul className={s.cardList}>
             {otherRecs.map((r) => (
               <li key={r.id}>
-                <span className="mono">{r.office_code}</span> <ScoreBadge score={r.score} band={r.band} />{" "}
-                <span className="muted">{T.case.recommendationStatuses[r.status] ?? r.status}</span>
+                <OfficeName code={r.office_code} /> <ScoreBadge score={r.score} band={r.band} />{" "}
+                <span className="muted">{labelFor(T.case.recommendationStatuses, r.status)}</span>
               </li>
             ))}
           </ul>
@@ -123,8 +127,8 @@ export function OwnershipCard({
       {t ? (
         <div>
           <div className="muted">{T.case.openTransfer}</div>
-          <span className="mono">{t.ref_no}</span> · {T.inbox.fromTo(t.from_office_code, t.to_office_code)}{" "}
-          <Badge tone="warning">{T.inbox.transferStatuses[t.status] ?? t.status}</Badge>
+          <span className="mono">{t.ref_no}</span> · {T.inbox.fromTo(nameOf(t.from_office_code), nameOf(t.to_office_code))}{" "}
+          <Badge tone="warning">{labelFor(T.inbox.transferStatuses, t.status)}</Badge>
           {t.reason ? <div>{t.reason}</div> : null}
         </div>
       ) : null}

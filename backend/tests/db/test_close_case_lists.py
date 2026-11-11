@@ -151,7 +151,7 @@ def test_ready_to_close_attention(wide):
         mine = [i for i in items if i["kind"] == "ready_to_close"]
         assert [i["case"]["id"] for i in mine] == [ready.id]
         assert (
-            mine[0]["title"] == "Ready to Close"
+            mine[0]["title"] == "Close this case"
             and mine[0]["detail"] == "Disposed by the court on 20 Oct 2026"
         )
         assert not [i for i in items if i["kind"] == "file_received" and i["case"]["id"] == ready.id]

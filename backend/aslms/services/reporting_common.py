@@ -27,15 +27,15 @@ IST_ZONE = IST
 
 # decision 6: the national judicial data grid bands, [low, high) in whole years; exactly N years is the next band
 AGE_BANDS: tuple[tuple[str, str, int, int | None], ...] = (
-    ("age_lt_1", "Up to 1 year", 0, 1),
-    ("age_1_3", "1 to 3 years", 1, 3),
-    ("age_3_5", "3 to 5 years", 3, 5),
-    ("age_5_10", "5 to 10 years", 5, 10),
-    ("age_10_20", "10 to 20 years", 10, 20),
-    ("age_20_30", "20 to 30 years", 20, 30),
-    ("age_gt_30", "Over 30 years", 30, None),
+    ("age_lt_1", "Up to 1 Year", 0, 1),
+    ("age_1_3", "1 to 3 Years", 1, 3),
+    ("age_3_5", "3 to 5 Years", 3, 5),
+    ("age_5_10", "5 to 10 Years", 5, 10),
+    ("age_10_20", "10 to 20 Years", 10, 20),
+    ("age_20_30", "20 to 30 Years", 20, 30),
+    ("age_gt_30", "Over 30 Years", 30, None),
 )
-AGE_UNKNOWN = ("age_unknown", "Age not known")
+AGE_UNKNOWN = ("age_unknown", "Age Not Known")
 AGE_KEYS: tuple[str, ...] = tuple(b[0] for b in AGE_BANDS) + (AGE_UNKNOWN[0],)
 
 

@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { CaseLink, DataTable, type Column } from "@/components/ui";
+import { CaseLink, type Column, DataTable, OfficeName } from "@/components/ui";
 import type { AuditRow } from "@/lib/api/types";
 import { actionName } from "@/lib/audit";
 import { formatDateTimeSeconds } from "@/lib/format";
@@ -47,7 +47,7 @@ export function AuditTable({ rows, params }: { rows: readonly AuditRow[]; params
       header: T.audit.action,
       primary: true,
       cell: (r) => (
-        <Link href={narrow(params, { action: r.action })} className={s.code} title={r.action}>
+        <Link href={narrow(params, { action: r.action })} className={s.action} title={r.action}>
           {actionName(r.action)}
         </Link>
       ),
@@ -58,7 +58,7 @@ export function AuditTable({ rows, params }: { rows: readonly AuditRow[]; params
       header: T.audit.case,
       cell: (r) => (r.case?.ref_no ? <CaseLink value={{ ...r.case, ref_no: r.case.ref_no }} /> : "—"),
     },
-    { key: "record", header: T.audit.record, cell: (r) => <span className={s.code}>{r.entity_type}</span> },
+    { key: "record", header: T.audit.record, cell: (r) => <span className={s.record}>{r.entity_type}</span> },
     {
       key: "view",
       header: <span className="visually-hidden">{T.audit.view}</span>,
@@ -97,9 +97,7 @@ function Actor({ row, params }: { row: AuditRow; params: Params }) {
           {a.designation ?? ""}
           {a.designation && a.office_code ? ", " : ""}
           {a.office_code ? (
-            <Link href={narrow(params, { office: a.office_code })} className="mono">
-              {a.office_code}
-            </Link>
+            <OfficeName code={a.office_code} href={narrow(params, { office: a.office_code })} />
           ) : null}
         </small>
       ) : null}

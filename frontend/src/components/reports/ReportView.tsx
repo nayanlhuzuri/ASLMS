@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { EmptyState, Notice, numCell, Pagination } from "@/components/ui";
+import { EmptyState, Notice, numCell, Pagination, useOfficeName } from "@/components/ui";
 import u from "@/components/ui/data.module.css";
 import type { Report, ReportDepartment, ReportSection } from "@/lib/api/types";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -37,8 +37,10 @@ export function ReportView({
   actions?: ReactNode;
 }) {
   const p = report.params as Record<string, unknown>;
+  const nameOf = useOfficeName();
   const by = report.generated_by;
-  const who = [by.name, by.designation, by.office_code].filter(Boolean).join(", ");
+  // design portal-names-and-labels, decision 9: the office by name (the server's office_name, else the names map)
+  const who = [by.name, by.designation, by.office_code ? nameOf(by.office_code, by.office_name) : null].filter(Boolean).join(", ");
   const holder = typeof p.holder_department === "string" && p.holder_department ? p.holder_department : null;
   // design court-data-freshness, decision 20: a data-health period that starts before the oldest kept call day
   const meta = (report.meta ?? {}) as Record<string, unknown>;
@@ -95,6 +97,8 @@ export function SectionTable({ section }: { section: ReportSection }) {
   const paged = rows.some((r) => typeof r.ref_no === "string");
   const shown = paged ? rows.slice(offset, offset + PAGE) : rows;
   const totals = section.totals as Record<string, unknown> | null;
+  // decision 26: the code columns are for Excel only
+  const columns = section.columns.filter((c) => c.screen !== false);
   return (
     <div className="stack">
       {rows.length === 0 ? (
@@ -112,7 +116,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
               <caption>{section.title}</caption>
               <thead>
                 <tr>
-                  {section.columns.map((c) => (
+                  {columns.map((c) => (
                     <th key={c.key} scope="col" className={NUMERIC.has(c.kind) ? numCell : undefined}>
                       {c.label}
                     </th>
@@ -122,7 +126,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
               <tbody>
                 {shown.map((row, i) => (
                   <tr key={offset + i}>
-                    {section.columns.map((c) => (
+                    {columns.map((c) => (
                       <td key={c.key} className={NUMERIC.has(c.kind) ? numCell : undefined}>
                         <Cell row={row} column={c} />
                       </td>
@@ -133,7 +137,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
               {totals ? (
                 <tfoot>
                   <tr className={s.totals}>
-                    {section.columns.map((c) => {
+                    {columns.map((c) => {
                       const v = totals[c.key];
                       return (
                         <td key={c.key} className={NUMERIC.has(c.kind) ? numCell : undefined}>

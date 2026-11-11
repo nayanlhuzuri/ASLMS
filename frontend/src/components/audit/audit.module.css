@@ -33,6 +33,22 @@
   overflow-wrap: anywhere;
 }
 
+/* design portal-names-and-labels, decision 20: the action by name in the body font, never broken mid-word */
+.action {
+  font-family: inherit;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* the record type in the list (design portal-names-and-labels, deviation 8): mono, but a word breaks only when it
+   cannot fit its line (design portal-ui-kit-fixes, decision 15), so the column is never squeezed until a word splits
+   now that the Action cell no longer breaks mid-word */
+.record {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  overflow-wrap: break-word;
+}
+
 .who {
   display: flex;
   flex-direction: column;

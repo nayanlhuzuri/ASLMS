@@ -20765,6 +20765,73 @@
         "title": "OfficeKind",
         "type": "string"
       },
+      "OfficeNameOut": {
+        "description": "Design `portal-names-and-labels`, decision 1: an office's display name, nothing else.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Code"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OfficeKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "state",
+              "department",
+              "directorate"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "tier",
+          "department_code",
+          "is_active"
+        ],
+        "title": "OfficeNameOut",
+        "type": "object"
+      },
+      "OfficeNamesOut": {
+        "description": "`GET /reference/offices`: every office, active and inactive, ordered by path.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OfficeNameOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "OfficeNamesOut",
+        "type": "object"
+      },
       "OfficeNodeOut": {
         "properties": {
           "children": {
@@ -23620,6 +23687,11 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "screen": {
+            "default": true,
+            "title": "Screen",
+            "type": "boolean"
           }
         },
         "required": [
@@ -23680,6 +23752,17 @@
               }
             ],
             "title": "Office Code"
+          },
+          "office_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Name"
           }
         },
         "required": [
@@ -49245,6 +49328,33 @@
           }
         ],
         "summary": "Labels",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/offices": {
+      "get": {
+        "description": "The name of every office, active and inactive, at every tier, ordered by path, with its kind, tier,\nDepartment-tier code and whether it is active. Office names only, the same for every caller who passes the\ngate; no case data. Reads only; no audit row.",
+        "operationId": "offices_reference_offices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeNamesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Offices",
         "tags": [
           "reference"
         ]

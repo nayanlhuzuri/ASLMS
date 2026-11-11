@@ -30,6 +30,7 @@ import { T } from "@/lib/messages";
 import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath, casePath } from "@/lib/refs";
 import { timelineDetail } from "@/lib/timeline";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import s from "./case.module.css";
 import { OwnershipCard } from "./OwnershipCard";
@@ -101,7 +102,7 @@ function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
           {o ? (
             <>
               <div>
-                <strong>{formatDate(o.order_date)}</strong> · {o.kind}
+                <strong>{formatDate(o.order_date)}</strong> · {labelFor(T.assistant.orderKinds, o.kind)}
               </div>
               {o.order_details ? <p className={s.orderText}>{o.order_details}</p> : null}
               <OrderRow caseRef={caseRef} order={o} label={T.case.showOrder} />
@@ -151,7 +152,7 @@ function RecentActivity({ caseRef }: { caseRef: string }) {
                 return (
                   <li key={`${e.occurred_at}-${i}`} className={s.railItem}>
                     <div className={s.when}>{formatDateTime(e.occurred_at)}</div>
-                    <strong>{e.label}</strong>
+                    <strong>{serverLabel(e.label)}</strong>
                     {detail || e.actor_name ? (
                       <div className="muted">{[detail, e.actor_name].filter(Boolean).join(" · ")}</div>
                     ) : null}
@@ -170,7 +171,7 @@ export function Overview({ caseRef }: { caseRef: string }) {
   const query = useCase(caseRef);
   if (!query.data) return null;
   const c = query.data;
-  const basis = c.access_basis.map((b) => T.case.bases[b] ?? b).join(", ");
+  const basis = c.access_basis.map((b) => labelFor(T.case.bases, b)).join(", ");
   return (
     <div className="stack">
       <div className={s.caseGrid}>

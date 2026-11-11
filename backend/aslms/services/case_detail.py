@@ -125,6 +125,17 @@ PORTAL = (
     "updated_by",
 )
 
+# the keys of the overview's list blocks (design portal-names-and-labels, decision 18): each dict is built from its
+# tuple, and `tools/export_enum_codes.py` carries them to the portal's Details labels test
+ACT_FIELDS = ("act_name_as_listed", "national_act_code", "section")
+LOWER_COURT_FIELDS = ("level", "court_name", "case_no_text", "decision_date")
+APPLICATION_FIELDS = ("ia_number", "party_name", "status", "filing_date")
+OBJECTION_FIELDS = ("seq", "objection", "scrutiny_date", "compliance_by_date", "receipt_date")
+TRANSFER_FIELDS = ("transfer_date", "from_court_text", "to_court_text")
+WRIT_FIELDS = ("appellate_case_number", "appellate_authority")
+# keys the portal adds to the Identity and Classification blocks from `court` and `bench`
+PORTAL_ADDED_FIELDS = ("court", "est_code", "sitting_bench", "judges")
+
 # decision 15: the event types the timeline shows now; documents, notes and alerts join with their own
 # visibility (custody-workflow decision 20: `custody_moved` and `stage_set` for everyone who sees the case,
 # `note_added` only when the note is visible to the caller)
@@ -179,8 +190,8 @@ def _value(v: Any) -> Any:
     return v.value if hasattr(v, "value") and not isinstance(v, bool | int | float | str) else v
 
 
-def _group(case: Case, names: tuple[str, ...]) -> dict[str, Any]:
-    return {n: _value(getattr(case, n)) for n in names}
+def _group(row: Any, names: tuple[str, ...]) -> dict[str, Any]:
+    return {n: _value(getattr(row, n)) for n in names}
 
 
 def _count(session: Session, stmt: Select) -> int:
@@ -320,31 +331,17 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
         "parties": parties,
         "advocates": advocates,
         "acts": [
-            {
-                "act_name_as_listed": a.act_name_as_listed,
-                "national_act_code": a.national_act_code,
-                "section": a.section,
-            }
+            _group(a, ACT_FIELDS)
             for a in session.scalars(
                 select(CaseAct).where(CaseAct.case_id == case.id).order_by(CaseAct.act_name_as_listed)
             ).all()
         ],
         "lower_courts": [
-            {
-                "level": _value(lc.level),
-                "court_name": lc.court_name,
-                "case_no_text": lc.case_no_text,
-                "decision_date": lc.decision_date,
-            }
+            _group(lc, LOWER_COURT_FIELDS)
             for lc in session.scalars(select(CaseLowerCourt).where(CaseLowerCourt.case_id == case.id)).all()
         ],
         "applications": [
-            {
-                "ia_number": a.ia_number,
-                "party_name": a.party_name,
-                "status": a.status,
-                "filing_date": a.filing_date,
-            }
+            _group(a, APPLICATION_FIELDS)
             for a in session.scalars(
                 select(CaseApplication)
                 .where(CaseApplication.case_id == case.id)
@@ -352,13 +349,7 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
             ).all()
         ],
         "objections": [
-            {
-                "seq": o.seq,
-                "objection": o.objection,
-                "scrutiny_date": o.scrutiny_date,
-                "compliance_by_date": o.compliance_by_date,
-                "receipt_date": o.receipt_date,
-            }
+            _group(o, OBJECTION_FIELDS)
             for o in session.scalars(
                 select(CaseObjection)
                 .where(CaseObjection.case_id == case.id)
@@ -366,11 +357,7 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
             ).all()
         ],
         "court_transfers": [
-            {
-                "transfer_date": t.transfer_date,
-                "from_court_text": t.from_court_text,
-                "to_court_text": t.to_court_text,
-            }
+            _group(t, TRANSFER_FIELDS)
             for t in session.scalars(
                 select(CaseTransfer)
                 .where(CaseTransfer.case_id == case.id)
@@ -378,7 +365,7 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
             ).all()
         ],
         "writ_info": [
-            {"appellate_case_number": w.appellate_case_number, "appellate_authority": w.appellate_authority}
+            _group(w, WRIT_FIELDS)
             for w in session.scalars(select(CaseWritInfo).where(CaseWritInfo.case_id == case.id)).all()
         ],
         "ownership": _ownership(session, case),

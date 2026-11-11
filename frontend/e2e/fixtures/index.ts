@@ -408,21 +408,24 @@ function catalogue(): ReportCatalogue {
 }
 
 function report(key: string): Report {
+  // design portal-names-and-labels, decisions 13 and 26: Title Case headers; the code column is for Excel only
   const columns = [
-    { key: "case", label: "Case", kind: "text" },
-    { key: "ref_no", label: "Reference", kind: "text" },
-    { key: "petitioner", label: "Petitioner", kind: "text" },
-    { key: "department", label: "Holding department", kind: "text" },
-    { key: "filed", label: "Filed", kind: "date" },
-    { key: "next", label: "Next Hearing", kind: "date" },
-    { key: "stage", label: "Stage", kind: "text" },
-    { key: "held", label: "Files held", kind: "int" },
-    { key: "pending", label: "Days pending", kind: "days" },
+    { key: "case", label: "Case", kind: "text", screen: true },
+    { key: "ref_no", label: "Reference", kind: "text", screen: true },
+    { key: "petitioner", label: "Petitioner", kind: "text", screen: true },
+    { key: "department_code", label: "Holding Department Code", kind: "text", screen: false },
+    { key: "department", label: "Holding Department", kind: "text", screen: true },
+    { key: "filed", label: "Filed", kind: "date", screen: true },
+    { key: "next", label: "Next Hearing", kind: "date", screen: true },
+    { key: "stage", label: "Stage", kind: "text", screen: true },
+    { key: "held", label: "Cases Held", kind: "int", screen: true },
+    { key: "pending", label: "Days Pending", kind: "days", screen: true },
   ];
   const row = (i: number) => ({
     case: i === 0 ? STRESS.caseNo : `WA/${55 + i}/2026`,
     ref_no: i === 0 ? SAMPLE.caseRef : `ASLMS/GHC/CASE/2026/00000${2 + i}`,
     petitioner: i === 0 ? STRESS.party : "RAM KUMAR DAS",
+    department_code: "EDU",
     department: i === 0 ? STRESS.office : "Education",
     filed: "2025-01-10",
     next: "2026-10-23",
@@ -437,7 +440,7 @@ function report(key: string): Report {
     department_code: null,
     params: {},
     generated_at: "2026-10-21T05:30:00Z",
-    generated_by: { name: "Anita Sharma Baruah", designation: STRESS.designation, office_code: "GOA" },
+    generated_by: { name: "Anita Sharma Baruah", designation: STRESS.designation, office_code: "GOA", office_name: "Government of Assam" },
     as_of_note: "As it stands today.",
     sections: [
       { key: "main", title: "Pending cases by department", columns, rows: [row(0), row(1), row(2)], totals: { held: STRESS.count * 3 }, note: null, total_rows: 3, truncated: false },
@@ -1296,9 +1299,46 @@ function collectListCheck(): S["CollectListCheckOut"] {
 
 type Override = (url: URL) => unknown;
 
+/**
+ * Every office's name (design portal-names-and-labels, decision 8): the codes the synthetic answers use (`synth.ts`
+ * CODES) and the typed fixtures here, each with a name; the stress row's code (`EDU`, index 0) carries the 60-character
+ * `STRESS.office`, so the screen check sees office names at full length wherever a code used to show.
+ */
+function officeNames(): S["OfficeNamesOut"] {
+  const item = (
+    code: string,
+    name: string,
+    tier: "state" | "department" | "directorate",
+    department_code: string | null,
+    is_active = true,
+  ): S["OfficeNameOut"] => ({
+    code,
+    name,
+    kind: tier === "state" ? "state" : tier === "department" ? "department" : "directorate",
+    tier,
+    department_code,
+    is_active,
+  });
+  return {
+    items: [
+      item("GOA", "Government of Assam", "state", null),
+      item("EDU", STRESS.office, "department", "EDU"),
+      item("EDU-DSE", "Directorate of Secondary Education", "directorate", "EDU"),
+      item("EDU-DSE-LEGAL-CELL", "Legal Cell, Directorate of Secondary Education", "directorate", "EDU"),
+      item("EDU-OLD", "Old Education Cell", "directorate", "EDU", false),
+      item("SEC-EDU", "Secondary Education Department", "department", "SEC-EDU"),
+      item("FIN", "Finance Department", "department", "FIN"),
+      item("HEALTH", "Health and Family Welfare Department", "department", "HEALTH"),
+      item("HOME", "Home and Political Department", "department", "HOME"),
+      item("PWD", "Public Works Roads Department", "department", "PWD"),
+    ],
+  };
+}
+
 /** Overrides by API path (exact) or pattern. */
 const OVERRIDES: [RegExp, Override][] = [
   [/^\/me$/, () => me()],
+  [/^\/reference\/offices$/, () => officeNames()],
   // design assistant-ollama, decision 14: the Assistant screens in the local model's state, the model ready
   [
     /^\/assistant\/status$/,

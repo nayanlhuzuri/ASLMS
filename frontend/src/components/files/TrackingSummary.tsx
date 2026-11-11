@@ -6,7 +6,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { DataTable, ErrorBanner, Loading, Tile, type Column } from "@/components/ui";
+import { type Column, DataTable, ErrorBanner, Loading, OfficeName, Tile, useOfficeName } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { CustodySummary, DepartmentCustodySummary } from "@/lib/api/types";
 import { formatNumber } from "@/lib/format";
@@ -28,7 +28,8 @@ function countColumns<Row extends Counts>(): Column<Row>[] {
 }
 
 export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
-  const title = T.files.summary(d.code);
+  const nameOf = useOfficeName();
+  const title = T.files.summary(nameOf(d.code) ?? d.code);
   return (
     <section className={s.summary} aria-label={title}>
       <h2>{title}</h2>
@@ -44,7 +45,7 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
           rows={d.by_holder_department}
           rowKey={(r) => r.code}
           columns={[
-            { key: "department", header: T.files.department, primary: true, cell: (r) => <span className="mono">{r.code}</span> },
+            { key: "department", header: T.files.department, primary: true, cell: (r) => <OfficeName code={r.code} /> },
             ...countColumns<(typeof d.by_holder_department)[number]>(),
           ]}
         />
@@ -54,7 +55,7 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
           rows={d.by_holder.map((r, i) => ({ ...r, key: `${r.office_code}-${r.user_name ?? ""}-${i}` }))}
           rowKey={(r) => r.key}
           columns={[
-            { key: "office", header: T.files.office, primary: true, cell: (r) => <span className="mono">{r.office_code}</span> },
+            { key: "office", header: T.files.office, primary: true, cell: (r) => <OfficeName code={r.office_code} /> },
             { key: "officer", header: T.files.officer, cell: (r) => r.user_name ?? "—" },
             { key: "designation", header: T.files.designation, cell: (r) => r.designation ?? "—" },
             ...countColumns<(typeof d.by_holder)[number] & { key: string }>(),

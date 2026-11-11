@@ -4,22 +4,19 @@
  * The Details tab (design portal-cases, decision 10): every other typed field of the overview response, so each NAPIX
  * field with a home is visible somewhere (CLAUDE.md "every NAPIX field is kept"): identity, status, classification,
  * place, acts and sections, lower courts, applications, objections, court transfers, writ information, the parties
- * and advocates as printed, and the portal block. Internal ids are not shown.
+ * and advocates as printed, and the portal block. Each key has a plain label from `lib/caseFields.ts` and coded values
+ * are named (design portal-names-and-labels, decisions 17-19); internal ids are hidden by name. Every list shares one
+ * label column width.
  */
 import type { ReactNode } from "react";
 
 import { DataTable, DefinitionList, EmptyState } from "@/components/ui";
 import { useCase } from "@/lib/api/hooks";
+import { caseFieldLabel, caseFieldValue, HIDDEN_FIELDS, type FieldBlock } from "@/lib/caseFields";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** `date_first_list` → "Date first list". */
-export function fieldLabel(key: string): string {
-  const text = key.replace(/_/g, " ").trim();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
+import s from "./case.module.css";
 
 export function fieldValue(value: unknown): ReactNode {
   if (value === null || value === undefined || value === "") return "—";
@@ -34,26 +31,26 @@ export function fieldValue(value: unknown): ReactNode {
   return "—";
 }
 
-function shown(key: string, value: unknown): boolean {
-  return !(typeof value === "string" && UUID.test(value)) && key !== "id";
+function shown(key: string): boolean {
+  return !HIDDEN_FIELDS.has(key);
 }
 
 function Block({ title, data }: { title: string; data: Record<string, unknown> | null | undefined }) {
-  const entries = Object.entries(data ?? {}).filter(([k, v]) => shown(k, v));
+  const entries = Object.entries(data ?? {}).filter(([k]) => shown(k));
   return (
     <section className="card stack" aria-label={title}>
       <h3>{title}</h3>
       {entries.length === 0 ? (
         <EmptyState compact>{T.case.none}</EmptyState>
       ) : (
-        <DefinitionList items={entries.map(([k, v]) => [fieldLabel(k), fieldValue(v)])} />
+        <DefinitionList items={entries.map(([k, v]) => [caseFieldLabel(k), fieldValue(caseFieldValue(k, v))])} />
       )}
     </section>
   );
 }
 
-function ListBlock({ title, rows }: { title: string; rows: Record<string, unknown>[] }) {
-  const keys = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((k) => rows.some((r) => shown(k, r[k])));
+function ListBlock({ title, rows, block }: { title: string; rows: Record<string, unknown>[]; block?: FieldBlock }) {
+  const keys = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter(shown);
   return (
     <section className="card stack" aria-label={title}>
       <h3>{title}</h3>
@@ -66,9 +63,9 @@ function ListBlock({ title, rows }: { title: string; rows: Record<string, unknow
           rowKey={(row) => String(row.i)}
           columns={keys.map((k, n) => ({
             key: k,
-            header: fieldLabel(k),
+            header: caseFieldLabel(k),
             primary: n === 0,
-            cell: (row: { r: Record<string, unknown>; i: number }) => (shown(k, row.r[k]) ? fieldValue(row.r[k]) : "—"),
+            cell: (row: { r: Record<string, unknown>; i: number }) => fieldValue(caseFieldValue(k, row.r[k], block)),
           }))}
         />
       )}
@@ -82,15 +79,15 @@ export function Details({ caseRef }: { caseRef: string }) {
   const c = query.data;
   const bench = c.bench ? { bench_id: c.bench.bench_id, bench_name: c.bench.bench_name, judge_names: c.bench.judge_names } : null;
   return (
-    <div className="stack">
+    <div className={`stack ${s.details}`}>
       <Block title={T.case.identity} data={{ ...c.identity, court: c.court?.name ?? null, est_code: c.court?.est_code ?? null }} />
       <Block title={T.case.statusBlock} data={c.status} />
       <Block title={T.case.classification} data={{ ...c.classification, ...(bench ? { sitting_bench: bench.bench_name, judges: bench.judge_names } : {}) }} />
       <Block title={T.case.place} data={c.place} />
       <Block title={T.case.asPrinted} data={c.parties_as_printed} />
       <ListBlock title={T.case.acts} rows={c.acts} />
-      <ListBlock title={T.case.lowerCourts} rows={c.lower_courts} />
-      <ListBlock title={T.case.applications} rows={c.applications} />
+      <ListBlock title={T.case.lowerCourts} rows={c.lower_courts} block="lower_courts" />
+      <ListBlock title={T.case.applications} rows={c.applications} block="applications" />
       <ListBlock title={T.case.objections} rows={c.objections} />
       <ListBlock title={T.case.courtTransfers} rows={c.court_transfers} />
       <ListBlock title={T.case.writInfo} rows={c.writ_info} />
@@ -100,13 +97,13 @@ export function Details({ caseRef }: { caseRef: string }) {
 }
 
 /** The identity and classification fields only (design portal-ui-redesign, decision 7: the claim modal's "Case
- * details" tab). */
+ * details" tab), with the same labels and label width as the Details tab. */
 export function IdentityDetails({ caseRef }: { caseRef: string }) {
   const query = useCase(caseRef);
   if (!query.data) return null;
   const c = query.data;
   return (
-    <div className="stack">
+    <div className={`stack ${s.details}`}>
       <Block title={T.case.identity} data={{ ...c.identity, court: c.court?.name ?? null, est_code: c.court?.est_code ?? null }} />
       <Block title={T.case.classification} data={c.classification} />
     </div>

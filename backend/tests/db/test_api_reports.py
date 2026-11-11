@@ -75,10 +75,12 @@ def test_catalogue_and_json_report(api, world):
     files = next(s for s in body["sections"] if s["key"] == "files")
     assert files["total_rows"] == 2 and files["columns"][0] == {
         "key": "case_no",
-        "label": "Case number",
+        "label": "Case Number",
         "kind": "text",
+        "screen": True,
     }
-    assert body["generated_by"]["office_code"] == "EDU"
+    assert next(c for c in files["columns"] if c["key"] == "holder_office_code")["screen"] is False
+    assert body["generated_by"]["office_code"] == "EDU" and body["generated_by"]["office_name"]
     assert _exports(world) == []  # reading JSON is not audited
     officer = login(api, "edu_off1")
     assert api.get("/reports", headers=officer).status_code == 403

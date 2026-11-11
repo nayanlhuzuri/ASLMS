@@ -19,7 +19,7 @@ import { Badge, Button, CheckField, EmptyState, ErrorBanner, ItemHead, Loading, 
 import { DraftsPanel } from "@/components/workflow/DraftsPanel";
 import { NoteComposer } from "@/components/workflow/NoteComposer";
 import { api } from "@/lib/api/client";
-import { caseKey, useCase, useMe } from "@/lib/api/hooks";
+import { caseKey, useCase, useMe, useOfficeNames } from "@/lib/api/hooks";
 import type { Note, NoteList } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
@@ -27,6 +27,8 @@ import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath, noteRefAnchor } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
+import { officeName } from "@/lib/officeNames";
 
 import s from "./case.module.css";
 import { sizeText } from "./Documents";
@@ -106,6 +108,7 @@ export function Notes({ caseRef }: { caseRef: string }) {
   // read `/me` with the trail, so the attachments' View and Download links come with the notes
   useMe();
   const detail = useCase(caseRef);
+  const names = useOfficeNames().data;
   const [hide, setHide] = useState(false);
   const [offset, setOffset] = useState(0);
   const [correcting, setCorrecting] = useState<Note | null>(null);
@@ -146,15 +149,19 @@ export function Notes({ caseRef }: { caseRef: string }) {
                       portal-ui-kit-fixes, decision 14) */}
                   <ItemHead
                     id={noteRefAnchor(n.ref_no)}
-                    title={<strong>{n.kind_label}</strong>}
+                    title={<strong>{serverLabel(n.kind_label)}</strong>}
                     meta={
                       <>
                         <span className="mono muted">{n.ref_no}</span>
-                        <span>{[n.author.name, n.author.designation, n.author.office_code].filter(Boolean).join(", ")}</span>
+                        <span>
+                          {[n.author.name, n.author.designation, n.author.office_code ? officeName(n.author.office_code, names) : null]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
                         <span className="muted">{formatDateTime(n.created_at)}</span>
                       </>
                     }
-                    badges={<Badge>{T.case.visibilities[n.visibility] ?? n.visibility}</Badge>}
+                    badges={<Badge>{labelFor(T.case.visibilities, n.visibility)}</Badge>}
                   />
                   {n.supersedes ? (
                     <div className="muted">

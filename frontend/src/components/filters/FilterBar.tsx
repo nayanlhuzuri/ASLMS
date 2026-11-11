@@ -41,6 +41,8 @@ import {
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
+import { nameOptions } from "@/lib/officeNames";
+import { labelFor } from "@/lib/displayLabels";
 
 import { DateRangeField, type DateValue } from "./DateRangeField";
 import { clearAllUpdates } from "./NoCaseMatches";
@@ -99,9 +101,9 @@ function presetOptions(kind: "listed" | "next", list: ListKey): Option[] {
   if (choices) {
     // design portal-ui-redesign, decision 5: Department cases' Next hearing (Any date, This week, Next 30 days,
     // Choose dates)
-    return choices.map((value) => ({ value, label: T.inbox.departmentNext[value] ?? labels[value] ?? value }));
+    return choices.map((value) => ({ value, label: T.inbox.departmentNext[value] ?? labelFor(labels, value) }));
   }
-  return ["", ...presets, "date", "range"].map((value) => ({ value, label: labels[value] ?? value }));
+  return ["", ...presets, "date", "range"].map((value) => ({ value, label: labelFor(labels, value) }));
 }
 
 const FIELD_LABELS: Record<SharedField, string> = {
@@ -198,7 +200,7 @@ export function FilterBar(props: FilterBarProps) {
   const totalLine =
     total !== undefined && total !== null ? (
       <p className={s.total} aria-live="polite">
-        {T.filters.match(formatNumber(total), T.filters.nouns[noun] ?? noun)}
+        {T.filters.match(formatNumber(total), labelFor(T.filters.nouns, noun))}
       </p>
     ) : null;
   const card = layout === "card";
@@ -330,10 +332,8 @@ function FilterForm({
     onApply(updates);
   }
 
-  const departmentOptions: Option[] = (departments.data?.departments ?? []).map((d) => ({
-    value: d.code,
-    label: `${d.code} — ${d.name}`,
-  }));
+  // design portal-names-and-labels, decision 8: names alone, sorted by name; the value stays the code
+  const departmentOptions: Option[] = nameOptions(departments.data?.departments ?? []);
   const withCurrent = (options: Option[], current: string | undefined): Option[] =>
     current && !options.some((o) => o.value === current) ? [...options, { value: current, label: current }] : options;
 
@@ -464,7 +464,7 @@ function FilterForm({
             key="case_status"
             label={T.filters.status}
             placeholder={T.filters.anyStatus}
-            options={CASE_STATUSES.map((v) => ({ value: v, label: T.filters.statuses[v] ?? v }))}
+            options={CASE_STATUSES.map((v) => ({ value: v, label: labelFor(T.filters.statuses, v) }))}
             value={form.case_status ?? ""}
             onChange={(e) => set("case_status", e.target.value)}
           />

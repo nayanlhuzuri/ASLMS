@@ -140,7 +140,7 @@ def test_reports_unit_grouping_labels(world):
         rep = reports.pending_cases(s, world.user(s, "edu_admin"), _scope(s, world, "edu_admin"))
         section = _section(rep, "by_group")
         labels = {c.key: c.label for c in section.columns}
-        assert labels["group_code"] == "Responsible unit code" and labels["group"] == "Responsible unit"
+        assert labels["group_code"] == "Responsible Unit Code" and labels["group"] == "Responsible Unit"
         dept = next(r for r in section.rows if r["group_code"] == "DEPT")
         assert dept["group"] == "Whole department (no responsible unit)"
         assert not any("allot" in c.label.lower() for c in section.columns)
@@ -309,7 +309,7 @@ def test_include_cases_respects_visibility_and_never_shows_remark(world):
         assert _section(rep, "by_holder").totals["held"] == 4  # the department's counts
         files = _section(rep, "files")
         assert [r["ref_no"] for r in files.rows] == [mine.ref_no]  # only the case dse_user may open
-        assert files.rows[0]["pending_action"] == "Parawise comments"
+        assert files.rows[0]["pending_action"] == "Parawise Comments"
         admin = world.user(s, "edu_admin")
         full = reports.pending_actions(
             s, admin, _scope(s, world, "edu_admin", "pending-actions"), include_cases=True, row_cap=2
@@ -331,6 +331,53 @@ def test_include_cases_respects_visibility_and_never_shows_remark(world):
         blobs.append(str(uncapped.to_dict()))
         for blob in blobs:
             assert "secret remark" not in blob
+
+
+def test_pending_actions_case_list_names_holder_office(world):
+    """Design portal-names-and-labels, decision 27: the case list names the holder office; its code is a hidden
+    Excel-only column."""
+    with world.Session() as s:
+        late, soon, _open = _files(s, world)
+        admin = world.user(s, "edu_admin")
+        rep = reports.pending_actions(
+            s, admin, _scope(s, world, "edu_admin", "pending-actions"), include_cases=True
+        )
+        files = _section(rep, "files")
+        cols = {c.key: c for c in files.columns}
+        assert cols["holder_office"].label == "Holder Office" and cols["holder_office"].screen is True
+        assert (
+            cols["holder_office_code"].label == "Holder Office Code"
+            and cols["holder_office_code"].screen is False
+        )
+        row = _row(files, ref_no=soon.ref_no)
+        assert row["holder_office"] == "Health" and row["holder_office_code"] == "HEALTH"
+        assert _row(files, ref_no=late.ref_no)["holder_office"] == world.offices["EDU"].name
+        # the totals label sits on the first column the screen shows
+        assert _section(rep, "by_holder").totals["holder_department"] == "Total"
+
+
+def test_generated_by_has_office_name(world):
+    with world.Session() as s:
+        rep = reports.pending_cases(s, world.user(s, "edu_admin"), _scope(s, world, "edu_admin"))
+        assert rep.generated_by["office_code"] == "EDU"
+        assert rep.generated_by["office_name"] == world.offices["EDU"].name
+        assert world.offices["EDU"].name in report_export.generated_by_text(rep)
+
+
+def test_pdf_omits_code_columns_excel_keeps_them(world):
+    with world.Session() as s:
+        _files(s, world)
+        rep = reports.pending_actions(
+            s,
+            world.user(s, "edu_admin"),
+            _scope(s, world, "edu_admin", "pending-actions"),
+            include_cases=True,
+        )
+        pdf = _pdf_text(report_export.to_pdf(rep))
+        xlsx = _xlsx_text(report_export.to_xlsx(rep))
+        for label in ("Holder Department Code", "Holder Office Code", "Addressed Office Code"):
+            assert label not in pdf and label in xlsx
+        assert "Holder Office" in pdf and "Pending Actions and Overdue Compliance by Office" in pdf
 
 
 def test_data_health_per_date(world, tmp_path):

@@ -150,8 +150,8 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
     expect(within(row("Off Person")).getByText("Sign-in Off")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("Active")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("Under Secretary, Education")).toBeInTheDocument();
-    expect(within(row("Mira Bora")).getByText("Dept officer")).toBeInTheDocument();
-    expect(within(row("Mira Bora")).getByText("Standing counsel")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Dept Officer")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Standing Counsel")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("+1")).toBeInTheDocument();
     expectDataTable(table);
   });
@@ -309,7 +309,7 @@ describe("tickets", () => {
   it("neither for anyone else", async () => {
     browserApi({ "GET /reference/labels": labels(), "GET /admin/tickets/TKT-EDU-2026-0001": ticket({}) });
     renderWithClient(<TicketView ticketRef="TKT-EDU-2026-0001" />);
-    await screen.findByText("Mira Bora, Commissioner (Dept officer → Dept head)");
+    await screen.findByText("Mira Bora, Commissioner (Dept Officer → Dept Head)");
     for (const name of ["Approve", "Reject", "Withdraw"]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 });

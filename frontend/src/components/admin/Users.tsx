@@ -18,22 +18,10 @@ import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 
 import { Chevron } from "@/components/inbox/rows";
-import {
-  Badge,
-  Button,
-  CheckField,
-  DataTable,
-  EmptyState,
-  ErrorBanner,
-  Loading,
-  OfficePicker,
-  Pagination,
-  SelectField,
-  SidePanel,
-  TextField,
-} from "@/components/ui";
+import { Badge, Button, CheckField, DataTable, EmptyState, ErrorBanner, Loading, OfficeName, OfficePicker, Pagination, SelectField, SidePanel, TextField } from "@/components/ui";
 import { api, apiPage, ApiError } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { useLabels, useMe } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/displayLabels";
 import type { Designation, MembershipOut, Role, UserLookup, UserOut, UserTypeLabel } from "@/lib/api/types";
 import { can, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -57,7 +45,7 @@ export function MembershipSummary({ memberships, types }: { memberships: Members
     <ul className={a.memberList}>
       {memberships.map((m) => (
         <li key={m.id}>
-          <span className="mono">{m.office.code}</span> · {labelOf(types, m.role)}
+          <OfficeName code={m.office.code} name={m.office.name} /> · {labelOf(types, m.role)}
           {m.designation ? `, ${m.designation}` : ""}
         </li>
       ))}
@@ -560,7 +548,7 @@ export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo 
           <ul>
             {found.memberships.map((m) => (
               <li key={`${m.office_code}-${m.role}`}>
-                <span className="mono">{m.office_code}</span> · {labelOf(labels.data?.user_types, m.role)}
+                <OfficeName code={m.office_code} /> · {labelOf(labels.data?.user_types, m.role)}
                 {m.designation ? `, ${m.designation}` : ""}
               </li>
             ))}

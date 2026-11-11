@@ -46,6 +46,7 @@ import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { COLLECT_ERRORS, T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 import { todayIst } from "@/lib/workflow";
+import { labelFor } from "@/lib/displayLabels";
 
 import { RequestProgress, RequestResult, RequestsCard, UseEverything, useRequest, useRequests } from "./CollectRequests";
 import ds from "./data.module.css";
@@ -465,7 +466,7 @@ function SeveralCases() {
                       <>
                         {i.state === "merged" && i.merged_into_ref_no
                           ? T.dc.mergedInto(i.merged_into_ref_no)
-                          : (T.dc.lineStates[i.state] ?? i.state)}
+                          : (labelFor(T.dc.lineStates, i.state))}
                         {i.state === "not_held" ? (
                           <>
                             <br />
@@ -682,7 +683,7 @@ function useQueueAction() {
       }),
     );
     if (out.ok && out.value) {
-      setMessage(T.data.queued(T.dc.kinds[out.value.kind] ?? out.value.kind, out.value.status ?? "—"));
+      setMessage(T.data.queued(labelFor(T.dc.kinds, out.value.kind), out.value.status ?? "—"));
       if (out.value.request_id) setWatch(out.value.request_id);
       await queryClient.invalidateQueries({ queryKey: DC_KEYS.all });
       await queryClient.invalidateQueries({ queryKey: ["data-health"] });
@@ -808,7 +809,7 @@ function ReferenceLists() {
             rows={health.data.masters}
             rowKey={(m) => m.master}
             columns={[
-              { key: "master", header: T.dc.cols.kind, primary: true, cell: (m) => T.dc.masters[m.master] ?? m.master },
+              { key: "master", header: T.dc.cols.kind, primary: true, cell: (m) => labelFor(T.dc.masters, m.master) },
               { key: "at", header: T.dc.cols.lastRun, cell: (m) => formatDateTime(m.fetched_at) },
               { key: "rows", header: T.dc.cols.total, align: "right", cell: (m) => T.dc.masterRows(formatNumber(m.row_count)) },
             ]}
