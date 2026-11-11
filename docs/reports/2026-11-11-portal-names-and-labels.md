@@ -31,3 +31,6 @@ None. `queue-status` ran after the merge; the queue showed no failures attributa
 
 ## Follow-up rows added
 None.
+
+## Deployed
+11 Nov 2026 at 08:55 IST, images built from clean `main` (deb969a) after CI run 42949508422 passed. No migration. `docker compose --profile monitoring up -d --wait` with the court-data switch, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. The switch reads `true` in `api` and `worker`, mail goes to Mailpit, the web build ID matches the image (`wPVL2NOlyKdUiEOrwaLmB`), and `portal_smoke.py` passed.
