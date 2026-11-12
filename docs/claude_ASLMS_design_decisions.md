@@ -3768,3 +3768,4 @@ team (Process Workflows, operations, the two Word guides) do not describe this b
 
 - Passed in the owner's browser: row 229 (navy and cream colours), row 235 (toast, sliding switch, menu hover), row 245 (Audit Log filters, Reports Pending Actions, With Me switch), the designation code rename (Administration → Designations and the audit rows), and the older checklists of rows 53, 124, 141, 195 and 128 (closed as done).
 - Filter boxes: the owner finds the row 245 result fine; the further tightening (From and To side by side, shorter hints with an info icon) is not wanted.
+- Row 233 P6 (case tabs into More): the owner checked the three cases with the most hearings at full and narrower widths, 12 Nov 2026: More appeared and works. Closed; the case page keeps `overflow="more"`.

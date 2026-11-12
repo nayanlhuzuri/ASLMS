@@ -579,6 +579,10 @@ the same as closing P6 as "checked, no overflow". The owner takes the six measur
 console line, on the Overview and Notes tabs at 1280 px and 1100 px) and records them here; if all six are 0, the
 `overflow="more"` on the case page may be dropped in a follow-up, otherwise it stays.
 
+**P6, the owner's check (12 Nov 2026):** on WP(C)/5873/2006, WP(C)/1754/2015 and Crl.Rev.P./224/2015 (the three cases
+with the most hearings), Overview and Notes tabs, full-width and narrower windows: More appeared and works. P6 is
+closed; `overflow="more"` stays on the case page.
+
 ## Owner's answers (10 Nov 2026)
 
 All open questions answered with the recommended answers.
