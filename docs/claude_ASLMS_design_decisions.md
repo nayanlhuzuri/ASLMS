@@ -3732,3 +3732,13 @@ team (Process Workflows, operations, the two Word guides) do not describe this b
 **Deviations.** Seven, in the design note's Deviations. Chiefly: the tracks stay 180 px (measured right zone about 382 px at 1024 px, so 200 px tracks would have dropped to one column) with the container rule at 372 px; the kit `Modal` scrolls as a whole below 820 px (the stacked footer made Claim unreachable on a 375 x 812 phone); the 1024 px width found three more faults fixed here (user-type filter row group, the cause list's card layout up to 1099 px, `DataTable` re-fitting when its table grows later); the kit `Chip` and `Badge` carry `data-ui` markers; the layout signature was regenerated.
 
 **Left for later.** `docs/team/definition-of-done.md` still names the widths as 375, 768 and 1280 px; 1024 px is to be added when the integrator next edits it. The integrator runs the Compose-free uicheck as in runbook section 16 and the owner looks at Case Inbox With Me and Reports at 1024 px after deploy. No follow-up rows.
+
+## Designation codes renamed (12 Nov 2026)
+- Owner, 12 Nov 2026: seven seeded designation codes renamed, names unchanged: `ACS` → `ADDL_CS`, `PS` → `PR_SECY`,
+  `CS_SEC` → `COMM_SECY`, `SEC` → `SECY`, `DS` → `DY_SECY`, `JS` → `JT_SECY`, `US` → `U_SECY`. `DESIGNATIONS` in
+  `services/seed.py` carries the new codes, so `seed` never re-adds an old one and a fresh database starts with them.
+- The dev database was changed once by a single SQL transaction (code only, by id, refusing a taken code), with one
+  `designation.update` audit row per designation, `before` / `after` holding the code. The code stays immutable in the
+  application (offices-admin); this was a one-off owner request, not a new Edit Code function. Memberships and audit
+  rows point at the designation by id or keep the name as text, so nothing else changed. The note above that `CS_SEC`
+  is seeded is superseded by `COMM_SECY`.

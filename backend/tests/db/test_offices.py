@@ -404,7 +404,7 @@ def test_designations(session, world):
     with pytest.raises(DuplicateCode):
         offices.create_designation(session, actor, sup, code="OSD", name="again")
     with pytest.raises(DuplicateCode):
-        offices.create_designation(session, actor, sup, code="cs_sec", name="again")
+        offices.create_designation(session, actor, sup, code="comm_secy", name="again")
     offices.update_designation(session, actor, sup, osd, name="OSD (Legal)", sort_order=5)
     assert osd.name == "OSD (Legal)" and osd.sort_order == 5
     row = audits(session, "designation.update", osd.id)[0]

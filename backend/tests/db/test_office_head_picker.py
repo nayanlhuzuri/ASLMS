@@ -42,7 +42,7 @@ def uid(world, key: str) -> str:
     return str(world.users[key].id)
 
 
-def designation_id(world, code: str = "SEC") -> str:
+def designation_id(world, code: str = "SECY") -> str:
     with world.Session() as s:
         return str(s.scalar(sa.select(Designation.id).where(Designation.code == code)))
 
@@ -463,7 +463,7 @@ def test_users_list_no_office(world, api):
 def test_pick_login_without_office_as_head(world, api):
     root = login(api, "root")
     out = new_login(api, root)
-    r = department(api, root, "AGRI", {"user_id": out["id"], "designation_id": designation_id(world, "PS")})
+    r = department(api, root, "AGRI", {"user_id": out["id"], "designation_id": designation_id(world, "PR_SECY")})
     assert r.status_code == 201, r.text
     ms = active_memberships(world, out["id"])
     assert len(ms) == 1 and ms[0].role == Role.DEPT_HEAD and ms[0].is_primary
