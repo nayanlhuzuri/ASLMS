@@ -1,3 +1,0 @@
-Row 245 done, follow-up row 248, definition of done widths
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
