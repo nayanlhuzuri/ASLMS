@@ -17,6 +17,7 @@ describe("page gate and security headers", () => {
   it("leaves the emblem files under /brand/ out of the gate, so the sign-in page can show them", () => {
     const gated = new RegExp(`^${config.matcher[0]?.source ?? ""}$`);
     expect(gated.test("/brand/assam-emblem-lockup.png")).toBe(false);
+    expect(gated.test("/brand/assam-emblem-capital-mask.png")).toBe(false);
     expect(gated.test("/admin/tickets")).toBe(true);
     expect(gated.test("/branding-notes")).toBe(true);
   });
@@ -45,5 +46,13 @@ describe("page gate and security headers", () => {
     expect(csp).toContain("connect-src 'self'");
     expect(csp).toContain("form-action 'self'");
     expect(csp).toContain("base-uri 'self'");
+  });
+
+  it("keeps fonts and images on the portal's own origin (design signin-gold-emblem, decisions 2 and 15)", () => {
+    const csp = contentSecurityPolicy("abc", false);
+    expect(csp).toContain("font-src 'self'");
+    expect(csp).toContain("img-src 'self' data:");
+    // the emblem's mask path is an inline custom property
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
   });
 });

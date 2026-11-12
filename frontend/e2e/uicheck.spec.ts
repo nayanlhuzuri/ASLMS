@@ -205,6 +205,8 @@ interface State {
   widths?: number[];
   /** The session ping's answer for this state (design session-timeout). */
   activity?: Partial<typeof ACTIVITY_DEFAULT>;
+  /** A public page: no session cookies (design signin-gold-emblem). */
+  public?: boolean;
   /** Before the first navigation (design portal-motion, decision 15: a flash written into sessionStorage). */
   init?: (page: Page) => Promise<void>;
   open: (page: Page) => Promise<void>;
@@ -237,7 +239,71 @@ const FLASH_SENT = "Case sent to Health Off. It is no longer with you.";
 const FLASH_SAVED = "Saved. The change is in the audit log.";
 const FLASH_CLAIMED = "Claimed for Education.";
 
+/** The font files each page requested, recorded from before its first navigation (design signin-gold-emblem). */
+const FONT_REQUESTS = new WeakMap<Page, string[]>();
+
+async function recordFonts(page: Page): Promise<void> {
+  const urls: string[] = [];
+  FONT_REQUESTS.set(page, urls);
+  page.on("request", (request) => {
+    if (request.resourceType() === "font" || /\.woff2?(\?|$)/.test(request.url())) urls.push(request.url());
+  });
+}
+
+function fontsOf(page: Page): string[] {
+  return FONT_REQUESTS.get(page) ?? [];
+}
+
+const EMBLEM_ALT = "Emblem of the Government of Assam";
+
+/** Two boxes overlap when they share any area. */
+function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
 const STATES: State[] = [
+  {
+    // design signin-gold-emblem, decisions 7, 8 and 11: the motion on, the Pause button in the panel, icon only on
+    // phones and tablets; after Pause the spinner has no animation, so the screenshot shows the still front face
+    name: "/login (motion on)",
+    path: "/login",
+    public: true,
+    init: async (page) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await recordFonts(page);
+    },
+    open: async (page) => {
+      const width = widthOf(page);
+      const panel = page.getByRole("region", { name: "About the Portal" });
+      const pause = panel.getByRole("button", { name: "Pause the Emblem's Movement" });
+      await pause.waitFor({ state: "visible" });
+      const button = (await pause.boundingBox())!;
+      const emblem = (await panel.getByRole("img", { name: EMBLEM_ALT }).boundingBox())!;
+      const title = (await panel.getByText("Assam State Litigation Management System", { exact: true }).boundingBox())!;
+      expect(overlaps(button, emblem), "the Pause button overlaps the emblem").toBe(false);
+      expect(overlaps(button, title), "the Pause button overlaps the title").toBe(false);
+      if (width < 820) await expect(pause.getByText("Pause", { exact: true })).toBeHidden();
+      else await expect(pause.getByText("Pause", { exact: true })).toBeVisible();
+      await pause.click();
+      await panel.getByRole("button", { name: "Play the Emblem's Movement" }).waitFor();
+      const spinner = panel.locator("[class*='spinner']");
+      expect(await spinner.evaluate((e) => getComputedStyle(e).animationName)).toBe("none");
+      const origin = new URL(page.url()).origin;
+      for (const url of fontsOf(page)) expect(new URL(url).origin, url).toBe(origin);
+      expect(fontsOf(page).some((u) => /noto-serif/.test(u)) || width < 820, "the Noto fonts load on the sign-in page").toBe(true);
+    },
+  },
+  {
+    // design signin-gold-emblem, decision 15: a portal page never downloads the sign-in frame's Noto fonts
+    name: "/ (no sign-in fonts)",
+    path: "/",
+    widths: [1280],
+    init: recordFonts,
+    open: async (page) => {
+      await page.getByRole("main").waitFor();
+      expect(fontsOf(page).filter((u) => /noto-serif/.test(u))).toEqual([]);
+    },
+  },
   {
     // design session-timeout, decision 17: idle 125 s with a 120 s warning, so the warning opens about 5 s after the load
     name: "/ (Session Warning)",
@@ -1109,7 +1175,7 @@ test.describe("interaction states", () => {
     test(state.name, async ({ page }) => {
       const width = widthOf(page);
       test.skip(!!state.widths && !state.widths.includes(width), "not at this width");
-      const run = await watch(page, state.name, width, false, state.activity);
+      const run = await watch(page, state.name, width, !!state.public, state.activity);
       await state.init?.(page);
       const visit = await run(async () => {
         await page.goto(state.path);

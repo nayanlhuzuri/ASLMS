@@ -65,6 +65,17 @@
   --panel-tile: rgba(255, 255, 255, 0.03);
   --panel-tile-line: rgba(255, 255, 255, 0.1);
   --scrim: rgba(15, 30, 61, 0.4);
+  /* the gold Lion Capital on the public pages' panel (design signin-gold-emblem, decision 13; the owner's mock) */
+  --gold-deep: #7a5a14;
+  --gold-mid: #c99a2e;
+  --gold-light: #f7e08a;
+  --gold-shine: #fff6c9;
+  --gold-line: rgba(246, 196, 142, 0.28);
+  --gold-halo: rgba(246, 196, 142, 0.22);
+  --gold-wash: rgba(246, 196, 142, 0.1);
+  --gold-glow: rgba(247, 208, 120, 0.35);
+  --gold: linear-gradient(115deg, var(--gold-deep) 0%, var(--gold-mid) 18%, var(--gold-light) 32%, var(--gold-shine) 38%, #e2b545 48%, #a8791d 62%, #f3d270 78%, #8c6418 100%);
+  --shadow-emblem: rgba(0, 0, 0, 0.45);
 
   --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
@@ -106,6 +117,9 @@
   --fast: 150ms;
   --med: 220ms;
   --slow: 320ms;
+  /* design signin-gold-emblem, decision 13: one turn of the sign-in emblem and the sweep of its two gold lines */
+  --turn: 10s;
+  --sweep: 8s;
 
   --control-h: 36px;
   --sidebar: 248px;
@@ -127,6 +141,8 @@
     --fast: 0ms;
     --med: 0ms;
     --slow: 0ms;
+    --turn: 0ms;
+    --sweep: 0ms;
   }
 
   *,

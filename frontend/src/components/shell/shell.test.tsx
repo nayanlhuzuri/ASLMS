@@ -1,4 +1,5 @@
-import { existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -454,9 +455,18 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
   it("the configured emblem files are the official ones the owner supplied, present under public/brand/", () => {
     const dir = join(process.cwd(), "public", "brand");
     const files = existsSync(dir) ? readdirSync(dir).filter((f) => f !== ".gitkeep") : [];
-    expect(files.sort()).toEqual(["assam-emblem-lockup.png", "assam-emblem-mark.png"]);
+    expect(files.sort()).toEqual(["assam-emblem-capital-mask.png", "assam-emblem-lockup.png", "assam-emblem-mark.png"]);
     expect(BRAND.emblem?.src).toBe("/brand/assam-emblem-mark.png");
-    expect(BRAND.lockup?.src).toBe("/brand/assam-emblem-lockup.png");
+    // design signin-gold-emblem, decision 3: the Lion Capital cut-out the owner supplied with row 249
+    expect(BRAND.capital).toEqual({ src: "/brand/assam-emblem-capital-mask.png", width: 508, height: 756 });
+    expect(BRAND).not.toHaveProperty("lockup");
+  });
+
+  it("the capital cut-out is the owner's file, unaltered (SHA-256 of both copies)", () => {
+    const sha = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+    const served = join(process.cwd(), "public", "brand", "assam-emblem-capital-mask.png");
+    const supplied = join(process.cwd(), "..", "docs", "design", "ui", "assam-emblem-capital-mask.png");
+    expect(sha(served)).toBe(sha(supplied));
   });
 
   it("the header shows the official emblem by default", () => {

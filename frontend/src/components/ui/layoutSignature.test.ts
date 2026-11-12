@@ -39,7 +39,7 @@ function paintOnly(prop: string): boolean {
 
 /** The colour tokens of globals.css `:root`, old and new names alike, and the side menu's local set. */
 const COLOUR_TOKEN =
-  /^--(bg|surface(-2)?|field|border(-strong)?|text(-[23])?|heading|slate-soft|accent(-[a-z]+)?|action(-[a-z]+)?|on-[a-z]+|link(-[a-z]+)?|mark(-[a-z]+)?|focus-[a-z]+|red(-[a-z]+)?|amber(-[a-z]+)?|ochre(-[a-z]+)?|green(-[a-z]+)?|slate(-[a-z]+)?|panel-[a-z-]+|scrim|nav-[a-z-]+|shadow-[a-z0-9]+)$/;
+  /^--(bg|surface(-2)?|field|border(-strong)?|text(-[23])?|heading|slate-soft|accent(-[a-z]+)?|action(-[a-z]+)?|on-[a-z]+|link(-[a-z]+)?|mark(-[a-z]+)?|focus-[a-z]+|red(-[a-z]+)?|amber(-[a-z]+)?|ochre(-[a-z]+)?|green(-[a-z]+)?|slate(-[a-z]+)?|panel-[a-z-]+|gold(-[a-z]+)?|scrim|nav-[a-z-]+|shadow-[a-z0-9]+)$/;
 
 const NAMED_COLOUR = /\b(transparent|currentcolor|white|black)\b/gi;
 
@@ -214,6 +214,13 @@ describe("the layout signature (design portal-navy-cream, decision 14)", () => {
     expect(signature(".a { border: 1px solid var(--action); font-weight: 600; color: var(--link) }")).toEqual(before);
     expect(signature(".a { border: 2px solid var(--accent); font-weight: 600 }")).not.toEqual(before);
     expect(signature(".a { border: 1px solid var(--accent); font-weight: 700 }")).not.toEqual(before);
+  });
+
+  it("masks the gold tokens as colours (design signin-gold-emblem, decision 13)", () => {
+    expect(signature(".g { background: var(--gold); background-size: 240% 100%; border-left: 1px solid var(--gold-line) }")).toEqual([
+      ".g { background: <c>; background-size: 240% 100%; border-left: 1px solid <c> }",
+    ]);
+    expect(signature(".g { background: var(--gold-deep) }")).toEqual(signature(".g { background: var(--gold-light) }"));
   });
 
   it("follows at-rules and keeps keyframes", () => {

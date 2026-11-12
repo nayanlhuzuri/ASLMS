@@ -327,6 +327,16 @@ export const T = {
       ],
       maker: "ASLMS · Government of Assam",
       foot: "For official use by Government of Assam departments.",
+      // design signin-gold-emblem (row 249): the gold Lion Capital's two lines (owner, point 5) and its Pause / Play
+      // button (point 1, WCAG 2.2.2); the accessible names contain the visible word (WCAG 2.5.3)
+      emblem: {
+        assamese: "অসম চৰকাৰ",
+        motto: "सत्यमेव जयते",
+        pause: "Pause",
+        play: "Play",
+        pauseLabel: "Pause the Emblem's Movement",
+        playLabel: "Play the Emblem's Movement",
+      },
     },
   },
   // the session watch (design session-timeout, decisions 17 and 18): the warning and the hard-limit notice

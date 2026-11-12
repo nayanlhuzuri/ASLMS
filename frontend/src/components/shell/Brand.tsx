@@ -1,8 +1,8 @@
 /**
  * The emblem slot and the brand text (design portal-ui-redesign, decision 21). No emblem is drawn here: with
  * `BRAND.emblem` null the slot is a marked placeholder hidden from screen readers; with a file set it is the
- * official image with its alternative text. The same slot appears in the header, the drawer's top and (round 5) the
- * public pages.
+ * official image with its alternative text. The same slot appears in the header and the drawer's top; the public pages show
+ * the gold Lion Capital instead (design signin-gold-emblem).
  */
 import type { BrandConfig } from "@/lib/brand";
 import { BRAND } from "@/lib/brand";
@@ -21,16 +21,6 @@ export function EmblemSlot({ brand = BRAND }: { brand?: BrandConfig }) {
     <span className={s.emblem} title={T.brand.emblemTitle} aria-hidden="true">
       {T.brand.emblemPlaceholder}
     </span>
-  );
-}
-
-/** The whole official emblem with its legends, above the portal name on the public pages (sign-in, welcome). */
-export function BrandLockup({ brand = BRAND, height = 96, className }: { brand?: BrandConfig; height?: number; className?: string }) {
-  const lockup = brand.lockup;
-  if (!lockup) return null;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img className={className ?? s.lockupImage} src={lockup.src} width={Math.round((lockup.width * height) / lockup.height)} height={height} alt={T.brand.emblemAlt} />
   );
 }
 

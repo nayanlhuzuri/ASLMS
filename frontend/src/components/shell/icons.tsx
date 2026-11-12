@@ -151,6 +151,24 @@ export function MoreIcon() {
   );
 }
 
+/** The 12 px Pause and Play icons of the sign-in emblem's motion button (design signin-gold-emblem, decision 7). */
+export function PauseIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="2.25" width="4.5" height="13.5" rx="1.5" fill="currentColor" stroke="none" />
+      <rect x="10.5" y="2.25" width="4.5" height="13.5" rx="1.5" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+export function PlayIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M4.5 2.25v13.5L15.75 9z" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 /** The icon of each navigation entry, by its key. */
 /** The 16 px chevron of an expanding menu entry (design portal-ui-polish-2, decision 17); it turns 90 degrees open. */
 export function ChevronIcon() {

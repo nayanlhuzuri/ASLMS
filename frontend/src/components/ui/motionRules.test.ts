@@ -127,13 +127,15 @@ describe("the motion rules (design portal-motion, Tests 5)", () => {
     expect(find(feedback, ".toast")[0]!.decls["pointer-events"]).toBe("auto");
   });
 
-  it("the reduced-motion block is unchanged", () => {
+  it("the reduced-motion block is unchanged (but for the emblem's --turn and --sweep, design signin-gold-emblem)", () => {
     const globals = read("app/globals.css");
     expect(globals).toContain(`@media (prefers-reduced-motion: reduce) {
   :root {
     --fast: 0ms;
     --med: 0ms;
     --slow: 0ms;
+    --turn: 0ms;
+    --sweep: 0ms;
   }
 
   *,

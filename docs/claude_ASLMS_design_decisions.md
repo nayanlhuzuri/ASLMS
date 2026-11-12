@@ -3769,3 +3769,20 @@ team (Process Workflows, operations, the two Word guides) do not describe this b
 - Passed in the owner's browser: row 229 (navy and cream colours), row 235 (toast, sliding switch, menu hover), row 245 (Audit Log filters, Reports Pending Actions, With Me switch), the designation code rename (Administration → Designations and the audit rows), and the older checklists of rows 53, 124, 141, 195 and 128 (closed as done).
 - Filter boxes: the owner finds the row 245 result fine; the further tightening (From and To side by side, shorter hints with an info icon) is not wanted.
 - Row 233 P6 (case tabs into More): the owner checked the three cases with the most hearings at full and narrower widths, 12 Nov 2026: More appeared and works. Closed; the case page keeps `overflow="more"`.
+
+## The gold Lion Capital on the sign-in frame (2026-11-12)
+
+Row 249 `signin-gold-emblem`, design `docs/design/signin-gold-emblem.md` (approved by the owner 12 Nov 2026). Frontend only: no table, API, job or migration, so `docs/schema/schema.md` is unchanged.
+
+**What was built**
+- `AuthFrame` (sign-in, code, reset and first-sign-in pages) shows the Lion Capital in gold at the top of the navy panel: a new `GoldEmblem` component, the cut-out `frontend/public/brand/assam-emblem-capital-mask.png` served by the portal, drawn by a CSS mask and a gold gradient, turning about every 10 s as a two-sided coin, with a halo and a floor shadow. "অসম চৰকাৰ" above and "सत्यमेव जयते" below, in gold and not turning (texts in `messages.ts`); "Government of Assam" and the portal's full name to the right behind a thin gold divider.
+- A Pause / Play button (icon only on phones) stops the turn, the sheen, the floor shadow and the gold sweep of the text lines (WCAG 2.2.2, GIGW). The choice is remembered in the browser. Under `prefers-reduced-motion` the emblem is still and there is no button.
+- The brand row above the form is removed so the emblem appears once; headings stay. Phones (under 820 px): a small emblem beside the title, the Assamese and Hindi lines hidden.
+- Gold, glow, wash and emblem-shadow values are tokens in `globals.css`; Noto Serif Bengali and Noto Serif Devanagari are self-hosted (`@fontsource` packages, `font-src 'self'` kept) and loaded only on the public pages.
+- Tests: `frame.test.tsx`, `frame.css.test.ts`, the layout signature (`layout-signature.json`), `motionRules.test.ts`, `proxy.test.ts`, and uicheck states for the emblem's motion and fonts.
+
+**Decisions and deviations**
+- Pausing shows the still front face (the same as reduced motion), not a freeze in place as in the mock, which could stop on an unreadable edge-on sliver; the owner approved this with the note.
+- Three more colour tokens (`--gold-wash`, `--gold-glow`, `--shadow-emblem`) and spacing from the scale, because the colour and spacing guards allow no literals; `.lockupImage` removed from `shell.module.css` as dead code; uicheck gained a `public` state flag and a "/ (no sign-in fonts)" check at 1280 px; the Noto fonts are required only from 820 px up (design note, Deviations 1 to 5).
+
+**Left for later**: the owner's browser check of the sign-in pages at 375, 768, 1024 and 1280 px; the full Compose uicheck run is the integrator's.

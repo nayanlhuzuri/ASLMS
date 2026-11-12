@@ -385,3 +385,26 @@ The integrator:
 None. The owner settled the approach, the mock and points 1 to 5 on 12 Nov 2026. Decision 8 (pausing shows the still
 front face rather than freezing in place as the mock does) is the one change from the mock, and the owner approves it
 with this note.
+
+## Deviations
+
+Recorded by the developer while building; none changes the plan or a business rule.
+
+1. **Three more colour tokens.** The colour-literal guard (`tokens.test.ts`, portal-navy-cream decisions 7 and 14)
+   allows no `rgba()` in a CSS module, so the mock's remaining literals became `:root` tokens next to the gold ones:
+   `--gold-wash` (the button's hover, `rgba(246, 196, 142, 0.1)`), `--gold-glow` (the faces' glow,
+   `rgba(247, 208, 120, 0.35)`) and `--shadow-emblem` (the drop shadow and the floor shadow, `rgba(0, 0, 0, 0.45)`).
+   The button's resting ground is the existing `--panel-tile`. All three names fall under the layout signature's
+   colour pattern (`gold(-[a-z]+)?` and `shadow-[a-z0-9]+`).
+2. **Spacing from the scale.** The spacing guard (`tokens.test.ts`, decision 14) allows only scale tokens in
+   margins, paddings and gaps, so the mock's 6, 10, 14 and 28 px became `--s1`, `--s2`, `--s3` and `--s5`. The floor
+   shadow is placed by `left` and `right` insets (4 px on laptops, 1 px on phones: the mock's 110 and 50 px) rather
+   than a negative margin, because its `transform` belongs to the narrowing animation.
+3. **The motion-rules test follows decision 13.** `motionRules.test.ts` pinned the reduced-motion block word for
+   word; it now includes `--turn: 0ms` and `--sweep: 0ms`.
+4. **`.lockupImage` removed from `shell.module.css`.** It styled only `BrandLockup`'s default image and had no other
+   user (decision 10, dead code). No portal page's boxes change.
+5. **uicheck.** The state list gained a `public` flag so "/login (motion on)" runs without session cookies, and the
+   portal-page font check is a state of its own, "/ (no sign-in fonts)", at 1280 px only. In "/login (motion on)"
+   the Noto font requests are required only from 820 px up, because the two lines are hidden (and so never fetched)
+   on phones and tablets.
