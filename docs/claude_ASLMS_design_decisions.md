@@ -3742,3 +3742,4 @@ team (Process Workflows, operations, the two Word guides) do not describe this b
   application (offices-admin); this was a one-off owner request, not a new Edit Code function. Memberships and audit
   rows point at the designation by id or keep the name as text, so nothing else changed. The note above that `CS_SEC`
   is seeded is superseded by `COMM_SECY`.
+- Correction, 12 Nov 2026 at 12:40: the deploy's `init` seed ran with the new list before the rename and added seven duplicate designation rows. They were unreferenced and, with the owner's approval, deleted (a one-off exception to "deactivated, never deleted" for seed artefacts that no record pointed at); the rename then ran as planned. For any later rename of a seeded code: rename the rows before the deploy whose `init` carries the new list.
