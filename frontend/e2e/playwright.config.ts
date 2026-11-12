@@ -1,6 +1,7 @@
 /**
  * The browser check (design portal-ui-polish, decisions 18-22): Chromium at phone 375×812, tablet 768×1024 (below the
- * kit's 820 px breakpoint, so the phone layout) and laptop 1280×800, against the real Compose `web` service
+ * kit's 820 px breakpoint, so the phone layout), small laptop 1024×768 (above it, with the side menu and the tightest
+ * filter grid; design control-spacing-sweep, decision 13) and laptop 1280×800, against the real Compose `web` service
  * (`UICHECK_BASE_URL`, default http://web:3000). Reduced motion, so every screen is drawn in its final state. The run
  * directory (`/out/<YYYYMMDD-HHMM>` in Compose) is made by the global setup.
  */
@@ -8,7 +9,12 @@ import { defineConfig } from "@playwright/test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export const WIDTHS = { phone: { width: 375, height: 812 }, tablet: { width: 768, height: 1024 }, laptop: { width: 1280, height: 800 } };
+export const WIDTHS = {
+  phone: { width: 375, height: 812 },
+  tablet: { width: 768, height: 1024 },
+  "small-laptop": { width: 1024, height: 768 },
+  laptop: { width: 1280, height: 800 },
+};
 
 export default defineConfig({
   testDir: ".",

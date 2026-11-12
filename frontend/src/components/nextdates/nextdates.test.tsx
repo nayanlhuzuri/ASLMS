@@ -172,6 +172,15 @@ describe("Next Dates to Enter (portal-next-dates, decision 4; next-date-direct, 
 });
 
 describe("Enter Date (portal-next-dates, decisions 7, 9, 16, 17)", () => {
+  it("the actions column is an actions column, so on a card Enter Date runs the full width (control-spacing-sweep, decision 9)", async () => {
+    browserApi(routes([enterItem()]));
+    renderWithClient(<ReviewList params={{}} />);
+    const button = await screen.findByRole("button", { name: "Enter date for WA/55/2026" });
+    const cell = button.closest("td")!;
+    expect(cell.className).toMatch(/actionsCell/);
+    expect(cell).not.toHaveAttribute("data-label");
+  });
+
   it("Enter date posts the order the item stands for", async () => {
     const api = browserApi(
       routes([enterItem()], { "POST /cases/ASLMS-GHC-CASE-2026-000002/next-dates": json(201, { next_date: SOON }) }),

@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg } from "@/lib/api/types";
@@ -147,6 +149,30 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     expect(within(task).queryByText(/Done\? Use Send case/)).toBeNull();
     await userEvent.click(recall);
     expect(onAction).toHaveBeenCalledWith("recall");
+  });
+
+  it("every button group of the rail is a stacked column of full-width buttons (control-spacing-sweep, decision 7)", async () => {
+    const other = card({
+      holder_user: { id: "u-7", full_name: "Officer One", designation: "Section Officer" },
+      holder_office: { code: "EDU-DSE", name: "Secondary Education" },
+      can_send: false,
+      can_recall: true,
+    });
+    browserApi(routes());
+    renderRail(detail({ custody: other }), true);
+    const task = await screen.findByRole("region", { name: "Current Task" });
+    const remarks = await within(task).findByRole("button", { name: "See All Remarks (5)" });
+    const recall = within(task).getByRole("button", { name: "Recall Case" });
+    expect(remarks.parentElement).toBe(recall.parentElement);
+    expect(remarks.parentElement!.className).toMatch(/buttons/);
+    const quick = screen.getByRole("region", { name: "Quick Actions" });
+    const add = within(quick).getByRole("button", { name: "Add Note" });
+    expect(add.parentElement!.className).toMatch(/quick/);
+    expect(within(add.parentElement!).getAllByRole("button").map((b) => b.textContent)).toEqual(["Add Note", "Upload a Document", "Set Stage"]);
+    // the stylesheet stacks both groups and stretches their buttons
+    const css = readFileSync(join(process.cwd(), "src", "components", "case", "rail.module.css"), "utf-8");
+    expect(css).toMatch(/\.buttons,\s*\.quick\s*\{[^}]*flex-direction:\s*column/);
+    expect(css).toMatch(/\.buttons > \*,\s*\.quick > \*\s*\{[^}]*width:\s*100%/);
   });
 
   it("Recall case shows only with can_recall", async () => {

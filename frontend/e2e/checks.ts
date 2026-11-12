@@ -42,6 +42,29 @@
  * - card row (decision 24, K6): in a table drawn as cards (a block `table` whose cells carry `data-label`), a visible
  *   labelled cell with nothing in its value (no text, link, button, field, image or meter) is an empty row, and within
  *   one card the values' left edges are equal within 1 px.
+ *
+ * The control-spacing kinds (design control-spacing-sweep, decisions 11 and 12), with shared rules: only visible
+ * elements count; visually hidden ones and `aria-hidden` decorations are skipped, as are fixed or absolute layers (the
+ * toast, the segmented thumb, an input's icon or clear button) with what is inside them; two elements are compared only
+ * within one layer root (the page, one open `dialog`, `alertdialog`, `menu`, `listbox` or `tooltip`, or one sticky box
+ * such as the Save bar, which floats over what scrolls under it). "Controls"
+ * are kit buttons, fields (the Office Picker's input among them), checkboxes and radios with their label, segments and
+ * segmented groups, chips and badges.
+ * - overlap: two controls, neither inside the other, whose boxes (cut by their clipping ancestors) overlap by more than
+ *   1 px in both directions (the segments of one switch and tabs are not compared); and the content of one table cell
+ *   drawn over a neighbouring cell's content in the same row;
+ * - text overrun: the text of a button, segment, chip or badge with `overflow: visible` running more than 1 px outside
+ *   its border box or using more than 2 px of its own inline padding (for a segment the edge is the group's frame when
+ *   that is nearer); and the content of a table cell with `overflow: visible` spilling more than 1 px past its cell.
+ *   Native selects, text fields and deliberate `text-overflow: ellipsis` are not measured;
+ * - tight gap: two controls on one line (their boxes share at least half the smaller height) closer than 8 px
+ *   (`var(--s2)`), or the texts (labels, hints) of two different fields on one line closer than 8 px; not the parts of
+ *   one control, a label with its own control, cells of different table columns, or two badges side by side (a badge
+ *   row keeps the kit's `var(--s1)`);
+ * - split group: a run of two or more consecutive sibling buttons or chips in one row flex or grid container drawn on
+ *   more than one line when their widths and the container's column gaps would fit the content width of the
+ *   container's parent; a deliberate stack (each on its own line at one left edge, in a one-column grid or each filling
+ *   the line) is not counted, and a text link breaks the run.
  */
 
 /**
@@ -64,6 +87,10 @@ export const GEOMETRY_KINDS = [
   "date-wrap",
   "broken-word",
   "card-row",
+  "overlap",
+  "text-overrun",
+  "tight-gap",
+  "split-group",
 ] as const;
 
 export interface PageFinding {
@@ -527,5 +554,354 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
       }
     }
   }
+  // ---------------------------------------------------------------- control spacing (design control-spacing-sweep)
+  type R = { left: number; top: number; right: number; bottom: number };
+  const rectOf = (d: DOMRect): R => ({ left: d.left, top: d.top, right: d.right, bottom: d.bottom });
+  const rw = (r: R) => r.right - r.left;
+  const rh = (r: R) => r.bottom - r.top;
+  const meet = (a: R, b: R): R | null => {
+    const r = { left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.right), bottom: Math.min(a.bottom, b.bottom) };
+    return r.right > r.left && r.bottom > r.top ? r : null;
+  };
+  const px = (v: string) => parseFloat(v) || 0;
+  const LIMIT = 5;
+  const counts = new Map<string, number>();
+  const report = (kind: PageFinding["kind"], element: string, detail: string) => {
+    const n = counts.get(kind) ?? 0;
+    if (n >= LIMIT) return;
+    counts.set(kind, n + 1);
+    out.push({ kind, element, detail });
+  };
+
+  /**
+   * The layer an element is drawn in: the page (`body`) or one open dialog, menu, listbox or tooltip; null when it is
+   * hidden (visually hidden, `aria-hidden`) or sits in a fixed or absolute layer of its own, or inside one.
+   */
+  const LAYER_ROLES = ["dialog", "alertdialog", "menu", "listbox", "tooltip"];
+  const layers = new Map<Element, Element | null>();
+  function layerOf(el: Element): Element | null {
+    const have = layers.get(el);
+    if (have !== undefined) return have;
+    let root: Element | null = document.body;
+    for (let a: Element | null = el; a && a !== document.body; a = a.parentElement) {
+      if (a.getAttribute("aria-hidden") === "true" || srOnly(a)) {
+        root = null;
+        break;
+      }
+      const role = a.getAttribute("role");
+      if ((role && LAYER_ROLES.includes(role)) || a.tagName === "DIALOG") {
+        root = a;
+        break;
+      }
+      const pos = getComputedStyle(a).position;
+      if (pos === "fixed" || pos === "absolute") {
+        root = null;
+        break;
+      }
+      // a sticky bar (the Save bar, a table's header row) floats over what scrolls under it: a layer of its own
+      if (pos === "sticky") {
+        root = a;
+        break;
+      }
+    }
+    layers.set(el, root);
+    return root;
+  }
+
+  /** The element's box cut by every clipping ancestor; null when nothing of it shows. */
+  function shownRect(el: Element): R | null {
+    let r: R | null = rectOf(el.getBoundingClientRect());
+    for (let a = el.parentElement; a && a !== document.documentElement && r; a = a.parentElement) {
+      const st = getComputedStyle(a);
+      if (st.overflowX !== "visible" || st.overflowY !== "visible") r = meet(r, rectOf(a.getBoundingClientRect()));
+      if (st.position === "fixed") break;
+    }
+    return r && rw(r) >= 1 && rh(r) >= 1 ? r : null;
+  }
+
+  /**
+   * The line boxes of the visible text inside `root`, each cut by the clipping boxes between it and `root` (so text cut
+   * off on purpose inside the element does not count); text inside an `aria-hidden`, visually hidden, absolute or fixed
+   * box below `root` is left out.
+   */
+  function textLines(root: Element): R[] {
+    const rects: R[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = n as Text;
+      const parent = t.parentElement;
+      if (!parent || !t.data.trim() || parent.closest("script, style, option, select, textarea")) continue;
+      if (!visible(parent)) continue;
+      let clip: R | null | undefined;
+      let skip = false;
+      for (let a: Element | null = parent; a && a !== root; a = a.parentElement) {
+        const st = getComputedStyle(a);
+        if (a.getAttribute("aria-hidden") === "true" || srOnly(a) || st.position === "absolute" || st.position === "fixed") {
+          skip = true;
+          break;
+        }
+        if (st.overflowX !== "visible" || st.overflowY !== "visible") {
+          const b = rectOf(a.getBoundingClientRect());
+          clip = clip === undefined ? b : clip ? meet(clip, b) : null;
+        }
+      }
+      if (skip || clip === null) continue;
+      const start = t.data.search(/\S/);
+      const end = t.data.replace(/\s+$/, "").length;
+      const range = document.createRange();
+      range.setStart(t, start);
+      range.setEnd(t, end);
+      for (const r0 of Array.from(range.getClientRects())) {
+        if (r0.width <= 0.5 || r0.height <= 0.5) continue;
+        const r = clip === undefined ? rectOf(r0) : meet(rectOf(r0), clip);
+        if (r && rw(r) > 0.5 && rh(r) > 0.5) rects.push(r);
+      }
+    }
+    return rects;
+  }
+
+  const union = (rs: R[]): R | null =>
+    rs.length
+      ? rs.reduce((u, r) => ({ left: Math.min(u.left, r.left), top: Math.min(u.top, r.top), right: Math.max(u.right, r.right), bottom: Math.max(u.bottom, r.bottom) }))
+      : null;
+
+  /** A checkbox or radio with its label: the wrapper holding both (the kit `CheckField`, a wrapping `label`). */
+  function checkUnit(input: HTMLInputElement): Element {
+    const wrap = input.closest("label");
+    if (wrap) return wrap;
+    const parent = input.parentElement;
+    if (parent && !parent.matches("td, th") && input.id && parent.querySelector(`label[for="${CSS.escape(input.id)}"]`)) return parent;
+    return input;
+  }
+
+  interface Control {
+    el: Element;
+    box: R;
+    layer: Element;
+  }
+  const BUTTONISH = "[data-ui=button]:not([data-variant=link]), [data-ui=chip]";
+  const controls: Control[] = [];
+  const seenControls = new Set<Element>();
+  const addControl = (el: Element) => {
+    if (seenControls.has(el) || !visible(el)) return;
+    seenControls.add(el);
+    const layer = layerOf(el);
+    if (!layer || el.closest("[role=tablist]")) return;
+    const box = shownRect(el);
+    if (box) controls.push({ el, box, layer });
+  };
+  for (const el of Array.from(document.querySelectorAll("[data-ui=button]:not([data-variant=link]), [data-ui=field], [data-ui=chip], [data-ui=badge], [role=radiogroup], [role=radiogroup] [role=radio]"))) {
+    addControl(el);
+  }
+  for (const el of Array.from(document.querySelectorAll<HTMLInputElement>("input[type=checkbox], input[type=radio]"))) addControl(checkUnit(el));
+
+  const describePair = (a: Element, b: Element) => `${describe(a)} | ${describe(b)}`;
+  const sameSwitch = (a: Element, b: Element) => {
+    const g = a.closest("[role=radiogroup]");
+    return !!g && g === b.closest("[role=radiogroup]");
+  };
+
+  // overlap: two controls drawn over each other
+  const byTop = [...controls].sort((x, y) => x.box.top - y.box.top);
+  for (let i = 0; i < byTop.length; i += 1) {
+    const A = byTop[i]!;
+    for (let j = i + 1; j < byTop.length; j += 1) {
+      const B = byTop[j]!;
+      if (B.box.top >= A.box.bottom) break;
+      if (A.layer !== B.layer || A.el.contains(B.el) || B.el.contains(A.el) || sameSwitch(A.el, B.el)) continue;
+      const hit = meet(A.box, B.box);
+      if (!hit || rw(hit) <= 1 || rh(hit) <= 1) continue;
+      report("overlap", describePair(A.el, B.el), `drawn over each other by ${Math.round(rw(hit))}×${Math.round(rh(hit))} px`);
+    }
+  }
+
+  // table cells: one cell's content drawn over a neighbour's, or spilling past its own cell
+  const CELL_PARTS = "button, input:not([type=hidden]), select, textarea, img, [data-ui=badge], [data-ui=chip]";
+  for (const tr of Array.from(document.querySelectorAll("tr"))) {
+    if (!visible(tr) || !layerOf(tr)) continue;
+    const cells = Array.from(tr.children).filter((c) => (c.tagName === "TD" || c.tagName === "TH") && visible(c) && !hiddenBox(c));
+    const content = cells.map((c) => {
+      const parts = Array.from(c.querySelectorAll(CELL_PARTS))
+        .filter((e) => visible(e) && layerOf(e) === layerOf(c))
+        .map((e) => rectOf(e.getBoundingClientRect()));
+      return textLines(c).concat(parts);
+    });
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i]!;
+      const box = rectOf(cell.getBoundingClientRect());
+      const u = union(content[i]!);
+      if (u && getComputedStyle(cell).overflowX === "visible") {
+        const spill = Math.max(u.right - box.right, box.left - u.left);
+        if (spill > 1) report("text-overrun", describe(cell), `cell content spills ${spill.toFixed(1)} px past its cell`);
+      }
+      for (let j = i + 1; j < cells.length; j += 1) {
+        let hit: R | null = null;
+        for (const ra of content[i]!) {
+          for (const rb of content[j]!) {
+            const r = meet(ra, rb);
+            if (r && rw(r) > 1 && rh(r) > 1) hit = r;
+          }
+        }
+        if (hit) report("overlap", describePair(cell, cells[j]!), `cell contents drawn over each other by ${Math.round(rw(hit))}×${Math.round(rh(hit))} px`);
+      }
+    }
+  }
+
+  // text overrun: a button, segment, chip or badge whose text runs out of it or eats its padding
+  for (const c of controls) {
+    const el = c.el;
+    if (!el.matches(`${BUTTONISH}, [data-ui=badge], [role=radiogroup] [role=radio]`)) continue;
+    const st = getComputedStyle(el);
+    if (st.overflowX !== "visible") continue; // the clipped check's
+    if (Array.from(el.querySelectorAll("*")).some((d) => getComputedStyle(d).textOverflow === "ellipsis" && getComputedStyle(d).overflowX !== "visible")) continue;
+    const text = union(textLines(el));
+    if (!text) continue;
+    const b = rectOf(el.getBoundingClientRect());
+    let left = b.left + px(st.borderLeftWidth);
+    let right = b.right - px(st.borderRightWidth);
+    const group = el.matches("[role=radio]") ? el.closest("[role=radiogroup]") : null;
+    if (group) {
+      const gs = getComputedStyle(group);
+      const g = rectOf(group.getBoundingClientRect());
+      left = Math.max(left, g.left + px(gs.borderLeftWidth));
+      right = Math.min(right, g.right - px(gs.borderRightWidth));
+    }
+    const outside = Math.max(b.left - text.left, text.right - b.right);
+    const usedLeft = px(st.paddingLeft) - (text.left - left);
+    const usedRight = px(st.paddingRight) - (right - text.right);
+    if (outside > 1) report("text-overrun", describe(el), `text runs ${outside.toFixed(1)} px outside its box`);
+    else if (Math.max(usedLeft, usedRight) > 2) {
+      const side = usedRight >= usedLeft ? "right" : "left";
+      report("text-overrun", describe(el), `text uses ${Math.max(usedLeft, usedRight).toFixed(1)} px of its ${side} padding${group ? " (to the switch's frame)" : ""}`);
+    }
+  }
+
+  // tight gap: controls on one line closer than 8 px; texts of two fields on one line closer than 8 px
+  const GAP = 8;
+  const oneLine = (a: R, b: R) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) >= 0.5 * Math.min(rh(a), rh(b));
+  const units = controls.filter((c) => !c.el.matches("[role=radiogroup] [role=radio]") && !controls.some((o) => o !== c && o.el.contains(c.el) && o.el.matches("[role=radiogroup]")));
+  for (const A of units) {
+    let best: Control | null = null;
+    let gap = Infinity;
+    for (const B of units) {
+      if (B === A || B.layer !== A.layer || A.el.contains(B.el) || B.el.contains(A.el)) continue;
+      if (!oneLine(A.box, B.box) || B.box.left < A.box.left + 2) continue;
+      const g = B.box.left - A.box.right;
+      if (g < gap) {
+        gap = g;
+        best = B;
+      }
+    }
+    if (!best || gap >= GAP || gap <= -1) continue; // a deeper overlap is the overlap kind's
+    // a row of badges keeps the kit's badge spacing (`var(--s1)`): badges are labels, not controls one presses
+    if (A.el.matches("[data-ui=badge]") && best.el.matches("[data-ui=badge]")) continue;
+    const ca = A.el.closest("td, th");
+    const cb = best.el.closest("td, th");
+    if (ca && cb && ca !== cb) continue;
+    report("tight-gap", describePair(A.el, best.el), `${gap.toFixed(1)} px between two controls on one line (< ${GAP})`);
+  }
+  const describedIds = new Set<string>();
+  for (const el of Array.from(document.querySelectorAll("[aria-describedby]"))) {
+    for (const id of (el.getAttribute("aria-describedby") ?? "").split(/\s+/)) if (id) describedIds.add(id);
+  }
+  interface FieldText {
+    el: Element;
+    field: Element | null;
+    lines: R[];
+    layer: Element;
+  }
+  const texts: FieldText[] = [];
+  for (const el of Array.from(document.querySelectorAll("label, legend, [id]"))) {
+    if (el.matches("[id]") && !el.matches("label, legend") && !describedIds.has(el.id)) continue;
+    if (el.matches("[data-ui], button, [role=radio]") || !visible(el)) continue;
+    const layer = layerOf(el);
+    if (!layer || el.closest("td, th")) continue;
+    // cut by the ancestors that clip the text (a scrolled body under a dialog's footer is not on that line)
+    let clip: R | null | undefined;
+    for (let a = el.parentElement; a && a !== document.documentElement && clip !== null; a = a.parentElement) {
+      const st = getComputedStyle(a);
+      if (st.overflowX !== "visible" || st.overflowY !== "visible") {
+        const b = rectOf(a.getBoundingClientRect());
+        clip = clip === undefined ? b : meet(clip, b);
+      }
+      if (st.position === "fixed") break;
+    }
+    if (clip === null) continue;
+    const lines = textLines(el)
+      .map((r) => (clip ? meet(r, clip) : r))
+      .filter((r): r is R => !!r && rw(r) > 0.5 && rh(r) > 0.5);
+    if (!lines.length) continue;
+    texts.push({ el, field: el.closest("[data-ui=segmented-field]") ?? el.parentElement, lines, layer });
+  }
+  for (const A of texts) {
+    for (const B of texts) {
+      if (A === B || A.layer !== B.layer || A.el.contains(B.el) || B.el.contains(A.el)) continue;
+      if (A.field && (A.field.contains(B.el) || (B.field && B.field.contains(A.el)))) continue;
+      let worst: number | null = null;
+      for (const ra of A.lines) {
+        for (const rb of B.lines) {
+          if (!oneLine(ra, rb) || rb.left < ra.left) continue;
+          const g = rb.left - ra.right;
+          if (g < GAP && (worst === null || g < worst)) worst = g;
+        }
+      }
+      if (worst !== null) report("tight-gap", describePair(A.el, B.el), `${worst.toFixed(1)} px between the texts of two fields on one line (< ${GAP})`);
+    }
+  }
+
+  // split group: buttons or chips of one run that would fit one line but are drawn on more
+  /** The button or chip a child of a row stands for: itself, or the one control of a wrapper around it. */
+  const runMember = (child: Element): Element | null => {
+    if (child.matches(BUTTONISH)) return child;
+    const kids = Array.from(child.children).filter((k) => visible(k) && !srOnly(k));
+    return kids.length === 1 && kids[0]!.matches(BUTTONISH) ? kids[0]! : null;
+  };
+  for (const p of all) {
+    if (!visible(p) || !layerOf(p)) continue;
+    const st = getComputedStyle(p);
+    const flex = st.display.includes("flex");
+    if (!(flex || st.display.includes("grid")) || (flex && st.flexDirection.startsWith("column"))) continue;
+    const kids = Array.from(p.children).filter((k) => visible(k) && !srOnly(k) && !["absolute", "fixed"].includes(getComputedStyle(k).position));
+    const runs: Element[][] = [];
+    let run: Element[] = [];
+    for (const k of kids) {
+      const m = runMember(k);
+      if (m) run.push(m);
+      else {
+        if (run.length > 1) runs.push(run);
+        run = [];
+      }
+    }
+    if (run.length > 1) runs.push(run);
+    for (const r of runs) {
+      const boxes = r.map((k) => rectOf(k.getBoundingClientRect()));
+      const lines: R[][] = [];
+      for (const b of boxes) {
+        const line = lines.find((l) => oneLine(l[0]!, b));
+        if (line) line.push(b);
+        else lines.push([b]);
+      }
+      if (lines.length < 2) continue;
+      // a deliberate stack: one per line at one left edge, because the container has one column or each button fills
+      // the line (a row that only ran out of room looks the same, and is a split)
+      const inner = p.clientWidth - px(st.paddingLeft) - px(st.paddingRight);
+      const oneColumn = st.display.includes("grid") && st.gridTemplateColumns.trim().split(/\s+/).length === 1;
+      const filled = boxes.every((b) => rw(b) >= inner - 1);
+      if (lines.length === boxes.length && boxes.every((b) => Math.abs(b.left - boxes[0]!.left) <= 1) && (oneColumn || filled)) continue;
+      const parent = p.parentElement;
+      if (!parent) continue;
+      const ps = getComputedStyle(parent);
+      const room = parent.clientWidth - px(ps.paddingLeft) - px(ps.paddingRight);
+      const columnGap = st.columnGap === "normal" ? 0 : px(st.columnGap);
+      const need = boxes.reduce((sum, b) => sum + rw(b), 0) + columnGap * (boxes.length - 1);
+      if (need > room + 0.5) continue; // wider than the line it sits on: it must wrap
+      report(
+        "split-group",
+        r.map((k) => describe(k)).join(" | "),
+        `${boxes.length} buttons on ${lines.length} lines (${lines.map((l) => l.length).join("+")}) though they need ${Math.round(need)} px of the ${Math.round(room)} px line`,
+      );
+    }
+  }
+
   return out;
 }

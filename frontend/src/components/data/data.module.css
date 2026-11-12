@@ -241,25 +241,30 @@
   color: var(--text-3);
 }
 
-/* decision 37: What Goes First on a three-column grid */
+/* decision 37: What Goes First in one form row; design control-spacing-sweep, decision 6: a wrapping flex row, so a
+   field that does not fit drops to the next line instead of being drawn over its neighbour */
 .orderGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--s3) var(--s4);
-  align-items: start;
+  align-items: flex-start;
 }
 
 /* the fieldset draws no box: its legend takes the label line, so its fields' boxes sit level with the select's, whose
-   wrapper drops by the same label line (the field-row rule) */
+   wrapper drops by the same label line (the field-row rule); From and To wrap together, side by side while both fit */
 .orderGrid fieldset {
-  display: grid;
-  grid-column: span 2;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex: 2 1 412px;
+  flex-wrap: wrap;
   gap: var(--s3);
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+.orderGrid fieldset > * {
+  flex: 1 1 200px;
 }
 
 .orderGrid legend {
@@ -272,11 +277,14 @@
 }
 
 .orderGrid > :first-child {
+  flex: 1 1 200px;
   padding-top: var(--label-offset);
 }
 
-.span2 {
-  grid-column: span 2;
+/* the reason and what follows it keep a full line */
+.span2,
+.orderGrid > .span2 ~ * {
+  flex: 1 1 100%;
   min-width: 0;
 }
 
@@ -286,14 +294,9 @@
 }
 
 @media (max-width: 699px) {
-  .orderGrid,
-  .orderGrid fieldset {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .orderGrid fieldset,
-  .span2 {
-    grid-column: auto;
+  .orderGrid > *,
+  .orderGrid fieldset > * {
+    flex-basis: 100%;
   }
 }
 

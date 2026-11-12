@@ -324,6 +324,24 @@
     border-radius: 0;
   }
 
+  /* design control-spacing-sweep, decision 10 (deviation 4): on phones the modal scrolls as a whole and its footer sticks
+     to the bottom, so a tall header (the case facts) and a stacked footer never push the footer's last button off the
+     screen or squeeze the body to nothing */
+  .modal {
+    overflow-y: auto;
+  }
+
+  .modalBody {
+    flex: none;
+    overflow: visible;
+  }
+
+  .modalFoot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+  }
+
   .panel {
     width: 100%;
   }

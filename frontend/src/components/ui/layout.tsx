@@ -496,7 +496,8 @@ export function SettingsLayout({
 /**
  * Filter Layout B, "Header Card with Two Zones" (design portal-ui-polish-2, decision 21): the page's one leading
  * control in the left zone (`hero`, 280 px on laptops, on top below 768 px); the other fields in a grid on the right
- * (`repeat(auto-fill, minmax(180px, 1fr))`, labels above the boxes) with the actions in the last cell, Search (the
+ * (`repeat(auto-fill, minmax(180px, 1fr))`, labels above the boxes; design control-spacing-sweep, decision 2) with the
+ * actions in the last cell, two tracks wide (`data-wide`) once two fit, Search (the
  * form's submit, when `onSubmit` is given) and More Filters (n), n being the number of set fields inside; More Filters
  * opens a panel inside the card under the right zone (220 ms, at once under reduced motion), open whenever one of its
  * fields is set; and the summary strip under the card (the count, the page's quick links, the applied chips with
@@ -561,7 +562,7 @@ export function FilterCard({
           <div className={s.fcGrid}>
             {children}
             {hasActions ? (
-              <div className={s.fcActions} data-zone="actions">
+              <div className={s.fcActions} data-zone="actions" data-wide="">
                 {onSubmit ? (
                   <Button type="submit" variant={submitVariant}>
                     {submitLabel}

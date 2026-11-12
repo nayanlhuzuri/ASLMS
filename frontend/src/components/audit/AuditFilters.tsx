@@ -8,7 +8,7 @@
  * non-empty filters to the page, which writes them to the URL.
  *
  * Filter Layout B (design portal-ui-polish-2, decision 23): the period is the card's hero, From and To with the quick
- * choices Today, 7 Days and 30 Days (IST days, today included); Person, Name Contains, Case, Office (the Office Picker)
+ * choices Today, 7 Days and 30 Days (IST days, today included; chips since design control-spacing-sweep, decision 8); Person, Name Contains, Case, Office (the Office Picker)
  * and Action on the right with Search, Clear and Refresh; Unit, About the User, Record Type and Record ID under More
  * Filters; the summary strip says "Newest First" (the API is cursor-paged, so there is no total) and shows the applied
  * filters as chips, each removable, with Clear All.
@@ -16,7 +16,7 @@
 import { useState } from "react";
 
 import { FilterChips } from "@/components/filters/FilterChips";
-import { Button, FilterCard, OfficePicker, SelectField, TextField, type Option } from "@/components/ui";
+import { Button, Chip as QuickChip, ChipGroup, FilterCard, OfficePicker, SelectField, TextField, type Option } from "@/components/ui";
 import { useDepartmentPeople, useDepartments } from "@/lib/api/hooks";
 import {
   actionGroups,
@@ -165,16 +165,19 @@ export function AuditFilters({
         onChange={(e) => setPeriod(e.target.value, to)}
       />
       <TextField label={T.audit.to} type="date" value={to} max={today} onChange={(e) => setPeriod(from, e.target.value)} error={periodProblem} />
-      <div className={s.quick} role="group" aria-label={T.audit.quickPeriods}>
-        {QUICK.map((c) => {
-          const p = periodChoice(c, today)!;
-          const on = p.from === from && p.to === to;
-          return (
-            <Button key={c} variant="secondary" aria-pressed={on} onClick={() => setPeriod(p.from, p.to)}>
-              {T.audit.quick[c]}
-            </Button>
-          );
-        })}
+      {/* design control-spacing-sweep, decision 8: the quick periods are chips, so the three fit one line of the hero;
+          the "Any" link is not part of the group and may wrap under it */}
+      <div className={s.quick}>
+        <ChipGroup label={T.audit.quickPeriods}>
+          {QUICK.map((c) => {
+            const p = periodChoice(c, today)!;
+            return (
+              <QuickChip key={c} on={p.from === from && p.to === to} onClick={() => setPeriod(p.from, p.to)}>
+                {T.audit.quick[c]}
+              </QuickChip>
+            );
+          })}
+        </ChipGroup>
         {from || to ? (
           <Button variant="link" onClick={() => setPeriod("", "")}>
             {T.audit.choices.any}

@@ -503,3 +503,56 @@ None. Every "check" item is decided in decision 9. Three decisions amend earlier
   how portal-motion decision 5's region is filled.
 
 The owner approves or changes them when approving this note.
+
+## Deviations
+Recorded by the developer while building (12 Nov 2026).
+
+1. **Filter Layout B keeps 180 px tracks (decision 2).** Measured on the real run, the right zone's grid is about
+   382 px wide at 1024 px and about 392 px at 768 px, not the 416 px the decision assumed. With 200 px tracks
+   (412 px for two) both widths would drop to one column, against the decision's own "at 768 and 1024 px the right
+   zone keeps two columns" and the owner's 1024 px checks (fields side by side). Decision 1 already makes every kit
+   field and the Office Picker fit any track, so the tracks stay `minmax(min(180px, 100%), 1fr)` and the container
+   rule is `@container fc-fields (min-width: 372px)` (two 180 px tracks and the 12 px gap). The size container,
+   `data-wide` and the span are as designed.
+2. **The four kinds, tuned on the real run (decision 12), each with a self-test.**
+   - *split-group:* a run drawn one per line at one left edge counts as a deliberate stack only in a one-column grid or
+     when each button fills the line. A 1+1 wrap in a wrapping row (Show Report / Refresh, the owner's fault 2) has
+     exactly the geometry of a stack, so "same left edge" alone would have hidden it.
+   - *tight-gap:* two badges side by side are not compared. A badge row keeps the kit's `var(--s1)` (4 px); badges are
+     labels, not controls one presses. The first run raised only such rows (documents, notes, alerts, cause list).
+     A badge next to a button is still measured.
+   - *shared layers:* a `position: sticky` box (the Save bar, a table's sticky header) is a layer of its own, like a
+     dialog. The Save bar floats over the "Only Changed From Default" chip at 375 px by design.
+   - *texts of two fields:* each label or hint is cut by its clipping ancestors first. A label scrolled out of the case
+     modal's body was otherwise "on the line" of the footer's Claim For label.
+3. **The kit `Chip` and `Badge` carry `data-ui="chip"` and `data-ui="badge"`,** so the kinds find them without reading
+   hashed class names. This is markup only; nothing is drawn differently.
+4. **Decision 10 needed the phone modal to scroll as a whole.** With the footer stacked (about 200 px), the case claim
+   modal's fixed header of case facts and the footer together were taller than a 375 × 812 phone, so Claim sat
+   off-screen and could not be clicked (the Assign Now state timed out). Below 820 px the kit `Modal` now scrolls as
+   one (`overflow-y: auto`), its body takes its natural height, and its footer sticks to the bottom
+   (`overlays.module.css`). This is phone only; the laptop modal is unchanged.
+5. **New finds of the 1024 px width fixed here (decision 14).**
+   - *User type page, 1024 px (split-group):* "Only Changed From Default" and Reset to Default were split across
+     lines. They are now one wrapping group (`admin.module.css` `.rowGroup`) that drops to the next line as a unit.
+   - *Cause List, 1024 px (page-overflow and clipped, existing kinds):* the entries table cannot fit a department's
+     full name beside the case below about 1100 px. Its existing card layout now applies up to 1099 px instead of
+     819 px (`causelist.module.css`). This is the phone stack at a wider breakpoint; nothing changes from 1100 px.
+   - *Search, 1024 px (inner-scroll, existing kind):* the kit `DataTable` measured its fit when the rows arrived. A
+     department name that resolved later widened the table past its box, and nothing measured again. The fit observer
+     now also watches the table and turns it into cards when it grows past the box (`data.tsx` `useFitTable`). This
+     is a small kit script change rather than CSS. It was needed for zero findings at 1024 px.
+6. **Data Collection's Save Priority (decision 6).** "The reason field and the items after it get `flex: 1 1 100%`",
+   so Save Priority is on its own line under the reason. Before, it sat in the third column beside the reason.
+7. **`docs/team/definition-of-done.md`** still names the widths as 375, 768 and 1280 px. It is left for the scribe,
+   together with the decisions log.
+
+### Build record
+- The screen check, run as in runbook section 16 on a private network against temporary images, covered 177 routes
+  and states with 569 screenshots at 375, 768, 1024 and 1280 px. It gave **0 findings** in 257 s. Playwright: 841
+  passed, 11 skipped (states limited to other widths), self-tests included.
+- The layout signature was regenerated. The changed selectors are those of decisions 1 to 10 and of deviations 4 and
+  5: `.field` (controls, office picker), `.select`, `.checkField`, `.segmented`, `.segment`, `.fcGrid` and its
+  `@container` rule, `.orderGrid` and children, `.span2`, rail `.buttons` / `.quick`, calendar `.monthNav`, claim
+  `.footer` / `.spacer` (phone), the cause list's card block (819 → 1099 px), `.rowGroup`, and the phone `.modal`,
+  `.modalBody` and `.modalFoot`.

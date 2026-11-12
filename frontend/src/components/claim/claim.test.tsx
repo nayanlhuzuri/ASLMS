@@ -319,6 +319,32 @@ describe("the details modal", () => {
     expect(within(toast).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", BASE);
   });
 
+  it("opening the next case modal closes the claim's toast with its link (design control-spacing-sweep, decision 17)", async () => {
+    browserApi(
+      routes({
+        ...caseRoutes(ownershipView(actions({ claim: true, claim_departments: ["EDU"] }))),
+        [`POST ${BASE}/claim`]: json(201, {}),
+      }),
+    );
+    const { rerender } = renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
+    await userEvent.click(within(within(dialog).getByRole("group", { name: "Claim This Case" })).getByRole("button", { name: "Claim for EDU" }));
+    await waitFor(() => expect(toastStatus()).toHaveTextContent("Claimed WP(C)/1/2026 for EDU. Open Case Page"));
+    // the claim closed the modal (the query string loses ?case=), and the toast stays over the list
+    expect(nav.replace).toHaveBeenCalledWith("/claim/recommended");
+    rerender(<ClaimFrame tab="recommended" params={{}} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const toast = screen.getByRole("group", { name: "Claimed WP(C)/1/2026 for EDU." });
+    expect(within(toast).getByRole("link", { name: "Open Case Page" })).toBeInTheDocument();
+    // the next row's case modal: only the query string changes, and the toast leaves
+    rerender(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Claimed WP(C)/1/2026 for EDU." })).toBeNull());
+    expect(screen.queryByRole("link", { name: "Open Case Page" })).toBeNull();
+    expect(toastStatus()).toHaveTextContent("");
+  });
+
   it("claim modal: Assign Now section (design claim-assign-wording, decision 2)", async () => {
     const api = browserApi(
       routes({

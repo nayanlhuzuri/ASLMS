@@ -2,8 +2,9 @@
    (so it lines up with every other box in a field row); the icon, the code tag, the clear button and the chevron sit
    over it. The list is a portal placed under the box (or above it), fixed to the viewport. */
 
+/* design control-spacing-sweep, decision 1: never wider than the grid cell it is given */
 .field {
-  min-width: 220px;
+  min-width: min(220px, 100%);
 }
 
 .box {

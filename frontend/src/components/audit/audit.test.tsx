@@ -165,8 +165,23 @@ describe("the search", () => {
     await screen.findByRole("table");
     await userEvent.type(screen.getByLabelText("Person"), "ravi@example.org");
     await userEvent.type(screen.getByLabelText("Case"), "ASHC010000012026");
-    // design portal-ui-polish-2, decision 23: the period hero's quick choice
-    await userEvent.click(screen.getByRole("button", { name: "Today" }));
+    // design portal-ui-polish-2, decision 23: the period hero's quick choice; chips in one named group (design
+    // control-spacing-sweep, decision 8), the chosen one pressed
+    const quick = screen.getByRole("group", { name: "Quick Periods" });
+    expect(within(quick).getAllByRole("button").map((b) => b.textContent)).toEqual(["Today", "7 Days", "30 Days"]);
+    for (const b of within(quick).getAllByRole("button")) {
+      expect(b.className).toMatch(/chip/);
+      expect(b).toHaveAttribute("aria-pressed", "false");
+    }
+    await userEvent.click(within(quick).getByRole("button", { name: "7 Days" }));
+    expect(within(quick).getByRole("button", { name: "7 Days" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(quick).getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "false");
+    const from7 = (screen.getByLabelText("From") as HTMLInputElement).value;
+    expect(from7).not.toBe((screen.getByLabelText("To") as HTMLInputElement).value);
+    // "Any" clears the period and stays a link outside the group
+    expect(within(quick).queryByRole("button", { name: "Any Time" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Any Time" })).toBeInTheDocument();
+    await userEvent.click(within(quick).getByRole("button", { name: "Today" }));
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.push).toHaveBeenCalledTimes(1);
     const url = new URL(nav.push.mock.calls[0]![0] as string, "http://x");

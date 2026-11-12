@@ -27,6 +27,7 @@ import { T, type ErrorTexts } from "@/lib/messages";
 import { Button, cx } from "./controls";
 import { ErrorBanner } from "./feedback";
 import { DURATION, usePresence } from "./motion";
+import { notifyOverlayOpen } from "./overlayEvents";
 import s from "./overlays.module.css";
 
 const FOCUSABLE =
@@ -77,6 +78,7 @@ function lockScroll(): () => void {
 
 /**
  * The shared overlay behaviour on `ref` while `active`: `firstFocus` takes the focus, Tab stays inside, Escape calls `onClose`, the page is scroll-locked, and the focus returns where it was.
+ * Each time it becomes active it tells `overlayEvents` (after the focus has moved in), which closes the toast.
  */
 export function useOverlay(
   ref: RefObject<HTMLElement | null>,
@@ -95,6 +97,8 @@ export function useOverlay(
     stack.push(id);
     const previous = document.activeElement as HTMLElement | null;
     if (ref.current) firstFocus(ref.current).focus();
+    // design control-spacing-sweep, decision 17: after the focus is in, so a toast closing finds it gone and leaves it
+    notifyOverlayOpen();
     const unlock = lock ? lockScroll() : () => {};
     const onKey = (e: KeyboardEvent) => {
       if (stack[stack.length - 1] !== id) return;

@@ -129,6 +129,19 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     expect(within(current as HTMLElement).getByRole("button")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("Previous, the month title and Next sit in one month navigator, Today outside it (control-spacing-sweep, decision 9)", async () => {
+    browserApi(routes());
+    renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
+    await screen.findByRole("table", { name: nb("October 2026") });
+    const navGroup = document.querySelector("[data-month-nav]") as HTMLElement;
+    expect(navGroup.className).toMatch(/monthNav/);
+    expect(within(navGroup).getByRole("button", { name: "Previous Month" })).toBeInTheDocument();
+    expect(within(navGroup).getByRole("heading", { level: 2 })).toHaveTextContent(/^October\s2026$/);
+    expect(within(navGroup).getByRole("button", { name: "Next Month" })).toBeInTheDocument();
+    expect(within(navGroup).queryByRole("button", { name: "Today" })).toBeNull();
+    expect(navGroup.nextElementSibling).toBe(screen.getByRole("button", { name: "Today" }));
+  });
+
   it("Previous, Next and Today change the query string", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);

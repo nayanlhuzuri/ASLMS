@@ -201,6 +201,11 @@ export function SelectField({
     placeholder?: string;
   }) {
   const ids = useFieldIds(id);
+  // design control-spacing-sweep, decision 5: a native select cuts its choice at the arrow, so the title names it whole
+  const chosen = rest.value === undefined || rest.value === null ? "" : String(rest.value);
+  const title = chosen
+    ? (options.find((o) => o.value === chosen) ?? (groups ?? []).flatMap((g) => g.options).find((o) => o.value === chosen))?.label
+    : undefined;
   return (
     <FieldFrame ids={ids} label={label} hint={hint} error={error} hideLabel={hideLabel}>
       <select
@@ -209,6 +214,7 @@ export function SelectField({
         data-ui="field"
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(ids, hint, error)}
+        title={title}
         {...rest}
       >
         {placeholder !== undefined ? <option value="">{placeholder}</option> : null}
@@ -233,13 +239,16 @@ export function SelectField({
 
 /**
  * A checkbox with its label. `inline` (design portal-ui-polish-2, decision 26) is for a checkbox in a row of labelled
- * fields: it sits on the 36 px control line, level with the boxes and the Search button, not with the labels.
+ * fields: it sits on the 36 px control line, level with the boxes and the Search button, not with the labels. `hint`
+ * (design control-spacing-sweep, decision 4) is drawn under the check line in the kit's hint style, inside one wrapper
+ * with the check, and describes the checkbox.
  */
 export function CheckField({
   label,
   id,
   inline,
   hideLabel,
+  hint,
   ...rest
 }: {
   label: ReactNode;
@@ -247,15 +256,27 @@ export function CheckField({
   /** The label for screen readers only, as `FieldFrame` does for text fields: a column header already says it
    * (design portal-screen-fixes-oversight, decision 13). */
   hideLabel?: boolean;
+  /** A line under the check that says what it does. */
+  hint?: ReactNode;
 } & InputHTMLAttributes<HTMLInputElement>) {
   const auto = useId();
   const fieldId = id ?? auto;
-  return (
+  const hintId = `${fieldId}-hint`;
+  const check = (
     <div className={cx(s.check, inline && s.checkInline)} data-inline={inline || undefined}>
-      <input id={fieldId} type="checkbox" {...rest} />
+      <input id={fieldId} type="checkbox" aria-describedby={hint ? hintId : undefined} {...rest} />
       <label htmlFor={fieldId} className={hideLabel ? "visually-hidden" : undefined}>
         {label}
       </label>
+    </div>
+  );
+  if (!hint) return check;
+  return (
+    <div className={s.checkField}>
+      {check}
+      <span id={hintId} className={s.hint}>
+        {hint}
+      </span>
     </div>
   );
 }
@@ -384,6 +405,7 @@ export function Chip({
       <button
         type="button"
         className={cx(s.chip, on && s.chipOn)}
+        data-ui="chip"
         aria-pressed={!!on}
         onClick={onClick}
         disabled={disabled}
@@ -522,7 +544,8 @@ export function SegmentedField({
 }) {
   const id = useId();
   return (
-    <div className={s.field} data-ui="segmented-field">
+    // design control-spacing-sweep, decision 2: a switch takes two tracks of a Filter Layout B grid once two fit
+    <div className={s.field} data-ui="segmented-field" data-wide="">
       <label className={s.label} id={id}>
         {label}
       </label>

@@ -221,6 +221,14 @@ describe("the layout signature (design portal-navy-cream, decision 14)", () => {
     expect(signature(css)).toEqual(["@media (max-width: 819px) » .a { padding: var(--s2) }", "@keyframes k » from { opacity: 0 }"]);
   });
 
+  it("follows @container blocks as it follows @media (design control-spacing-sweep, decision 16)", () => {
+    const css = ".g { container-type: inline-size; container-name: fc-fields } @container fc-fields (min-width: 412px) { .g > [data-wide] { grid-column: span 2; color: red } }";
+    expect(signature(css)).toEqual([
+      ".g { container-type: inline-size; container-name: fc-fields }",
+      "@container fc-fields (min-width: 412px) » .g > [data-wide] { grid-column: span 2 }",
+    ]);
+  });
+
   it("equals main's", () => {
     const now = current();
     if (process.env.UPDATE_LAYOUT_SIGNATURE === "1" || !existsSync(SNAPSHOT)) {

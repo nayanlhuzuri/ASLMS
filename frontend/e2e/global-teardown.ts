@@ -1,6 +1,6 @@
 /**
- * Gathers the per-test results into `findings.json` and the contact sheet `index.html` (routes down, the three widths
- * across) in the run directory (design portal-ui-polish, decision 22). The exit status is Playwright's own: a test
+ * Gathers the per-test results into `findings.json` and the contact sheet `index.html` (routes down, the four widths
+ * across; 1024 px since design control-spacing-sweep, decision 13) in the run directory (design portal-ui-polish, decision 22). The exit status is Playwright's own: a test
  * fails on any finding.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import type { Finding, ResultFile } from "./results";
 
-const WIDTHS = ["375", "768", "1280"];
+const WIDTHS = ["375", "768", "1024", "1280"];
 
 function esc(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -56,7 +56,7 @@ thead th{background:#f3f4f6;position:sticky;top:0}
 </style></head><body>
 <h1>ASLMS browser check</h1>
 <p>${names.length} routes and states, ${screenshots} screenshots, ${findings.length} findings, ${seconds} s.</p>
-<table><thead><tr><th>Route</th><th>375 px</th><th>768 px</th><th>1280 px</th></tr></thead><tbody>
+<table><thead><tr><th>Route</th>${WIDTHS.map((w) => `<th>${w} px</th>`).join("")}</tr></thead><tbody>
 ${rows}
 </tbody></table></body></html>
 `;

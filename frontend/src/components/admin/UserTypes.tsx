@@ -488,14 +488,18 @@ export function UserTypePage({ role }: { role: string }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <Chip on={onlyChanged} onClick={() => setOnlyChanged((v) => !v)}>
-          {T.access.onlyChanged}
-        </Chip>
-        {editable ? (
-          <Button variant="secondary" onClick={resetToDefault}>
-            {T.access.reset}
-          </Button>
-        ) : null}
+        {/* design control-spacing-sweep, decision 14: the chip and Reset to Default move as one group, so the row never
+            splits them when they fit one line */}
+        <div className={a.rowGroup}>
+          <Chip on={onlyChanged} onClick={() => setOnlyChanged((v) => !v)}>
+            {T.access.onlyChanged}
+          </Chip>
+          {editable ? (
+            <Button variant="secondary" onClick={resetToDefault}>
+              {T.access.reset}
+            </Button>
+          ) : null}
+        </div>
       </div>
       {isSuper ? <Notice>{T.access.superAdminLine}</Notice> : null}
       {/* a refusal names the function, and the draft stays for the user to change */}

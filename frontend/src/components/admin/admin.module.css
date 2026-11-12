@@ -178,6 +178,14 @@
   min-width: 168px;
 }
 
+/* design control-spacing-sweep, decision 14: a run of controls of a filter row that moves to the next line as one */
+.rowGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
 /* the sticky Save bar, the page's one primary on its right */
 .saveBar {
   position: sticky;

@@ -20,7 +20,8 @@
  * Design portal-screen-fixes-work, decision 17: every card shows its title at every width ("Your Task" when the file
  * is with the reader, else "Current Task"), the holder is the first row of the task's facts, the Journey card has
  * "View All" in its head (beside the summary below 1100 px, outside the button), a collapsed card has no empty band, and
- * Quick Actions are equal-width buttons.
+ * Quick Actions are equal-width buttons. Design control-spacing-sweep, decision 7 (amending decision 17): every button
+ * group of the rail (`.quick`, `.buttons`) is a column of full-width buttons, one per line at every width.
  */
 import { useId, useState, type ReactNode } from "react";
 

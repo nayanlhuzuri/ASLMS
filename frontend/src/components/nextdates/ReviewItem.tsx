@@ -136,6 +136,8 @@ export function reviewColumns(
     columns.push({
       key: "actions",
       header: T.nd.actions,
+      // design control-spacing-sweep, decision 9 (item 12): on a card Enter Date takes the full width, with no label
+      actions: true,
       cell: (item) => <ReviewActions item={item} onDone={onDone} onStale={onStale} />,
     });
   }

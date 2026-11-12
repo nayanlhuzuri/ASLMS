@@ -871,7 +871,7 @@ describe("the original PDF without first choosing a bench (causelist-pdf-access)
 
 describe("the cause-list caption and card rows (design portal-ui-kit-fixes, decisions 2, 6 and 8)", () => {
   const css = readFileSync(join(process.cwd(), "src", "components", "causelist", "causelist.module.css"), "utf-8");
-  const phone = css.slice(css.indexOf("@media (max-width: 819px)"), css.indexOf("@media (max-width: 639px)"));
+  const phone = css.slice(css.indexOf("@media (max-width: 1099px)"), css.indexOf("@media (max-width: 639px)"));
 
   it("the phone block gives the caption display: block, so it is not squeezed to its longest word (L3)", () => {
     expect(phone).toMatch(/\.entries caption \{\s*display: block;\s*\}/);

@@ -230,6 +230,23 @@
   }
 }
 
+/* design control-spacing-sweep, decision 10: on phones both footers stack, full width, in the DOM order (Close or Back
+   first, the primary last), so the visual order is the keyboard order */
+@media (max-width: 639px) {
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .footer > * {
+    width: 100%;
+  }
+
+  .spacer {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .step {
     animation: none;

@@ -586,7 +586,13 @@ describe("Layout B on Reports (portal-ui-polish-2, decision 23)", () => {
     await screen.findByRole("search", { name: "Report Choices" });
     const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
     expect(within(fields).getByRole("combobox", { name: "Holder Department" })).toBeInTheDocument();
-    await userEvent.click(within(fields).getByRole("checkbox", { name: "List the Cases" }));
+    // design control-spacing-sweep, decision 4: the hint is the checkbox's own description, under its check; no bare
+    // muted span is left beside it
+    const list = within(fields).getByRole("checkbox", { name: "List the Cases" });
+    expect(list).toHaveAccessibleDescription("Adds one row per case you may open, 50 per page.");
+    expect(list.closest("[data-inline]")!.parentElement!.lastElementChild!.className).toMatch(/hint/);
+    expect(fields.querySelector(".muted")).toBeNull();
+    await userEvent.click(list);
     await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push).toHaveBeenCalledWith("/reports/pending-actions?department=EDU&include_cases=true");
   });

@@ -1,6 +1,7 @@
 /**
  * The browser check (design portal-ui-polish, decisions 18-22). Every page route read from `src/app` at run time (as
- * `backend/tools/portal_smoke.py` reads it), at 375, 768 and 1280 px, against the real `web` service, with a dummy
+ * `backend/tools/portal_smoke.py` reads it), at 375, 768, 1024 and 1280 px (1024 since design control-spacing-sweep,
+ * decision 13), against the real `web` service, with a dummy
  * session cookie that passes the page gate (the public pages go without it) and every `/api/backend/**` and
  * `/api/session/**` request answered in the browser from the fixtures. The interaction states as well. Each page
  * gets a full-page screenshot and the geometry checks of `checks.ts`; a page fails on any finding, a missing fixture,
@@ -200,7 +201,7 @@ test("an old case number lands on the current address", async ({ page }) => {
 interface State {
   name: string;
   path: string;
-  /** Only at these widths (default: all three). */
+  /** Only at these widths (default: all four). */
   widths?: number[];
   /** The session ping's answer for this state (design session-timeout). */
   activity?: Partial<typeof ACTIVITY_DEFAULT>;
@@ -234,6 +235,7 @@ async function hoverToast(page: Page, text: string): Promise<void> {
 
 const FLASH_SENT = "Case sent to Health Off. It is no longer with you.";
 const FLASH_SAVED = "Saved. The change is in the audit log.";
+const FLASH_CLAIMED = "Claimed for Education.";
 
 const STATES: State[] = [
   {
@@ -738,6 +740,19 @@ const STATES: State[] = [
     init: withFlash(FLASH_SENT),
     open: async (page) => {
       await hoverToast(page, FLASH_SENT);
+    },
+  },
+  {
+    // design control-spacing-sweep, decisions 17 and 19: a toast showing over the list closes when a person opens a row's
+    // case modal (only the query string changes); the overlap kind skips fixed layers, so the state asserts it itself
+    name: "/claim/recommended (toast closed by the case modal)",
+    path: "/claim/recommended",
+    init: withFlash(FLASH_CLAIMED),
+    open: async (page) => {
+      await hoverToast(page, FLASH_CLAIMED);
+      await page.getByRole("row", { name: /^Open details of / }).first().click();
+      await page.getByRole("dialog").first().waitFor();
+      await expect(page.getByRole("group", { name: FLASH_CLAIMED })).toBeHidden();
     },
   },
   {

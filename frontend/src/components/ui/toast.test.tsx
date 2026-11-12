@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setFlash } from "@/lib/flash";
 import { nav, resetNav } from "@/test/nav";
 import { renderWithClient, toastStatus } from "@/test/render";
 
-import { DURATION, TOAST_MS, ToastProvider, useToast, type ToastLink } from "./index";
+import { Dialog, DURATION, Modal, SidePanel, TOAST_MS, ToastProvider, useToast, type ToastLink } from "./index";
 
 /*
  * The confirmation toast (design portal-motion, decisions 1 to 8; Tests 1).
@@ -266,5 +266,127 @@ describe("outside a provider (decision 1)", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+/** A page that opens one kit overlay at a time from its buttons, and raises toasts by `show`. */
+type Which = "modal" | "dialog" | "panel" | null;
+const opener: { current: (w: Which) => void } = { current: () => {} };
+
+function OverlayPage() {
+  const [which, setWhich] = useState<Which>(null);
+  useEffect(() => {
+    opener.current = setWhich;
+  }, []);
+  const close = () => setWhich(null);
+  return (
+    <>
+      <Raiser />
+      <Modal open={which === "modal"} title="Case Details" onClose={close}>
+        <button type="button">Modal Action</button>
+      </Modal>
+      <Dialog open={which === "dialog"} title="Add Note" onClose={close}>
+        <input aria-label="Note Text" />
+      </Dialog>
+      <SidePanel open={which === "panel"} title="Remarks" onClose={close}>
+        <button type="button">Panel Action</button>
+      </SidePanel>
+    </>
+  );
+}
+
+function openOverlay(w: Which) {
+  act(() => opener.current(w));
+}
+
+describe("an overlay opening closes the toast (design control-spacing-sweep, decision 17)", () => {
+  it("a link toast closes at once under reduced motion when a Modal opens", () => {
+    renderWithClient(<OverlayPage />);
+    show("Claimed for Education.", { href: "/cases/X", label: "Open Case Page" });
+    expect(within(card()).getByRole("link", { name: "Open Case Page" })).toBeInTheDocument();
+    openOverlay("modal");
+    expect(screen.getByRole("dialog", { name: "Case Details" })).toBeInTheDocument();
+    expect(card()).toBeEmptyDOMElement();
+    expect(toastStatus()).toHaveTextContent("");
+  });
+
+  it("with motion, a text-only toast leaves over DURATION.med when a Dialog opens", () => {
+    stubMotion(false);
+    vi.useFakeTimers();
+    renderWithClient(<OverlayPage />);
+    show("Saved.");
+    openOverlay("dialog");
+    expect(card()).toHaveAttribute("data-closing");
+    expect(card()).not.toHaveAttribute("data-open");
+    act(() => vi.advanceTimersByTime(DURATION.med));
+    expect(card()).toBeEmptyDOMElement();
+    expect(toastStatus()).toHaveTextContent("");
+  });
+
+  it("a text-only toast closes when a SidePanel opens", () => {
+    renderWithClient(<OverlayPage />);
+    show("Saved.");
+    openOverlay("panel");
+    expect(card()).toBeEmptyDOMElement();
+    expect(toastStatus()).toHaveTextContent("");
+  });
+
+  it("a toast raised while a Dialog is already open stays, and closes after TOAST_MS", () => {
+    vi.useFakeTimers();
+    renderWithClient(<OverlayPage />);
+    openOverlay("dialog");
+    show("Saved.");
+    expect(toastStatus()).toHaveTextContent("Saved.");
+    act(() => vi.advanceTimersByTime(TOAST_MS - 1));
+    expect(toastStatus()).toHaveTextContent("Saved.");
+    act(() => vi.advanceTimersByTime(1));
+    expect(toastStatus()).toHaveTextContent("");
+  });
+
+  it("closing an overlay does not close the toast", () => {
+    vi.useFakeTimers();
+    renderWithClient(<OverlayPage />);
+    openOverlay("modal");
+    show("Claimed for Education.", { href: "/cases/X", label: "Open Case Page" });
+    openOverlay(null);
+    act(() => vi.advanceTimersByTime(60000));
+    expect(within(card()).getByRole("link", { name: "Open Case Page" })).toBeInTheDocument();
+  });
+
+  it("the focus goes to the dialog's first control, not back behind it, even from inside the toast", () => {
+    renderWithClient(<OverlayPage />);
+    show("Saved.");
+    act(() => within(card()).getByRole("button", { name: "Close Message" }).focus());
+    openOverlay("dialog");
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note Text" }));
+    expect(card()).toBeEmptyDOMElement();
+  });
+});
+
+describe("every toast is announced, even a repeat (design control-spacing-sweep, decision 18)", () => {
+  it("the same words twice keep the region and replace its inner node; other words replace it too", () => {
+    renderWithClient(<Raiser />);
+    const status = toastStatus();
+    show("Saved.");
+    const first = status.firstElementChild;
+    expect(first).not.toBeNull();
+    show("Saved.");
+    expect(toastStatus()).toBe(status);
+    expect(status).toHaveTextContent("Saved.");
+    const second = status.firstElementChild;
+    expect(second).not.toBe(first);
+    show("Removed.");
+    expect(status).toHaveTextContent("Removed.");
+    expect(status.firstElementChild).not.toBe(second);
+  });
+
+  it("the region is the same node before, during and after a toast", () => {
+    renderWithClient(<Raiser />);
+    const before = toastStatus();
+    show("Saved.");
+    expect(toastStatus()).toBe(before);
+    fireEvent.click(within(card()).getByRole("button", { name: "Close Message" }));
+    expect(toastStatus()).toBe(before);
+    expect(before).toHaveTextContent("");
   });
 });

@@ -78,15 +78,19 @@ function MyDates({ params }: { params: Params }) {
     <div className={s.wrap}>
       <Card>
         <div className={s.head}>
-          <Button variant="ghost" aria-label={T.mycal.previous} onClick={() => setFilters({ month: shiftMonth(month, -1), day: undefined })}>
-            <span aria-hidden="true">‹</span>
-          </Button>
-          <h2 className={s.title} aria-live="polite">
-            {formatMonthYear(`${month}-01`)}
-          </h2>
-          <Button variant="ghost" aria-label={T.mycal.next} onClick={() => setFilters({ month: shiftMonth(month, 1), day: undefined })}>
-            <span aria-hidden="true">›</span>
-          </Button>
+          {/* design control-spacing-sweep, decision 9 (item 40): Previous, the month and Next move as one group, so
+              on a phone Today drops under them as a whole */}
+          <div className={s.monthNav} data-month-nav="">
+            <Button variant="ghost" aria-label={T.mycal.previous} onClick={() => setFilters({ month: shiftMonth(month, -1), day: undefined })}>
+              <span aria-hidden="true">‹</span>
+            </Button>
+            <h2 className={s.title} aria-live="polite">
+              {formatMonthYear(`${month}-01`)}
+            </h2>
+            <Button variant="ghost" aria-label={T.mycal.next} onClick={() => setFilters({ month: shiftMonth(month, 1), day: undefined })}>
+              <span aria-hidden="true">›</span>
+            </Button>
+          </div>
           <Button variant="secondary" onClick={() => setFilters({ month: undefined, day: undefined })}>
             {T.mycal.today}
           </Button>

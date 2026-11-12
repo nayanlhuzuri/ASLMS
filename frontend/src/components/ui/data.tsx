@@ -169,8 +169,9 @@ export function fitTable(wrap: HTMLElement | null): void {
 
 /**
  * `fitTable` when the data changes (the `rows` array, stable under React Query's structural sharing while the data is
- * unchanged, or the column keys), not on every render (design followups-oct, decision 23), and whenever the box's
- * width changes. Comparing only counts was rejected: a refetch with the same counts and longer text must re-measure.
+ * unchanged, or the column keys), not on every render (design followups-oct, decision 23), whenever the box's
+ * width changes, and when the table itself grows wider than its box after the rows arrived (design
+ * control-spacing-sweep, decision 14). Comparing only counts was rejected: a refetch with the same counts and longer text must re-measure.
  */
 function useFitTable(rows: unknown, columnKeys: string, onStacked?: (stacked: boolean) => void) {
   const node = useRef<HTMLDivElement | null>(null);
@@ -195,6 +196,9 @@ function useFitTable(rows: unknown, columnKeys: string, onStacked?: (stacked: bo
   useLayoutEffect(() => {
     fitTable(node.current);
     tell();
+    // design control-spacing-sweep, decision 14 (deviation 5): watch the table too, whichever element it is now
+    const table = node.current?.querySelector("table");
+    if (table) observer.current?.observe(table);
   }, [rows, columnKeys, tell]);
   const ref = useCallback((el: HTMLDivElement | null) => {
     observer.current?.disconnect();
@@ -203,12 +207,23 @@ function useFitTable(rows: unknown, columnKeys: string, onStacked?: (stacked: bo
     if (!el || typeof ResizeObserver === "undefined") return;
     let width = -1;
     observer.current = new ResizeObserver(() => {
-      if (el.clientWidth === width) return; // a height change (cards ↔ table) is not a reason to measure again
-      width = el.clientWidth;
-      fitTable(el);
-      tell();
+      if (el.clientWidth !== width) {
+        width = el.clientWidth;
+        fitTable(el);
+        tell();
+        return;
+      }
+      // a height change (cards ↔ table) is not a reason to measure again; but a table that grew past its box after the
+      // rows arrived (a department's name or a badge coming later) turns into cards
+      const table = el.querySelector("table");
+      if (table && !el.hasAttribute("data-stacked") && table.offsetWidth > el.clientWidth + 1) {
+        fitTable(el);
+        tell();
+      }
     });
     observer.current.observe(el);
+    const table = el.querySelector("table");
+    if (table) observer.current.observe(table);
     void document.fonts?.ready.then(() => {
       fitTable(node.current);
       tell();

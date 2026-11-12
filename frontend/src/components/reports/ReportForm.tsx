@@ -198,15 +198,14 @@ export function ReportForm({
             onChange={(code) => setHolder(code ?? "")}
             hint={T.reports.holderHint}
           />
-          <div>
-            <CheckField
-              inline
-              label={T.reports.listFiles}
-              checked={includeCases}
-              onChange={(e) => setIncludeCases(e.target.checked)}
-            />
-            <span className="muted">{T.reports.listFilesHint}</span>
-          </div>
+          {/* design control-spacing-sweep, decision 4: the hint under its own check, describing it */}
+          <CheckField
+            inline
+            label={T.reports.listFiles}
+            hint={T.reports.listFilesHint}
+            checked={includeCases}
+            onChange={(e) => setIncludeCases(e.target.checked)}
+          />
         </>
       ) : null}
     </FilterCard>

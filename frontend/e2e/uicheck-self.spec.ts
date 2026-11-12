@@ -1,6 +1,7 @@
 /**
  * The checker's own rules (design followups-oct, decision 22): on a redirect only the geometry kinds are dropped (no
  * page needed); and the field-row checkbox step on two small pages of its own (design portal-ui-polish-2, decision 26);
+ * the four control-spacing kinds (design control-spacing-sweep, decision 11);
  * the box collector and boxdiff (design portal-navy-cream, decision 16).
  */
 import { expect, test, type Page } from "@playwright/test";
@@ -294,6 +295,174 @@ test("values starting at different x on one card are a card-row finding; one col
     ),
   );
   expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "card-row")).toEqual([]);
+});
+
+/**
+ * The control-spacing kinds (design control-spacing-sweep, decisions 11 and 12): each on a page that breaks it and on
+ * pages that keep it, measured as at 1280 px whatever the project's viewport.
+ */
+const KIT = `
+  .btn{display:inline-flex;align-items:center;height:36px;padding:0 16px;border:1px solid #888;white-space:nowrap;box-sizing:border-box;font:14px sans-serif;background:#fff}
+  .fld{height:36px;box-sizing:border-box;border:1px solid #888;padding:0 12px;font:14px sans-serif}
+  .seg{display:inline-flex;padding:2px;gap:2px;border:1px solid #888}
+  .seg button{height:30px;padding:0 12px;border:0;white-space:nowrap;flex:none;font:14px sans-serif}
+  .chip{display:inline-flex;align-items:center;height:30px;padding:0 12px;border:1px solid #888;border-radius:15px;white-space:nowrap;font:14px sans-serif;background:#fff}`;
+
+function kitPage(body: string): string {
+  return `<!doctype html><html><head><style>${KIT}</style></head><body style="margin:0;font:14px sans-serif">
+    <main id="main" style="padding:16px">${body}</main></body></html>`;
+}
+
+async function spacing(page: Page, body: string, kind: string) {
+  await atLaptop(page);
+  await page.setContent(kitPage(body));
+  return (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === kind);
+}
+
+test("a field drawn 10 px over its neighbour is an overlap finding", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="display:flex;width:600px">
+       <input data-ui="field" class="fld" style="width:200px" aria-label="A">
+       <input data-ui="field" class="fld" style="width:200px;margin-left:-10px" aria-label="B"></div>`,
+    "overlap",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.detail).toMatch(/10×36 px/);
+});
+
+test("an input with its icon in one wrapper, and a dialog drawn over the page, are not overlap findings", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="position:relative;display:flex;align-items:center;width:240px">
+       <span aria-hidden="true" style="position:absolute;left:12px">⌕</span>
+       <input data-ui="field" class="fld" role="combobox" style="width:100%;padding-left:36px" aria-label="Office">
+       <button data-ui="button" data-variant="ghost" class="btn" style="position:absolute;right:0;padding:0 8px" aria-label="Clear">×</button></div>
+     <button data-ui="button" class="btn">Under the Dialog</button>
+     <div role="dialog" aria-label="Case" style="position:fixed;top:0;left:0;width:400px;padding:16px;background:#fff">
+       <button data-ui="button" class="btn">In the Dialog</button></div>`,
+    "overlap",
+  );
+  expect(findings).toEqual([]);
+});
+
+test("a sticky Save bar floating over a chip is not an overlap finding (its own layer)", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="height:300px;overflow:visible">
+       <button data-ui="chip" class="chip" style="margin-top:250px">Only Changed From Default</button>
+       <div style="position:sticky;bottom:0;margin-top:-40px;display:flex;gap:8px;background:#ccc;padding:4px">
+         <button data-ui="button" class="btn">Discard</button><button data-ui="button" class="btn">Save Changes</button></div></div>`,
+    "overlap",
+  );
+  expect(findings).toEqual([]);
+});
+
+test("a nowrap button narrower than its text and a segment wider than its frame are text-overrun findings", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<button data-ui="button" class="btn" style="width:90px">Upload a Document</button>
+     <div style="display:flex;flex-direction:column;width:120px;margin-top:16px">
+       <div role="radiogroup" aria-label="Show" class="seg" style="align-self:stretch">
+         <button role="radio" aria-checked="true">Me</button><button role="radio" aria-checked="false">With My Offices</button></div></div>`,
+    "text-overrun",
+  );
+  expect(findings.some((f) => f.element.includes("Upload a Document"))).toBe(true);
+  expect(findings.some((f) => f.element.includes("With My Offices"))).toBe(true);
+});
+
+test("an ellipsis-truncated badge and a narrow native select are not text-overrun findings", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<span data-ui="badge" style="display:inline-block;max-width:80px;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Directorate of Secondary Education</span>
+     <select data-ui="field" class="fld" style="width:120px" aria-label="Bench"><option>Court 1 · HONOURABLE THE CHIEF JUSTICE</option></select>`,
+    "text-overrun",
+  );
+  expect(findings).toEqual([]);
+});
+
+test("a checkbox 0 px after a segmented switch on one line is a tight-gap finding", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="display:flex;align-items:center">
+       <div role="radiogroup" aria-label="Show" class="seg"><button role="radio" aria-checked="true">Me</button><button role="radio" aria-checked="false">With My Offices</button></div>
+       <div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="od"><label for="od">Overdue Only</label></div></div>`,
+    "tight-gap",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.detail).toMatch(/^0\.0 px between two controls/);
+});
+
+test("two badges 4 px apart (the kit's badge row) are not a tight-gap finding; a badge 4 px before a button is", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<p style="display:flex;gap:4px;align-items:center"><span data-ui="badge" style="padding:0 8px">Draft</span><span data-ui="badge" style="padding:0 8px">Private</span></p>
+     <p style="display:flex;gap:4px;align-items:center"><span data-ui="badge" style="padding:0 8px">Draft</span><button data-ui="button" class="btn">Edit</button></p>`,
+    "tight-gap",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.element).toContain("Edit");
+});
+
+test("the segments of one switch and a label beside its own control are not tight-gap findings", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="display:flex;align-items:center;gap:12px">
+       <div role="radiogroup" aria-label="Show" class="seg"><button role="radio" aria-checked="true">Me</button><button role="radio" aria-checked="false">With My Offices</button></div>
+       <label for="q" style="margin-right:-8px">Search</label><input id="q" data-ui="field" class="fld"></div>`,
+    "tight-gap",
+  );
+  expect(findings).toEqual([]);
+});
+
+test("the hints of two fields running into each other are a tight gap; a label clipped by its scroll box is not", async ({ page }) => {
+  const col = (id: string, hint: string) =>
+    `<div style="display:flex;flex-direction:column;width:200px"><label for="${id}">Holder</label><input id="${id}" data-ui="field" class="fld" aria-describedby="${id}h"><span id="${id}h" style="white-space:nowrap">${hint}</span></div>`;
+  const raised = await spacing(
+    page,
+    `<div style="display:flex;gap:12px;align-items:flex-start">${col("h1", "Narrows the cases with a pending action today")}${col("h2", "Adds one row")}</div>`,
+    "tight-gap",
+  );
+  expect(raised.filter((f) => f.detail.includes("texts of two fields"))).toHaveLength(1);
+  const kept = await spacing(
+    page,
+    `<div style="display:flex">
+       <div style="width:300px;height:20px;overflow:hidden"><div style="padding-top:40px"><label for="sp">Show Former Parties and Advocates</label><input id="sp" type="checkbox"></div></div>
+       <div style="margin-top:40px;margin-left:-300px"><label for="cf">Claim For</label><select id="cf" data-ui="field" class="fld"></select></div></div>`,
+    "tight-gap",
+  );
+  expect(kept).toEqual([]);
+});
+
+test("two buttons wrapping in a 180 px grid cell inside a 600 px parent are a split-group finding", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="width:600px"><div style="display:grid;grid-template-columns:repeat(auto-fill,180px);gap:12px">
+       <input data-ui="field" class="fld" style="width:100%" aria-label="A">
+       <div style="display:flex;flex-wrap:wrap;gap:8px"><button data-ui="button" class="btn">Show Report</button><button data-ui="button" class="btn">Refresh</button></div>
+     </div></div>`,
+    "split-group",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.detail).toMatch(/^2 buttons on 2 lines/);
+});
+
+test("buttons wider than their parent, a full-width column and a link after two chips may wrap", async ({ page }) => {
+  const findings = await spacing(
+    page,
+    `<div style="width:300px"><div style="display:flex;flex-wrap:wrap;gap:8px">
+       <button data-ui="button" class="btn">Search</button><button data-ui="button" class="btn">More Filters</button>
+       <button data-ui="button" class="btn">Clear</button><button data-ui="button" class="btn">Refresh</button></div></div>
+     <div style="width:300px;display:flex;flex-direction:column;gap:8px;margin-top:16px">
+       <button data-ui="button" class="btn" style="width:100%">Add Note</button><button data-ui="button" class="btn" style="width:100%">Set Stage</button></div>
+     <div style="width:300px;display:grid;gap:8px;margin-top:16px">
+       <button data-ui="button" class="btn">See All Remarks (5)</button><button data-ui="button" class="btn">Recall Case</button></div>
+     <div style="width:240px"><div style="display:flex;flex-wrap:wrap;gap:8px;width:200px">
+       <button data-ui="chip" class="chip">Today</button><button data-ui="chip" class="chip">7 Days</button>
+       <a href="#">Any Time</a></div></div>`,
+    "split-group",
+  );
+  expect(findings).toEqual([]);
 });
 
 /**

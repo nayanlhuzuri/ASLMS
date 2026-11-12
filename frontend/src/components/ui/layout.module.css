@@ -464,7 +464,13 @@
 
 /* a field row: fields line up by their tops; the actions cell (no label) drops by the label line so its buttons sit
    level with the boxes */
+/* design control-spacing-sweep, decision 2: the grid is a size container, so a wide item (`data-wide`: the actions
+   cell, a segmented switch) spans two tracks once two fit; every kit field fits its track (decision 1). The tracks stay
+   180 px (deviation 1): the right zone is about 382 px at 1024 px and 392 px at 768 px, so 200 px tracks would leave
+   one column there */
 .fcGrid {
+  container-type: inline-size;
+  container-name: fc-fields;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
   gap: var(--s3);
@@ -484,6 +490,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s2);
+}
+
+/* 372 px = two 180 px tracks and the 12 px gap; below it the grid has one column and a span would add a track */
+@container fc-fields (min-width: 372px) {
+  .fcGrid > [data-wide] {
+    grid-column: span 2;
+  }
 }
 
 .fcMore {

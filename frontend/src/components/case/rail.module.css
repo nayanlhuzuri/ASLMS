@@ -137,10 +137,18 @@
   overflow-wrap: anywhere;
 }
 
-.buttons {
+/* design control-spacing-sweep, decision 7: every button group of the rail is a column of full-width buttons (two do
+   not fit side by side in the 300 px rail) */
+.buttons,
+.quick {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--s2);
+}
+
+.buttons > *,
+.quick > * {
+  width: 100%;
 }
 
 .hint {
@@ -157,13 +165,6 @@
 
 .hearingDate {
   display: flex;
-}
-
-/* decision 17: equal-width buttons, three to a row in the 320 px rail, two rows on a narrow phone */
-.quick {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
-  gap: var(--s2);
 }
 
 .journey {

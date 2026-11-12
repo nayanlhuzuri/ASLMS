@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -85,6 +85,46 @@ describe("DataTable measures when its data changes (design followups-oct, decisi
     view.rerender(<DataTable columns={COLUMNS.slice(0, 1)} rows={[{ id: "1", name: "a much longer name" }]} rowKey={(r) => r.id} />);
     expect(measures(spy)).toBe(3);
     spy.mockRestore();
+  });
+});
+
+describe("DataTable turns into cards when its table grows past the box later (design control-spacing-sweep, decision 14)", () => {
+  it("a wider table seen by the observer sets data-stacked; a height change alone measures nothing", () => {
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    class FakeResizeObserver {
+      els: Element[] = [];
+      constructor(cb: ResizeObserverCallback) {
+        observers.push({ cb, els: this.els });
+      }
+      observe(el: Element) {
+        this.els.push(el);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      type Row = { id: string };
+      render(<DataTable columns={[{ key: "id", header: "Id", cell: (r: Row) => r.id }]} rows={[{ id: "1" }]} rowKey={(r) => r.id} caption="Rows" />);
+      const table = screen.getByRole("table", { name: "Rows" });
+      const wrap = table.parentElement!;
+      const watcher = observers.find((o) => o.els.includes(table))!;
+      expect(watcher).toBeDefined();
+      expect(watcher.els).toContain(wrap);
+      Object.defineProperty(wrap, "clientWidth", { configurable: true, value: 700 });
+      Object.defineProperty(table, "offsetWidth", { configurable: true, value: 690 });
+      act(() => watcher.cb([], watcher as unknown as ResizeObserver));
+      expect(wrap).not.toHaveAttribute("data-stacked");
+      const spy = vi.spyOn(Element.prototype, "removeAttribute");
+      act(() => watcher.cb([], watcher as unknown as ResizeObserver));
+      expect(spy.mock.calls.filter((c) => c[0] === "data-stacked")).toHaveLength(0);
+      Object.defineProperty(table, "offsetWidth", { configurable: true, value: 746 });
+      act(() => watcher.cb([], watcher as unknown as ResizeObserver));
+      expect(wrap).toHaveAttribute("data-stacked");
+      spy.mockRestore();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

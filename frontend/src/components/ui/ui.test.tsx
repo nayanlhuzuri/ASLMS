@@ -38,6 +38,7 @@ import {
   PageHeader,
   ScoreBadge,
   ScoreLine,
+  SegmentedField,
   SegmentedSwitch,
   SelectField,
   SidePanel,
@@ -1392,5 +1393,55 @@ describe("the sliding thumb of the SegmentedSwitch (design portal-motion, decisi
     } finally {
       restore();
     }
+  });
+});
+
+describe("the kit's spacing fixes (design control-spacing-sweep, decisions 2, 4 and 5)", () => {
+  it("SegmentedField's root is a wide grid item", () => {
+    const { container } = renderWithClient(
+      <SegmentedField label="Show" options={[{ value: "me", label: "Me" }, { value: "offices", label: "With My Offices" }]} value="me" onChange={() => {}} />,
+    );
+    const root = container.querySelector("[data-ui='segmented-field']")!;
+    expect(root).toHaveAttribute("data-wide");
+  });
+
+  it("FilterCard's actions cell is wide and keeps Search, More Filters (n) and the page's actions in that order", () => {
+    const { container } = renderWithClient(
+      <FilterCard label="Report" hero={<TextField label="Search For" />} onSubmit={() => {}} more={<TextField label="Year" />} actions={<Button variant="secondary">Refresh</Button>}>
+        <TextField label="Case Type" />
+      </FilterCard>,
+    );
+    const actions = container.querySelector("[data-zone='actions']")!;
+    expect(actions).toHaveAttribute("data-wide");
+    expect(within(actions as HTMLElement).getAllByRole("button").map((b) => b.textContent)).toEqual(["Search", "More Filters", "Refresh"]);
+  });
+
+  it("CheckField with a hint draws it under the check and describes the checkbox by it", () => {
+    renderWithClient(
+      <>
+        <CheckField label="List the Cases" inline hint="Adds one row per case." />
+        <CheckField label="Show Archived" />
+      </>,
+    );
+    const box = screen.getByRole("checkbox", { name: "List the Cases" });
+    const hint = screen.getByText("Adds one row per case.");
+    expect(box).toHaveAttribute("aria-describedby", hint.id);
+    expect(box).toHaveAccessibleDescription("Adds one row per case.");
+    // one wrapper holds the check line and the hint under it
+    expect(hint.parentElement).toContainElement(box);
+    expect(hint.previousElementSibling).toContainElement(box);
+    expect(screen.getByRole("checkbox", { name: "Show Archived" })).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("SelectField names its whole choice in the title, for plain and grouped options, and none when empty", () => {
+    const options = [{ value: "a", label: "Directorate of Secondary Education, Kahilipara, Guwahati-19" }];
+    const groups = [{ label: "Benches", options: [{ value: "c1", label: "Court 1 · HONOURABLE THE CHIEF JUSTICE" }] }];
+    const { rerender } = renderWithClient(<SelectField label="Department" options={options} groups={groups} placeholder="Any" value="a" onChange={() => {}} />);
+    const select = screen.getByLabelText("Department");
+    expect(select).toHaveAttribute("title", "Directorate of Secondary Education, Kahilipara, Guwahati-19");
+    rerender(<SelectField label="Department" options={options} groups={groups} placeholder="Any" value="c1" onChange={() => {}} />);
+    expect(select).toHaveAttribute("title", "Court 1 · HONOURABLE THE CHIEF JUSTICE");
+    rerender(<SelectField label="Department" options={options} groups={groups} placeholder="Any" value="" onChange={() => {}} />);
+    expect(select).not.toHaveAttribute("title");
   });
 });

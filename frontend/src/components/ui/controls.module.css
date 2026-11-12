@@ -111,7 +111,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--s1);
-  min-width: 200px;
+  /* design control-spacing-sweep, decision 1: in a flex row the floor stays 200 px; in a grid track it never draws the
+     field wider than its cell */
+  min-width: min(200px, 100%);
 }
 
 .label {
@@ -155,6 +157,8 @@
 
 .select {
   padding-right: var(--s6);
+  /* decision 5: where the browser supports it; the full choice is the select's title */
+  text-overflow: ellipsis;
 }
 
 /* a password field with its show / hide button inside the right edge */
@@ -220,6 +224,14 @@
   height: 16px;
   margin: 0;
   accent-color: var(--action);
+}
+
+/* design control-spacing-sweep, decision 4: a check with its own hint under the check line */
+.checkField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
 }
 
 /* design portal-ui-polish-2, decision 26: in a field row the checkbox and its text centre on the control line */
@@ -321,9 +333,12 @@
   }
 }
 
+/* design control-spacing-sweep, decision 3: the frame hugs its options in a field's column (never stretched narrower
+   than them), and an option never shrinks; no max-width, so a switch wider than its cell shows as an overlap */
 .segmented {
   position: relative;
   display: inline-flex;
+  align-self: flex-start;
   padding: 2px;
   gap: 2px;
   border: 1px solid var(--border-strong);
@@ -334,6 +349,7 @@
 .segment {
   position: relative;
   z-index: 1;
+  flex: none;
   height: 30px;
   padding: 0 var(--s3);
   border: 0;

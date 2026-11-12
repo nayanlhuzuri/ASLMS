@@ -176,8 +176,9 @@
   max-width: 100%;
 }
 
-/* phones: each entry becomes a card under its headings */
-@media (max-width: 819px) {
+/* phones, and up to 1099 px (design control-spacing-sweep, decision 14): each entry becomes a card under its headings;
+   below 1100 px the table's columns cannot fit a department's full name beside the case */
+@media (max-width: 1099px) {
   .entriesWrap {
     border: 0;
     background: transparent;

@@ -28,6 +28,7 @@ import { labelFor } from "@/lib/displayLabels";
 import { hearingBand } from "@/lib/hearingDate";
 
 import { Button, cx } from "./controls";
+import { onOverlayOpen } from "./overlayEvents";
 import s from "./feedback.module.css";
 import { DURATION, usePresence } from "./motion";
 import { OfficeName } from "./OfficeName";
@@ -57,6 +58,7 @@ export function Badge({
   return (
     <span
       className={cx(s.badge, tone && s[`badge-${tone}`])}
+      data-ui="badge"
       data-look={look}
       data-wrap={wrap ? "" : undefined}
       title={title ?? (typeof children === "string" ? children : undefined)}
@@ -442,9 +444,11 @@ interface ToastState {
  * The confirmation toast (design portal-motion, decisions 1 to 8): renders its children, then the toast host as its last
  * child. One toast at a time; a new one replaces the text in place and restarts the timer. A text-only toast closes
  * after `TOAST_MS`, paused while the pointer is over it or focus is inside it; a toast with a link stays until Close,
- * Escape, a new toast or a change of page. A flash left by the previous page (`lib/flash.ts`) is shown on mount and on
+ * Escape, a new toast, a change of page or an overlay opening (design control-spacing-sweep, decision 17; any toast
+ * closes when an overlay opens). A flash left by the previous page (`lib/flash.ts`) is shown on mount and on
  * every change of pathname, then cleared; a change of the query string closes nothing. The toast never takes focus. A
- * visually hidden polite status region, always in the document, carries the words to screen readers; the visible card
+ * visually hidden polite status region, always in the document, carries the words to screen readers, in an inner node
+ * replaced on every toast so a repeat of the same words is announced too (decision 18); the visible card
  * is a group named by them, its text hidden from screen readers so it is not read twice.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -490,6 +494,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     } else if (changed) close();
   }, [pathname, show, close]);
 
+  // design control-spacing-sweep, decision 17: an overlay opening (a dialog, the case modal, a side panel, the phone
+  // drawer) closes the toast, link or not; a toast raised while one is already open stays
+  useEffect(() => onOverlayOpen(close), [close]);
+
   // the timer of a text-only toast, paused while hovered or focused; leaving starts the full time again
   const seqNow = current?.seq;
   const hasLink = !!current?.link;
@@ -521,7 +529,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className={s.toastHost} data-motion-layer="" data-ui="toast-host">
         <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-ui="toast-status">
-          {shown ? (shown.link ? `${shown.text} ${shown.link.label}` : shown.text) : ""}
+          {/* design control-spacing-sweep, decision 18: a new node on every toast(), so the same words are read again */}
+          {shown ? <span key={shown.seq}>{shown.link ? `${shown.text} ${shown.link.label}` : shown.text}</span> : null}
         </div>
         <div
           ref={card}
