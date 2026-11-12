@@ -34,3 +34,6 @@ None beyond the design note's build deviations section.
 ## Load status
 `aslms queue-status` did not answer within 120 s (the worker is using the full court allowance); not recorded here.
 The deploy after CI is the owner's step: build from a clean worktree of `main`, recreate app services with `--no-deps --force-recreate`.
+
+## Deployed
+12 Nov 2026 at 08:13 IST, images built from clean `main` (b745f30). The push run 43096703595 stayed queued on GitHub for over five hours with no job started and could be neither cancelled nor re-run; a fresh run on the same commit (43138905497, workflow_dispatch) passed. No migration. `docker compose --profile monitoring up -d --wait` with the court-data switch, then `api`, `worker`, `scheduler` and `web` recreated with `--no-deps --force-recreate`. The switch reads `true` in `api` and `worker`, mail goes to Mailpit, the web build ID matches the image (`bLx10k3jqNPt0upkQoYB7`), and `portal_smoke.py` passed. The owner's browser check of the motion is next.
