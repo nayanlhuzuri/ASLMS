@@ -3743,3 +3743,11 @@ team (Process Workflows, operations, the two Word guides) do not describe this b
   rows point at the designation by id or keep the name as text, so nothing else changed. The note above that `CS_SEC`
   is seeded is superseded by `COMM_SECY`.
 - Correction, 12 Nov 2026 at 12:40: the deploy's `init` seed ran with the new list before the rename and added seven duplicate designation rows. They were unreferenced and, with the owner's approval, deleted (a one-off exception to "deactivated, never deleted" for seed artefacts that no record pointed at); the rename then ran as planned. For any later rename of a seeded code: rename the rows before the deploy whose `init` carries the new list.
+
+## Design approval: signin-gold-emblem (2026-11-12)
+
+- 2026-11-12 — signin-gold-emblem: approved by the owner as written (docs/design/signin-gold-emblem.md), from the owner's mock `docs/design/ui/aslms-login-emblem-mock-v2.html`: the gold Lion Capital turning on the navy panel with the Assamese line and the motto, a Pause / Play button (WCAG 2.2.2), the form-side brand row removed, self-hosted Noto Serif Bengali and Devanagari on the public pages only, gold tokens; pausing shows the still front face and is remembered in the browser. Amends portal-ui-redesign decisions 21 and 26. Built before row 238.
+
+## Design approval: rolling-case-refresh (2026-11-12)
+
+- 2026-11-12 — rolling-case-refresh: approved by the owner (docs/design/rolling-case-refresh.md) after one revision the same day: case details always first, then order PDFs (the draft's priority 52 for new order PDFs declined; the 24 Oct 2026 order stands). Row 220 folded in (hearing follow-ups at 3, 7, 14 and 30 days, the revived-priority fix; its 8-week slice dropped). Every pending case fully refreshed at least weekly from a 22:00 IST nightly job, claimed cases first, then unclaimed; a levelled quota refreshes a few cases early while the Sunday clump evens out (decision 4, approved); the Sunday sweep keeps only first fetches and missing orders; a second worker slot `worker2` for every court kind except Current Status; `ROLLING_REFRESH_DAILY_MAX` default 12,000. No migration.
