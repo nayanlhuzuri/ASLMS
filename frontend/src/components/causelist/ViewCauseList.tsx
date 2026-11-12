@@ -164,64 +164,71 @@ function PrintedEntries({ date, bench, names }: { date: string; bench: Causelist
 function PdfTab({ bench, canView, canDownload }: { bench: CauselistBench; canView: boolean; canDownload: boolean }) {
   const [chosen, setChosen] = useState(bench.lists[0]?.id ?? "");
   const list = bench.lists.find((l) => l.id === chosen) ?? bench.lists[0];
+  const disposition = canView ? "inline" : "attachment";
+  const probe = useQuery({
+    queryKey: ["causelist-file", list?.id, disposition],
+    queryFn: () =>
+      probeFile(`/causelists/lists/${encodeURIComponent(list!.id)}/file`, { query: { disposition } }).then(() => true),
+    enabled: Boolean(list?.has_pdf) && (canView || canDownload),
+    retry: false,
+    staleTime: 60_000,
+  });
   if (!canView && !canDownload) return <Notice>{T.causelist.pdfNeedsFunction}</Notice>;
   if (!list) return <EmptyState compact>{T.causelist.noListPublished}</EmptyState>;
+  // the list chooser and Download share one line (owner, 12 Nov 2026); the tab keeps one structure for every list, so
+  // the chooser stays mounted and a keyboard user keeps focus on it after choosing
+  const chooser =
+    bench.lists.length > 1 ? (
+      <SelectField
+        label={T.causelist.chooseList}
+        value={list.id}
+        options={bench.lists.map((l) => ({
+          value: l.id,
+          label: (l.version ?? 1) > 1 ? `${listName(l)} · ${T.causelist.corrected}` : listName(l),
+        }))}
+        onChange={(e) => setChosen(e.target.value)}
+      />
+    ) : null;
+  const download =
+    list.has_pdf && probe.isSuccess && canDownload ? (
+      <a className={buttonClass("secondary")} href={listFileUrl(list.id, "attachment")} download>
+        {T.causelist.download}
+      </a>
+    ) : null;
+  const e = probe.error;
   return (
     <div className="stack">
-      {bench.lists.length > 1 ? (
+      {chooser || download ? (
         <div className={s.bar}>
-          <SelectField
-            label={T.causelist.chooseList}
-            value={list.id}
-            options={bench.lists.map((l) => ({
-              value: l.id,
-              label: (l.version ?? 1) > 1 ? `${listName(l)} · ${T.causelist.corrected}` : listName(l),
-            }))}
-            onChange={(e) => setChosen(e.target.value)}
-          />
+          {chooser}
+          {download}
         </div>
       ) : null}
-      {list.has_pdf ? (
-        <PdfView key={list.id} list={list} canView={canView} canDownload={canDownload} />
-      ) : (
+      {!list.has_pdf ? (
         <p className="muted">{list.fetch_status === "pending" ? T.causelist.pdfPending : T.causelist.noPdf}</p>
+      ) : probe.isPending ? (
+        <p className="muted">{T.causelist.pdfCheckingNote}</p>
+      ) : e ? (
+        e instanceof ApiError && (e.code === "no_pdf" || e.code === "file_missing") ? (
+          <Notice tone="warning">{e.message}</Notice>
+        ) : (
+          <ErrorBanner error={e} onRetry={() => probe.refetch()} />
+        )
+      ) : (
+        <PdfView list={list} canView={canView} />
       )}
     </div>
   );
 }
 
-function PdfView({ list, canView, canDownload }: { list: Causelist; canView: boolean; canDownload: boolean }) {
-  const disposition = canView ? "inline" : "attachment";
-  const probe = useQuery({
-    queryKey: ["causelist-file", list.id, disposition],
-    queryFn: () =>
-      probeFile(`/causelists/lists/${encodeURIComponent(list.id)}/file`, { query: { disposition } }).then(() => true),
-    retry: false,
-    staleTime: 60_000,
-  });
-  if (probe.isPending) return <p className="muted">{T.causelist.pdfCheckingNote}</p>;
-  if (probe.error) {
-    const e = probe.error;
-    if (e instanceof ApiError && (e.code === "no_pdf" || e.code === "file_missing")) return <Notice tone="warning">{e.message}</Notice>;
-    return <ErrorBanner error={e} onRetry={() => probe.refetch()} />;
-  }
+/** The court's PDF in the browser's own viewer when it can show one, else a View link; Download sits in the tab's bar. */
+function PdfView({ list, canView }: { list: Causelist; canView: boolean }) {
   const inline = canView && canViewInline("application/pdf");
-  return (
-    <div className="stack">
-      {canDownload ? (
-        <div className={s.pdfToolbar}>
-          <a className={buttonClass("secondary")} href={listFileUrl(list.id, "attachment")} download>
-            {T.causelist.download}
-          </a>
-        </div>
-      ) : null}
-      {inline ? <iframe className={s.pdfFrame} src={listFileUrl(list.id, "inline")} title={T.causelist.pdfFrame(listName(list))} /> : null}
-      {canView && !inline ? (
-        <a href={listFileUrl(list.id, "inline")} target="_blank" rel="noopener noreferrer">
-          {T.causelist.view}
-        </a>
-      ) : null}
-    </div>
-  );
+  if (inline) return <iframe className={s.pdfFrame} src={listFileUrl(list.id, "inline")} title={T.causelist.pdfFrame(listName(list))} />;
+  return canView ? (
+    <a href={listFileUrl(list.id, "inline")} target="_blank" rel="noopener noreferrer">
+      {T.causelist.view}
+    </a>
+  ) : null;
 }
 

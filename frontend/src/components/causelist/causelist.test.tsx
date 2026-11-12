@@ -620,8 +620,12 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
       "href",
       `/api/backend/causelists/lists/${DAILY}/file?disposition=attachment`,
     );
+    // the chooser and Download share one line (owner, 12 Nov 2026)
+    expect(within(dialog).getByRole("link", { name: "Download" }).parentElement).toContainElement(chooser);
     await userEvent.selectOptions(chooser, SUPP);
     expect(within(dialog).getByText("PDF not available from the court")).toBeInTheDocument();
+    // the chooser stays mounted when the list changes, so focus stays on it
+    expect(within(dialog).getByLabelText("List")).toBe(chooser);
     expect(dialog.querySelector("iframe")).toBeNull();
     replace.mockRestore();
   });

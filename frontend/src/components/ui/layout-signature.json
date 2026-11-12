@@ -544,7 +544,6 @@
     ".showSelect { margin-left: auto; min-width: 200px }",
     ".chooseJudges { overflow-wrap: anywhere }",
     ".chooseActions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2) }",
-    ".pdfToolbar { display: flex; flex-wrap: wrap; gap: var(--s2) }",
     ".pdfFrame { width: 100%; height: min(70vh, 900px); border: 1px solid <c>; border-radius: var(--r-md); background: <c> }",
     "@media (max-width: 639px) » .heroDate { font-size: var(--t-xl) }",
     "@media (max-width: 639px) » .showSelect { width: 100%; margin-left: 0 }"

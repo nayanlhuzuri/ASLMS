@@ -361,12 +361,6 @@
 }
 
 /* the View Cause List modal's Original PDF tab */
-.pdfToolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-}
-
 .pdfFrame {
   width: 100%;
   height: min(70vh, 900px);
