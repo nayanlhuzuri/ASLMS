@@ -380,6 +380,8 @@ The integrator:
      none of them on the dashboard;
    - the Performance panel shows no long tasks while the emblem turns.
 
+**Owner check passed, 13 Nov 2026:** the owner checked the sign-in page in the browser and reported it ok. View Cause List → Original PDF (List and Download on one line) is still to be checked.
+
 ## Open questions
 
 None. The owner settled the approach, the mock and points 1 to 5 on 12 Nov 2026. Decision 8 (pausing shows the still
