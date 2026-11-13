@@ -2,10 +2,10 @@
 
 ```
 slug: assistant-ollama-work
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-13
-approved_by: (pending; the approach was approved by the owner on 12 Nov 2026, this amendment is to be approved)
+approved_by: owner, 2026-11-13, as written with the eight owner checks as proposed (approach approved 12 Nov 2026)
 ```
 
 ## Context
