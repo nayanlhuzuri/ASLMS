@@ -5,7 +5,7 @@
 # postgresql16-client brings psql for the login healthcheck (decision 8); its major version matches the server.
 FROM alpine:3.23.3
 
-RUN apk add --no-cache 'pgbouncer=1.25.1-r0' 'postgresql16-client=16.15-r0' \
+RUN apk add --no-cache 'pgbouncer=1.25.1-r0' 'postgresql16-client=16.16-r0' \
     && pgbouncer --version \
     && addgroup -S -g 10001 pgbouncer \
     && adduser -S -D -H -u 10001 -G pgbouncer -s /sbin/nologin pgbouncer
