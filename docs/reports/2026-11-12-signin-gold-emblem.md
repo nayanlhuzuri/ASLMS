@@ -32,3 +32,8 @@ See the commit that adds this report; push result recorded in the integrator's a
 
 ## Load status
 `aslms queue-status` returned nothing within 60 s; not captured. The deploy is the owner's step (no `up` by the integrator).
+
+## Deployed
+- 13 Nov 2026 at 11:56 IST from main `d433424`: row 249, the cause-list change `b2a8d47` (View Cause List's Original PDF tab: the List chooser and Download on one line, owner 12 Nov 2026; tests 54 passed, layout signature regenerated for the retired `.pdfToolbar`), and the PgBouncer image's `postgresql16-client` pin moved to 16.16-r0 after Alpine withdrew 16.15-r0 (CI run 43371675391 failed in `compose` on that; run 43375099394 success on every job).
+- `docker compose --profile monitoring up -d --wait` with the court-data switch on, then the same with `--no-deps --force-recreate api worker scheduler web`; PgBouncer recreated on its new image (healthy). Switch on in api and worker; `SMTP_HOST` mailpit; web BUILD_ID `1xVNz6BtUZdu8zQBX_4kU` matches the image; `portal_smoke.py` passed; `/login` serves the Assamese line, the motto, the Pause button and the emblem mask (200).
+- The owner checks the sign-in pages (laptop and phone, Pause / Play, reduced motion) and View Cause List → Original PDF.
