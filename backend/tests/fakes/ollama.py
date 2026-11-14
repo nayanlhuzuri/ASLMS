@@ -36,6 +36,16 @@ def chat_reply(
     }
 
 
+def tool_reply(*calls: tuple[str, object], content: str = "") -> dict:
+    """A `/api/chat` reply carrying `message.tool_calls` (design `assistant-ollama-work`, "Tests"): each call is
+    `(name, arguments)`, written as Ollama writes it (`{"function": {"name", "arguments"}}`)."""
+    return chat_reply(
+        content,
+        prompt_eval_count=300,
+        tool_calls=[{"function": {"name": name, "arguments": args}} for name, args in calls],
+    )
+
+
 class Delay:
     """A scripted chat step that waits `seconds` before answering (for the timeout test)."""
 

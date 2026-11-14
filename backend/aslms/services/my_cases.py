@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, Select, and_, exists, false, or_, select
@@ -84,7 +84,10 @@ def _or(conds: list[ColumnElement[bool]]) -> ColumnElement[bool]:
     return conds[0] if len(conds) == 1 else or_(*conds)
 
 
-def my_conditions(session: Session, user: User) -> MyConditions:
+def my_conditions(session: Session, user: User, *, claimed_since: datetime | None = None) -> MyConditions:
+    """The three sets. `claimed_since` (design `assistant-ollama-work`, decision 5a) narrows `claimed` to the
+    department's active primary row claimed at or after it, inside the same `EXISTS`; the other callers pass nothing
+    and are unchanged."""
     members = [m for m in access.members(session, user) if m.department is not None]
     allotted = _or(
         [
@@ -110,7 +113,8 @@ def my_conditions(session: Session, user: User) -> MyConditions:
             OwnershipTransfer.status == TransferStatus.ACCEPTED,
             OwnershipTransfer.decided_by_user_id == user.id,
         )
-        claimed = exists().where(primary_mine, or_(CaseOwnership.actor_user_id == user.id, accepted))
+        since = [CaseOwnership.claimed_at >= claimed_since] if claimed_since is not None else []
+        claimed = exists().where(primary_mine, or_(CaseOwnership.actor_user_id == user.id, accepted), *since)
     else:
         claimed = false()
     return MyConditions(allotted=allotted, file=file_, claimed=claimed)
@@ -344,6 +348,71 @@ def mine(
                 "reasons": reasons,
             }
         )
+    return Page(items, total)
+
+
+def claimed_by_me(
+    session: Session,
+    user: User,
+    *,
+    since: datetime | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> Page:
+    """The cases of the My Cases tab's "Claimed by Me" reason (design `assistant-ollama-work`, decisions 5a and 6):
+    the department's active primary ownership written by the caller (a claim) or reached by a transfer the caller
+    accepted, claimed at or after `since` when given; disposed and closed cases count. ANDed with the visibility rule
+    and `merged_into_case_id IS NULL` as `mine_stmt` does; newest claim first. Each item is `{case, claimed_at,
+    office_code, via}` with `via` `claim` or `transfer`. Read-only; needs `cases.view_scope` like `mine`."""
+    _require(session, user)
+    c = my_conditions(session, user, claimed_since=since)
+    members = [m for m in access.members(session, user) if m.department is not None]
+    dept_ids = list({m.department.id for m in members})
+    if not dept_ids:
+        return Page([], 0)
+    stmt = select(Case).where(
+        Case.merged_into_case_id.is_(None),
+        visibility.visible_case_condition(session, user),
+        c.claimed,
+    )
+    limit, offset = inbox.clamp(limit, offset)
+    total = inbox._count(session, stmt)
+    own_row = aliased(CaseOwnership, name="claimed_by_me_row")
+    accepted = exists().where(
+        OwnershipTransfer.case_id == own_row.case_id,
+        OwnershipTransfer.to_office_id == own_row.office_id,
+        OwnershipTransfer.status == TransferStatus.ACCEPTED,
+        OwnershipTransfer.decided_by_user_id == user.id,
+    )
+    rows = session.execute(
+        stmt.add_columns(own_row.claimed_at, own_row.office_id, accepted.label("via_transfer"))
+        .join(
+            own_row,
+            and_(
+                own_row.case_id == Case.id,
+                own_row.role == OwnershipRole.PRIMARY,
+                own_row.status == OwnershipStatus.ACTIVE,
+                own_row.office_id.in_(dept_ids),
+            ),
+        )
+        .order_by(own_row.claimed_at.desc(), Case.id)
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    cases = [r[0] for r in rows]
+    summ = inbox.summaries(session, cases)
+    offices = {
+        o.id: o.code for o in session.scalars(select(Office).where(Office.id.in_({r[2] for r in rows}))).all()
+    }
+    items = [
+        {
+            "case": summ[case.id],
+            "claimed_at": claimed_at,
+            "office_code": offices.get(office_id),
+            "via": "transfer" if via_transfer else "claim",
+        }
+        for case, claimed_at, office_id, via_transfer in rows
+    ]
     return Page(items, total)
 
 

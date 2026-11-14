@@ -2,7 +2,12 @@
 last 24 h, and in ollama mode the engine); `ask --user EMAIL (--case REF | --my-cases | --research) [--no-related]
 [--conversation ID] [--json] "question"` (as that user, with their visibility; stored under the user with
 `model_info.via = "cli"`, audited as the system actor `cli` with `after.as_user_id`; refused with `APP_ENV=prod`, exit
-2); `check` (the five counts of design `assistant-ollama`, "Data"; all must be 0, exit 1 otherwise).
+2); `check` (the six counts of designs `assistant-ollama` and `assistant-ollama-work`, "Data"; all must be 0, exit 1
+otherwise).
+
+Design `assistant-ollama-work`: `ask --my-work` asks a My Work question as the user (ollama and preview modes; refused
+in prod as `ask` is) and prints the chosen key, the parameters, `chosen_by`, `choice_fallback`, the count sentence and
+the rows' case numbers.
 
 Design `assistant-ollama`: `warm` loads the local model now; `include-internal --user EMAIL --case REF
 [--conversation ID]` switches on that user's case-tab conversation's internal records (dev and test only, refused in
@@ -128,6 +133,32 @@ def _print_answer(out: dict) -> None:
             typer.echo(f"    {c['passage']}")
 
 
+def _print_work(Session, out: dict) -> None:
+    """Design assistant-ollama-work: the choice and the count sentence, then the rows' case numbers (no field text)."""
+    answer = out["answer"]
+    with Session() as s:
+        msg = s.get(AssistantMessage, uuid.UUID(str(answer["id"])))
+        info = dict(msg.model_info or {}) if msg is not None else {}
+    params = " ".join(f"{k}={v}" for k, v in (info.get("params") or {}).items()) or "-"
+    typer.echo(
+        f"question: {info.get('question') or '-'}  params: {params}  chosen_by: {info.get('chosen_by') or '-'}"
+        f"  choice_fallback: {info.get('choice_fallback') or '-'}  outcome: {answer['outcome']}"
+    )
+    typer.echo((answer.get("content") or "").split("\n", 1)[0])
+    for c in answer.get("citations") or []:
+        if c.get("source_kind") != "work_row":
+            continue
+        case = c.get("case") or {}
+        where = (
+            case.get("case_no_text")
+            or case.get("cnr")
+            or ("(no case)" if case.get("visible") is False else "-")
+        )
+        if not c.get("available", True):
+            where = c.get("unavailable_reason") or "-"
+        typer.echo(f"[{c.get('label')}] {where}")
+
+
 @assistant_app.command("ask")
 def ask_cmd(
     question: str = typer.Argument(..., help="the question (3 to ASSISTANT_QUESTION_MAX_CHARS characters)"),
@@ -135,6 +166,9 @@ def ask_cmd(
     case: str | None = typer.Option(None, "--case", help="case scope: id, ref_no or CNR"),
     my_cases: bool = typer.Option(False, "--my-cases", help="the user's own cases"),
     research: bool = typer.Option(False, "--research", help="every court order"),
+    my_work: bool = typer.Option(
+        False, "--my-work", help="the user's own work (My Work; ollama and preview)"
+    ),
     no_related: bool = typer.Option(False, "--no-related", help="case scope: leave out other cases' orders"),
     conversation: str | None = typer.Option(
         None, "--conversation", help="continue a conversation of the user"
@@ -146,9 +180,9 @@ def ask_cmd(
     if settings.is_prod:
         rprint("[red]refused:[/red] `aslms assistant ask` is not run with APP_ENV=prod")
         raise typer.Exit(code=2)
-    if sum([bool(case), my_cases, research]) != 1:
-        raise typer.BadParameter("give exactly one of --case, --my-cases or --research")
-    scope = "case" if case else ("my_cases" if my_cases else "research")
+    if sum([bool(case), my_cases, research, my_work]) != 1:
+        raise typer.BadParameter("give exactly one of --case, --my-cases, --research or --my-work")
+    scope = "case" if case else ("my_cases" if my_cases else ("my_work" if my_work else "research"))
     Session = get_sessionmaker()
     with Session() as s:
         login = s.scalar(select(User).where(func.lower(User.email) == user.strip().lower()))
@@ -198,6 +232,9 @@ def ask_cmd(
         typer.echo(json.dumps(out, default=str, indent=2))
         return
     rprint(f"conversation: {out['conversation_id']}")
+    if scope == "my_work":
+        _print_work(Session, out)
+        return
     _print_answer(out)
     if out["answer"].get("suggest_internal"):
         rprint("[cyan]suggest_internal: this may be in the case's internal records (include-internal)[/cyan]")

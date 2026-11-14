@@ -2613,7 +2613,7 @@ export interface paths {
         put?: never;
         /**
          * Ask
-         * @description Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too
+         * @description Ask a question in one of four scopes: `case` (one case the caller can see; court orders of other cases too
          *     with `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court
          *     filings the caller may see). Court orders are court-public; court filings follow the document visibility; notes
          *     and internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`
@@ -2621,7 +2621,11 @@ export interface paths {
          *     `case` outside the case scope, refused before the case is looked up, or a scope or case other than the
          *     conversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422
          *     `bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one
-         *     unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama
+         *     unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Scope
+         *     `my_work` (design assistant-ollama-work): the caller's own work from the existing screens' lists, the count and
+         *     the rows written by the server, the local model only choosing the list; 422 `scope_unavailable` outside ollama and
+         *     preview modes and `scope_mismatch` with a `case`; never `assistant_loading`, `assistant_unavailable` or
+         *     `assistant_busy`. In ollama
          *     mode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),
          *     none stored or counted; internal records only for a case-scope conversation switched on through
          *     `POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text.
@@ -5321,9 +5325,10 @@ export interface components {
             question: string;
             /**
              * Scope
+             * @description my_work (design assistant-ollama-work): ollama and preview modes only, never with a case; the server chooses the question
              * @enum {string}
              */
-            scope: "case" | "my_cases" | "research";
+            scope: "case" | "my_cases" | "research" | "my_work";
         };
         /** AssistantAskOut */
         AssistantAskOut: {
@@ -5417,7 +5422,7 @@ export interface components {
              * Source Kind
              * @enum {string}
              */
-            source_kind: "court_order" | "court_filing" | "case_details" | "note" | "file_movement" | "department_document";
+            source_kind: "court_order" | "court_filing" | "case_details" | "note" | "file_movement" | "department_document" | "work_row";
             /**
              * Unavailable Reason
              * @description set when the source is no longer available to the reader; every field naming it is then null
@@ -5430,6 +5435,8 @@ export interface components {
             visibility?: ("case_scope" | "counsel_shared" | "private_to_office") | null;
             /** What */
             what?: "note_attachment" | null;
+            /** @description a My Work row (`work_row`) only */
+            work?: components["schemas"]["AssistantWorkRowOut"] | null;
         };
         /** AssistantCitedNoteOut */
         AssistantCitedNoteOut: {
@@ -5478,7 +5485,7 @@ export interface components {
              * Scope
              * @enum {string}
              */
-            scope: "case" | "my_cases" | "research";
+            scope: "case" | "my_cases" | "research" | "my_work";
             /** Title */
             title: string | null;
         };
@@ -5670,6 +5677,13 @@ export interface components {
              * @default false
              */
             suggest_internal: boolean;
+            /**
+             * Suggest Work
+             * @description a My Cases or All Court Orders answer whose question looks like one for My Work
+             * @default false
+             */
+            suggest_work: boolean;
+            work?: components["schemas"]["AssistantWorkOut"] | null;
         };
         /**
          * AssistantOpenOut
@@ -5685,7 +5699,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "document" | "court_order" | "case_tab";
+            kind: "document" | "court_order" | "case_tab" | "claim";
         };
         /**
          * AssistantStatusOut
@@ -5711,12 +5725,17 @@ export interface components {
              */
             mode: "off" | "preview" | "sourcetrace" | "ollama";
             /** Scopes */
-            scopes: ("case" | "my_cases" | "research")[];
+            scopes: ("case" | "my_cases" | "research" | "my_work")[];
             /**
              * State
              * @enum {string}
              */
             state: "off" | "preview" | "not_implemented" | "ready";
+            /**
+             * Work Questions
+             * @description design assistant-ollama-work: the My Work questions the caller may ask, in ollama and preview modes only (empty otherwise)
+             */
+            work_questions?: components["schemas"]["AssistantWorkQuestionOut"][];
         };
         /** AssistantThreadOut */
         AssistantThreadOut: {
@@ -5725,6 +5744,64 @@ export interface components {
             has_more: boolean;
             /** Messages */
             messages: components["schemas"]["AssistantMessageOut"][];
+        };
+        /**
+         * AssistantWorkOut
+         * @description A My Work answer (design assistant-ollama-work, decision 4): the question chosen, how it was chosen (`model`,
+         *     `keyword` or `none`), the total and the rows shown, the list and its full-list link. The text is the server's.
+         */
+        AssistantWorkOut: {
+            /**
+             * Chosen By
+             * @enum {string}
+             */
+            chosen_by: "model" | "keyword" | "none";
+            /** Full List Href */
+            full_list_href: string | null;
+            /** Label */
+            label: string | null;
+            /** List Label */
+            list_label: string | null;
+            /** Question */
+            question: string | null;
+            /**
+             * Scan Capped
+             * @default false
+             */
+            scan_capped: boolean;
+            /** Shown */
+            shown: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * AssistantWorkQuestionOut
+         * @description One My Work question the caller may ask (design assistant-ollama-work, decision 3): its key, label and example
+         *     chip.
+         */
+        AssistantWorkQuestionOut: {
+            /** Example */
+            example: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * AssistantWorkRowOut
+         * @description A My Work row (design assistant-ollama-work, decisions 9 and 10): the list it came from, when it was read, and
+         *     the question's allow-listed fields (re-filtered at every read; empty when the reader can no longer open the
+         *     case).
+         */
+        AssistantWorkRowOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Fields */
+            fields?: {
+                [key: string]: unknown;
+            };
+            /** List Label */
+            list_label?: string | null;
         };
         /** AuditActionsOut */
         AuditActionsOut: {

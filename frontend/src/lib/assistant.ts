@@ -4,12 +4,15 @@
  * Design assistant-ollama (decisions 8, 10 and 14): the source kinds in words, the `[S#]` markers of a local-model
  * answer, the Court Record / Internal Records groups with the uncited sources apart, and the narrowest visibility of
  * the cited internal records for Copy to note.
+ * Design assistant-ollama-work (decisions 1, 2, 9 and 10): the case tab is about its own case only; the Assistant page's
+ * three tabs (My Work, My Cases, All Court Orders) in the address with their fallback; a My Work answer's columns and
+ * values in words.
  */
 import type { AssistantCitation, AssistantMessage, AssistantScope, AssistantStatus } from "./api/types";
 import { INLINE_PDF } from "./documents";
 import { formatDate } from "./format";
 import { T } from "./messages";
-import { labelFor } from "./displayLabels";
+import { labelFor, serverLabel } from "./displayLabels";
 
 export interface Segment {
   text: string;
@@ -69,6 +72,7 @@ export function sourceLink(c: AssistantCitation, messageId: string, inlinePdf: b
   return { kind: "document", href: `/api/backend${href}${page}`, newTab: true };
 }
 
+const A = T.assistant;
 const KINDS: Record<string, string> = T.assistant.kinds;
 
 function kindWord(kind: string): string {
@@ -179,9 +183,93 @@ export function questionsLeft(status: AssistantStatus | undefined): number | nul
   return Math.max(0, status.limits.questions_per_hour - status.limits.used_last_hour);
 }
 
-/** The scopes of a screen: the case tab adds This case (owner, 23 Oct 2026). */
+/** The scopes of a screen (design assistant-ollama-work, decisions 1 and 2): the case tab is about its own case only;
+ * the page has My Work, My Cases and All Court Orders, each shown only when the server offers it. */
 export function scopesFor(screen: "case" | "page"): AssistantScope[] {
-  return screen === "case" ? ["case", "my_cases", "research"] : ["my_cases", "research"];
+  return screen === "case" ? ["case"] : ["my_work", "my_cases", "research"];
+}
+
+/** The Assistant page's tabs in the address (`/assistant?tab=`), in the owner's order (decision 2). */
+export const PAGE_TABS: readonly { key: string; scope: AssistantScope }[] = [
+  { key: "my-work", scope: "my_work" },
+  { key: "my-cases", scope: "my_cases" },
+  { key: "court-orders", scope: "research" },
+];
+
+/** The page's scopes the server offers (`GET /assistant/status` `scopes`), in tab order; none before it answers. */
+export function pageScopes(status: AssistantStatus | undefined): AssistantScope[] {
+  const offered = new Set(status?.scopes ?? []);
+  return PAGE_TABS.filter((t) => offered.has(t.scope)).map((t) => t.scope);
+}
+
+/** The scope of `?tab=`: the named tab when offered, otherwise My Work when offered, otherwise My Cases. */
+export function scopeForTab(tab: string | null | undefined, scopes: AssistantScope[]): AssistantScope | null {
+  const wanted = PAGE_TABS.find((t) => t.key === tab)?.scope;
+  if (wanted && scopes.includes(wanted)) return wanted;
+  if (scopes.includes("my_work")) return "my_work";
+  if (scopes.includes("my_cases")) return "my_cases";
+  return scopes[0] ?? null;
+}
+
+/** The address of a page tab. */
+export function tabHref(scope: AssistantScope): string {
+  const key = PAGE_TABS.find((t) => t.scope === scope)?.key ?? "my-cases";
+  return `/assistant?tab=${key}`;
+}
+
+/** A My Work answer: written by the server from the asker's own lists (decision 4), never a model's text. */
+export function isWorkAnswer(m: AssistantMessage): boolean {
+  return !!m.work;
+}
+
+/** The columns of a My Work answer after the case, by question (decision 10's allow-list, the case fields apart). */
+export const WORK_COLUMNS: Record<string, readonly string[]> = {
+  pending_actions: ["pending_action_label", "due_date", "overdue_days", "due_soon", "since", "sent_by"],
+  cases_with_me: ["pending_action_label", "due_date", "overdue_days", "due_soon", "since", "sent_by"],
+  sent_by_me: ["date", "action", "to", "pending_action_label", "due_date", "still_there"],
+  my_hearings: ["date", "court_no", "item_no", "bench", "approximate"],
+  listed_tomorrow: ["date", "court_no", "item_no", "bench", "approximate"],
+  my_due_dates: ["date", "kind_label", "pending_action_label"],
+  unread_alerts: ["date", "kind_label", "severity", "title"],
+  new_orders: ["date", "kind_label", "severity", "title"],
+  needs_attention: ["kind_label", "title", "date", "detail", "overdue_days"],
+  claimed_by_me: ["claimed_on", "via", "department", "status"],
+  department_claimed: ["claimed_on", "department", "role", "assigned_to", "status"],
+  awaiting_claim: ["department", "band", "next_hearing", "last_listed_on"],
+};
+
+export function workColumns(question: string | null | undefined): readonly string[] {
+  return (question && WORK_COLUMNS[question]) || [];
+}
+
+const WORK_DATES = new Set(["due_date", "since", "date", "claimed_on", "last_listed_on"]);
+const WORK_FLAGS = new Set(["due_soon", "approximate", "still_there"]);
+const WORK_SERVER_LABELS = new Set(["pending_action_label", "kind_label"]);
+
+/** A My Work field in words (null when there is nothing to show, so a phone card draws no empty row). The department
+ * is shown by the kit's office name, not here. */
+export function workValue(field: string, value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (WORK_DATES.has(field)) return typeof value === "string" ? formatDate(value) : null;
+  if (WORK_FLAGS.has(field)) return value ? A.yesWord : A.noWord;
+  if (field === "overdue_days") return typeof value === "number" && value > 0 ? A.daysOverdue(value) : null;
+  if (field === "severity") return labelFor(T.wf.severity, String(value));
+  if (field === "status") return labelFor(T.filters.statuses, String(value));
+  if (WORK_SERVER_LABELS.has(field)) return serverLabel(String(value));
+  if (field === "sent_by" && typeof value === "object") {
+    const v = value as { name?: string | null; designation?: string | null; office_name?: string | null };
+    return [v.name, v.designation, v.office_name].filter(Boolean).join(", ") || null;
+  }
+  if (field === "assigned_to" && typeof value === "object") {
+    const v = value as { unit?: string | null; officer?: string | null };
+    return [v.unit, v.officer].filter(Boolean).join(" · ") || null;
+  }
+  if (field === "next_hearing" && typeof value === "object") {
+    const v = value as { date?: string | null; kind?: string | null };
+    if (!v.date) return null;
+    return v.kind === "around" ? A.around(formatDate(v.date)) : formatDate(v.date);
+  }
+  return String(value);
 }
 
 /** The question an answer replies to. */

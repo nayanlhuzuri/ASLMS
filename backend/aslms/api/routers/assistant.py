@@ -98,7 +98,7 @@ def ask(
     session: Session = Depends(get_session),
     user: User = Depends(use),
 ) -> schemas.AssistantAskOut:
-    """Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too
+    """Ask a question in one of four scopes: `case` (one case the caller can see; court orders of other cases too
     with `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court
     filings the caller may see). Court orders are court-public; court filings follow the document visibility; notes
     and internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`
@@ -106,7 +106,11 @@ def ask(
     `case` outside the case scope, refused before the case is looked up, or a scope or case other than the
     conversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422
     `bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one
-    unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama
+    unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Scope
+    `my_work` (design assistant-ollama-work): the caller's own work from the existing screens' lists, the count and
+    the rows written by the server, the local model only choosing the list; 422 `scope_unavailable` outside ollama and
+    preview modes and `scope_mismatch` with a `case`; never `assistant_loading`, `assistant_unavailable` or
+    `assistant_busy`. In ollama
     mode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),
     none stored or counted; internal records only for a case-scope conversation switched on through
     `POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text."""
@@ -197,7 +201,7 @@ def include_internal(
 
 @router.get("/conversations", response_model=schemas.AssistantConversationListOut, responses=ERRORS)
 def list_conversations(
-    scope: str | None = Query(None, pattern="^(case|my_cases|research)$"),
+    scope: str | None = Query(None, pattern="^(case|my_cases|research|my_work)$"),
     case: str | None = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),

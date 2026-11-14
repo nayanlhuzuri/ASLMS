@@ -751,6 +751,7 @@ def sent(
     *,
     still_out: bool = False,
     filters: CaseFilters | None = None,
+    since: datetime | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> inbox.Page:
@@ -760,13 +761,18 @@ def sent(
 
     `still_out` (design `case-inbox-simplify`, decisions 6 and 7): only sends that are still the case's current
     leg, on a case the caller can open now, not held by the caller; ordered overdue first (the leg's due date,
-    nulls last), then newest first. Without it the list and order are unchanged."""
+    nulls last), then newest first. Without it the list and order are unchanged.
+
+    `since` (design `assistant-ollama-work`, decision 5a; service-level only, no route or portal filter): only legs
+    written at or after it. Without it the list is unchanged."""
     stmt = (
         select(CustodyHistory, Case)
         .join(Case, Case.id == CustodyHistory.case_id)
         .where(CustodyHistory.actor_user_id == user.id, CustodyHistory.reason.in_(SENT_LIST_REASONS))
         .where(*case_filters.conditions(session, filters))
     )
+    if since is not None:
+        stmt = stmt.where(CustodyHistory.created_at >= since)
     if still_out:
         stmt = stmt.where(
             CustodyHistory.reason == "sent",

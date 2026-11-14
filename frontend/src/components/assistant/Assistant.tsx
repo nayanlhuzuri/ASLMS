@@ -35,9 +35,18 @@
  * without markers (preview, SourceTrace) keep their list under the answer; the side panel is gone (decision 16); a quick
  * fact carries "From the Case Record", read from `engine.kind` (decision 15); Copy to note names each cited source by
  * its own label (decision 17).
+ *
+ * Design assistant-ollama-work: the case tab is about its own case only (This Case, with no scope switch) and says where
+ * to ask across cases, about one's own work or across all court orders, with the link "Open the Assistant" (decision
+ * 1); the page has the kit `Tabs` My Work, My Cases and All Court Orders in the address (`?tab=`), each listing its own
+ * conversations, and switching tabs asks nothing again (decision 2). A My Work answer is the server's count first, its
+ * rows in a `DataTable` with case links, "as of", "Open the Full List" and the badge "From Your Lists"; it carries no
+ * markers, Sources or Copy to Note (decision 4). A My Cases or All Court Orders answer flagged `suggest_work` offers "Ask
+ * in My Work", which asks the same question there in a new conversation, only on the click (decision 11).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
 import {
@@ -50,15 +59,18 @@ import {
   ChipGroup,
   ConfirmDialog,
   cx,
+  DataTable,
   Dialog,
   EmptyState,
   ErrorBanner,
   Loading,
   Notice,
+  OfficeName,
   PageHeader,
-  SegmentedSwitch,
+  Tabs,
   TextArea,
   useToast,
+  type Column,
 } from "@/components/ui";
 import type { NoteMode } from "@/components/workflow/NoteComposer";
 import { NoteDialog } from "@/components/workflow/NoteDialog";
@@ -80,6 +92,7 @@ import {
   highlights,
   isCaseRecord,
   isInternal,
+  isWorkAnswer,
   kindLabel,
   markerName,
   markers,
@@ -87,18 +100,24 @@ import {
   noteText,
   openWords,
   otherCaseName,
+  PAGE_TABS,
+  pageScopes,
+  questionOf,
   questionsLeft,
-  scopesFor,
+  scopeForTab,
   sourceId,
   sourceLink,
   sourceWords,
   switchedBefore,
+  tabHref,
+  workColumns,
+  workValue,
 } from "@/lib/assistant";
 import { canAny } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
 import { ASSISTANT_ERRORS, ASSISTANT_FAILURES, T } from "@/lib/messages";
 import { CASE_READERS, showsAssistant } from "@/lib/routes";
-import { labelFor } from "@/lib/displayLabels";
+import { labelFor, serverLabel } from "@/lib/displayLabels";
 
 import s from "./assistant.module.css";
 
@@ -335,8 +354,77 @@ function answerBody(m: AssistantMessage, onOpen: (c: AssistantCitation) => void)
 
 /** Who answered, in words: a quick fact from the case record, the local model, SourceTrace or the preview. */
 function answeredBy(m: AssistantMessage): string {
+  if (isWorkAnswer(m)) return A.workAnswerBy;
   const key = isCaseRecord(m) ? "case_record" : (m.mode ?? "preview");
   return A.answerBy[key] ?? A.answerBy.preview!;
+}
+
+/** A My Work row's case: a link to the case page, or to the Case Claim modal for a waiting recommendation; words for a
+ * case the reader can no longer open (design assistant-ollama-work, decision 9). */
+function WorkCase({ c }: { c: AssistantCitation }) {
+  if (!c.available) return <span className={s.muted}>{A.hiddenRow}</span>;
+  const name = c.case.case_no_text ?? c.case.cnr ?? null;
+  if (!name) return <span className={s.muted}>{A.noCase}</span>;
+  if (!c.open) return <span className="cno">{name}</span>;
+  return (
+    <Link className="cno" href={c.open.href}>
+      {name}
+    </Link>
+  );
+}
+
+/** A My Work answer (decision 4): the badge, how the list was chosen, the server's text (the count first), the rows,
+ * "as of" and "Open the Full List". No markers, no Sources and no Copy to Note: the rows are the answer. */
+function WorkAnswerCard({ m, n }: { m: AssistantMessage; n: number }) {
+  const w = m.work!;
+  const rows = m.citations.filter((c) => c.source_kind === "work_row");
+  const asOf = rows.find((c) => c.work?.as_of)?.work?.as_of ?? m.created_at;
+  const failed = m.outcome === "failed";
+  const columns: Column<AssistantCitation>[] = [
+    { key: "case", header: A.workCase, primary: true, rowHeader: true, cell: (c) => <WorkCase c={c} /> },
+    ...workColumns(w.question).map(
+      (field): Column<AssistantCitation> => ({
+        key: field,
+        header: labelFor(A.workFields, field),
+        cell: (c) => {
+          if (!c.available) return null;
+          const value = c.work?.fields?.[field];
+          if (field === "department") return typeof value === "string" && value ? <OfficeName code={value} /> : null;
+          return workValue(field, value);
+        },
+      }),
+    ),
+  ];
+  return (
+    <div className={s.answer} aria-label={`${answeredBy(m)} ${n}`} role="group">
+      <div className={s.answerHead}>
+        <Badge tone="info">{A.fromYourLists}</Badge>
+        <span>{A.outcomes[m.outcome ?? "answered"] ?? m.outcome}</span>
+        <span>· {formatDateTime(m.created_at)}</span>
+      </div>
+      <p className={s.hint}>{labelFor(A.chosenBy, w.chosen_by)}</p>
+      {/* the server writes every My Work text, a failure's included ("Your lists took too long to read; try again.") */}
+      <p className={s.text}>{m.content}</p>
+      {rows.length > 0 ? (
+        <div className={s.inlineSources}>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(c) => `${m.id}-${c.label ?? ""}`}
+            caption={w.list_label ? serverLabel(w.list_label) : A.workRows}
+          />
+          <p className={s.hint}>{A.asOf(formatDateTime(asOf))}</p>
+        </div>
+      ) : null}
+      {w.full_list_href && !failed && w.total > 0 ? (
+        <div className={s.foot}>
+          <Link className={buttonClass("secondary")} href={w.full_list_href}>
+            {A.openFullList}
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function AnswerCard({
@@ -347,6 +435,7 @@ function AnswerCard({
   onOpen,
   onList,
   currentCaseId,
+  onAskWork = null,
 }: {
   m: AssistantMessage;
   n: number;
@@ -358,7 +447,10 @@ function AnswerCard({
   /** "Sources (n)" pressed: open the full list */
   onList: () => void;
   currentCaseId?: string | null;
+  /** design assistant-ollama-work, decision 11: "Ask in My Work", only offered, never pressed for the reader */
+  onAskWork?: (() => void) | null;
 }) {
+  if (isWorkAnswer(m)) return <WorkAnswerCard m={m} n={n} />;
   const sources = m.citations.length;
   const record = isCaseRecord(m);
   const local = m.mode === "ollama" && !record;
@@ -385,6 +477,14 @@ function AnswerCard({
           <span>{A.suggestInternal}</span>
           <Button variant="secondary" size="sm" onClick={onInclude}>
             {A.includeInternal}
+          </Button>
+        </div>
+      ) : null}
+      {onAskWork && m.suggest_work ? (
+        <div className={s.suggest}>
+          <span>{A.suggestWork}</span>
+          <Button variant="secondary" size="sm" onClick={onAskWork}>
+            {A.askInMyWork}
           </Button>
         </div>
       ) : null}
@@ -425,6 +525,7 @@ function Thread({
   asking,
   currentCaseId,
   scrollRef,
+  onAskWork = null,
 }: {
   messages: AssistantMessage[];
   pending: string | null;
@@ -438,6 +539,7 @@ function Thread({
   asking: string;
   currentCaseId?: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  onAskWork?: ((m: AssistantMessage) => void) | null;
 }) {
   const answers = messages.filter((m) => m.role === "assistant");
   const answered = new Set(answers.map((m) => m.reply_to_id));
@@ -475,11 +577,12 @@ function Thread({
               <AnswerCard
                 m={m}
                 n={answers.indexOf(m) + 1}
-                onCopy={onCopy && m.outcome === "answered" && m.content !== null ? () => onCopy(m) : null}
+                onCopy={onCopy && !isWorkAnswer(m) && m.outcome === "answered" && m.content !== null ? () => onCopy(m) : null}
                 onInclude={onInclude}
                 onOpen={(c) => onOpen(m, c)}
                 onList={() => onList(m)}
                 currentCaseId={currentCaseId}
+                onAskWork={onAskWork ? () => onAskWork(m) : null}
               />
             </div>
           </div>
@@ -657,7 +760,9 @@ function Composer({
           {A.ask}
         </Button>
       </div>
-      {local ? (
+      {scope === "my_work" ? (
+        <p className={s.hint}>{A.myWorkNote}</p>
+      ) : local ? (
         <div className={s.scopeNote}>
           <p className={s.hint}>{A.ollamaScopeHint[scope]}</p>
           {extra}
@@ -683,20 +788,31 @@ function Workspace({
   caseRef,
   caseId = null,
   noteMode = null,
+  tab = null,
 }: {
   screen: "case" | "page";
   caseRef?: string;
   caseId?: string | null;
   noteMode?: NoteMode | null;
+  /** the page's `?tab=` (design assistant-ollama-work, decision 2) */
+  tab?: string | null;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const status = useAssistantStatus();
   const me = useMe();
-  const scopes = scopesFor(screen);
+  // design assistant-ollama-work, decisions 1 and 2: the case tab is This Case only; the page's tabs come from the
+  // server's scopes, the one in the address when offered, else My Work, else My Cases
+  const scopes: AssistantScope[] = screen === "case" ? ["case"] : pageScopes(status.data);
+  // a tab pressed (or "Ask in My Work") holds until the address's tab changes; then the address decides
+  const [chosen, setChosen] = useState<{ from: string | null; scope: AssistantScope } | null>(null);
+  const held = chosen && chosen.from === tab && scopes.includes(chosen.scope) ? chosen.scope : null;
+  const scope: AssistantScope = screen === "case" ? "case" : (held ?? scopeForTab(tab, scopes) ?? "my_cases");
+  const ready = screen === "case" || !!status.data;
+  const [moreExamples, setMoreExamples] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [includeBusy, setIncludeBusy] = useState(false);
   const [includeError, setIncludeError] = useState<unknown>(null);
-  const [scope, setScope] = useState<AssistantScope>(scopes[0]!);
   const [picked, setPicked] = useState<Picked>({});
   // design assistant-polish, decision 16: the source opened from its marker, and the answer whose list is open
   // (the last one stays mounted while its dialog eases out)
@@ -717,6 +833,7 @@ function Workspace({
   const list = useQuery({
     queryKey: listKey(screen, scope, scopeCase),
     queryFn: () => fetchList(screen, scope, scopeCase),
+    enabled: ready,
   });
   const latest = list.data?.items[0]?.id ?? null;
   const current = picked[scope] !== undefined ? (picked[scope] ?? null) : latest;
@@ -772,33 +889,6 @@ function Workspace({
     } finally {
       setPending(null);
     }
-  }
-
-  // switching the scope searches the last question again, in that scope's open (or latest) conversation
-  async function changeScope(next: string) {
-    const last = [...messages].reverse().find((m) => m.role === "user");
-    const nextScope = next as AssistantScope;
-    setScope(nextScope);
-    setError(null);
-    toEnd.current = true;
-    if (!last?.content) return;
-    let conversation: string | null;
-    if (picked[nextScope] !== undefined) {
-      conversation = picked[nextScope] ?? null;
-    } else {
-      const nextCase = nextScope === "case" ? (caseRef ?? null) : null;
-      try {
-        const data = await queryClient.fetchQuery({
-          queryKey: listKey(screen, nextScope, nextCase),
-          queryFn: () => fetchList(screen, nextScope, nextCase),
-        });
-        conversation = data.items[0]?.id ?? null;
-      } catch (err) {
-        setError(err);
-        return;
-      }
-    }
-    await ask(last.content, nextScope, conversation);
   }
 
   function newConversation() {
@@ -857,15 +947,41 @@ function Workspace({
     </Button>
   ) : null;
 
-  const switcher =
-    scopes.length > 1 ? (
-      <SegmentedSwitch
-        label={A.searchIn}
-        options={scopes.map((v) => ({ value: v, label: labelFor(A.scopes, v) }))}
-        value={scope}
-        onChange={changeScope}
+  // design assistant-ollama-work, decision 2: a tab opens its own conversations; nothing is asked again
+  function selectTab(href: string) {
+    const key = new URLSearchParams(href.split("?")[1] ?? "").get("tab");
+    const next = PAGE_TABS.find((t) => t.key === key)?.scope;
+    if (next) setChosen({ from: tab, scope: next });
+    setError(null);
+    setView("thread");
+    toEnd.current = true;
+    router.replace(href);
+  }
+
+  const tabs =
+    screen === "page" && scopes.length > 0 ? (
+      <Tabs
+        label={A.pageTabs}
+        items={scopes.map((v) => ({ href: tabHref(v), label: labelFor(A.scopes, v), active: v === scope }))}
+        onSelect={selectTab}
       />
     ) : null;
+
+  // design assistant-ollama-work, decision 11: the same question asked in My Work, in a new conversation, on the click
+  const askInWork =
+    screen === "page" && scopes.includes("my_work") && scope !== "my_work"
+      ? (m: AssistantMessage) => {
+          const q = questionOf(messages, m)?.content;
+          if (!q) return;
+          setChosen({ from: tab, scope: "my_work" });
+          router.replace(tabHref("my_work"));
+          void ask(q, "my_work", null);
+        }
+      : null;
+
+  const workExamples = scope === "my_work" ? (status.data?.work_questions ?? []).map((q) => q.example) : [];
+  const examples = scope === "my_work" ? workExamples : (A.suggested[scope] ?? []);
+  const shownExamples = scope === "my_work" && !moreExamples ? examples.slice(0, 6) : examples;
 
   const threadColumn = (
     <div className={cx(s.column, s.threadColumn)}>
@@ -895,7 +1011,7 @@ function Workspace({
       <Thread
         messages={messages}
         pending={pending}
-        loading={list.isPending || (!!current && thread.isPending)}
+        loading={!ready || list.isPending || (!!current && thread.isPending)}
         onOpen={(m, c) => {
           setSource({ m, c });
           setSourceOpen(true);
@@ -907,19 +1023,27 @@ function Workspace({
         onCopy={canCopy ? (m) => setCopying(m.id) : null}
         onInclude={offerInclude ? () => setConfirming(true) : null}
         includedAt={includedAt}
-        asking={local ? A.askingOllama : A.asking}
+        asking={scope === "my_work" ? A.askingWork : local ? A.askingOllama : A.asking}
         currentCaseId={currentCaseId}
         scrollRef={scrollRef}
+        onAskWork={askInWork}
       />
       <ErrorBanner error={list.error ?? thread.error} onRetry={() => (list.error ? list.refetch() : thread.refetch())} />
-      {messages.length === 0 && pending === null && !list.isPending && !(current && thread.isPending) ? (
-        <ChipGroup label={A.suggestions}>
-          {(A.suggested[scope] ?? []).map((q) => (
-            <Chip key={q} onClick={() => setQuestion(q)}>
-              {q}
-            </Chip>
-          ))}
-        </ChipGroup>
+      {messages.length === 0 && pending === null && ready && !list.isPending && !(current && thread.isPending) && examples.length > 0 ? (
+        <div className={s.examples}>
+          <ChipGroup label={A.suggestions}>
+            {shownExamples.map((q) => (
+              <Chip key={q} onClick={() => setQuestion(q)}>
+                {q}
+              </Chip>
+            ))}
+          </ChipGroup>
+          {scope === "my_work" && examples.length > 6 ? (
+            <Button variant="ghost" size="sm" onClick={() => setMoreExamples((v) => !v)} aria-expanded={moreExamples}>
+              {moreExamples ? A.fewerExamples : A.moreExamples(examples.length - 6)}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       <ErrorBanner error={error} messages={ASSISTANT_ERRORS} />
       {!confirming ? <ErrorBanner error={includeError} messages={ASSISTANT_ERRORS} /> : null}
@@ -933,20 +1057,36 @@ function Workspace({
         scope={scope}
         extra={includeButton}
       />
+      {screen === "case" ? (
+        <p className={s.hint}>
+          {A.openAssistantLine} <Link href="/assistant">{A.openAssistant}</Link>
+        </p>
+      ) : null}
     </div>
   );
 
+  // the page's tabs come only from the status (decision 2): a failed status read shows the error with Try Again, never
+  // the loading lines for ever; the case tab needs no status to list its conversation and goes on without it
+  if (screen === "page" && !status.data && status.isError) {
+    return (
+      <div className={s.workspace}>
+        <PageHeader title={A.title} subtitle={A.subtitle} />
+        <ErrorBanner error={status.error} onRetry={() => void status.refetch()} retrySize="md" />
+      </div>
+    );
+  }
+
   return (
     <div className={s.workspace}>
-      {screen === "page" ? <PageHeader title={A.title} subtitle={A.subtitle} actions={switcher} /> : null}
+      {screen === "page" ? <PageHeader title={A.title} subtitle={A.subtitle} /> : null}
+      {tabs}
       <AssistantBanner status={status.data} />
       <ReadinessNotice status={status.data} />
-      {screen === "case" ? switcher : null}
       {screen === "page" ? (
         <div className={s.pageGrid} data-view={view}>
           <aside className={cx(s.column, s.listColumn)} aria-label={A.conversations}>
             <Card title={A.conversations}>
-              {list.isPending ? (
+              {!ready || list.isPending ? (
                 <Loading lines={2} />
               ) : (list.data?.items.length ?? 0) === 0 ? (
                 <EmptyState compact title={A.noConversationsTitle}>
@@ -1039,8 +1179,9 @@ export function CaseAssistant({ caseRef }: { caseRef: string }) {
   );
 }
 
-/** The Assistant page of the menu (`/assistant`): My cases | All court orders, the conversation list on the left. */
-export function AssistantPage() {
+/** The Assistant page of the menu (`/assistant?tab=`): My Work, My Cases and All Court Orders (design
+ * assistant-ollama-work, decision 2), the conversation list on the left. */
+export function AssistantPage({ tab = null }: { tab?: string | null } = {}) {
   const me = useMe();
   if (me.isPending) return <Loading />;
   if (!showsAssistant(me.data)) {
@@ -1051,5 +1192,5 @@ export function AssistantPage() {
       </div>
     );
   }
-  return <Workspace screen="page" />;
+  return <Workspace screen="page" tab={tab} />;
 }

@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -946,7 +946,14 @@ server**: only source numbers that were supplied count, and an answer with no va
 It is a reading aid; it informs and never acts.
 
 **Where it is.** An **Assistant** tab on every case page, and an **Assistant** entry in the menu. Only the people
-holding the function see them, and only while the mode is not off.
+holding the function see them, and only while the mode is not off. **Split by purpose (owner, 12 November 2026; design
+`assistant-ollama-work`):** the case page's Assistant tab is about **that one case** (This case, with other cases' court
+orders for comparison, quick facts and the internal-records switch), and under its question box a line and the link
+"Open the Assistant" lead to the menu's page. The menu's **Assistant page has three tabs**, each in the address
+(`/assistant?tab=my-work`, `my-cases`, `court-orders`) with its own list of conversations: **My Work**, **My Cases** and
+**All Court Orders**. My Work is shown only in the local-model and preview modes and opens first when shown; switching
+tabs never asks the last question again. Earlier My Cases and All Court Orders conversations started from a case page
+are listed on the page's tabs.
 
 **Quick facts (28 October 2026).** On a case's Assistant tab (This case), six questions are answered from the case's
 court record **without the AI**: next hearing, parties, advocates, status, last order date and bench. They are
@@ -958,16 +965,53 @@ not generated. **Repeated answers.** The model is given the person's earlier que
 earlier answers, because a small model copied them; each answer records how much it repeats the one before, and
 `aslms assistant repeat-check` measures it.
 
-**Three scopes** (a switch above the question box, with a one-line note naming what is searched):
+**The scopes** (the case tab has This case only; the page's tabs are the other three; a one-line note under the
+question box names what is searched):
 
 | Scope | What is searched |
 |---|---|
-| **This case** (case page only; the starting scope there) | The case's own court orders and the court filings the person may see. Court orders of other cases appear apart, under "Related orders in other cases". |
+| **This case** (the case page's Assistant tab) | The case's own court orders and the court filings the person may see. Court orders of other cases appear apart, under "Related orders in other cases". |
 | **My cases** | The court orders and visible court filings of the cases the person works on: assigned to them, the file with them, claimed by them, or their counsel codes. Up to 1,000 cases, newest activity first. |
 | **All court orders** | Every court order in ASLMS, whichever department owns the case, plus the court filings the person may see. |
+| **My Work** (the page's first tab; local-model and preview modes only) | The person's own lists, never court text, notes, remarks or documents (below). |
 
-Switching the scope asks the last question again. The conversation sits in a box of fixed height with its own scroll
-bar, so the page does not grow; a new answer scrolls into view.
+The conversation sits in a box of fixed height with its own scroll bar, so the page does not grow; a new answer
+scrolls into view.
+
+**My Work (12 November 2026, row 189).** Questions about the person's own work, answered from **twelve fixed
+questions**, each read from the service of the screen that shows those facts and run with the person's own rights:
+
+| Question | Read from (the screen) |
+|---|---|
+| Files with me that have a pending action (overdue, due in the next 7 days, or all) | Case Inbox, With Me (and My Cases for the next 7 days) |
+| Files with me | Case Inbox, With Me |
+| Files I sent or recalled, and whether they are still where I sent them | Case Inbox, Sent by Me |
+| Hearings of my cases (today, tomorrow, this week, next week, or two dates) | My Calendar |
+| My cases on tomorrow's cause lists | My Calendar |
+| My action due dates and next dates to confirm | My Calendar |
+| My unread open alerts | Alerts |
+| New orders in my cases, from my new-order alerts (1 to 30 days) | Alerts |
+| What needs my attention today | The dashboard |
+| Cases I claimed (last 7 days, last 30 days, or all) | Case Inbox, My Cases: the cases with the "Claimed by Me" badge (claimed, or brought by a transfer the person accepted, still held by the department) |
+| Cases my department has claimed (same periods) | Case Inbox, Department: every row for a department or unit head, only the rows assigned to the person or their unit otherwise ("that you can see") |
+| Cases recommended to my department and waiting to be claimed (Strong, Possible or any) | Case Claim, Recommended (only with the Claim function in that department) |
+
+- **The count comes first, written by ASLMS.** Every answer starts with the count ("You claimed 14 cases in the last 30
+  days."), then at most one more figure, then "Showing all 14." or "Showing the first 25 of 41", then at most 25 rows
+  in a table with links to the case (or, for a recommendation, to the Case Claim window where the person decides) and
+  "Open the Full List". The text names no case; the cases appear only in the rows.
+- **The local model only chooses which list.** It is given the question and the twelve choices and picks one with its
+  settings; it writes no answer, reads nothing and changes nothing. When the model is loading, busy or down, or its
+  choice is not valid, a fixed keyword table chooses at once, so My Work never answers "busy" or "starting". In preview
+  mode the keyword table alone chooses, with the same answers.
+- **Never shown:** remarks (even one's own), note text, document text or names, alert bodies, recommendation reasons or
+  scores. A row is a snapshot "as of" the time asked; a row whose case the person can no longer open says "A case you
+  can no longer open" and the rest stays. Reading alerts here marks nothing read, and an answer holds no Claim, Send or
+  Assign button: the Assistant informs and never acts.
+- **A suggestion, never automatic.** When a question asked in My Cases or All Court Orders looks like one for My Work
+  ("how many cases were claimed by me?"), the answer offers "Ask in My Work"; nothing is asked again without the click.
+- A My Work question counts as one of the 30 questions an hour; its audit row records which list was chosen, its
+  settings and the counts, never the text. My Work is not offered when SourceTrace answers.
 
 **Citations.** An answer carries numbered references (S1, S2) in its text. They are buttons: clicking one opens
 that source in a dialog with the document, its date, the order number, the page and the matching excerpt with the
@@ -1021,9 +1065,10 @@ and Shift+Enter starts a new line. Each user may ask 30 questions an hour, one a
    programs, and the pre-deployment check (`aslms ops preflight`) refuses a cloud model or address.
 
 > **Next steps:** the real SourceTrace connector (row 36, blocked on SourceTrace's API documentation) replaces the
-> local model. Questions about the person's own work from the sidebar (My Work, row 189) are not built yet. The model's
-> reply fields were written from Ollama's published documentation and the owner's own test; the owner's live check
-> (row 195) confirms them.
+> local model. My Work (row 189) is built on its branch; the owner's live check records whether the local model
+> returns a choice for the twelve questions (otherwise every choice is made by the keyword table, which is still
+> correct). The model's reply fields were written from Ollama's published documentation and the owner's own test; the
+> owner's live check (row 195) confirms them.
 
 ---
 

@@ -577,10 +577,29 @@ const STATES: State[] = [
     },
   },
   {
-    name: "/assistant (quick fact from the case record)",
-    path: "/assistant",
+    // design assistant-ollama-work: the court answers moved to the My Cases tab (My Work opens by default)
+    name: "/assistant?tab=my-cases (quick fact from the case record)",
+    path: "/assistant?tab=my-cases",
     open: async (page) => {
       await page.getByText("From the Case Record").first().waitFor();
+    },
+  },
+  {
+    // design assistant-ollama-work, decisions 2 and 4: the three tabs and an answered My Work question (the count first,
+    // the rows in a table with case links, a row out of sight, as of and Open the Full List)
+    name: "/assistant?tab=my-work (answered work question)",
+    path: "/assistant?tab=my-work",
+    open: async (page) => {
+      await page.getByText("From Your Lists").first().waitFor();
+      await page.getByRole("link", { name: "Open the Full List" }).first().waitFor();
+    },
+  },
+  {
+    // design assistant-ollama-work, decision 1: the case tab without its scope switch, the line and Open the Assistant
+    name: `/cases/${SAMPLE.caseRefPath}/assistant (Open the Assistant)`,
+    path: `/cases/${SAMPLE.caseRefPath}/assistant`,
+    open: async (page) => {
+      await page.getByRole("link", { name: "Open the Assistant" }).waitFor();
     },
   },
   {

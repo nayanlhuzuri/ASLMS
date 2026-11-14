@@ -241,7 +241,8 @@
     ".scopeNote { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: space-between }",
     ".included { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: space-between; padding: var(--s3); border: 1px solid <c>; background: <c>; border-radius: var(--r-lg) }",
     ".included p { margin: var(--s1) 0 0 }",
-    ".includedHere { margin: var(--s2) 0; padding: var(--s1) var(--s3); text-align: center; font-size: var(--t-xs); font-weight: 600; border-top: 1px dashed <c> }"
+    ".includedHere { margin: var(--s2) 0; padding: var(--s1) var(--s3); text-align: center; font-size: var(--t-xs); font-weight: 600; border-top: 1px dashed <c> }",
+    ".examples { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2) }"
   ],
   "components/audit/audit.module.css": [
     ".period { display: grid; gap: var(--s3); min-width: 0; margin: 0; padding: 0; border: 0 }",

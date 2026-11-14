@@ -1530,10 +1530,12 @@
             "type": "string"
           },
           "scope": {
+            "description": "my_work (design assistant-ollama-work): ollama and preview modes only, never with a case; the server chooses the question",
             "enum": [
               "case",
               "my_cases",
-              "research"
+              "research",
+              "my_work"
             ],
             "title": "Scope",
             "type": "string"
@@ -1817,7 +1819,8 @@
               "case_details",
               "note",
               "file_movement",
-              "department_document"
+              "department_document",
+              "work_row"
             ],
             "title": "Source Kind",
             "type": "string"
@@ -1862,6 +1865,17 @@
               }
             ],
             "title": "What"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantWorkRowOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a My Work row (`work_row`) only"
           }
         },
         "required": [
@@ -1989,7 +2003,8 @@
             "enum": [
               "case",
               "my_cases",
-              "research"
+              "research",
+              "my_work"
             ],
             "title": "Scope",
             "type": "string"
@@ -2565,6 +2580,22 @@
             "default": false,
             "title": "Suggest Internal",
             "type": "boolean"
+          },
+          "suggest_work": {
+            "default": false,
+            "description": "a My Cases or All Court Orders answer whose question looks like one for My Work",
+            "title": "Suggest Work",
+            "type": "boolean"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantWorkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2588,7 +2619,8 @@
             "enum": [
               "document",
               "court_order",
-              "case_tab"
+              "case_tab",
+              "claim"
             ],
             "title": "Kind",
             "type": "string"
@@ -2652,7 +2684,8 @@
               "enum": [
                 "case",
                 "my_cases",
-                "research"
+                "research",
+                "my_work"
               ],
               "type": "string"
             },
@@ -2668,6 +2701,14 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "work_questions": {
+            "description": "design assistant-ollama-work: the My Work questions the caller may ask, in ollama and preview modes only (empty otherwise)",
+            "items": {
+              "$ref": "#/components/schemas/AssistantWorkQuestionOut"
+            },
+            "title": "Work Questions",
+            "type": "array"
           }
         },
         "required": [
@@ -2703,6 +2744,147 @@
           "has_more"
         ],
         "title": "AssistantThreadOut",
+        "type": "object"
+      },
+      "AssistantWorkOut": {
+        "description": "A My Work answer (design assistant-ollama-work, decision 4): the question chosen, how it was chosen (`model`,\n`keyword` or `none`), the total and the rows shown, the list and its full-list link. The text is the server's.",
+        "properties": {
+          "chosen_by": {
+            "enum": [
+              "model",
+              "keyword",
+              "none"
+            ],
+            "title": "Chosen By",
+            "type": "string"
+          },
+          "full_list_href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full List Href"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "list_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Label"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "scan_capped": {
+            "default": false,
+            "title": "Scan Capped",
+            "type": "boolean"
+          },
+          "shown": {
+            "title": "Shown",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "question",
+          "label",
+          "chosen_by",
+          "total",
+          "shown",
+          "list_label",
+          "full_list_href"
+        ],
+        "title": "AssistantWorkOut",
+        "type": "object"
+      },
+      "AssistantWorkQuestionOut": {
+        "description": "One My Work question the caller may ask (design assistant-ollama-work, decision 3): its key, label and example\nchip.",
+        "properties": {
+          "example": {
+            "title": "Example",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "example"
+        ],
+        "title": "AssistantWorkQuestionOut",
+        "type": "object"
+      },
+      "AssistantWorkRowOut": {
+        "description": "A My Work row (design assistant-ollama-work, decisions 9 and 10): the list it came from, when it was read, and\nthe question's allow-listed fields (re-filtered at every read; empty when the reader can no longer open the\ncase).",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "title": "Fields",
+            "type": "object"
+          },
+          "list_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Label"
+          }
+        },
+        "title": "AssistantWorkRowOut",
         "type": "object"
       },
       "AuditActionsOut": {
@@ -39063,7 +39245,7 @@
     },
     "/assistant/ask": {
       "post": {
-        "description": "Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too\nwith `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court\nfilings the caller may see). Court orders are court-public; court filings follow the document visibility; notes\nand internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`\n`failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a\n`case` outside the case scope, refused before the case is looked up, or a scope or case other than the\nconversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422\n`bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one\nunanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama\nmode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),\nnone stored or counted; internal records only for a case-scope conversation switched on through\n`POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text.",
+        "description": "Ask a question in one of four scopes: `case` (one case the caller can see; court orders of other cases too\nwith `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court\nfilings the caller may see). Court orders are court-public; court filings follow the document visibility; notes\nand internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`\n`failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a\n`case` outside the case scope, refused before the case is looked up, or a scope or case other than the\nconversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422\n`bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one\nunanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Scope\n`my_work` (design assistant-ollama-work): the caller's own work from the existing screens' lists, the count and\nthe rows written by the server, the local model only choosing the list; 422 `scope_unavailable` outside ollama and\npreview modes and `scope_mismatch` with a `case`; never `assistant_loading`, `assistant_unavailable` or\n`assistant_busy`. In ollama\nmode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),\nnone stored or counted; internal records only for a case-scope conversation switched on through\n`POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text.",
         "operationId": "ask_assistant_ask_post",
         "requestBody": {
           "content": {
@@ -39170,7 +39352,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(case|my_cases|research)$",
+                  "pattern": "^(case|my_cases|research|my_work)$",
                   "type": "string"
                 },
                 {

@@ -4901,6 +4901,15 @@ class AssistantEngineOut(BaseModel):
     reason: str | None = None
 
 
+class AssistantWorkQuestionOut(BaseModel):
+    """One My Work question the caller may ask (design assistant-ollama-work, decision 3): its key, label and example
+    chip."""
+
+    key: str
+    label: str
+    example: str
+
+
 class AssistantStatusOut(BaseModel):
     """`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design
@@ -4911,9 +4920,14 @@ class AssistantStatusOut(BaseModel):
     state: Literal["off", "preview", "not_implemented", "ready"]
     banner: str | None
     limits: AssistantLimitsOut
-    scopes: list[Literal["case", "my_cases", "research"]]
+    scopes: list[Literal["case", "my_cases", "research", "my_work"]]
     engine: AssistantEngineOut | None = None
     internal_records: Literal["switch", "never"] = "never"
+    work_questions: list[AssistantWorkQuestionOut] = Field(
+        default_factory=list,
+        description="design assistant-ollama-work: the My Work questions the caller may ask, in ollama and preview modes "
+        "only (empty otherwise)",
+    )
 
 
 class AssistantAskIn(BaseModel):
@@ -4923,7 +4937,10 @@ class AssistantAskIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(max_length=4000)
-    scope: Literal["case", "my_cases", "research"]
+    scope: Literal["case", "my_cases", "research", "my_work"] = Field(
+        description="my_work (design assistant-ollama-work): ollama and preview modes only, never with a case; the server "
+        "chooses the question"
+    )
     case: str | None = Field(None, max_length=100, description="case id, ref_no or CNR; only for scope case")
     conversation_id: uuid.UUID | None = None
     include_related: bool = True
@@ -4937,7 +4954,7 @@ class AssistantCaseBriefOut(BaseModel):
 
 class AssistantConversationOut(BaseModel):
     id: uuid.UUID
-    scope: Literal["case", "my_cases", "research"]
+    scope: Literal["case", "my_cases", "research", "my_work"]
     case: AssistantCaseBriefOut | None
     title: str | None
     last_message_at: datetime | None
@@ -4970,7 +4987,7 @@ class AssistantOpenOut(BaseModel):
     portal path of the case page (the notes tab for a note, the custody tab for the file movement, the details tab for
     Case Details)."""
 
-    kind: Literal["document", "court_order", "case_tab"]
+    kind: Literal["document", "court_order", "case_tab", "claim"]
     href: str
 
 
@@ -4979,6 +4996,16 @@ class AssistantCitedNoteOut(BaseModel):
     seq_no: int
     kind_label: str
     corrected_by_seq_no: int | None = None
+
+
+class AssistantWorkRowOut(BaseModel):
+    """A My Work row (design assistant-ollama-work, decisions 9 and 10): the list it came from, when it was read, and
+    the question's allow-listed fields (re-filtered at every read; empty when the reader can no longer open the
+    case)."""
+
+    list_label: str | None = None
+    as_of: datetime | None = None
+    fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssistantCitationOut(BaseModel):
@@ -4991,7 +5018,13 @@ class AssistantCitationOut(BaseModel):
     order_id: uuid.UUID | None = None
     case: AssistantCitationCaseOut
     source_kind: Literal[
-        "court_order", "court_filing", "case_details", "note", "file_movement", "department_document"
+        "court_order",
+        "court_filing",
+        "case_details",
+        "note",
+        "file_movement",
+        "department_document",
+        "work_row",
     ]
     doc_type_label: str | None
     doc_date: date | None
@@ -5016,6 +5049,7 @@ class AssistantCitationOut(BaseModel):
         description="an internal record's own setting (a file movement with remarks counts as private_to_office); "
         "the portal presets Copy to note to the narrowest of the cited records",
     )
+    work: AssistantWorkRowOut | None = Field(None, description="a My Work row (`work_row`) only")
 
 
 class AssistantEngineBriefOut(BaseModel):
@@ -5033,6 +5067,20 @@ class AssistantErrorOut(BaseModel):
     message: str
 
 
+class AssistantWorkOut(BaseModel):
+    """A My Work answer (design assistant-ollama-work, decision 4): the question chosen, how it was chosen (`model`,
+    `keyword` or `none`), the total and the rows shown, the list and its full-list link. The text is the server's."""
+
+    question: str | None
+    label: str | None
+    chosen_by: Literal["model", "keyword", "none"]
+    total: int
+    shown: int
+    list_label: str | None
+    full_list_href: str | None
+    scan_capped: bool = False
+
+
 class AssistantMessageOut(BaseModel):
     """`content` null when hidden (`hidden_reason`: an answer that drew on a court filing the reader can no longer
     see). A failed answer carries `error` in words."""
@@ -5046,6 +5094,10 @@ class AssistantMessageOut(BaseModel):
     checks: AssistantChecksOut | None = None
     internal_used: bool = False
     suggest_internal: bool = False
+    suggest_work: bool = Field(
+        False, description="a My Cases or All Court Orders answer whose question looks like one for My Work"
+    )
+    work: AssistantWorkOut | None = None
     mode: Literal["preview", "sourcetrace", "ollama"] | None = None
     outcome: Literal["answered", "no_match", "failed"] | None = None
     error: AssistantErrorOut | None = None

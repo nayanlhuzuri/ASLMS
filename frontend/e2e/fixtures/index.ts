@@ -1135,7 +1135,14 @@ function emptyList<T extends { items: unknown[]; total?: number }>(schema: strin
  */
 function assistantThread(): AssistantThread {
   const base = synthFor("/assistant/conversations/x")!.body as AssistantThread;
-  const labelled = base.messages.map((m) => ({ ...m, citations: m.citations.map((c, i) => ({ ...c, label: `S${i + 1}` })) }));
+  // design assistant-ollama-work: the synthesiser fills every optional field, `work` included, which would make each
+  // court answer a My Work answer; a court answer and its sources carry none, as the server sends them
+  const labelled = base.messages.map((m) => ({
+    ...m,
+    work: null,
+    suggest_work: false,
+    citations: m.citations.map((c, i) => ({ ...c, label: `S${i + 1}`, work: null })),
+  }));
   const asked = labelled.find((m) => m.role === "user") ?? labelled[0]!;
   const said = labelled.find((m) => m.role === "assistant") ?? labelled[0]!;
   const cites = said.citations.length ? said.citations : (labelled.find((m) => m.citations.length)?.citations ?? []);
@@ -1181,6 +1188,126 @@ function assistantThread(): AssistantThread {
       { ...fact, reply_to_id: `${asked.id.slice(0, -2)}q2` },
     ],
   };
+}
+
+/** The My Work conversation of the Assistant page (design assistant-ollama-work, "Tests"): its id names its thread. */
+const WORK_CONVERSATION = "01a1d953-0000-7000-8000-00000000a0a1";
+
+const WORK_QUESTIONS = [
+  ["pending_actions", "Pending Actions With Me", "Which of my cases has a pending action due this week?"],
+  ["cases_with_me", "Files With Me", "Which case files are with me?"],
+  ["sent_by_me", "Files I Sent or Recalled", "Cases I sent in the last 7 days"],
+  ["my_hearings", "Hearings of My Cases", "My hearings next week"],
+  ["listed_tomorrow", "My Cases Listed Tomorrow", "Which of my cases are listed tomorrow?"],
+  ["my_due_dates", "My Due Dates", "What are my due dates this week?"],
+  ["unread_alerts", "My Unread Alerts", "Do I have unread alerts?"],
+  ["new_orders", "New Orders in My Cases", "Any new orders in my cases this week?"],
+  ["needs_attention", "What Needs My Attention", "What needs my attention today?"],
+  ["claimed_by_me", "Cases I Claimed", "How many cases were claimed by me?"],
+  ["department_claimed", "Cases My Department Claimed", "How many cases has my department claimed in the last 30 days?"],
+  ["awaiting_claim", "Cases Waiting to Be Claimed", "Which cases are waiting to be claimed?"],
+].map(([key, label, example]) => ({ key: key!, label: label!, example: example! }));
+
+/** The conversation lists by tab: the My Work tab's one conversation opens the work thread. */
+function assistantConversations(url: URL): unknown {
+  const base = synthFor("/assistant/conversations")!.body as S["AssistantConversationListOut"];
+  if (url.searchParams.get("scope") !== "my_work") return base;
+  const first = base.items[0];
+  if (!first) return base;
+  return { total: 1, items: [{ ...first, id: WORK_CONVERSATION, scope: "my_work", case: null, title: "How many cases were claimed by me?" }] };
+}
+
+/**
+ * A My Work thread (design assistant-ollama-work, decisions 4, 9 and 10): the question, then the server's answer with
+ * the count first and its rows (long case numbers and office names), one row whose case the reader can no longer open.
+ */
+function workThread(): AssistantThread {
+  const base = synthFor("/assistant/conversations/x")!.body as AssistantThread;
+  const asked = base.messages.find((m) => m.role === "user") ?? base.messages[0]!;
+  const said = base.messages.find((m) => m.role === "assistant") ?? base.messages[0]!;
+  const cite = said.citations[0] ?? asked.citations[0];
+  const row = (i: number, extra: Record<string, unknown> = {}) => ({
+    ...(cite as object),
+    document_id: null,
+    order_id: null,
+    source_kind: "work_row" as const,
+    doc_type_label: null,
+    doc_date: null,
+    order_no: null,
+    page: null,
+    passage: null,
+    related: false,
+    available: true,
+    unavailable_reason: null,
+    label: `S${i}`,
+    cited: true,
+    context: null,
+    note: null,
+    internal: false,
+    what: null,
+    visibility: null,
+    case: { id: SAMPLE.caseRefPath, case_no_text: STRESS.caseNo, cnr: "ASHC010012342025", visible: true },
+    open: { kind: "case_tab" as const, href: `/cases/${SAMPLE.caseRefPath}` },
+    work: {
+      list_label: "Case Inbox · Department",
+      as_of: "2026-11-14T05:00:00Z",
+      fields: {
+        case_no: STRESS.caseNo,
+        claimed_on: "2026-11-10",
+        department: "EDU",
+        role: "Primary",
+        assigned_to: { unit: STRESS.office, officer: "Ramesh Chandra Baruah" },
+        status: "pending",
+      },
+    },
+    ...extra,
+  });
+  const answer = {
+    ...said,
+    id: `${said.id.slice(0, -2)}w1`,
+    role: "assistant" as const,
+    mode: "ollama" as const,
+    outcome: "answered" as const,
+    error: null,
+    hidden_reason: null,
+    engine: null,
+    checks: null,
+    internal_used: false,
+    suggest_internal: false,
+    suggest_work: false,
+    reply_to_id: `${asked.id.slice(0, -2)}w0`,
+    content:
+      "Education claimed 3 cases that you can see in the last 30 days.\nShowing all 3.",
+    citations: [
+      row(1),
+      row(2, { case: { id: SAMPLE.caseRefPath, case_no_text: "WA/55/2026", cnr: "ASHC010000552026", visible: true } }),
+      row(3, {
+        available: false,
+        unavailable_reason: "A case you can no longer open",
+        case: { id: null, case_no_text: null, cnr: null, visible: false },
+        open: null,
+        work: { list_label: "Case Inbox · Department", as_of: "2026-11-14T05:00:00Z", fields: {} },
+      }),
+    ],
+    work: {
+      question: "department_claimed",
+      label: "Cases My Department Claimed",
+      chosen_by: "model" as const,
+      total: 3,
+      shown: 3,
+      list_label: "Case Inbox · Department",
+      full_list_href: "/inbox/department?department=EDU",
+      scan_capped: false,
+    },
+  };
+  return {
+    ...base,
+    conversation: { ...base.conversation, id: WORK_CONVERSATION, scope: "my_work", case: null },
+    messages: [
+      { ...asked, id: `${asked.id.slice(0, -2)}w0`, role: "user" as const, citations: [], content: "How many cases has my department claimed this month?" },
+      answer,
+    ],
+  } as AssistantThread;
 }
 
 /**
@@ -1443,9 +1570,16 @@ const OVERRIDES: [RegExp, Override][] = [
       banner: null,
       internal_records: "switch",
       engine: { kind: "ollama", model: "qwen3.5:4b", readiness: "ready", reason: null },
+      // design assistant-ollama-work: My Work offered, with the twelve example chips
+      scopes: ["case", "my_cases", "research", "my_work"],
+      work_questions: WORK_QUESTIONS,
     }),
   ],
-  [/^\/assistant\/conversations\/[^/]+$/, () => assistantThread()],
+  [/^\/assistant\/conversations$/, (url) => assistantConversations(url)],
+  [
+    /^\/assistant\/conversations\/[^/]+$/,
+    (url) => (url.pathname.endsWith(WORK_CONVERSATION) ? workThread() : assistantThread()),
+  ],
   // design data-collection-redesign, decision 41: no department name is registered yet (the dev database today)
   [
     /^\/admin\/discovery$/,

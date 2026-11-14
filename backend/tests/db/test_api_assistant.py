@@ -8,6 +8,7 @@ import uuid
 import pytest
 
 from aslms.domain.cases import Case
+from aslms.services import assistant_work as work
 from tests.db import alerts_support as h
 from tests.db import assistant_support as sup
 from tests.db import docs_support as ds
@@ -75,10 +76,17 @@ def test_status_and_me_assistant_mode(world, api, tmp_path):
             "question_max_chars": 2000,
             "messages_per_conversation": 200,
         },
-        "scopes": ["case", "my_cases", "research"],
+        # design assistant-ollama-work: My Work in preview mode, with the questions the caller may ask (an officer
+        # without cases.claim is not offered the waiting recommendations)
+        "scopes": ["case", "my_cases", "research", "my_work"],
         # design assistant-ollama: no local engine and no internal records outside ollama mode
         "engine": None,
         "internal_records": "never",
+        "work_questions": [
+            {"key": q.key, "label": q.label, "example": q.example}
+            for q in work.WORK_QUESTIONS
+            if q.key != "awaiting_claim"
+        ],
     }
     # preview with APP_ENV=prod answers off too: a unit test (a prod app refuses the test database superuser)
     for mode, extra, me_mode, state in (
@@ -91,6 +99,7 @@ def test_status_and_me_assistant_mode(world, api, tmp_path):
             assert other.get("/me", headers=oh).json()["assistant_mode"] == me_mode
             body = other.get("/assistant/status", headers=oh).json()
             assert body["state"] == state and body["banner"] is None
+            assert body["scopes"] == ["case", "my_cases", "research"] and body["work_questions"] == []
         finally:
             other.__exit__(None, None, None)
 
@@ -134,6 +143,8 @@ def test_ask_and_read_back_shapes(world, api, case_ids):
         "internal",
         "what",
         "visibility",
+        # design assistant-ollama-work: a My Work row's fields, null on a court citation
+        "work",
     }
     assert cit["case"]["visible"] is True and cit["available"] is True
     kinds = {c["source_kind"] for c in a["citations"]}
@@ -178,3 +189,112 @@ def test_ask_and_read_back_shapes(world, api, case_ids):
     assert api.get(f"/assistant/conversations/{uuid.uuid4()}", headers=hdr).status_code == 404
     with world.Session() as s:
         assert s.get(Case, case_ids["a"]) is not None
+
+
+# ------------------------------------------------------------------------------------------------ My Work (design assistant-ollama-work)
+
+
+def test_status_scopes_by_mode_and_work_questions_by_guard(world, api, tmp_path):
+    admin = api.get("/assistant/status", headers=ds.login(api, "edu_admin")).json()
+    assert [q["key"] for q in admin["work_questions"]] == [q.key for q in work.WORK_QUESTIONS]
+    root = api.get("/assistant/status", headers=ds.login(api, "root")).json()
+    keys = [q["key"] for q in root["work_questions"]]
+    assert "department_claimed" not in keys and "awaiting_claim" not in keys  # no department of their own
+    local = ds.make_api(
+        world, tmp_path / "ollama", assistant_mode="ollama", assistant_ollama_url="http://127.0.0.1:9"
+    )
+    try:
+        from tests.db import ollama_support as ol
+        from tests.fakes.ollama import FakeOllama
+
+        local.app.state.assistant_connector = ol.connector(world, FakeOllama())
+        body = local.get("/assistant/status", headers=ds.login(local, "edu_off1")).json()
+        assert body["scopes"] == ["case", "my_cases", "research", "my_work"] and body["work_questions"]
+    finally:
+        local.__exit__(None, None, None)
+
+
+def test_ask_my_work_shape_work_and_suggest_work(world, api, case_ids):
+    hdr = ds.login(api, "edu_admin")
+    q = "how many cases were claimed by me?"
+    r = api.post("/assistant/ask", headers=hdr, json={"question": q, "scope": "my_work"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["conversation"]["scope"] == "my_work" and body["conversation"]["case"] is None
+    a = body["answer"]
+    assert a["mode"] == "preview" and a["outcome"] == "answered" and a["suggest_work"] is False
+    assert a["engine"] is None and a["checks"] is None
+    assert a["content"].splitlines()[0] == "You have claimed 1 case in all."
+    assert a["work"] == {
+        "question": "claimed_by_me",
+        "label": "Cases I Claimed",
+        "chosen_by": "keyword",
+        "total": 1,
+        "shown": 1,
+        "list_label": "Case Inbox · My Cases · Claimed by Me",
+        "full_list_href": "/inbox/my-cases",
+        "scan_capped": False,
+    }
+    # refusals before anything is stored
+    bad = api.post(
+        "/assistant/ask",
+        headers=hdr,
+        json={"question": "how many cases?", "scope": "my_work", "case": str(case_ids["a"])},
+    )
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "scope_mismatch"
+    extra = api.post(
+        "/assistant/ask", headers=hdr, json={"question": "how many?", "scope": "my_work", "question_key": "x"}
+    )
+    assert extra.status_code == 422
+    # the trigger: the same question in My Cases is answered from court records and offers My Work
+    court = api.post("/assistant/ask", headers=hdr, json={"question": q, "scope": "my_cases"})
+    assert court.status_code == 200 and court.json()["answer"]["suggest_work"] is True
+    assert court.json()["answer"]["work"] is None
+    lst = api.get("/assistant/conversations", headers=hdr, params={"scope": "my_work"}).json()
+    assert lst["total"] == 1 and lst["items"][0]["scope"] == "my_work"
+
+
+def test_thread_work_row_citation_shape_and_open_kinds(world, api, case_ids):
+    with world.Session() as s:
+        rec = make_case(s, case_no="WP(C)/33/2026")
+        h.recommend(s, world, rec, "EDU")
+        s.commit()
+    hdr = ds.login(api, "edu_admin")
+    mine = api.post(
+        "/assistant/ask", headers=hdr, json={"question": "cases i claimed", "scope": "my_work"}
+    ).json()
+    waiting = api.post(
+        "/assistant/ask",
+        headers=hdr,
+        json={
+            "question": "which cases are waiting to be claimed?",
+            "scope": "my_work",
+            "conversation_id": mine["conversation"]["id"],
+        },
+    )
+    assert waiting.status_code == 200, waiting.text
+    thread = api.get(f"/assistant/conversations/{mine['conversation']['id']}", headers=hdr).json()
+    answers = [m for m in thread["messages"] if m["role"] == "assistant"]
+    row = answers[0]["citations"][0]
+    assert row["source_kind"] == "work_row" and row["label"] == "S1" and row["available"] is True
+    assert row["open"] == {"kind": "case_tab", "href": f"/cases/{case_ids['a']}"}
+    assert row["case"]["id"] == str(case_ids["a"]) and row["case"]["case_no_text"] == "WP(C)/11/2026"
+    assert set(row["work"]) == {"list_label", "as_of", "fields"}
+    assert set(row["work"]["fields"]) <= set(work.FIELDS["claimed_by_me"])
+    assert row["work"]["fields"]["via"] == "Claimed" and row["work"]["fields"]["department"] == "EDU"
+    claim_row = answers[1]["citations"][0]
+    assert claim_row["open"] == {"kind": "claim", "href": f"/claim/recommended?department=EDU&case={rec.id}"}
+    assert claim_row["work"]["fields"]["band"] == "Strong"
+    assert answers[1]["work"]["full_list_href"] == "/claim/recommended?department=EDU"
+
+
+def test_case_tab_conversations_of_other_scopes_listed_on_page(world, api, case_ids):
+    """The case tab's former flow created My Cases and All Court Orders conversations without a case; the sidebar
+    page lists them by scope (design assistant-ollama-work, decision 2). Nothing is migrated."""
+    hdr = ds.login(api, "edu_off1")
+    for scope in ("my_cases", "research"):
+        r = api.post("/assistant/ask", headers=hdr, json={"question": "gecko", "scope": scope})
+        assert r.status_code == 200, r.text
+        assert r.json()["conversation"]["case"] is None
+        lst = api.get("/assistant/conversations", headers=hdr, params={"scope": scope}).json()
+        assert lst["total"] == 1 and lst["items"][0]["id"] == r.json()["conversation"]["id"]

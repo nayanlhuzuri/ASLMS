@@ -24,6 +24,9 @@ class AssistantScope(enum.StrEnum):
     CASE = "case"
     RESEARCH = "research"
     MY_CASES = "my_cases"  # migration 0024
+    MY_WORK = (
+        "my_work"  # migration 0037 (design assistant-ollama-work): the sidebar My Work tab, never with a case
+    )
 
 
 class AssistantConversation(TimestampMixin, Base):

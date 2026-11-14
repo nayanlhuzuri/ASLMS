@@ -36,6 +36,7 @@ the connector."""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import re
@@ -49,7 +50,7 @@ from sqlalchemy import and_, exists, func, literal, or_, select, text
 from sqlalchemy.orm import Session, aliased, sessionmaker
 
 from aslms.core import clock
-from aslms.core.config import Settings
+from aslms.core.config import Settings, get_settings
 from aslms.domain.assistant import AssistantConversation, AssistantMessage, AssistantScope, MessageRole
 from aslms.domain.cases import Case
 from aslms.domain.documents import Document, Order, SourcetraceStatus
@@ -76,6 +77,7 @@ from aslms.services import assistant_facts as quick_facts
 from aslms.services import assistant_internal as internal_records
 from aslms.services import assistant_ollama as ollama
 from aslms.services import assistant_sources as src
+from aslms.services import assistant_work as work
 from aslms.services.assistant_preview import PreviewConnector, PreviewTooBroad
 from aslms.services.audit import Actor, write_audit
 from aslms.services.documents import ServedFile, serve_stored
@@ -88,7 +90,10 @@ from aslms.services.workflow_common import digest
 log = logging.getLogger(__name__)
 
 State = Literal["off", "preview", "not_implemented", "ready"]
-SCOPES = ("case", "my_cases", "research")
+COURT_SCOPES = ("case", "my_cases", "research")
+# design assistant-ollama-work: `my_work`, the sidebar My Work tab, ollama and preview modes only
+SCOPES = (*COURT_SCOPES, "my_work")
+WORK_MODES = ("ollama", "preview")
 MIN_QUESTION = 3
 CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 MAX_ANSWER = 20_000
@@ -112,6 +117,7 @@ NEW_TITLE = "New Conversation"
 INTERNAL_KINDS = internal_records.INTERNAL_KINDS
 COURT_KINDS = ("court_order", "court_filing")
 SOURCE_KINDS = ("court_order", "court_filing", "case_details", "note", "file_movement", "department_document")
+WORK_KIND = "work_row"  # design assistant-ollama-work, decision 9: only on My Work answers (connector `work`)
 UNAVAILABLE = "This source is no longer available."
 WITHHELD = "The answer drew on material outside your reach and was withheld."
 FAILURE_MESSAGES = {
@@ -149,6 +155,12 @@ class BadQuestion(AssistantError):
 
 class ScopeMismatch(AssistantError):
     code, http_status = "scope_mismatch", 422
+
+
+class ScopeUnavailable(AssistantError):
+    """Design `assistant-ollama-work`, decision 13: My Work outside ollama and preview modes."""
+
+    code, http_status = "scope_unavailable", 422
 
 
 class ConversationFull(AssistantError):
@@ -348,11 +360,13 @@ def status(
 ) -> dict[str, Any]:
     """`GET /assistant/status`: the mode, the state, the banner, the limits with the caller's questions of the
     last hour, the scopes, the engine and where internal records may be included (`switch` in ollama mode, on the
-    case tab only; `never` otherwise)."""
+    case tab only; `never` otherwise). Design `assistant-ollama-work`: `my_work` among the scopes and the caller's
+    `work_questions` in ollama and preview modes only."""
     now = session.scalar(select(func.now()))
     used, _ = _used_last_hour(session, user.id, now)
     state = assistant_state(settings)
     is_ollama = isinstance(connector, ollama.OllamaConnector)
+    work_on = is_ollama or isinstance(connector, PreviewConnector)
     return {
         "mode": "ollama" if is_ollama else settings.assistant_mode,
         "state": "ready" if is_ollama else state,
@@ -365,7 +379,13 @@ def status(
             "question_max_chars": settings.assistant_question_max_chars,
             "messages_per_conversation": settings.assistant_messages_per_conversation,
         },
-        "scopes": list(SCOPES),
+        # design assistant-ollama-work: My Work only in ollama and preview modes, with the questions the caller may ask
+        "scopes": list(SCOPES) if work_on else list(COURT_SCOPES),
+        "work_questions": (
+            [{"key": q.key, "label": q.label, "example": q.example} for q in work.available(session, user)]
+            if work_on
+            else []
+        ),
     }
 
 
@@ -516,6 +536,67 @@ def _orders_corpus(scope: str, include_related: bool) -> str:
     return "focus"
 
 
+def _open_turn(
+    s: Session,
+    u: User,
+    *,
+    question: str,
+    scope: str,
+    case_row: Case | None,
+    conversation_id: uuid.UUID | None,
+    config: AssistantConfig,
+) -> tuple[AssistantConversation, bool, datetime, str]:
+    """Transaction A's shared steps (design `assistant-ollama-work`, Services): the cleaned question, the user lock,
+    the conversation (the caller's own, of the same scope and case, not full) or a new one, the in-flight rule and the
+    hourly limit. Returns the conversation, whether it is new, the transaction's `now` and the question."""
+    q = _clean_question(question, config)
+    _lock_user(s, u.id)
+    now = s.scalar(select(func.now()))
+    conv: AssistantConversation | None = None
+    if conversation_id is not None:
+        conv = s.scalar(
+            select(AssistantConversation)
+            .where(AssistantConversation.id == conversation_id, AssistantConversation.user_id == u.id)
+            .with_for_update()
+        )
+        if conv is None:
+            raise ConversationNotFound("no such conversation")
+        if _value(conv.scope) != scope or conv.case_id != (case_row.id if case_row else None):
+            raise ScopeMismatch("the question's scope or case differs from the conversation's")
+        count = int(
+            s.scalar(
+                select(func.count())
+                .select_from(AssistantMessage)
+                .where(AssistantMessage.conversation_id == conv.id)
+            )
+            or 0
+        )
+        if count + 2 > config.messages_per_conversation:
+            raise ConversationFull("this conversation is full; start a new conversation")
+    if _in_flight(s, u.id, now, config):
+        raise QuestionInFlight("your last question is still being answered; wait for its answer")
+    used, oldest = _used_last_hour(s, u.id, now)
+    if used >= config.questions_per_hour:
+        wait = (oldest + HOUR - now).total_seconds() if oldest is not None else 60
+        raise AssistantLimit(
+            f"{config.questions_per_hour} questions an hour is the limit",
+            retry_after=max(1, math.ceil(wait)),
+        )
+    new = conv is None
+    if conv is not None and conv.title == NEW_TITLE and not conv.last_message_at:
+        conv.title = q[:TITLE_CHARS]  # the first question of an empty conversation switched on before it
+    if conv is None:
+        conv = AssistantConversation(
+            user_id=u.id,
+            case_id=case_row.id if case_row else None,
+            scope=AssistantScope(scope),
+            title=q[:TITLE_CHARS],
+        )
+        s.add(conv)
+        s.flush()
+    return conv, new, now, q
+
+
 def _prepare(
     Session: sessionmaker,
     actor: Actor,
@@ -536,8 +617,8 @@ def _prepare(
     mode = mode_of(connector)
     with Session() as s:
         u = s.get(User, user.id)
-        if scope not in SCOPES:
-            raise BadQuestion("scope is one of case, my_cases, research")
+        if scope not in COURT_SCOPES:
+            raise BadQuestion("scope is one of case, my_cases, research, my_work")
         if scope != "case" and case is not None:
             raise ScopeMismatch("only a case-scope question names a case")  # before any lookup (finding 6)
         case_row: Case | None = None
@@ -548,51 +629,15 @@ def _prepare(
             case_row = s.get(Case, case.id if isinstance(case, Case) else case)
             if case_row is None or not visibility.can_view_case(s, u, case_row):
                 raise NotVisibleCase("no such case")
-        q = _clean_question(question, config)
-        _lock_user(s, u.id)
-        now = s.scalar(select(func.now()))
-        conv: AssistantConversation | None = None
-        if conversation_id is not None:
-            conv = s.scalar(
-                select(AssistantConversation)
-                .where(AssistantConversation.id == conversation_id, AssistantConversation.user_id == u.id)
-                .with_for_update()
-            )
-            if conv is None:
-                raise ConversationNotFound("no such conversation")
-            if _value(conv.scope) != scope or conv.case_id != (case_row.id if case_row else None):
-                raise ScopeMismatch("the question's scope or case differs from the conversation's")
-            count = int(
-                s.scalar(
-                    select(func.count())
-                    .select_from(AssistantMessage)
-                    .where(AssistantMessage.conversation_id == conv.id)
-                )
-                or 0
-            )
-            if count + 2 > config.messages_per_conversation:
-                raise ConversationFull("this conversation is full; start a new conversation")
-        if _in_flight(s, u.id, now, config):
-            raise QuestionInFlight("your last question is still being answered; wait for its answer")
-        used, oldest = _used_last_hour(s, u.id, now)
-        if used >= config.questions_per_hour:
-            wait = (oldest + HOUR - now).total_seconds() if oldest is not None else 60
-            raise AssistantLimit(
-                f"{config.questions_per_hour} questions an hour is the limit",
-                retry_after=max(1, math.ceil(wait)),
-            )
-        new = conv is None
-        if conv is not None and conv.title == NEW_TITLE and not conv.last_message_at:
-            conv.title = q[:TITLE_CHARS]  # the first question of an empty conversation switched on before it
-        if conv is None:
-            conv = AssistantConversation(
-                user_id=u.id,
-                case_id=case_row.id if case_row else None,
-                scope=AssistantScope(scope),
-                title=q[:TITLE_CHARS],
-            )
-            s.add(conv)
-            s.flush()
+        conv, new, now, q = _open_turn(
+            s,
+            u,
+            question=question,
+            scope=scope,
+            case_row=case_row,
+            conversation_id=conversation_id,
+            config=config,
+        )
         focus_ids, focus_truncated = src.focus_cases(s, u, scope, case_row, limit=config.max_focus_cases)
         filings, filings_truncated = src.filing_allow_list(
             s,
@@ -1086,6 +1131,9 @@ def _record(
                 internal_records.suggests(prepared.question)
                 and internal_records.visible_count(s, u, case_row) > 0
             )
+        if prepared.scope in ("my_cases", "research") and prepared.mode in WORK_MODES and not prepared.facts:
+            # design assistant-ollama-work, decision 11: a deterministic keyword check, no model call; offered only
+            info["suggest_work"] = _suggests_work(s, u, prepared.question)
         if via:
             info["via"] = via
         msg = AssistantMessage(
@@ -1178,6 +1226,18 @@ async def ask(
     from the case's court record in a read-only session, and is stored by transaction B with the connector `facts`."""
     if connector is None:
         raise AssistantOff("the Case Assistant is off")
+    if scope == "my_work":
+        return await _ask_work(
+            Session,
+            actor,
+            user,
+            question=question,
+            case=case,
+            conversation_id=conversation_id,
+            connector=connector,
+            config=config,
+            via=via,
+        )
     facts = _quick_facts(Session, user, question=question, scope=scope, case=case)
     if facts:
         prepared = _prepare(
@@ -1242,6 +1302,255 @@ async def ask(
         answer_id=answer_id,
         outcome=outcome,
     )
+
+
+# ------------------------------------------------------------------------------------------------ My Work
+
+
+def _work_settings(connector: AssistantConnector) -> Any:
+    return getattr(connector, "settings", None) or get_settings()
+
+
+async def _choose_work(
+    connector: AssistantConnector, question: str, today: Any, settings: Any
+) -> tuple[tuple[str, Any] | None, str, str | None, Any, str | None, int]:
+    """Design `assistant-ollama-work`, decision 8: in ollama mode the slot with a short wait (never a refusal), then one
+    tools call; the keyword table when there is no valid choice, and alone in preview mode. Returns the choice, how it
+    was chosen (`model` / `keyword` / `none`), the fallback reason, the tools reply, the model asked and the time."""
+    started = time.monotonic()
+    choice: tuple[str, Any] | None = None
+    fallback: str | None = None
+    reply = None
+    model: str | None = None
+    if isinstance(connector, ollama.OllamaConnector):
+        slot, reason = await connector.try_admission(work.WORK_SLOT_WAIT_SECONDS)
+        if slot is None:
+            fallback = reason
+        else:
+            model = connector.model
+            timeout = max(
+                0.5,
+                min(
+                    work.WORK_CHOICE_SECONDS,
+                    float(getattr(settings, "assistant_ollama_timeout_seconds", work.WORK_CHOICE_SECONDS)),
+                ),
+            )
+            try:
+                reply, failure = await connector.choose_work(question, today, timeout=timeout)
+            finally:
+                slot.release()  # the services need no model
+            if reply is None:
+                fallback = failure
+            else:
+                choice = work.validate_choice(reply.tool_calls, today)
+                if choice is None:
+                    fallback = "no_call" if not reply.tool_calls else "invalid"
+            q_digest = digest(question)
+            log.info(
+                "my work choice: model %s, %d ms, chosen %s, fallback %s, question sha256 %s",
+                model,
+                int((time.monotonic() - started) * 1000),
+                choice[0] if choice else None,
+                fallback,
+                q_digest["sha256"],
+            )
+    chosen_by = "model" if choice is not None else "none"
+    if choice is None:
+        kc = work.keyword_choice(question, today)
+        if isinstance(kc, tuple):
+            choice, chosen_by = kc, "keyword"
+    return choice, chosen_by, fallback, reply, model, int((time.monotonic() - started) * 1000)
+
+
+async def _ask_work(
+    Session: sessionmaker,
+    actor: Actor,
+    user: User,
+    *,
+    question: str,
+    case: Case | uuid.UUID | None,
+    conversation_id: uuid.UUID | None,
+    connector: AssistantConnector,
+    config: AssistantConfig,
+    via: str | None,
+) -> AskResult:
+    """Design `assistant-ollama-work`, decisions 4, 8, 9, 12 and 13: a My Work question. Refused before anything is
+    stored with a case (`ScopeMismatch`) or outside ollama and preview modes (`ScopeUnavailable`); never with the
+    model's loading, unavailable or busy refusals. Transaction A as every question (stored, audited, counted toward the
+    hourly limit and the one-unanswered-question rule); then the choice, the services in a read-only session, and
+    transaction B, which stores the server-written answer with connector `work`."""
+    if case is not None:
+        raise ScopeMismatch("a My Work question names no case")
+    mode = mode_of(connector)
+    if mode not in WORK_MODES:
+        raise ScopeUnavailable("My Work answers only when the local model or the preview answers")
+    settings = _work_settings(connector)
+    rows_cap = int(getattr(settings, "assistant_work_rows", 25) or 25)
+    with Session() as s:
+        u = s.get(User, user.id)
+        conv, new, now, q = _open_turn(
+            s,
+            u,
+            question=question,
+            scope="my_work",
+            case_row=None,
+            conversation_id=conversation_id,
+            config=config,
+        )
+        msg = AssistantMessage(
+            conversation_id=conv.id,
+            role=MessageRole.USER,
+            content=q,
+            scope_info={"kind": "my_work"},
+            model_info={"via": via} if via else None,
+        )
+        s.add(msg)
+        conv.last_message_at = now
+        s.flush()
+        after: dict[str, Any] = {
+            "conversation_id": conv.id,
+            "new_conversation": new,
+            "scope": "my_work",
+            "mode": mode,
+            "question": digest(q),
+        }
+        if via:
+            after["as_user_id"] = u.id
+            after["via"] = via
+        write_audit(s, actor, "assistant.asked", "assistant_message", msg.id, after=after)
+        conv_id, question_id = conv.id, msg.id
+        s.commit()
+    started = time.monotonic()
+    today = clock.today_ist()
+    choice, chosen_by, fallback, reply, model, choose_ms = await _choose_work(connector, q, today, settings)
+    if choice is None:
+        wa = work.no_question()
+    else:
+        try:
+            wa = work.answer(Session, user, choice[0], choice[1], rows_cap=rows_cap)
+        except Exception as exc:  # noqa: BLE001 - stored as a failed answer, never raised
+            log.error(
+                "a My Work question could not be answered: %s (conversation %s, question %s)",
+                type(exc).__name__,
+                conv_id,
+                choice[0],
+            )
+            wa = work.WorkAnswer(
+                outcome="failed",
+                content=work.ERROR_TEXT,
+                info={"question": choice[0], "params": work.dump(choice[1])},
+                family="error",
+            )
+    answer_id, outcome = _record_work(
+        Session,
+        actor,
+        conversation_id=conv_id,
+        question_id=question_id,
+        mode=mode,
+        wa=wa,
+        chosen_by=chosen_by,
+        fallback=fallback,
+        reply=reply,
+        model=model,
+        choose_ms=choose_ms,
+        duration_ms=choose_ms + int((time.monotonic() - started) * 1000),
+        via=via,
+    )
+    return AskResult(conversation_id=conv_id, question_id=question_id, answer_id=answer_id, outcome=outcome)
+
+
+def _record_work(
+    Session: sessionmaker,
+    actor: Actor,
+    *,
+    conversation_id: uuid.UUID,
+    question_id: uuid.UUID,
+    mode: str,
+    wa: work.WorkAnswer,
+    chosen_by: str,
+    fallback: str | None,
+    reply: Any,
+    model: str | None,
+    choose_ms: int,
+    duration_ms: int,
+    via: str | None,
+) -> tuple[uuid.UUID, str]:
+    """Transaction B of a My Work question (decisions 9 and 12): the answer with connector `work`, `model_info` of
+    keys, labels and numbers only, the tools reply verbatim in `response` (never shown), and `assistant.answered` with
+    the chosen key, parameters and counts, never text."""
+    wi = wa.info or {}
+    info: dict[str, Any] = {
+        "engine": work.ENGINE,
+        "work_version": work.WORK_VERSION,
+        "question": wi.get("question"),
+        "params": wi.get("params") or {},
+        "chosen_by": chosen_by,
+        "choice_fallback": fallback,
+        "model": model,
+        "total": int(wi.get("total") or 0),
+        "shown": int(wi.get("shown") or 0),
+        "scan_capped": bool(wi.get("scan_capped")),
+        "departments": list(wi.get("departments") or []),
+        "durations": {"choose_ms": int(choose_ms), "run_ms": int(wi.get("run_ms") or 0)},
+        "list_label": wi.get("list_label"),
+        "full_list_href": wi.get("full_list_href"),
+    }
+    if via:
+        info["via"] = via
+    with Session() as s:
+        conv = s.get(AssistantConversation, conversation_id)
+        msg = AssistantMessage(
+            conversation_id=conv.id,
+            role=MessageRole.ASSISTANT,
+            content=wa.content[:MAX_ANSWER],
+            reply_to_id=question_id,
+            mode=mode,
+            connector=work.CONNECTOR,
+            outcome=wa.outcome,
+            error_family=wa.family,
+            duration_ms=duration_ms,
+            citations=wa.citations,
+            model_info=info,
+            response=getattr(reply, "raw", None) or None,
+        )
+        s.add(msg)
+        conv.last_message_at = s.scalar(select(func.now()))
+        s.flush()
+        write_audit(
+            s,
+            actor,
+            "assistant.answered",
+            "assistant_message",
+            msg.id,
+            after={
+                "question_id": question_id,
+                "conversation_id": conv.id,
+                "mode": mode,
+                "connector": msg.connector,
+                "outcome": wa.outcome,
+                "error_family": wa.family,
+                "duration_ms": duration_ms,
+                "attempts": 1,
+                "answer": digest(msg.content),
+                "citations": [],
+                "work_question": info["question"],
+                "work_params": info["params"],
+                "chosen_by": chosen_by,
+                "choice_fallback": fallback,
+                "work_rows": len(wa.citations or []),
+                "work_total": info["total"],
+                "departments": info["departments"],
+            },
+        )
+        answer_id = msg.id
+        s.commit()
+    return answer_id, wa.outcome
+
+
+def _suggests_work(session: Session, user: User, question: str) -> bool:
+    """Decision 11: the keyword table picks one question unambiguously and the asker passes its guard. No model."""
+    kc = work.keyword_choice(question, clock.today_ist())
+    return isinstance(kc, tuple) and work.passes(session, user, kc[0])
 
 
 class _FactsConnector:
@@ -1481,7 +1790,7 @@ def conversations(
     )
     if scope:
         if scope not in SCOPES:
-            raise BadQuestion("scope is one of case, my_cases, research")
+            raise BadQuestion("scope is one of case, my_cases, research, my_work")
         stmt = stmt.where(AssistantConversation.scope == AssistantScope(scope))
     if case is not None:
         stmt = stmt.where(AssistantConversation.case_id == case.id)
@@ -1555,6 +1864,7 @@ def _unavailable(kind: str) -> dict[str, Any]:
         "internal": False,
         "what": None,
         "visibility": None,
+        "work": None,  # design assistant-ollama-work: a My Work row's fields, never on another kind
     }
 
 
@@ -1716,6 +2026,83 @@ def _details_out(
     }
 
 
+def _work_out(c: dict[str, Any], visible: set[uuid.UUID], cases: dict[uuid.UUID, Case]) -> dict[str, Any]:
+    """Design `assistant-ollama-work`, decision 9: a My Work row re-checked at read time (one batched sight query for
+    the thread). A row whose case the reader can no longer open names nothing; its fields are re-filtered through the
+    question's allow-list. The links open the case page, or the Case Claim modal for a waiting recommendation."""
+    w = c.get("work") or {}
+    question = w.get("question")
+    case_id = _uuid(c.get("case_id"))
+    base = {
+        "document_id": None,
+        "order_id": None,
+        "source_kind": WORK_KIND,
+        "doc_type_label": None,
+        "doc_date": None,
+        "order_no": None,
+        "page": None,
+        "passage": None,
+        "related": False,
+        "label": c.get("label"),
+        "cited": bool(c.get("cited", True)),
+        "context": None,
+        "note": None,
+        "internal": False,
+        "what": None,
+        "visibility": None,
+    }
+    if case_id is not None and case_id not in visible:
+        return {
+            **base,
+            "case": {"id": None, "case_no_text": None, "cnr": None, "visible": False},
+            "available": False,
+            "unavailable_reason": work.HIDDEN_ROW,
+            "open": None,
+            "work": {"list_label": w.get("list_label"), "as_of": w.get("as_of"), "fields": {}},
+        }
+    fields = work.allowed(str(question or ""), w.get("fields"))
+    case = cases.get(case_id) if case_id else None
+    open_: dict[str, Any] | None = None
+    if case_id is not None:
+        dept = fields.get("department")
+        if question == "awaiting_claim" and dept:
+            open_ = {"kind": "claim", "href": f"/claim/recommended?department={dept}&case={case_id}"}
+        else:
+            open_ = {"kind": "case_tab", "href": f"/cases/{case_id}"}
+    return {
+        **base,
+        "case": {
+            "id": case_id,
+            "case_no_text": case.case_no_text if case is not None else fields.get("case_no"),
+            "cnr": case.cnr if case is not None else fields.get("cnr"),
+            "visible": case_id is not None,
+        },
+        "available": True,
+        "unavailable_reason": None,
+        "open": open_,
+        "work": {"list_label": w.get("list_label"), "as_of": w.get("as_of"), "fields": fields},
+    }
+
+
+def _work_brief(m: AssistantMessage) -> dict[str, Any] | None:
+    """`MessageOut.work` for a My Work answer (connector `work`), else None."""
+    info = m.model_info or {}
+    if m.connector != work.CONNECTOR or info.get("engine") != work.ENGINE:
+        return None
+    key = info.get("question")
+    q = work.BY_KEY.get(key) if key else None
+    return {
+        "question": key,
+        "label": q.label if q is not None else None,
+        "chosen_by": info.get("chosen_by") or "none",
+        "total": int(info.get("total") or 0),
+        "shown": int(info.get("shown") or 0),
+        "list_label": info.get("list_label"),
+        "full_list_href": info.get("full_list_href"),
+        "scan_capped": bool(info.get("scan_capped")),
+    }
+
+
 def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> list[dict[str, Any]]:
     """`MessageOut` for each message: filing citations re-checked against the reader's current document visibility
     (decision 8). A failing one shows only that it is unavailable and hides the answer's text. Court-order citations
@@ -1778,6 +2165,8 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
 
     def citation_out(m: AssistantMessage, c: dict[str, Any]) -> dict[str, Any]:
         kind = c.get("source_kind") or "court_order"
+        if kind == WORK_KIND:
+            return _work_out(c, visible, cases)
         if kind in INTERNAL_KINDS:
             return _internal_out(session, user, convs.get(m.conversation_id), c, labels, note_labels)
         if kind == "case_details":
@@ -1885,6 +2274,8 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
                     i["source_kind"] in INTERNAL_KINDS and i.get("cited", True) for i in items
                 ),
                 "suggest_internal": bool(info.get("suggest_internal")),
+                "suggest_work": bool(info.get("suggest_work")),
+                "work": _work_brief(m),
                 "mode": m.mode,
                 "outcome": m.outcome,
                 "error": (
@@ -2087,8 +2478,10 @@ def check(session: Session) -> dict[str, int]:
     conversations with a case scope but no case; and (design `assistant-ollama`, "Data") (3) internal-kind citations on
     an answer whose mode is not `ollama`, whose conversation's scope is not `case`, or whose question was created before
     the conversation's `internal_included_at` (or with it null); (4) internal-kind citations naming a record of
-    another case than the conversation's; (5) citations naming a record kind outside the six of round 1. All must be
-    0."""
+    another case than the conversation's; (5) citations naming a record kind outside the six of round 1 and
+    `work_row`; and (design `assistant-ollama-work`, "Data") (6) `work_row` citations on a conversation whose scope is
+    not `my_work`, on an answer whose connector is not `work`, or whose `fields` hold a key outside their question's
+    allow-list. All must be 0."""
     bad_citations = int(
         session.scalar(
             text(
@@ -2180,10 +2573,44 @@ def check(session: Session) -> dict[str, int]:
                     CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
                 ) AS c(value)
                 WHERE coalesce(c.value ->> 'source_kind', 'court_order') NOT IN (
-                    'court_order', 'court_filing', 'case_details', 'note', 'file_movement', 'department_document'
+                    'court_order', 'court_filing', 'case_details', 'note', 'file_movement', 'department_document',
+                    'work_row'
                 )
                 """
             )
+        )
+        or 0
+    )
+    work_out_of_rule = int(
+        session.scalar(
+            text(
+                """
+                SELECT count(*)
+                FROM assistant_messages m
+                JOIN assistant_conversations cv ON cv.id = m.conversation_id
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
+                ) AS c(value)
+                WHERE c.value ->> 'source_kind' = 'work_row'
+                AND (
+                    cv.scope::text <> 'my_work'
+                    OR m.connector IS DISTINCT FROM 'work'
+                    OR jsonb_typeof(c.value -> 'work' -> 'fields') IS DISTINCT FROM 'object'
+                    OR (CAST(:allow AS jsonb) -> (c.value -> 'work' ->> 'question')) IS NULL
+                    OR EXISTS (
+                        SELECT 1
+                        FROM jsonb_object_keys(
+                            CASE WHEN jsonb_typeof(c.value -> 'work' -> 'fields') = 'object'
+                            THEN c.value -> 'work' -> 'fields' ELSE '{}'::jsonb END
+                        ) AS k(key)
+                        WHERE NOT coalesce(
+                            jsonb_exists(CAST(:allow AS jsonb) -> (c.value -> 'work' ->> 'question'), k.key), false
+                        )
+                    )
+                )
+                """
+            ),
+            {"allow": json.dumps({key: list(keys) for key, keys in work.FIELDS.items()})},
         )
         or 0
     )
@@ -2193,4 +2620,5 @@ def check(session: Session) -> dict[str, int]:
         "internal_citations_out_of_reach": internal_out_of_reach,
         "internal_citations_of_another_case": internal_other_case,
         "citations_of_unknown_kind": unknown_kind,
+        "work_rows_out_of_rule": work_out_of_rule,
     }

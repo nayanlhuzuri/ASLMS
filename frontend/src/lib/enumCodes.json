@@ -297,7 +297,8 @@
     "AssistantScope": [
       "case",
       "research",
-      "my_cases"
+      "my_cases",
+      "my_work"
     ],
     "CaseStatus": [
       "pending",

@@ -12,8 +12,23 @@ import type {
   Me,
   Permission,
 } from "@/lib/api/types";
-import { groupSources, highlights, kindLabel, markers, narrowestVisibility, noteText, sourceLink } from "@/lib/assistant";
-import { ASSISTANT_ERRORS } from "@/lib/messages";
+import {
+  groupSources,
+  highlights,
+  kindLabel,
+  markers,
+  narrowestVisibility,
+  noteText,
+  pageScopes,
+  scopeForTab,
+  scopesFor,
+  sourceLink,
+  WORK_COLUMNS,
+  workValue,
+} from "@/lib/assistant";
+import { ASSISTANT_ERRORS, T } from "@/lib/messages";
+import { isTitleCase } from "@/lib/titleCase";
+import { nav } from "@/test/nav";
 import { CASE_TABS, navFor, showsAssistant } from "@/lib/routes";
 import { caseDetail, REF } from "@/test/claimFixtures";
 import { resetNav } from "@/test/nav";
@@ -41,6 +56,7 @@ function status(extra: Partial<AssistantStatus> = {}): AssistantStatus {
     scopes: ["case", "my_cases", "research"],
     engine: null,
     internal_records: "never",
+    work_questions: [],
     ...extra,
   };
 }
@@ -105,6 +121,7 @@ function question(id = "q-1", content = "what did the court direct"): AssistantM
     checks: null,
     internal_used: false,
     suggest_internal: false,
+    suggest_work: false,
   };
 }
 
@@ -122,6 +139,7 @@ function answer(extra: Partial<AssistantMessage> = {}): AssistantMessage {
     checks: null,
     internal_used: false,
     suggest_internal: false,
+    suggest_work: false,
     reply_to_id: "q-1",
     citations: [cite(), OTHER],
     ...extra,
@@ -179,9 +197,13 @@ describe("the Assistant page", () => {
     expect(within(box).getAllByText("Preview")).toHaveLength(2); // who answered, and the badge
     expect(within(box).getByText("Answered")).toBeInTheDocument();
     expect(primaryActions(document.body)).toEqual(["Ask"]);
-    expect(screen.getByRole("radiogroup", { name: "Search In" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "My Cases" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.queryByRole("radio", { name: "This Case" })).toBeNull();
+    // design assistant-ollama-work, decision 2: the kit Tabs in the address in place of the Search In switch
+    expect(screen.queryByRole("radiogroup", { name: "Search In" })).toBeNull();
+    const tabs = screen.getByRole("navigation", { name: "Assistant Tabs" });
+    expect(within(tabs).getAllByRole("link").map((l) => l.textContent)).toEqual(["My Cases", "All Court Orders"]);
+    expect(within(tabs).getByRole("link", { name: "My Cases" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "All Court Orders" })).toHaveAttribute("href", "/assistant?tab=court-orders");
+    expect(within(tabs).queryByRole("link", { name: "This Case" })).toBeNull();
     expect(screen.getByText("Conversations are private to you and cannot be deleted.")).toBeInTheDocument();
     expect(screen.getByText(/26 questions left this hour of 30/)).toBeInTheDocument();
   });
@@ -321,14 +343,18 @@ describe("the case Assistant tab", () => {
     };
   }
 
-  it("starts on This case with the scope line, Ask secondary, and opens the latest case conversation", async () => {
+  it("is about This Case only, with the scope line, Open the Assistant, Ask secondary, and the latest case conversation", async () => {
     const api = browserApi(caseRoutes());
     resetNav(`${BASE}/assistant`);
     renderWithClient(<CaseAssistant caseRef={REF} />);
-    const group = await screen.findByRole("radiogroup", { name: "Search In" });
-    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["This Case", "My Cases", "All Court Orders"]);
-    expect(within(group).getByRole("radio", { name: "This Case" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText(/Searches this case's court orders/)).toBeInTheDocument();
+    expect(await screen.findByText(/Searches this case's court orders/)).toBeInTheDocument();
+    // design assistant-ollama-work, decision 1: no scope switch, one line and a link in its place
+    expect(screen.queryByRole("radiogroup", { name: "Search In" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Assistant Tabs" })).toBeNull();
+    expect(
+      screen.getByText(/For questions across your cases, about your own work, or across all court orders, open the Assistant\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the Assistant" })).toHaveAttribute("href", "/assistant");
     expect(primaryActions(document.body)).toEqual([]);
     await screen.findByRole("log", { name: "Conversation" });
     const listCall = api.calls.find((c) => c.path.startsWith("/assistant/conversations?"))!;
@@ -362,27 +388,6 @@ describe("the case Assistant tab", () => {
     expect(within(box).queryByRole("button", { name: "Copy to Note" })).toBeNull();
   });
 
-  it("switching the scope searches the last question again there", async () => {
-    const api = browserApi(
-      caseRoutes({
-        "POST /assistant/ask": (call: { body: unknown }) => ({
-          conversation: conv({ id: "k-2", scope: (call.body as { scope: "research" }).scope }),
-          question: question("q-5"),
-          answer: answer({ id: "a-5", reply_to_id: "q-5" }),
-        }),
-      }),
-    );
-    resetNav(`${BASE}/assistant`);
-    renderWithClient(<CaseAssistant caseRef={REF} />);
-    const box = await screen.findByRole("log", { name: "Conversation" });
-    await within(box).findByText("what did the court direct");
-    await userEvent.click(screen.getByRole("radio", { name: "All Court Orders" }));
-    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
-    const post = api.calls.find((c) => c.method === "POST")!;
-    // in the latest conversation of that scope
-    expect(post.body).toEqual({ question: "what did the court direct", scope: "research", conversation_id: "k-1", include_related: true });
-    expect(screen.getByText(/Searches court orders of all cases in ASLMS/)).toBeInTheDocument();
-  });
 });
 
 describe("the court-record view (decision 11)", () => {
@@ -967,3 +972,264 @@ describe("noteText (design assistant-polish, decision 17)", () => {
 });
 
 const DETAILS_UNCITED = { ...DETAILS, cited: false };
+
+
+describe("My Work and the three tabs (design assistant-ollama-work)", () => {
+  const QUESTIONS = [
+    ["pending_actions", "Pending Actions With Me", "Which of my cases has a pending action due this week?"],
+    ["cases_with_me", "Files With Me", "Which case files are with me?"],
+    ["sent_by_me", "Files I Sent or Recalled", "Cases I sent in the last 7 days"],
+    ["my_hearings", "Hearings of My Cases", "My hearings next week"],
+    ["listed_tomorrow", "My Cases Listed Tomorrow", "Which of my cases are listed tomorrow?"],
+    ["my_due_dates", "My Due Dates", "What are my due dates this week?"],
+    ["unread_alerts", "My Unread Alerts", "Do I have unread alerts?"],
+    ["new_orders", "New Orders in My Cases", "Any new orders in my cases this week?"],
+    ["claimed_by_me", "Cases I Claimed", "How many cases were claimed by me?"],
+  ].map(([key, label, example]) => ({ key: key!, label: label!, example: example! }));
+
+  function workStatus(extra: Partial<AssistantStatus> = {}): AssistantStatus {
+    return status({ scopes: ["case", "my_cases", "research", "my_work"], work_questions: QUESTIONS, ...extra });
+  }
+
+  function workRow(extra: Partial<AssistantCitation> = {}): AssistantCitation {
+    return cite({
+      document_id: null,
+      order_id: null,
+      source_kind: "work_row",
+      doc_type_label: null,
+      doc_date: null,
+      order_no: null,
+      page: null,
+      passage: null,
+      label: "S1",
+      case: { id: "c-7", case_no_text: "WP(C)/7/2026", cnr: "ASHC010000072026", visible: true },
+      open: { kind: "case_tab", href: "/cases/c-7" },
+      work: {
+        list_label: "Case Inbox · My Cases · Claimed by Me",
+        as_of: "2026-11-14T05:00:00Z",
+        fields: { case_no: "WP(C)/7/2026", claimed_on: "2026-11-10", via: "Claimed", department: "EDU", status: "pending" },
+      },
+      ...extra,
+    });
+  }
+
+  function workAnswer(extra: Partial<AssistantMessage> = {}): AssistantMessage {
+    return answer({
+      id: "a-w",
+      reply_to_id: "q-w",
+      content: "You have claimed 2 cases in all.\nCounted as on your Case Inbox's My Cases tab.\nShowing all 2.",
+      citations: [
+        workRow(),
+        workRow({
+          label: "S2",
+          available: false,
+          unavailable_reason: "A case you can no longer open",
+          case: { id: null, case_no_text: null, cnr: null, visible: false },
+          open: null,
+          work: { list_label: "Case Inbox · My Cases · Claimed by Me", as_of: "2026-11-14T05:00:00Z", fields: {} },
+        }),
+      ],
+      work: {
+        question: "claimed_by_me",
+        label: "Cases I Claimed",
+        chosen_by: "keyword",
+        total: 2,
+        shown: 2,
+        list_label: "Case Inbox · My Cases · Claimed by Me",
+        full_list_href: "/inbox/my-cases",
+        scan_capped: false,
+      },
+      ...extra,
+    });
+  }
+
+  function workRoutes(messages: AssistantMessage[], extra: Record<string, unknown> = {}) {
+    return {
+      "GET /me": me(),
+      "GET /assistant/status": workStatus(),
+      "GET /reference/offices": { items: [{ code: "EDU", name: "Education" }] },
+      "GET /assistant/conversations": (call: { path: string }) => {
+        const scope = new URLSearchParams(call.path.split("?")[1]).get("scope");
+        const items = scope === "my_work" ? [conv({ id: "k-1", scope: "my_work", title: "my claims" })] : [];
+        return { total: items.length, items };
+      },
+      "GET /assistant/conversations/k-1": thread(messages, conv({ scope: "my_work" })),
+      ...extra,
+    };
+  }
+
+  it("the helpers: the case tab's one scope, the page's tabs by status and the fallback", () => {
+    expect(scopesFor("case")).toEqual(["case"]);
+    expect(scopesFor("page")).toEqual(["my_work", "my_cases", "research"]);
+    expect(pageScopes(workStatus())).toEqual(["my_work", "my_cases", "research"]);
+    expect(pageScopes(status({ scopes: ["case", "my_cases", "research"] }))).toEqual(["my_cases", "research"]);
+    expect(pageScopes(undefined)).toEqual([]);
+    const all = pageScopes(workStatus());
+    expect(scopeForTab("court-orders", all)).toBe("research");
+    expect(scopeForTab(null, all)).toBe("my_work");
+    expect(scopeForTab("nonsense", all)).toBe("my_work");
+    expect(scopeForTab("my-work", ["my_cases", "research"])).toBe("my_cases");
+    expect(workValue("claimed_on", "2026-11-10")).toBe(nb("10 Nov 2026"));
+    expect(workValue("due_soon", true)).toBe("Yes");
+    expect(workValue("overdue_days", 0)).toBeNull();
+    expect(workValue("overdue_days", 3)).toBe("3 days");
+    expect(workValue("sent_by", { name: "Off One", designation: "Under Secretary", office_name: "Education" })).toBe(
+      "Off One, Under Secretary, Education",
+    );
+    expect(workValue("status", "pending")).toBe("Pending");
+    expect(workValue("next_hearing", { date: "2026-12-01", kind: "around" })).toBe(`Around ${nb("1 Dec 2026")}`);
+  });
+
+  it("the labels guard: every work field has a Title Case label, and no field names text, remarks or reasons", () => {
+    for (const [question, fields] of Object.entries(WORK_COLUMNS)) {
+      for (const field of fields) {
+        const label = T.assistant.workFields[field];
+        expect(label, `${question}.${field}`).toBeTruthy();
+        expect(isTitleCase(label!), label).toBe(true);
+        expect(["remark", "body", "note", "text", "reasons", "ref_no", "score_signals"]).not.toContain(field);
+      }
+    }
+  });
+
+  it("the sidebar's tabs come from the scopes, My Work first and opened by default", async () => {
+    browserApi(workRoutes([]));
+    renderWithClient(<AssistantPage />);
+    const tabs = await screen.findByRole("navigation", { name: "Assistant Tabs" });
+    await waitFor(() => expect(within(tabs).getAllByRole("link").map((l) => l.textContent)).toEqual(["My Work", "My Cases", "All Court Orders"]));
+    expect(within(tabs).getByRole("link", { name: "My Work" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "My Work" })).toHaveAttribute("href", "/assistant?tab=my-work");
+    expect(
+      await screen.findByText(
+        "Answers from your own lists: Case Inbox, Case Claim, My Calendar, Alerts and your dashboard. Note text, remarks and documents are never used here.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("missing in sourcetrace mode, and ?tab= honoured with its fallback", async () => {
+    browserApi({ ...workRoutes([]), "GET /assistant/status": status({ mode: "sourcetrace", state: "ready", banner: null }) });
+    const first = renderWithClient(<AssistantPage tab="my-work" />);
+    const tabs = await screen.findByRole("navigation", { name: "Assistant Tabs" });
+    expect(within(tabs).queryByRole("link", { name: "My Work" })).toBeNull();
+    expect(within(tabs).getByRole("link", { name: "My Cases" })).toHaveAttribute("aria-current", "page");
+    first.unmount();
+    browserApi(workRoutes([]));
+    renderWithClient(<AssistantPage tab="court-orders" />);
+    const again = await screen.findByRole("navigation", { name: "Assistant Tabs" });
+    await waitFor(() => expect(within(again).getByRole("link", { name: "All Court Orders" })).toHaveAttribute("aria-current", "page"));
+  });
+
+  it("switching tabs asks nothing again and puts the tab in the address", async () => {
+    const api = browserApi(workRoutes([question("q-w", "how many cases were claimed by me?"), workAnswer()]));
+    renderWithClient(<AssistantPage />);
+    const tabs = await screen.findByRole("navigation", { name: "Assistant Tabs" });
+    await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(within(tabs).getByRole("link", { name: "All Court Orders" }));
+    expect(nav.replace).toHaveBeenCalledWith("/assistant?tab=court-orders");
+    await waitFor(() => expect(within(tabs).getByRole("link", { name: "All Court Orders" })).toHaveAttribute("aria-current", "page"));
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    const lists = api.calls.filter((c) => c.path.startsWith("/assistant/conversations?"));
+    expect(lists.map((c) => new URLSearchParams(c.path.split("?")[1]).get("scope"))).toContain("research");
+  });
+
+  it("a failed status read shows the error with Try Again, not the loading lines for ever; Try Again opens the tabs", async () => {
+    let fail = true;
+    const api = browserApi({
+      ...workRoutes([]),
+      "GET /assistant/status": () => (fail ? json(500, { detail: "boom" }) : workStatus()),
+    });
+    renderWithClient(<AssistantPage />);
+    const alert = await screen.findByRole("alert");
+    const retry = within(alert).getByRole("button", { name: "Try Again" });
+    expect(screen.getByRole("heading", { name: "Assistant" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Assistant Tabs" })).toBeNull();
+    expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
+    expect(api.calls.some((c) => c.path.startsWith("/assistant/conversations"))).toBe(false);
+    fail = false;
+    await userEvent.click(retry);
+    const tabs = await screen.findByRole("navigation", { name: "Assistant Tabs" });
+    await waitFor(() => expect(within(tabs).getByRole("link", { name: "My Work" })).toHaveAttribute("aria-current", "page"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("a network failure of the status shows the same error; the case tab goes on without the status", async () => {
+    const down = () => {
+      throw new TypeError("Failed to fetch");
+    };
+    browserApi({ ...workRoutes([]), "GET /assistant/status": down });
+    const page = renderWithClient(<AssistantPage />);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByRole("button", { name: "Try Again" })).toBeInTheDocument();
+    page.unmount();
+    browserApi({
+      "GET /me": me(),
+      "GET /assistant/status": down,
+      [`GET ${BASE}`]: caseDetail(),
+      "GET /assistant/conversations": { total: 1, items: [conv({ scope: "case" })] },
+      "GET /assistant/conversations/k-1": thread([question(), answer()]),
+    });
+    resetNav(`${BASE}/assistant`);
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const log = await screen.findByRole("log", { name: "Conversation" });
+    await within(log).findByText("what did the court direct");
+  });
+
+  it("six example chips, then More Examples (n) for the rest", async () => {
+    browserApi({ ...workRoutes([]), "GET /assistant/conversations": { total: 0, items: [] } });
+    renderWithClient(<AssistantPage tab="my-work" />);
+    const chips = await screen.findByRole("group", { name: "Suggested Questions" });
+    expect(within(chips).getAllByRole("button")).toHaveLength(6);
+    const more = screen.getByRole("button", { name: "More Examples (3)" });
+    await userEvent.click(more);
+    expect(within(chips).getAllByRole("button")).toHaveLength(9);
+    await userEvent.click(within(chips).getByRole("button", { name: "How many cases were claimed by me?" }));
+    expect((screen.getByLabelText("Question") as HTMLTextAreaElement).value).toBe("How many cases were claimed by me?");
+  });
+
+  it("a work answer: From Your Lists, the chosen-by line, the count first, the rows with case links, as of and the full list", async () => {
+    browserApi(workRoutes([question("q-w", "how many cases were claimed by me?"), workAnswer()]));
+    renderWithClient(<AssistantPage tab="my-work" />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    const card = await within(box).findByRole("group", { name: "Assistant (Your Lists) 1" });
+    expect(within(card).getByText("From Your Lists")).toBeInTheDocument();
+    expect(within(card).getByText("Matched by Keywords")).toBeInTheDocument();
+    expect(within(card).getByText(/^You have claimed 2 cases in all\./)).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "WP(C)/7/2026" })).toHaveAttribute("href", "/cases/c-7");
+    expect(within(card).getByText("A case you can no longer open")).toBeInTheDocument();
+    expect(within(card).getByText(/^As of /)).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "Open the Full List" })).toHaveAttribute("href", "/inbox/my-cases");
+    expect(within(card).getByText("Claimed")).toBeInTheDocument();
+    // no markers, no Sources button, no Copy to Note
+    expect(within(card).queryByRole("button", { name: /^S\d/ })).toBeNull();
+    expect(within(card).queryByRole("button", { name: /Sources/ })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Copy to Note" })).toBeNull();
+  });
+
+  it("the suggestion line's Ask in My Work opens the My Work tab and asks there, only on the click", async () => {
+    const flagged = answer({ id: "a-s", reply_to_id: "q-s", suggest_work: true });
+    const api = browserApi({
+      ...workRoutes([]),
+      "GET /assistant/conversations": (call: { path: string }) => {
+        const scope = new URLSearchParams(call.path.split("?")[1]).get("scope");
+        const items = scope === "my_cases" ? [conv({ id: "k-1", scope: "my_cases" })] : [];
+        return { total: items.length, items };
+      },
+      "GET /assistant/conversations/k-1": thread([question("q-s", "how many cases were claimed by me?"), flagged], conv({ scope: "my_cases" })),
+      "POST /assistant/ask": {
+        conversation: conv({ id: "k-9", scope: "my_work" }),
+        question: question("q-9", "how many cases were claimed by me?"),
+        answer: workAnswer({ id: "a-9", reply_to_id: "q-9" }),
+      },
+    });
+    renderWithClient(<AssistantPage tab="my-cases" />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    expect(await within(box).findByText("This looks like a question about your own work. Ask it in My Work?")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    await userEvent.click(within(box).getByRole("button", { name: "Ask in My Work" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    const post = api.calls.find((c) => c.method === "POST")!;
+    expect(post.body).toEqual({ question: "how many cases were claimed by me?", scope: "my_work", include_related: true });
+    expect(nav.replace).toHaveBeenCalledWith("/assistant?tab=my-work");
+    const tabs = screen.getByRole("navigation", { name: "Assistant Tabs" });
+    await waitFor(() => expect(within(tabs).getByRole("link", { name: "My Work" })).toHaveAttribute("aria-current", "page"));
+  });
+});

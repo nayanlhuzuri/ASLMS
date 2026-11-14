@@ -171,6 +171,7 @@ class PreviewConnector:
         self.session_factory = session_factory
         self.passages = int(getattr(settings, "assistant_preview_passages", 8))
         self.sql_ms = int(getattr(settings, "assistant_preview_sql_ms", 8000))
+        self.settings = settings  # My Work reads ASSISTANT_WORK_ROWS from it in preview (round 2 of the local Case Assistant)
         self.budget_seconds = budget_seconds(float(getattr(settings, "assistant_timeout_seconds", 45.0)))
         self.before_search = before_search
 

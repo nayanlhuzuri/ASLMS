@@ -40,6 +40,8 @@ export const LABELLED: Record<string, { map: LabelMap; sentence?: true; extra?: 
   "AssistantEngineBriefOut.kind": { map: T.assistant.answerBy, sentence: true },
   Visibility: { map: T.case.visibilities },
   "AssistantCitationOut.visibility": { map: T.case.visibilities },
+  // design assistant-ollama-work: how a My Work question was chosen (the answer's muted line)
+  "AssistantWorkOut.chosen_by": { map: T.assistant.chosenBy },
   "CallOut.by": { map: T.system.by },
   "LastSendOut.by": { map: T.system.by },
   "LatestAnswerOut.by": { map: T.system.by },

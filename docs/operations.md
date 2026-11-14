@@ -777,9 +777,28 @@ parties"), or two of them joined by "and"; anything else goes to the model. They
 model is loading, are marked "From the Case Record", cite the case's Case Details, and count as a question in the
 hourly limit. `aslms assistant ask "when is the next date" --user <e-mail> --case "<case number>"` shows one.
 
+**My Work** (design `assistant-ollama-work`, row 189, migration 0037). The case page's Assistant tab is about that
+one case; the menu's Assistant page has the tabs My Work, My Cases and All Court Orders (`/assistant?tab=my-work`).
+My Work answers twelve fixed questions about the officer's own work (pending actions, files with them or sent by them,
+hearings, tomorrow's listings, due dates, unread alerts, new orders, what needs attention, the cases they or their
+department claimed, the cases waiting to be claimed) from the existing screens' services, run with the officer's own
+rights. ASLMS writes the answer: the count first, then at most `ASSISTANT_WORK_ROWS` (25, 5 to 25) rows with links and
+"Open the Full List". The model only chooses which list, with one short chat call carrying the twelve choices as
+tools (`num_ctx` 4096, at most 10 s); it never words the answer. When the model is loading, busy (a 5 s wait for the
+slot) or down, or its choice is not valid, a fixed keyword table chooses at once, so My Work never answers 503
+`assistant_loading`, `assistant_unavailable` or `assistant_busy`; in preview mode the keyword table alone chooses. My
+Work is offered only in ollama and preview modes (sourcetrace: 422 `scope_unavailable`). Each answer records the list
+chosen and how (`model_info.chosen_by`: `model`, `keyword` or `none`, with `choice_fallback`), and the
+`assistant.answered` audit row carries `work_question`, `work_params`, `chosen_by`, `choice_fallback` and the counts,
+never text. To try one as a user (refused with `APP_ENV=prod`): `docker compose exec api aslms assistant ask --user
+<e-mail> --my-work "how many cases were claimed by me?"` prints the chosen question, its settings, `chosen_by`,
+`choice_fallback`, the count sentence and the rows' case numbers. `aslms assistant check` prints six counts (the sixth,
+`work_rows_out_of_rule`, counts My Work rows outside a My Work conversation or holding a field outside their
+question's allow-list); all must be 0.
+
 **Switching back.** Set `ASSISTANT_MODE=off` (or later `sourcetrace`, once row 36 is built) and restart the api with
 the court-data switch carried. Stored local-model answers stay readable; the migration 0032 downgrade refuses while
-any exists (a restore is needed, section 6).
+any exists, and the migration 0037 downgrade while any My Work conversation exists (a restore is needed, section 6).
 
 ## 21. The next hearing shown directly from orders
 

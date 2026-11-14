@@ -42,7 +42,13 @@ from aslms.domain.cases import Case
 from aslms.domain.documents import DocKind, Document, Order
 from aslms.domain.reference import RefDocType
 from aslms.integration.ollama import ModelState, OllamaClient, OllamaReply, model_name_ok, url_problem
-from aslms.integration.sourcetrace.connector import Answer, AskRequest, Citation, SourceTraceProtocolError
+from aslms.integration.sourcetrace.connector import (
+    Answer,
+    AskRequest,
+    Citation,
+    SourceTraceProtocolError,
+    SourceTraceUnavailable,
+)
 from aslms.services import assistant_sources as src
 from aslms.services import next_hearing
 from aslms.services.assistant_internal import InternalRecords
@@ -553,6 +559,55 @@ class OllamaConnector:
         if not got:
             raise ModelBusy("the Case Assistant is busy")
         return Slot(self._slots)
+
+    async def try_admission(self, wait: float) -> tuple[Slot | None, str | None]:
+        """Design `assistant-ollama-work`, decision 8.1: the slot within `wait` seconds, or None with the reason
+        `loading`, `unavailable` or `busy`. Never raises; like `readiness`, it may start a load of a model that is
+        held but not loaded."""
+        try:
+            r = await asyncio.to_thread(self.readiness)
+        except Exception as exc:  # noqa: BLE001 - My Work never refuses: the keyword table decides
+            log.warning("the Case Assistant model's readiness could not be read: %s", type(exc).__name__)
+            return None, "unavailable"
+        if r.state == "loading":
+            return None, "loading"
+        if r.state != "ready":
+            return None, "unavailable"
+        got = await asyncio.to_thread(self._slots.acquire, True, max(0.0, float(wait)))
+        if not got:
+            return None, "busy"
+        return Slot(self._slots), None
+
+    async def choose_work(
+        self, question: str, today: Any, *, timeout: float
+    ) -> tuple[OllamaReply | None, str | None]:
+        """Design `assistant-ollama-work`, decision 8.2: one chat call with the twelve My Work functions as
+        `tools`, no history and no case data. Returns the reply, or None with the failure family (`timeout`,
+        `unavailable` or `invalid`). Reads no database and raises nothing."""
+        from aslms.services import assistant_work as work
+
+        body = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": work.system_line(today)},
+                {"role": "user", "content": question},
+            ],
+            "tools": work.tool_schemas(),
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 200},
+            "keep_alive": self.keep_alive(),
+        }
+        try:
+            reply = await asyncio.wait_for(self.client.chat(body, timeout=timeout), timeout=timeout)
+        except TimeoutError:
+            return None, "timeout"
+        except SourceTraceUnavailable:
+            return None, "unavailable"
+        except Exception as exc:  # noqa: BLE001 - any other failure falls back to the keyword table
+            log.warning("the My Work choice failed: %s", type(exc).__name__)
+            return None, "invalid"
+        return reply, None
 
     # ---------------------------------------------------------------------------------------------- asking
 

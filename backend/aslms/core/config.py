@@ -195,6 +195,8 @@ class Settings(BaseSettings):
     assistant_ollama_history_answers: Literal["none", "short", "full"] = "none"
     assistant_ollama_internal_chars: int = Field(12_000, ge=0, le=30_000)  # 0 sends no internal records
     assistant_ollama_hearings: int = Field(10, ge=0, le=50)  # also applies to listings
+    # design assistant-ollama-work, decision 4: the rows stored and shown per My Work answer (the owner's 25 the bound)
+    assistant_work_rows: int = Field(25, ge=5, le=25)
 
     # --- dashboards and reports (design reports-dashboards, decisions 2, 5, 12) ------------------
     report_max_range_days: int = Field(366, ge=1, le=1000)  # hearings-disposals period

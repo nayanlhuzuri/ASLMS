@@ -849,6 +849,8 @@ GONE_FILING = {
     "internal": False,
     "what": None,
     "visibility": None,
+    # design assistant-ollama-work: the My Work row field, null on a court citation
+    "work": None,
 }
 
 
@@ -1161,6 +1163,8 @@ def test_check_counts_zero(world, scene, monkeypatch):
             "internal_citations_out_of_reach": 0,
             "internal_citations_of_another_case": 0,
             "citations_of_unknown_kind": 0,
+            # design assistant-ollama-work, "Data": a sixth
+            "work_rows_out_of_rule": 0,
         }
     attachment = _filing(
         world,

@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
 from sqlalchemy import Select, and_, exists, func, or_, select
@@ -375,11 +375,13 @@ def claimed_stmt(
     holder: str | None = None,
     action: str | None = None,
     closure: str | None = "all",
+    claimed_since: datetime | None = None,
 ) -> Select:
     """The Claimed rows; `unallotted` keeps rows with no officer, `stage` the case's latest stage (or `none`),
     `holder` where the file is (`department` / `elsewhere`), `action` the file's due date (`overdue` /
     `due_week`) (design `portal-ui-redesign`, A3); `closure` `open` / `closed` / `all` (design close-case,
-    decision 17)."""
+    decision 17); `claimed_since` keeps rows claimed at or after it (design `assistant-ollama-work`, decision 5a;
+    service-level only)."""
     from aslms.services import my_cases
 
     stmt = (
@@ -396,6 +398,8 @@ def claimed_stmt(
         stmt = stmt.where(CaseOwnership.officer_user_id == officer_user_id)
     if unallotted:
         stmt = stmt.where(CaseOwnership.officer_user_id.is_(None))
+    if claimed_since is not None:
+        stmt = stmt.where(CaseOwnership.claimed_at >= claimed_since)
     for extra in (
         my_cases.stage_condition(stage),
         my_cases.holder_condition(holder, department),
@@ -448,9 +452,12 @@ def claimed(
     holder: str | None = None,
     action: str | None = None,
     closure: str | None = "all",
+    claimed_since: datetime | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
+    """The Department tab. `claimed_since` (design `assistant-ollama-work`, decision 5a): service-level only, no
+    route or portal filter; without it the list is unchanged."""
     from aslms.services import my_cases
 
     access.require(session, user, Permission.CASES_VIEW_SCOPE)
@@ -480,6 +487,7 @@ def claimed(
         holder=holder,
         action=action,
         closure=closure,
+        claimed_since=claimed_since,
     )
     total = _count(session, stmt)
     rows = session.execute(

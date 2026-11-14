@@ -263,3 +263,6 @@ export type AssistantCitation = S["AssistantCitationOut"];
 export type AssistantCourtOrderView = S["AssistantCourtOrderViewOut"];
 export type AssistantScope = AssistantAskIn["scope"];
 export type AssistantInternal = S["AssistantInternalOut"];
+// design assistant-ollama-work: My Work
+export type AssistantWork = S["AssistantWorkOut"];
+export type AssistantWorkQuestion = S["AssistantWorkQuestionOut"];

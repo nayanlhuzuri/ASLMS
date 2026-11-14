@@ -787,3 +787,59 @@ directions of 12 Nov 2026, and every other point is decided above.
    sidebar no longer asks the last question again (decision 2).
 8. **My Work never answers "busy" or "starting"** (decision 8). When the model is loading, busy or down, the keyword
    table chooses the list at once.
+
+## Deviations
+
+Written by the developer during the build (14 Nov 2026), each the smallest choice where the note was silent.
+
+1. **Migration number.** `0037_assistant_my_work.py`, `down_revision = "0036"` (row 257 `offices-import` took 0036).
+   Row 209 `totp-authenticator` takes the next free number.
+2. **`open` keeps its field name.** A My Work row's link is `{kind, href}` (the existing `AssistantOpenOut` shape), with
+   `kind` `case_tab` (`/cases/<id>`) or the new `claim` (`/claim/recommended?department=<code>&case=<id>`); the note
+   wrote `path`.
+3. **Two more labels in `model_info`.** A work answer also stores `list_label` and `full_list_href`, so that
+   `MessageOut.work` can show the list and its full-list link at every read without running the question again.
+4. **Ranges.** "This week" is today to Sunday and "next week" Monday to Sunday of the next week (the portal's weeks run
+   Monday to Sunday); `my_hearings` and `my_due_dates` default to `this_week` (the table named no default).
+5. **The keyword table.** Decision 21 gave no phrase for `my_due_dates`: "due date(s)", "date(s) to confirm" and "next
+   date(s) to confirm" were added at the specific rank, above the general "due" of `pending_actions`. "With me" and
+   "my files" (`cases_with_me`) and "today" (`needs_attention`) sit at a third, most general rank, so "what is overdue
+   with me?" is `pending_actions` with `when=overdue`. "Send" counts with "sent", "new orders" with "new order". Within
+   `new_orders`, "today" gives 1 day and "month" or "30 days" 30 days.
+6. **Count sentences the table left open.** `period=all` reads "Education has claimed n cases in all." and "Your
+   departments have claimed n cases in all: …"; "that you can see" follows "cases" ("Education claimed 5 cases that
+   you can see in the last 30 days."); a band reads "n cases are strongly (possibly) recommended to …"; `still_out` with
+   a period reads "n files you sent in the last 30 days are still where you sent them."; one row reads "Showing it.";
+   a sentence starting "at least" is capitalised.
+7. **`needs_attention` counts the whole attention list.** `dashboard.personal_headline` is called with
+   `list_size = WORK_SCAN_ROWS`, so "n things need your attention today" is not capped at the dashboard's 10.
+8. **Names read by code.** The services give office codes for "sent by" and the departments; the adapter reads the
+   office names from `offices` by code (reference data, no case data) for `sent_by.office_name` and the count
+   sentences. Row fields `department` keep the code, which the portal shows through the kit `OfficeName`.
+9. **Fields a service does not give stay empty.** `bench` is null on hearing rows (`calendar.my_calendar` returns no
+   bench) and `parties` is filled only from case summaries (calendar, alert and dashboard rows carry case references
+   without parties): nothing is added beyond what the screen's service returns (decision 5).
+10. **`department_claimed`'s full-list link** goes to the first department whose membership has the Department tab
+    (the whole department, `cases.view_all` or `custody.track`, as `inboxTabsFor`), else `/inbox/my-cases`.
+11. **A service error other than a timeout** is stored as a `failed` answer, family `error`, with "Your lists could not
+    be read because of an unexpected error; try again." (logged by class only).
+12. **`suggest_work`** is stored (true or false) on every My Cases and All Court Orders answer in ollama and preview
+    mode, whatever its outcome. A work answer's `engine` and `checks` are null, and the thread names who answered
+    "Assistant (Your Lists)".
+13. **Portal.** The page reads `?tab=` from the server page's `searchParams`; a tab press (and "Ask in My Work") uses
+    the kit `Tabs`' `onSelect` with `router.replace`, so the tab shows at once; the page waits for the status before
+    choosing a tab. "More Examples (n)" becomes "Fewer Examples" when open. One CSS rule (`.examples`) is new, so the
+    layout signature (`layout-signature.json`) was regenerated. The uicheck state "/assistant (quick fact from the case
+    record)" moved to `/assistant?tab=my-cases`, because My Work now opens first.
+14. **Test names.** `test_scan_cap_says_at_least` uses `cases_with_me` (a scan with no row filter); the twelve keys of
+    `test_each_work_question_equals_its_screen` run for an officer and a department admin.
+15. **Software documentation.** `build.js` gains the chapter 6 paragraph, the 6.4 row, the extended 13.2 row and
+    version 1.8; the document was regenerated, but `TOC_PAGES` could not be checked against a rendered copy on the
+    build machine (no renderer installed): the scribe checks it.
+16. **A failed status read (fix round).** The page chooses its tabs only from `GET /assistant/status`, so a failed
+    read (an error answer or no network) shows the page heading and the kit's error banner with Try Again in place of
+    the loading lines, which before stayed for ever; Try Again reads the status again and the tabs then open. The case
+    tab needs no status to list its conversation and goes on without it. The uicheck fixture's court-answer thread now
+    sends `work: null` (and `suggest_work: false`, `work: null` on its sources): the synthesiser filled the new
+    optional `work` field, which made every court answer a My Work answer, so the four states waiting for `[S#]`
+    markers, the Sources button and "From the Case Record" timed out.
