@@ -3817,3 +3817,25 @@ Backlog row 238 (row 220 points 2 and the revived-priority fix folded in). Desig
 
 **Left for later**: the contents page numbers of the two regenerated guides were not re-checked on a rendered copy (row 255); the owner's live checks after deploy (design note, Verification 3 to 9); row 221 reuses `followup_condition`.
 
+
+## Departments follow the Assam State Portal (owner, 13 Nov 2026)
+
+- **The list.** The portal's departments follow https://assam.gov.in/departments-list: 56 departments and about 160 offices under them (compared with the portal's offices on 13 Nov 2026). There is no "Secondary Education" department on that list, so the existing `SEC-EDU` "Department of School Education" is corrected to the School Education naming (proposed `SCH-EDU`). Office codes are immutable, so row 257's design checks the impact and proposes a one-time audited fix.
+- **Office types approved.** Board / Corporation, Statutory Authority / Commission, Society / Mission / Project, Institution, Local Body and Autonomous Council are added; Directorate is widened to Directorate / Commissionerate; Unit stays.
+- **Bulk creation from a workbook.** The owner fills a workbook with dropdowns (departments, offices, codes, office types, department heads, first department administrators and optional office heads). It is kept outside git because it holds officers' personal details. Claude checks every row and lists the problems, then creates the offices and logins in one audited run through `aslms offices import` (row 257), not one by one in the portal. Passwords are never collected; a new login gets the set-password e-mail. The owner adds and changes the codes.
+
+## State Insights (owner, 13 Nov 2026)
+
+- **Place.** A new Insights page under Oversight (Insights, Reports, Audit Log). Today's Dashboard stays the home page for each person's and department's work; Insights answers "what is the state of our litigation and where are the problems".
+- **Shape.** Agreed on the mock built from the dev data: cross-filtering on every chart with no tabs; no writ / criminal / civil chart (kind of case covers it); a Pending / Disposed / All switch; next-hearing and From / To date filters; a case list at the bottom with status, who has the case ("Not Claimed by Any Department" when nobody does) and the next hearing in the row 190 colours; accountability charts (action status, compliance, offices holding overdue files, department scorecard).
+- **Export.** The filtered list as Excel or PDF with selectable fields, the owner taking the proposed default fields; audited, only cases the viewer may see, never notes or internal documents; PDF capped at about 2,000 rows.
+- **Eight decisions, the owner's defaults.** State-party cases by default with a switch for all; interlocutory applications inside their main case; three department bands (Claimed, Likely, Named or by counsel code) never added together; posts, departments and original writs read from order text by rules with row 250, no AI; subject groups drafted for the owner's review and editable by the Super Administrator; Recharts as the one chart library; two grantable functions View State Insights and View Department Insights (State Oversight; Department Head and Department Administrator), scoped on the server; "named in the cause title" as a new recommendation signal that never assigns a case.
+- **Order.** Row 258 `state-insights`, after rows 250 and 257.
+
+## Owner check of the sign-in page (13 Nov 2026)
+
+- Row 249 (the gold Lion Capital on the sign-in frame) passed in the owner's browser on 13 Nov 2026.
+
+## Build order (owner, 13 Nov 2026)
+
+- After row 238: 257 `offices-import` (waits for the owner's workbook; its design can be approved before), 189 `assistant-ollama-work`, 250 `order-sections`, 258 `state-insights`, then 251 to 253, then the rest of the order as before, ending with 192 `scale-out-load-test`.
