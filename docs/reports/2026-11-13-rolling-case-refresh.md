@@ -21,3 +21,10 @@ None by the integrator. Row 255 (scribe follow-ups: Word contents page numbers, 
 
 ## Load status
 `aslms queue-status` timed out in the 120 s window on the busy dev database; not recorded.
+
+## Deploy (14 Nov 2026 at 08:03 IST)
+- CI green on `715f5bf` (run 43544404431) and on the docs commit after it. Images built from a clean `main`.
+- `docker compose up -d --no-deps --force-recreate api worker worker2 scheduler web` with the court-data switch on; no migration.
+- Checked: the switch on in `api`, `worker` and `worker2` (the scheduler carries none, by design); `worker2` logs "queue worker started (slot second, NAPIX on)" and "slot main" on `worker`; `worker` repaired 1 interrupted `queue-run` row at start; web build ID `C9tfsGBll97FcEQpD1kkg`; portal 307 to sign-in, API health 200.
+- First pass of `worker2`: 59 order PDFs, 0 failed, then a wait for the hourly window (reserve 100). Throughput stays bound by the NAPIX hourly allowance; the second slot keeps order PDFs and short calls moving while a Current Status call is slow.
+- Still to see: the first 22:00 `nightly-refresh` (Verification 5), the 20:00 status check alongside `worker2` (Verification 4), Sunday 02:00 (Verification 8).
