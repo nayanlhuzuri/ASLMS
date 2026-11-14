@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, date, datetime, timedelta
+from typing import Annotated
 
 import typer
 from rich import print as rprint
@@ -278,29 +279,47 @@ def has_now_check(factory, kinds=None):
 def queue_worker(
     idle_seconds: int = typer.Option(60, "--idle", help="sleep this long when the queue is empty"),
     max_items: int | None = typer.Option(None, "--max-items", help="rows per pass (default: unlimited)"),
+    slot: Annotated[
+        str,
+        typer.Option(
+            "--slot",
+            help="main (every kind; the `worker` service) or second (never a status batch; `worker2`)",
+        ),
+    ] = "main",
 ) -> None:
-    """Run the queue continuously (the Compose `worker` service): pass after pass, sleeping when the queue is empty
-    and, when the gateway budget is spent, until the detected window's expected reset plus the margin (or the next
-    probe while the reset is late), never until a clock hour (design `napix-window`)."""
+    """Run the queue continuously (the Compose `worker` and `worker2` services): pass after pass, sleeping when the
+    queue is empty and, when the gateway budget is spent, until the detected window's expected reset plus the margin
+    (or the next probe while the reset is late), never until a clock hour (design `napix-window`). `--slot second`
+    claims every NAPIX kind except `status_batch` and writes `queue-run-second` passes (design `rolling-case-refresh`,
+    decisions 16 and 18); any other slot than `main` or `second` exits 2."""
     import time
 
     from aslms.services.audit_search import to_ist
     from aslms.services.db_guard import refuse_superuser
-    from aslms.services.job_repair import WORKER_JOBS, repair_at_start
+    from aslms.services.job_repair import WORKER2_JOBS, WORKER_JOBS, repair_at_start
+    from aslms.services.runner import SLOT_KINDS, slot_job
 
+    if slot not in SLOT_KINDS:
+        rprint(f"[red]unknown slot {slot!r}: use main or second[/red]")
+        raise typer.Exit(2)
+    job = slot_job(slot)
     settings = get_settings()
+    kinds = claim_kinds(settings, SLOT_KINDS[slot]) if SLOT_KINDS[slot] is not None else None
     started = datetime.now(UTC)
-    # design deployment-checklist, decisions 5 and 18: never as a superuser in production; this worker's own
-    # `running` rows from before this start were interrupted
+    # design deployment-checklist, decisions 5 and 18: never as a superuser in production; this slot's own
+    # `running` rows from before this start were interrupted (never the other slot's)
     refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
     factory = get_sessionmaker()
-    repaired = repair_at_start(factory, WORKER_JOBS, started, "queue-worker")
+    own = WORKER_JOBS if slot == "main" else WORKER2_JOBS
+    repaired = repair_at_start(
+        factory, own, started, "queue-worker" if slot == "main" else "queue-worker-second"
+    )
     if repaired:
-        rprint(f"[yellow]{repaired} interrupted queue-run row(s) marked failed[/yellow]")
-    rprint(f"queue worker started (NAPIX {'on' if settings.napix_configured else 'off'})")
+        rprint(f"[yellow]{repaired} interrupted {job} row(s) marked failed[/yellow]")
+    rprint(f"queue worker started (slot {slot}, NAPIX {'on' if settings.napix_configured else 'off'})")
     while True:
         try:
-            report = run_queue(factory, max_items=max_items, kinds=None, settings=settings)
+            report = run_queue(factory, max_items=max_items, kinds=kinds, settings=settings, job=job)
         except KeyboardInterrupt:
             raise
         except Exception as exc:  # noqa: BLE001 — logged, then the loop continues
@@ -319,18 +338,29 @@ def queue_worker(
             # a person's "now" request wakes the worker within 2 s, unless the court's limit, a fault pause or a
             # failed probe holds every row
             # only for the kinds a pass can claim: with the gateway off a "now" dossier must not wake it every 2 s
-            wake = has_now_check(factory, claim_kinds(settings, None)) if report.now_may_wake() else None
+            wake = has_now_check(factory, claim_kinds(settings, kinds)) if report.now_may_wake() else None
             nap(wait, wake)
 
 
 def daily_cycle(
-    what: str = typer.Argument("all", help="all | masters | lists | status | weekly | disposed"),
+    what: str = typer.Argument("all", help="all | masters | lists | status | nightly | weekly | disposed"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="nightly only: print the counts and write nothing"),
 ) -> None:
     """Enqueue what the scheduler would (for a manual run or a test). `disposed` queues the monthly dossiers of the
-    cases disposed within a year that are due (design court-data-freshness, decision 3; not part of `all`)."""
+    cases disposed within a year that are due (design court-data-freshness, decision 3; not part of `all`).
+    `nightly` queues what the 22:00 job queues, with its `job_runs` row (design rolling-case-refresh, decision 21);
+    `--dry-run` prints its counts and writes nothing."""
     from aslms.services import schedules
-    from aslms.services.tracking import enqueue_disposed_refresh
+    from aslms.services.tracking import enqueue_disposed_refresh, enqueue_nightly_refresh
 
+    if dry_run and what != "nightly":
+        raise typer.BadParameter("--dry-run is for nightly only")
+    if what == "nightly" and dry_run:
+        with session_scope() as s:
+            out = enqueue_nightly_refresh(s, dry_run=True)
+            s.rollback()
+        rprint({"nightly": out})
+        return
     with session_scope() as s:
         out = {}
         if what in ("all", "masters"):
@@ -343,4 +373,6 @@ def daily_cycle(
             out["weekly"] = schedules.enqueue_weekly(s)
         if what == "disposed":
             out["disposed"] = enqueue_disposed_refresh(s)
+        if what == "nightly":
+            out["nightly"] = schedules.run_nightly_refresh(s)
     rprint(out)

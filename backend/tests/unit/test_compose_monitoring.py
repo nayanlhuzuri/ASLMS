@@ -27,6 +27,7 @@ ALERTS = {
     "ServiceDown",
     "PortalDown",
     "WorkerStalled",
+    "WorkerSlotStalled",  # design rolling-case-refresh, decision 19
     "JobStuck",
     "JobLate",
     "BackupMissing",

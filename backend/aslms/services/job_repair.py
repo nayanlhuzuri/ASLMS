@@ -15,8 +15,11 @@ from aslms.domain.ops import JobRun, JobStatus
 
 log = logging.getLogger(__name__)
 
-# `aslms queue-worker` (services/runner.py)
-WORKER_JOBS = frozenset({"queue-run"})
+# `aslms queue-worker` (services/runner.py): each slot repairs only its own passes (design rolling-case-refresh,
+# decision 18)
+SLOT_JOBS = {"main": "queue-run", "second": "queue-run-second"}
+WORKER_JOBS = frozenset({SLOT_JOBS["main"]})
+WORKER2_JOBS = frozenset({SLOT_JOBS["second"]})
 # every job name written by the Celery tasks of the `scheduler` service
 SCHEDULER_JOBS = frozenset(
     {
@@ -33,11 +36,17 @@ SCHEDULER_JOBS = frozenset(
         "napix-log-purge",
         "causelist-gap-sweep",  # design causelist-day-gap-sweep, decisions 4 and 5
         "lists-catchup",
+        "nightly-refresh",  # design rolling-case-refresh, decision 8
     }
 )
 # `aslms ops backup-scheduler` (services/backups.py)
 BACKUP_JOBS = frozenset({"backup", "restore_check"})
-ALL_SETS = {"worker": WORKER_JOBS, "scheduler": SCHEDULER_JOBS, "backup": BACKUP_JOBS}
+ALL_SETS = {
+    "worker": WORKER_JOBS,
+    "worker2": WORKER2_JOBS,
+    "scheduler": SCHEDULER_JOBS,
+    "backup": BACKUP_JOBS,
+}
 
 
 def repair_interrupted(

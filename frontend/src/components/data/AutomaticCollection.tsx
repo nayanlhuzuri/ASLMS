@@ -492,6 +492,9 @@ function ScheduleCards() {
     if (e.key === "purge" && f.deleted !== undefined && f.deleted !== null) return T.dc.scheduleFacts.purge(n(f.deleted));
     // design causelist-day-gap-sweep, decision 6: what the 04:15 sweep queued at its last run
     if (e.key === "day-gaps" && typeof f.queued === "number") return T.dc.scheduleFacts.dayGaps(f.queued);
+    // design rolling-case-refresh, decision 20: the 22:00 refresh's counts, read now
+    if (e.key === "nightly-refresh" && typeof f.pending === "number")
+      return T.dc.scheduleFacts.nightly(f.pending, f.not_refreshed_7d ?? 0, f.heard_waiting ?? 0);
     return null;
   };
   return (

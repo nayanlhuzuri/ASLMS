@@ -115,7 +115,7 @@ def test_migrate_mounts_the_source_tree_read_only():
     """Design followups-oct, decision 26: `aslms ops migrate` compares its image with ./backend at /src."""
     services = _services()
     assert "./backend:/src:ro" in services["migrate"]["volumes"]
-    for name in ("api", "worker", "scheduler", "init", "backup"):
+    for name in ("api", "worker", "worker2", "scheduler", "init", "backup"):
         assert not any(str(v).endswith(":/src:ro") for v in services[name].get("volumes", [])), name
 
 
@@ -136,7 +136,7 @@ def test_compose_owner_url_only_in_ops_services():
             role = "aslms_readonly" if name == "ops-exporter" else "aslms_app"
             assert url.startswith(f"postgresql+psycopg://{role}:"), name
     # the services that read .env get the owner's values blanked
-    for name in ("api", "worker", "scheduler"):
+    for name in ("api", "worker", "worker2", "scheduler"):
         env = _env(_services()[name])
         assert env["POSTGRES_PASSWORD"] == "" and env["ASLMS_MIGRATE_URL"] == ""
 
@@ -150,8 +150,47 @@ def test_compose_logging_and_hardening():
         if image:
             tag = image.rsplit(":", 1)[1] if ":" in image else "latest"
             assert tag not in {"latest", "stable"} and re.search(r"\d", tag), f"{name}: pin {image}"
-    for name in ("api", "worker", "scheduler", "web", "backup", "migrate", "pgbouncer", *MONITORED_HARDENED):
+    for name in (
+        "api",
+        "worker",
+        "worker2",
+        "scheduler",
+        "web",
+        "backup",
+        "migrate",
+        "pgbouncer",
+        *MONITORED_HARDENED,
+    ):
         assert _services()[name]["cap_drop"] == ["ALL"], name
+
+
+def test_worker2_mirrors_worker_with_the_second_slot():
+    """Design rolling-case-refresh, decision 16: `worker2` is `worker` (build, env file, `aslms_app` through PgBouncer,
+    Redis, storage, the master switch defaulting to false, volumes, depends_on, restart, hardening, logging) with
+    `aslms queue-worker --slot second`; `worker` keeps the default slot."""
+    services = _services()
+    worker, worker2 = services["worker"], services["worker2"]
+    assert worker["command"] == "aslms queue-worker"
+    assert worker2["command"] == "aslms queue-worker --slot second"
+    for key in (
+        "build",
+        "env_file",
+        "environment",
+        "volumes",
+        "depends_on",
+        "restart",
+        "logging",
+        "security_opt",
+        "cap_drop",
+    ):
+        assert worker2.get(key) == worker.get(key), key
+    env = _env(worker2)
+    assert env["NAPIX_ENABLED"] == "${NAPIX_ENABLED:-false}"
+    assert (
+        env["DATABASE_URL_SYNC"].startswith("postgresql+psycopg://aslms_app:")
+        and "@pgbouncer:6432/" in env["DATABASE_URL_SYNC"]
+    )
+    assert "ports" not in worker2
 
 
 MONITORED_HARDENED = (

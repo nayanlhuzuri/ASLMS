@@ -1,6 +1,6 @@
 """Design `safety-fixes` (database): the retry ladder and its mirror in `source_failures`, a person's re-fetch
 brought forward, the runner's fault pause and its handling of an empty HTTP 200, `search_rows` never claimed by the
-runner, the widened weekly sweep, `aslms queue-retry-failed` and migration 0019."""
+runner, the Sunday first fetches (design `rolling-case-refresh`, decision 14), `aslms queue-retry-failed` and migration 0019."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from aslms.services import queue, source_failures
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.runner import QueueRunner
 from aslms.services.storage import LocalStore
-from aslms.services.tracking import enqueue_weekly_dossier_sweep
+from aslms.services.tracking import enqueue_first_fetches
 from tests.db.conftest import alembic_config, head_revision, router, wipe, wipe_if_migrated
 from tests.db.world import make_case
 
@@ -248,7 +248,7 @@ def test_runner_never_claims_search_rows(clean_db, tmp_path):
 # ------------------------------------------------------------------------------------------------ the weekly sweep
 
 
-def test_weekly_sweep_includes_never_fetched_disposed_and_cnr_less_cases(world):
+def test_weekly_queues_first_fetches_only_never_fetched_disposed_and_cnr_less_cases(world):
     with world.Session() as s:
         never = make_case(s, cnr="GAHC010000000401", status=CaseStatus.DISPOSED)
         fetched = make_case(s, cnr="GAHC010000000402", status=CaseStatus.DISPOSED)
@@ -266,14 +266,15 @@ def test_weekly_sweep_includes_never_fetched_disposed_and_cnr_less_cases(world):
         assert failed.status == FetchStatus.FAILED
         s.commit()
     with world.Session() as s:
-        n = enqueue_weekly_dossier_sweep(s)
+        n = enqueue_first_fetches(s)
         s.commit()
         rows = {
             r.ref: r
             for r in s.scalars(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.DOSSIER))
         }
-    assert n == 3
-    assert set(rows) == {"GAHC010000000401", "GAHC010000000403", "GAHC01|WP(C)/77/2025"}
+    # the fetched pending case is the nightly refresh's, no longer the Sunday job's
+    assert n == 2
+    assert set(rows) == {"GAHC010000000401", "GAHC01|WP(C)/77/2025"}
     revived = rows["GAHC010000000401"]
     assert revived.status == FetchStatus.PENDING and revived.attempts == 0
     assert all(r.priority == 50 and r.lane == FetchLane.DAILY for r in rows.values())

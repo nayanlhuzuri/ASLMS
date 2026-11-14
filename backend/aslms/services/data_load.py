@@ -399,7 +399,8 @@ _PDF_ROWS = f"""
     WHERE {_PDF_LANES} AND q.status <> 'running' AND q.priority < {LIVE_ORDER_PDF}
 """
 # the enqueue path's rule (`QueueOrigin.order_pdf_priority`): only a pending case's PDF takes 60; a disposed or
-# unknown case, or a row whose case is not held, takes 80
+# unknown case, or a row whose case is not held, takes 80. Unchanged by design `rolling-case-refresh` (decision 15):
+# 60 already sits behind the nightly routine refresh (56-59), as decision 11 keeps it
 _PDF_TARGET = f"CASE WHEN c.status = 'pending' THEN {LIVE_ORDER_PDF} ELSE {DISPOSED_ORDER_PDF} END"
 
 

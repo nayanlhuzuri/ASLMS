@@ -25,7 +25,10 @@ call-log rows older than `NAPIX_CALL_LOG_KEEP_DAYS` (`job_runs` `napix-log-purge
 session-timeout, decision 12). Design causelist-day-gap-sweep: `causelist-gap-sweep` (04:15 IST) queues every day of
 the collection period to yesterday that has no cause-list row (`job_runs` `causelist-gap-sweep`, decision 4); at every
 scheduler start `aslms.lists_catchup` queues the missing days from today − `CAUSELIST_CATCHUP_DAYS` to tomorrow
-(`job_runs` `lists-catchup` when it queued a day, decision 5); neither calls NAPIX.
+(`job_runs` `lists-catchup` when it queued a day, decision 5); neither calls NAPIX. Design rolling-case-refresh:
+`nightly-refresh` (22:00 IST) queues the hearing follow-ups, then every case not disposed whose last full record is 7
+days old, claimed cases first (`job_runs` `nightly-refresh`); `weekly-sweep` (Sunday 02:00) queues only the cases never
+fully fetched and the order PDFs the court had not published; neither calls NAPIX.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -79,6 +82,8 @@ app.conf.update(
         # design causelist-day-gap-sweep, decision 4: past days no collection has asked for; only enqueues
         "causelist-gap-sweep": {"task": "aslms.causelist_gap_sweep", "schedule": crontab(hour=4, minute=15)},
         "status-daily": {"task": "aslms.enqueue_daily_status", "schedule": crontab(hour=20, minute=0)},
+        # design rolling-case-refresh, decision 8: follow-ups, then the 7-day refresh, claimed cases first
+        "nightly-refresh": {"task": "aslms.enqueue_nightly_refresh", "schedule": crontab(hour=22, minute=0)},
         "weekly-sweep": {
             "task": "aslms.enqueue_weekly",
             "schedule": crontab(day_of_week="sunday", hour=2, minute=0),
@@ -215,8 +220,17 @@ def enqueue_daily_status() -> int:
         return schedules.enqueue_daily_status(s)
 
 
+@app.task(name="aslms.enqueue_nightly_refresh")
+def enqueue_nightly_refresh() -> dict:
+    """22:00 IST: the hearing follow-ups, then the 7-day refresh of the cases not disposed, claimed cases first; one
+    `job_runs` row `nightly-refresh`; no audit row, no NAPIX call (design rolling-case-refresh, decision 8)."""
+    with session_scope() as s:
+        return schedules.run_nightly_refresh(s, settings)
+
+
 @app.task(name="aslms.enqueue_weekly")
 def enqueue_weekly() -> dict[str, int]:
+    """Sunday 02:00 IST: the first fetches of cases never fully fetched and the retry of order PDFs not published."""
     with session_scope() as s:
         return schedules.enqueue_weekly(s)
 

@@ -11,10 +11,14 @@
         design `causelist-day-gap-sweep`, decision 5); the scheduler's start catches up to tomorrow
 - 04:15 the gap sweep: every day of the collection period to yesterday that no collection has asked for (decision 4)
 - 02:30 a dossier refresh for each disposed case due its monthly refresh in the year after disposal (decision 1)
-- 20:00 Current Status for every non-disposed case, in blocks of 500
-- Sunday 02:00 a dossier re-fetch for every pending case and a first fetch for every case never fully fetched,
-        whatever its status (by CNR, or by `<est_code>|<case number>` without one; design `safety-fixes`, decision
-        9), and a retry of order PDFs still not available
+- 20:00 Current Status for every non-disposed case, in blocks of `NAPIX_STATUS_BATCH`
+- 22:00 the nightly refresh (design `rolling-case-refresh`): the hearing follow-ups (50), then every fetched case not
+        disposed whose last full record is 7 days old, claimed cases first (56, 57), with a few cases refreshed early
+        to level a clump (58, 59); one `job_runs` row `nightly-refresh`
+- Sunday 02:00 a first fetch for every case never fully fetched, whatever its status (by CNR, or by
+        `<est_code>|<case number>` without one; design `safety-fixes`, decision 9), and a retry at 60 of order PDFs
+        the court had not published (design `rolling-case-refresh`, decision 14); fetched cases are the nightly
+        refresh's
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from aslms.core.clock import today_ist
 from aslms.domain.documents import DownloadStatus, Order
 from aslms.domain.ops import FetchKind, FetchLane, JobRun, JobStatus
 from aslms.services import queue
-from aslms.services.tracking import enqueue_status_batches, enqueue_weekly_dossier_sweep
+from aslms.services.tracking import enqueue_first_fetches, enqueue_status_batches
 
 log = logging.getLogger(__name__)
 
@@ -150,22 +154,61 @@ def run_disposed_refresh(
     return counters
 
 
+def run_nightly_refresh(
+    session: Session, settings=None, *, today: date | None = None, now: datetime | None = None
+) -> dict[str, Any]:
+    """The 22:00 IST job (design `rolling-case-refresh`, decision 8): `enqueue_nightly_refresh` recorded as one
+    `job_runs` row `nightly-refresh` with its counters. A system enqueue: no audit row (decision 21)."""
+    from aslms.services.tracking import enqueue_nightly_refresh
+
+    run = JobRun(job="nightly-refresh", run_date=today or today_ist(now))
+    session.add(run)
+    session.flush()
+    try:
+        counters = enqueue_nightly_refresh(session, today, settings, now=now)
+    except Exception as exc:  # noqa: BLE001 — recorded on the run, then re-raised for the worker log
+        run.status, run.error = JobStatus.FAILED, f"{exc.__class__.__name__}: {exc}"[:2000]
+        run.finished_at = datetime.now(UTC)
+        session.flush()
+        raise
+    run.counters = counters
+    run.status = JobStatus.SUCCEEDED
+    run.finished_at = datetime.now(UTC)
+    session.flush()
+    return counters
+
+
 def enqueue_daily_status(session: Session, today: date | None = None) -> int:
     return enqueue_status_batches(session, today or today_ist())
 
 
 def enqueue_weekly(session: Session) -> dict[str, int]:
-    dossiers = enqueue_weekly_dossier_sweep(session)
-    retried = session.execute(
-        update(Order)
-        .where(Order.download_status == DownloadStatus.NOT_AVAILABLE, Order.document_id.is_(None))
-        .values(download_status=DownloadStatus.PENDING)
-    ).rowcount
-    # the next dossier apply re-queues their PDFs; cases without a pending dossier get them queued here
-    orders = 0
+    """Sunday 02:00 IST (design `rolling-case-refresh`, decision 14): the first fetches of the cases never fully fetched
+    (50, `as_new`), and the order PDFs the court had not published (`not_available`, no document) back to pending and
+    queued at 60. The case's other PDFs are left at their own priority (a disposed case's stay at 80)."""
     from aslms.domain.cases import Case
     from aslms.services.orders import enqueue_order_pdfs
 
+    dossiers = enqueue_first_fetches(session)
+    retried_rows = session.execute(
+        update(Order)
+        .where(Order.download_status == DownloadStatus.NOT_AVAILABLE, Order.document_id.is_(None))
+        .values(download_status=DownloadStatus.PENDING)
+        .returning(Order.id, Order.case_id)
+    ).all()
+    by_case: dict[Any, list[Any]] = {}
+    for order_id, case_id in retried_rows:
+        by_case.setdefault(case_id, []).append(order_id)
+    orders = 0
+    for case_id, order_ids in by_case.items():
+        case = session.get(Case, case_id)
+        if case is not None:
+            orders += enqueue_order_pdfs(
+                session, case, priority=queue.PRIORITY["order_pdf_live"], order_ids=order_ids
+            )
+    # as before: any other PDF still lacking (a failed row is revived) at its own priority (60 pending, 80 otherwise);
+    # a retried one already pending keeps its 60
+    retried_cases = set(by_case)
     for case in session.scalars(
         select(Case).where(
             Case.id.in_(
@@ -175,8 +218,10 @@ def enqueue_weekly(session: Session) -> dict[str, int]:
             )
         )
     ).all():
-        orders += enqueue_order_pdfs(session, case)
-    return {"dossiers": dossiers, "orders_retried": retried or 0, "orders_queued": orders}
+        n = enqueue_order_pdfs(session, case)
+        if case.id not in retried_cases:
+            orders += n
+    return {"dossiers": dossiers, "orders_retried": len(retried_rows), "orders_queued": orders}
 
 
 # ------------------------------------------------------------------------------------------------ in plain words
@@ -214,6 +259,16 @@ PLAIN_SCHEDULE: tuple[dict[str, Any], ...] = (
         "job": None,
     },
     {
+        "key": "nightly-refresh",
+        "beat": "nightly-refresh",
+        "when": "22:00",
+        "what": (
+            "Refresh cases heard recently until their order arrives, then every case not disposed whose details are "
+            "7 days old, claimed cases first"
+        ),
+        "job": "nightly-refresh",
+    },
+    {
         "key": "day-gaps",
         "beat": "causelist-gap-sweep",
         "when": "04:15",
@@ -245,7 +300,7 @@ PLAIN_SCHEDULE: tuple[dict[str, Any], ...] = (
         "key": "weekly",
         "beat": "weekly-sweep",
         "when": "Sundays 02:00",
-        "what": "Refresh the details of every case not fully fetched",
+        "what": "Fetch cases never fully fetched, and try again for orders the court had not published",
         "job": None,
     },
     {
@@ -288,8 +343,9 @@ def _last_run(session: Session, job: str) -> JobRun | None:
 
 def schedule_view(session: Session, settings=None, now: datetime | None = None) -> dict[str, Any]:
     """`GET /admin/data-load/schedule`: each plain entry with its last run where the task records one (`last_run_at`,
-    `result` the run's status, else None: "Not Recorded"), its facts (the disposed refresh's cases in their first
-    year and due now; the purge's rows removed; the duplicate counts), and the daily cycle of the last 7 days. Reads
+    `result` the run's status, else None: "Not Recorded"), its facts (the nightly refresh's cases not disposed, not
+    refreshed in 7 days and heard awaiting their order; the disposed refresh's cases in their first year and due now;
+    the purge's rows removed; the duplicate counts), and the daily cycle of the last 7 days. Reads
     only."""
     from aslms.core.config import get_settings
     from aslms.services import data_health, tracking
@@ -314,6 +370,13 @@ def schedule_view(session: Session, settings=None, now: datetime | None = None) 
                     every_days=cfg.disposed_refresh_every_days,
                     now=now,
                 ),
+            }
+        elif item["key"] == "nightly-refresh":
+            # design rolling-case-refresh, decision 20
+            facts = {
+                "pending": tracking.pending_count(session),
+                "not_refreshed_7d": tracking.not_refreshed_count(session, today),
+                "heard_waiting": tracking.heard_waiting_count(session, today),
             }
         elif run is not None and item["key"] == "purge":
             facts = {"deleted": (run.counters or {}).get("deleted")}

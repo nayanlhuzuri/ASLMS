@@ -310,7 +310,7 @@ def no_local_model(names: list[str] | None = None, pymupdf_root: Any = "default"
 
 
 # the connection budget (design followups-oct, decision 4): what can hold a PgBouncer server connection at once
-BUDGET_WORKER = 1
+BUDGET_WORKER = 2  # the two worker slots (design rolling-case-refresh, decision 17)
 BUDGET_SCHEDULER = 1
 BUDGET_RESERVE = 4
 
@@ -326,7 +326,7 @@ def budget_total(settings: Any) -> int:
 
 
 def connection_budget(settings: Any) -> Finding | None:
-    """NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 must not exceed
+    """NAPIX_REQUEST_SLOTS + 2 workers + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 must not exceed
     PGBOUNCER_DEFAULT_POOL_SIZE: an error at `APP_ENV=prod`, a warning otherwise. Names the variables, never their
     values."""
     if budget_total(settings) <= int(settings.pgbouncer_default_pool_size):
@@ -335,7 +335,7 @@ def connection_budget(settings: Any) -> Finding | None:
     return Finding(
         level,
         "connection_budget",
-        "NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 exceeds "
+        "NAPIX_REQUEST_SLOTS + 2 workers + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 exceeds "
         "PGBOUNCER_DEFAULT_POOL_SIZE; raise PgBouncer's pool or lower the slots (docs/operations.md section 18)",
     )
 

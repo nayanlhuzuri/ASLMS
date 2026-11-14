@@ -32,3 +32,28 @@ def test_plain_schedule_matches_celery_beat_schedule():
             assert len(cron.day_of_week) == 7, p["key"]
     keys = [p["key"] for p in schedules.PLAIN_SCHEDULE]
     assert len(keys) == len(set(keys))
+
+
+def test_plain_schedule_nightly_refresh_and_sunday_wording():
+    """Design rolling-case-refresh, decision 20: the 22:00 entry mirrors its beat entry and job; the Sunday entry names
+    first fetches and missing orders only."""
+    from aslms.jobs.celery_app import app
+
+    by_key = {p["key"]: p for p in schedules.PLAIN_SCHEDULE}
+    nightly = by_key["nightly-refresh"]
+    assert (
+        nightly["when"] == "22:00"
+        and nightly["beat"] == "nightly-refresh"
+        and nightly["job"] == "nightly-refresh"
+    )
+    assert nightly["what"] == (
+        "Refresh cases heard recently until their order arrives, then every case not disposed whose details are 7 days "
+        "old, claimed cases first"
+    )
+    entry = app.conf.beat_schedule["nightly-refresh"]
+    assert entry["task"] == "aslms.enqueue_nightly_refresh"
+    assert entry["schedule"].hour == {22} and entry["schedule"].minute == {0}
+    assert by_key["weekly"]["when"] == "Sundays 02:00"
+    assert by_key["weekly"]["what"] == (
+        "Fetch cases never fully fetched, and try again for orders the court had not published"
+    )

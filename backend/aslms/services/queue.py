@@ -36,9 +36,12 @@ Priorities (lower runs first): a person's "now" requests 3 (one case) and 5 (bul
 evening rechecks of held lists 21; a missing day older than yesterday within `CAUSELIST_CATCHUP_DAYS`, queued by the
 catch-up or the gap sweep, 22 (design `causelist-day-gap-sweep`, decision 3); status batches and a person's requests
 30; the daily cycle's new dossiers and a person's order PDFs 40; the backdated load 41-46 by the preset and the period
-brought forward, and discovery 41-43 (`services/load_policy.py`); the weekly dossier sweep 50; the monthly dossiers of
-cases disposed within a year 55 (design `court-data-freshness`, decision 2); live-case order PDFs of the daily, load
-and discovery lanes 60, after every detail kind (owner, 24 Oct 2026: case details first, order PDFs later);
+brought forward, and discovery 41-43 (`services/load_policy.py`); a re-fetch after a status change, a hearing
+follow-up and the Sunday first fetches 50; the monthly dossiers of cases disposed within a year 55 (design
+`court-data-freshness`, decision 2); the nightly routine refresh 56 (a claimed case due its 7-day refresh), 57 (an
+unclaimed one), 58 and 59 (the same refreshed a few days early to level the night; design `rolling-case-refresh`,
+decisions 3, 4 and 10); live-case order PDFs of the daily, load and discovery lanes and the Sunday retry of missing
+orders 60, after every detail kind (owner, 24 Oct 2026 and 12 Nov 2026: case details first, order PDFs later);
 disposed-case order PDFs 80."""
 
 from __future__ import annotations
@@ -67,8 +70,15 @@ PRIORITY = {
     "order_pdf_live": 60,
     "dossier_refetch": 50,
     "dossier_disposed": 55,
+    # design rolling-case-refresh, decisions 3 and 4: the nightly routine refresh, claimed cases first, then the cases
+    # refreshed early to level the night
+    "dossier_routine_claimed": 56,
+    "dossier_routine": 57,
+    "dossier_early_claimed": 58,
+    "dossier_early": 59,
     "order_pdf": 80,
 }
+ROUTINE_PRIORITIES = range(56, 60)
 # design safety-fixes, decision 6: after the n-th failed attempt the row waits RETRY_LADDER[n-1]; failed after the 6th
 RETRY_LADDER = (
     timedelta(minutes=10),

@@ -799,9 +799,10 @@ def test_later_system_requeue_drops_the_now_priority_and_keeps_the_request_finis
     _run_now_rows(world)
     d = api.get(f"/admin/data-load/requests/{rid}", headers=h).json()
     assert d["finished"] and not d["using_everything"] and d["counts"]["done"] == 3
-    # the weekly sweep re-queues the same dossiers: ordinary work at its own priority and lane, not "now" work
+    # the Sunday job re-queues the same dossiers (held without a full record here): ordinary work at its own priority
+    # and lane, not "now" work (design rolling-case-refresh, decisions 13 and 14)
     with world.Session() as s:
-        assert tracking.enqueue_weekly_dossier_sweep(s) >= 3
+        assert tracking.enqueue_first_fetches(s) >= 3
         assert not queue.has_now(s)
         s.commit()
     rows = {r.ref: r for r in _rows(world) if r.kind == FetchKind.DOSSIER}

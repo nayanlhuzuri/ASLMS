@@ -36,6 +36,7 @@ DB_GAUGES = {
     "aslms_job_running_oldest_seconds",
     "aslms_worker_last_pass_timestamp",
     "aslms_worker_alive_timestamp",
+    "aslms_worker_slot_alive_timestamp",
     "aslms_napix_calls_last_hour",
     "aslms_napix_window_remaining",
     "aslms_napix_switch_on",
@@ -184,3 +185,62 @@ def test_worker_alive_without_a_pass_reads_the_claim_or_zero(session):
         0.0,
         pytest.approx(claim_at.timestamp(), abs=1),
     )
+
+
+# ------------------------------------------------------------------------------------------------ rolling-case-refresh
+
+
+def test_slot_alive_gauge(session):
+    """Decision 19: each slot's liveness is the later of its latest pass start and its latest NAPIX call of the last 3
+    hours made by one of its passes; a call of the other slot or an older call does not count. The any-slot gauge also
+    reads the second slot's passes."""
+    now = datetime.now(UTC)
+    wipe(session)
+    main_pass = JobRun(job="queue-run", started_at=now - timedelta(hours=2))
+    second_pass = JobRun(job="queue-run-second", started_at=now - timedelta(hours=5))
+    session.add_all([main_pass, second_pass])
+    session.flush()
+    session.add_all(
+        [
+            # the second slot's long pass calls: its sign of life
+            NapixCallLog(
+                api="hc-order-api/order",
+                params_sha256="0" * 64,
+                ok=True,
+                called_at=now - timedelta(minutes=4),
+                job_run_id=second_pass.id,
+            ),
+            # an old call of the main slot (beyond 3 hours) and none recent: the pass start counts
+            NapixCallLog(
+                api="hc-cnr-api/CNR",
+                params_sha256="0" * 64,
+                ok=True,
+                called_at=now - timedelta(hours=4),
+                job_run_id=main_pass.id,
+            ),
+        ]
+    )
+    session.flush()
+    session.execute(sa.text("SET LOCAL ROLE aslms_readonly"))
+    assert ops_metrics.slot_alive_at(session, "second", now) == pytest.approx(
+        now - timedelta(minutes=4), abs=timedelta(seconds=1)
+    )
+    assert ops_metrics.slot_alive_at(session, "main", now) == pytest.approx(
+        now - timedelta(hours=2), abs=timedelta(seconds=1)
+    )
+    samples, _ = ops_metrics.collect_database(session, SETTINGS, now)
+    slots = {s.labels["slot"]: s.value for s in samples if s.name == "aslms_worker_slot_alive_timestamp"}
+    assert slots["main"] == pytest.approx((now - timedelta(hours=2)).timestamp(), abs=1)
+    assert slots["second"] == pytest.approx((now - timedelta(minutes=4)).timestamp(), abs=1)
+    alive = next(s.value for s in samples if s.name == "aslms_worker_alive_timestamp")
+    assert alive == pytest.approx((now - timedelta(hours=2)).timestamp(), abs=1)
+
+
+def test_slot_alive_gauge_zero_without_sign(session):
+    now = datetime.now(UTC)
+    wipe(session)
+    session.add(JobRun(job="queue-run", started_at=now - timedelta(minutes=1)))
+    session.flush()
+    samples, _ = ops_metrics.collect_database(session, SETTINGS, now)
+    slots = {s.labels["slot"]: s.value for s in samples if s.name == "aslms_worker_slot_alive_timestamp"}
+    assert slots["second"] == 0.0 and slots["main"] > 0

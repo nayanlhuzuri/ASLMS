@@ -139,7 +139,7 @@ def migrate_cmd(
     sessions = db_guard.count_app_sessions(url)
     if sessions and not force:
         rprint(
-            f"[red]migrate: {sessions} aslms_app session(s) are connected. Run: docker compose stop api worker "
+            f"[red]migrate: {sessions} aslms_app session(s) are connected. Run: docker compose stop api worker worker2 "
             "scheduler web pgbouncer (or pass --force)[/red]"
         )
         raise typer.Exit(2)
@@ -364,7 +364,7 @@ def metrics_cmd(
 @ops_app.command("pool-check")
 def pool_check_cmd(
     holders: int | None = typer.Option(
-        None, "--holders", help="transactions held open like a NAPIX wait (default NAPIX_REQUEST_SLOTS + 2)"
+        None, "--holders", help="transactions held open like a NAPIX wait (default NAPIX_REQUEST_SLOTS + 3)"
     ),
     pages: int = typer.Option(20, "--pages", help="short page transactions per second on the main engine"),
     apart: int = typer.Option(
@@ -387,7 +387,7 @@ def pool_check_cmd(
     out = ops_pool_check.run(
         main,
         apart_engine,
-        holders=s.napix_request_slots + 2 if holders is None else holders,
+        holders=s.napix_request_slots + 3 if holders is None else holders,
         pages=pages,
         apart_n=apart,
         seconds=seconds,

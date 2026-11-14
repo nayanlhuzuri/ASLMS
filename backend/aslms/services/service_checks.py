@@ -336,8 +336,10 @@ def check_redis(info: dict[str, Any] | None, error: str | None, ms: int) -> Chec
 
 
 def check_worker(session: Session, now: datetime) -> Check:
+    """The queue worker: `down` on the combined liveness (any slot); `warn` also when one slot shows no sign for over
+    70 minutes while rows wait (design rolling-case-refresh, decision 19); both slots named in the facts."""
     from aslms.services import queue
-    from aslms.services.ops_metrics import WORKER_PASS_JOB, worker_alive_at
+    from aslms.services.ops_metrics import WORKER_PASS_JOB, slot_alive_at, worker_alive_at
 
     started = time.perf_counter()
     alive = worker_alive_at(session)
@@ -356,7 +358,13 @@ def check_worker(session: Session, now: datetime) -> Check:
             FetchQueueItem.kind.not_in(queue.LOCAL_KINDS),
         )
     )
-    facts = [_f("Last sign of work", _when(alive)), _f("Rows waiting to run", int(waiting or 0))]
+    slots = {slot: slot_alive_at(session, slot, now) for slot in ("main", "second")}
+    facts = [
+        _f("Last sign of work", _when(alive)),
+        _f("Main slot: last sign of work", _when(slots["main"])),
+        _f("Second slot: last sign of work", _when(slots["second"])),
+        _f("Rows waiting to run", int(waiting or 0)),
+    ]
     if last is not None:
         status = last.status.value if hasattr(last.status, "value") else str(last.status)
         if status == JobStatus.FAILED.value:
@@ -380,6 +388,11 @@ def check_worker(session: Session, now: datetime) -> Check:
         )
     if age > WORKER_WARN:
         return Check("worker", "warn", f"Last sign of work {_ago(now, alive)}", facts, ms)
+    if waiting:
+        for slot, at in slots.items():
+            if at is None or now - at > WORKER_WARN:
+                when = f"for {_ago(now, at).removesuffix(' ago')}" if at is not None else "yet"
+                return Check("worker", "warn", f"The {slot} slot shows no sign of work {when}", facts, ms)
     return Check("worker", "ok", f"Working; last sign of work {_ago(now, alive)}", facts, ms)
 
 

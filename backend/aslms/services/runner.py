@@ -24,7 +24,13 @@ now + `NAPIX_FAULT_PAUSE_SECONDS`; a done or skipped item resets the count. Fail
 One `job_runs` row per invocation (counters include `probes`); every NAPIX attempt is logged with the lane of its item
 and the person who asked for it (`requested_by`), and every response kept by the recorder. Work an item spawns
 inherits its lane, `list_date` and person (`QueueOrigin`). Survives restarts: a row is only `done` when its
-transaction committed."""
+transaction committed.
+
+Two worker slots (design `rolling-case-refresh`, decisions 16-18): `aslms queue-worker --slot main` claims every kind
+and writes `queue-run` passes; `--slot second` claims every NAPIX kind except `status_batch` (`SLOT_KINDS`) and writes
+`queue-run-second` passes, so a slow Current Status call never holds up order PDFs and other short calls. Both read the
+same window and bands. A routine nightly `dossier` row (56 to 59) whose case was fully refreshed after the row was
+queued ends `done` with `fresh_since_queued` and makes no call (decision 6)."""
 
 from __future__ import annotations
 
@@ -51,6 +57,7 @@ from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import case_dedupe, court_search, discovery, napix_window, queue
 from aslms.services.cases import find_case, get_or_create_case
 from aslms.services.causelists import load_causelist_day, recheck_day
+from aslms.services.job_repair import SLOT_JOBS
 from aslms.services.load_policy import NOW_BULK, QueueOrigin, current_settings, load_priority, now_priority_of
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
@@ -528,6 +535,9 @@ class QueueRunner:
         it holds portal records the pair is listed for review and the row ends `skipped`."""
         if self.hc is None:
             raise RuntimeError("NAPIX is off: dossiers cannot be fetched")
+        fresh = self._fresh_since_queued(s, ref, origin)
+        if fresh is not None:
+            return fresh, False
         court = self._court(s)
         merged: dict[str, Any] | None = None
         if "|" in ref:
@@ -583,8 +593,37 @@ class QueueRunner:
             result.update(merged)
         return result, False
 
+    def _fresh_since_queued(self, s: Session, ref: str, origin: QueueOrigin) -> dict[str, Any] | None:
+        """Design `rolling-case-refresh`, decision 6: a claimed `dossier` row at a routine priority (56 to 59) whose
+        case's last full record is later than the row's `created_at` (the portal's own court fetch refreshed it after
+        queueing) needs no call: `{"cnr", "fresh_since_queued": True}`. A row raised to 50 or better is fetched."""
+        if origin.parent_id is None or "|" in ref:
+            return None
+        item = s.get(FetchQueueItem, origin.parent_id)
+        if item is None or int(item.priority) not in queue.ROUTINE_PRIORITIES:
+            return None
+        cnr = ref.upper()
+        refreshed = s.scalar(select(Case.last_full_refresh_at).where(Case.cnr == cnr))
+        if refreshed is not None and item.created_at is not None and refreshed > item.created_at:
+            return {"cnr": cnr, "fresh_since_queued": True}
+        return None
+
 
 # ------------------------------------------------------------------------------------------------ helpers
+
+# design rolling-case-refresh, decision 16: the kinds each worker slot claims (None = every NAPIX kind); the second
+# slot never takes a Current Status batch
+SLOT_KINDS: dict[str, list[FetchKind] | None] = {
+    "main": None,
+    "second": [k for k in FetchKind if k != FetchKind.STATUS_BATCH and k not in queue.LOCAL_KINDS],
+}
+
+
+def slot_job(slot: str) -> str:
+    """The `job_runs.job` of a slot's passes: `queue-run` or `queue-run-second` (decision 18)."""
+    if slot not in SLOT_JOBS:
+        raise ValueError(f"unknown worker slot {slot!r}")
+    return SLOT_JOBS[slot]
 
 
 def enqueue_days(
@@ -631,7 +670,11 @@ def claim_kinds(settings: Settings, kinds: list[FetchKind] | None) -> list[Fetch
     a "now" row the pass could not claim never wakes it."""
     if settings.napix_configured:
         return kinds
-    return kinds or [FetchKind.CAUSELIST_DAY]
+    if kinds is None or FetchKind.CAUSELIST_DAY in kinds:
+        # a slot's list of kinds narrows to what can run without the gateway (the second slot never claims a
+        # dossier it could only fail)
+        return [FetchKind.CAUSELIST_DAY]
+    return kinds
 
 
 async def run_queue_once(
@@ -640,6 +683,7 @@ async def run_queue_once(
     max_items: int | None,
     kinds: list[FetchKind] | None,
     settings: Settings | None = None,
+    job: str = "queue-run",
 ) -> RunReport:
     s = settings or get_settings()
     if s.napix_configured:
@@ -648,9 +692,9 @@ async def run_queue_once(
         client.on_call = recorder.on_call
         async with client:
             runner = QueueRunner(session_factory, hc, settings=s, recorder=recorder)
-            return await runner.run(max_items=max_items, kinds=kinds)
+            return await runner.run(max_items=max_items, kinds=kinds, job=job)
     runner = QueueRunner(session_factory, None, settings=s)
-    return await runner.run(max_items=max_items, kinds=claim_kinds(s, kinds))
+    return await runner.run(max_items=max_items, kinds=claim_kinds(s, kinds), job=job)
 
 
 def run_queue(session_factory: sessionmaker[Session], **kw: Any) -> RunReport:

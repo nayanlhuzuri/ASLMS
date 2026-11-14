@@ -17,13 +17,14 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `proxy` | `nginx:1.28-alpine` | TLS, the host-name check, body limits, per-address throttling, `X-Forwarded-For` | 443 and 80 (80 only redirects) |
 | `web` | built from `frontend/` | the portal (Next.js backend-for-frontend), one process | none |
 | `api` | built from `backend/` | the HTTP API, as `aslms_app` | none |
-| `worker` | built from `backend/` | the NAPIX load-and-refresh queue (`aslms queue-worker`), as `aslms_app` | none |
+| `worker` | built from `backend/` | the NAPIX load-and-refresh queue (`aslms queue-worker`, slot `main`: every kind), as `aslms_app` | none |
+| `worker2` | built from `backend/` | the second worker slot (`aslms queue-worker --slot second`: every NAPIX kind except Current Status batches, so order PDFs and short calls keep moving while `worker` waits on Current Status; design `rolling-case-refresh`), as `aslms_app` | none |
 | `scheduler` | built from `backend/` | Celery beat and its jobs, as `aslms_app` | none |
 | `init` | built from `backend/` | preflight, the migration guard, role passwords, seed; then exits | none |
 | `backup` | built from `backend/` | dumps, the store mirror, retention, the weekly restore check | none |
 | `migrate` | built from `backend/` | profile `ops`: the explicit upgrade (and `aslms ops restore`) | none |
 | `postgres` | `postgres:16.15` | the database | none |
-| `pgbouncer` | built from `infra/pgbouncer/` (Alpine 3.23.3, PgBouncer 1.25.1 pinned; 1.22+ required) | connection pooling in transaction mode for `api`, `worker` and `scheduler` (section 18) | none |
+| `pgbouncer` | built from `infra/pgbouncer/` (Alpine 3.23.3, PgBouncer 1.25.1 pinned; 1.22+ required) | connection pooling in transaction mode for `api`, `worker`, `worker2` and `scheduler` (section 18) | none |
 | `redis` | `redis:7.4.10-alpine` | the NAPIX token and Celery messages; password, memory only | none |
 | `clamav` | `clamav/clamav:1.5.4` | virus scan of every upload | none |
 | `prometheus` | `prom/prometheus:v3.7.2` | profile `monitoring`: scrapes, keeps 30 days, evaluates the alert rules | `127.0.0.1:9090` |
@@ -111,7 +112,7 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 |---|---|---|
 | `aslms` (`POSTGRES_USER`) | `init`, `migrate`, `backup` only | the cluster superuser: migrations, seed, role passwords, dumps |
 | `aslms_owner` | owns the schema objects (migration 0001) | DDL |
-| `aslms_app` | `api`, `worker`, `scheduler`, through `pgbouncer` | DB_STANDARD §8 grants; no delete of legal records |
+| `aslms_app` | `api`, `worker`, `worker2`, `scheduler`, through `pgbouncer` | DB_STANDARD §8 grants; no delete of legal records |
 | `aslms_readonly` | the postgres exporter and the ops exporter (Part B); the pgbouncer exporter on PgBouncer's console (Part C) | SELECT, and member of `pg_monitor` for the statistics views (migration 0020) |
 
 - In production (`APP_ENV=prod`), the api, the worker and the scheduler refuse to start if their connection is a
@@ -151,7 +152,7 @@ code 3 and the message "The database is at X; this build needs Y". Nothing else 
 1. `git pull` (or copy the new release), then `docker compose build` **and** `docker compose --profile ops build migrate`.
    A plain `docker compose build` skips services in a profile, so without the second command the upgrade runs an
    old `migrate` image that knows neither the new migration nor new functions (it happened on 22 Oct 2026; row 133).
-2. `docker compose stop api worker scheduler web pgbouncer`. PgBouncer keeps its own `aslms_app` server connections
+2. `docker compose stop api worker worker2 scheduler web pgbouncer`. PgBouncer keeps its own `aslms_app` server connections
    open after the clients stop, so it is stopped too.
 3. `docker compose --profile ops run --rm migrate`. It runs preflight and refuses while an `aslms_app` session is
    connected. It writes a `pre-migrate` backup and checks it with `pg_restore --list`, then runs
@@ -235,7 +236,7 @@ the server's major version; keep them together. To supply a host without registr
 ```
 docker compose build
 docker save -o aslms-images.tar postgres:16.15 redis:7.4.10-alpine nginx:1.28-alpine clamav/clamav:1.5.4 \
-  aslms-init aslms-api aslms-worker aslms-scheduler aslms-web aslms-backup aslms-migrate \
+  aslms-init aslms-api aslms-worker aslms-worker2 aslms-scheduler aslms-web aslms-backup aslms-migrate \
   aslms-pgbouncer aslms-ops-exporter
 # with the monitoring profile, also its pinned images from compose.yml (prometheus, alertmanager, grafana, flower,
 # the exporters, node-exporter and cadvisor)
@@ -264,7 +265,7 @@ writes a `job_runs` row and `status/restore-check.json`. Free disk of about twic
 
 1. Install as in section 3 with the same `.env` (or the same secrets), but do not start the stack. Run
    `docker compose up -d postgres` only.
-2. Make sure no application service runs: `docker compose stop api worker scheduler web pgbouncer backup`.
+2. Make sure no application service runs: `docker compose stop api worker worker2 scheduler web pgbouncer backup`.
 3. Restore:
 
    ```
@@ -343,7 +344,7 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
   no local model (all AI goes through SourceTrace), so the start is refused at every `APP_ENV`. Pin the dependency
   back (PyMuPDF stays `>=1.24,<2`) and rebuild. PyMuPDF 1.28.2 carries none (measured 24 Oct 2026); an
   "onnxruntime ... telemetry" line in a terminal while no container log holds one
-  (`docker compose logs --no-color api worker scheduler | grep -c onnxruntime` prints 0) comes from a host process.
+  (`docker compose logs --no-color api worker worker2 scheduler | grep -c onnxruntime` prints 0) comes from a host process.
 - **`migrate` exits 5, "this image was built from other code than ./backend":** build both images (section 6, step 1)
   and run it again.
 - **`init` exits 3, "database behind head":** run the upgrade procedure (section 6).
@@ -480,6 +481,10 @@ warnings every 4 hours. To silence an alert during planned work, use Alertmanage
   `aslms_worker_alive_timestamp`, so a long load pass that keeps claiming rows does not fire it): `docker compose
   logs worker`, then
   `docker compose restart worker` (its interrupted rows are repaired at start, section 11).
+- **WorkerSlotStalled** (one worker slot shows no sign, a pass start or a NAPIX call of its own passes, for 2 hours
+  while rows are runnable; `aslms_worker_slot_alive_timestamp{slot="main"|"second"}`): `docker compose logs worker`
+  (slot `main`) or `docker compose logs worker2` (slot `second`), then restart that service with the court-data switch
+  carried; each slot repairs only its own interrupted passes (`queue-run`, `queue-run-second`).
 - **JobStuck** (a job `running` for more than 6 hours): `aslms ops repair-jobs --dry-run`, then section 11.
 - **JobLate** (a scheduled job has not succeeded in time: notifications and the alert scan 30 minutes, text extraction
   and the next-dates reader 1 hour, the dedupe sweep and digests 26 hours): `docker compose logs scheduler`; Flower
@@ -580,8 +585,8 @@ The main pool of each process is 5 connections plus 10 overflow with a 30 s wait
 otherwise):
 
 ```
-NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + 4 (reserve for short page transactions)
-    <= PGBOUNCER_DEFAULT_POOL_SIZE                         (defaults: 6 + 1 + 1 + 3 + 4 = 15 <= 20)
+NAPIX_REQUEST_SLOTS + 2 workers + 1 scheduler + DB_APART_POOL_SIZE + 4 (reserve for short page transactions)
+    <= PGBOUNCER_DEFAULT_POOL_SIZE                         (defaults: 6 + 2 + 1 + 3 + 4 = 16 <= 20)
 ```
 
 - More uvicorn processes multiply the api terms (slots and the apart pool) by the number of processes.
@@ -592,11 +597,11 @@ NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + 4 (reserve f
 **Load check** (read-only, writes no row), next to the running stack:
 
 ```
-docker compose exec api aslms ops pool-check --holders 8 --pages 20 --apart 200 --seconds 30
+docker compose exec api aslms ops pool-check --holders 9 --pages 20 --apart 200 --seconds 30
 ```
 
 It builds the api's engines from the same settings, holds `--holders` transactions open in `pg_sleep` (default
-`NAPIX_REQUEST_SLOTS + 2`), runs `--pages` page transactions per second and `--apart` apart writes, and prints JSON
+`NAPIX_REQUEST_SLOTS + 3`: the two worker slots and the scheduler), runs `--pages` page transactions per second and `--apart` apart writes, and prints JSON
 (apart wait p50 and maximum, page wait maximum, timeouts). It exits 1 when an apart wait exceeds 1 s or any timeout
 occurs.
 
@@ -797,7 +802,7 @@ defaults are in Administration, User Types, under Alerts.
 
 **Running the two repair commands** (row 203, `next-date-direct-followups`): run `aslms next-dates direct --apply`
 and `aslms next-dates hearing-refresh --all` in a quiet window with the worker and scheduler stopped
-(`docker compose stop worker scheduler`; afterwards start them again with the court-data switch carried, as for every
+(`docker compose stop worker worker2 scheduler`; afterwards start them again with the court-data switch carried, as for every
 `up`), as on 29 Oct 2026. Each page of 1,000 cases is committed on its own (and `direct --apply` commits its first
 step before the refresh), so a page holds its case locks for that page only and a stop or failure keeps the pages
 already written; running the command again completes an interrupted run (a refreshed case refreshes to the same

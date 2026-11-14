@@ -167,8 +167,8 @@ function cover() {
   const meta = table(["Document", "Details"], [
     ["Title", "ASLMS Software Documentation"],
     ["Owner", "Government of Assam"],
-    ["Version", "1.6"],
-    ["Date", "2 November 2026"],
+    ["Version", "1.7"],
+    ["Date", "13 November 2026"],
     ["Status", "Submitted for review"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -483,14 +483,15 @@ function s5() {
   add(H2("5.3 How a case enters the database"));
   add(P("A case arrives from a cause list, a person’s court search, department discovery (a weekly search by a department’s registered names), a department’s watchlist, or the historical load. Every path ends at one step that finds or creates the case and never creates a second copy. A case known only by its number from a cause list is created as provisional and a court lookup is queued; when the court confirms its CNR the provisional case receives it. The full court record then fills parties, advocates, acts, hearings, orders, applications, objections, transfers, writ details, linked cases and lower-court details, and every distinct version of the record is kept."));
   add(H2("5.4 How a held case stays current"));
-  add(B("Cases not disposed: current status **every day** (250 cases per call), a full record **every Sunday** and **whenever the status changes**."));
+  add(B("Cases not disposed: current status **every day** (250 cases per call), a full record **whenever the status changes** and **at least once every 7 days**: each night at 22:00 the cases whose last full record is 7 days old are queued, claimed cases first, oldest first, and a case refreshed for any reason waits a fresh 7 days."));
+  add(B("A case just heard is checked again 3, 7, 14 and 30 days after the hearing, until the order for that hearing is stored."));
   add(B("New orders found in the full record are downloaded in the background, their text read, and the owners alerted."));
   add(B("Disposed cases are refreshed monthly for a year after disposal; a case restored to pending rejoins the daily cycle."));
   add(B("Cause lists for today and tomorrow are re-checked in the evening and morning; a corrected list is kept as a new version."));
   add(B("A past day whose cause list no collection has asked for is queued by a nightly check at 04:15 and named on the data collection overview; after an outage the daily cycle catches up the missed recent days as soon as the scheduler starts again (`CAUSELIST_CATCHUP_DAYS`, default 7)."));
   add(B("A claim or an accepted transfer queues a fresh full record at once."));
   add(H2("5.5 Queue, priorities and failures"));
-  add(P("All court work waits in one queue in priority order: reference lists, then the cause lists, then people’s requests and the daily status, then the full records, the historical load, the weekly sweep, and finally order documents. Case details are completed before order documents, except for a case a person has asked for, which gets its orders at once."));
+  add(P("All court work waits in one queue in priority order: reference lists, then the cause lists, then people’s requests and the daily status, then the full records (after a status change or a hearing, then the nightly 7-day refresh, claimed cases first), the historical load, and finally order documents. Case details are completed before order documents, except for a case a person has asked for, which gets its orders at once. Two workers take items from the queue; the second never takes the daily status check, so order documents and short calls keep moving while the first waits on a slow status answer."));
   add(P("A failed item is retried after 10 minutes, 1 hour, 6 hours, 24 hours and 72 hours, then marked failed and listed for an operator, who can queue it again. “Not found” and input errors are not retried. If the court keeps failing, the worker pauses for five minutes."));
   add(H2("5.6 What is not fetched, and retention"));
   add(B("Search rows without a valid CNR are shown but not stored, so no identifier is ever made up."));
@@ -565,7 +566,8 @@ function s7() {
     ["proxy", "The only published service: TLS, host-name check, body limits, per-address throttling"],
     ["web", "The portal"],
     ["api", "The application programming interface"],
-    ["worker", "The court data queue"],
+    ["worker", "The court data queue, every kind of item"],
+    ["worker2", "The second slot of the court data queue: every kind except the daily status check"],
     ["scheduler", "The timed jobs (Annexure A)"],
     ["init", "Start-up checks, database role passwords and reference data; then exits"],
     ["migrate", "The explicit upgrade step, with a backup first"],
@@ -768,12 +770,13 @@ function annexA() {
     ["Every 2 minutes", "E-mail", "Send alert e-mails", "No"],
     ["08:00 daily", "Digest", "Each person’s daily summary e-mail", "No"],
     ["Every 15 minutes", "Rescore", "Recalculate recommendations after mapping or scoring changes", "No"],
+    ["22:00 daily", "Case refresh", "Full records of cases heard recently whose order has not arrived (3, 7, 14, 30 days after the hearing), then of every case not disposed last refreshed 7 days ago, claimed cases first", "Yes (the worker fetches overnight)"],
     ["02:30 daily", "Disposed cases", "Monthly refresh of cases disposed within a year, up to 1,000 a night", "Yes"],
     ["03:00 daily", "Duplicates", "Find and merge duplicate case records", "No"],
     ["03:45 daily", "Call log purge", "Remove call-log rows older than two years", "No"],
     ["04:15 daily", "Days not asked for", "Queue past days whose cause list no collection has asked for: the last 7 days with the daily lists, older days with the historical load", "No (the worker fetches them)"],
     ["Saturday 02:00", "Discovery", "Search the court by departments’ registered names", "Yes"],
-    ["Sunday 02:00", "Weekly sweep", "Full record of every case not disposed or never fully fetched", "Yes"],
+    ["Sunday 02:00", "First fetches and missing orders", "Full record of every case never fully fetched; try again the order documents the court had not published", "Yes"],
     ["00:30, 06:30, 12:30, 18:30", "Backups", "Database dump and document store copy", "No"],
     ["Sunday 04:30", "Restore check", "Restore the latest backup into a scratch database and compare", "No"],
   ], [2200, 1800, 4238, 1400]));
@@ -795,7 +798,7 @@ function annexC() {
     ["Cause List Bench", "Benches sitting on a date", "Daily, evening and morning"],
     ["Cause List Details", "The lists each bench published", "Daily, per bench"],
     ["Show Cause List", "The official list document, read entry by entry", "Daily, per list"],
-    ["Search by CNR", "The full case record", "When first seen, weekly, on change, on request"],
+    ["Search by CNR", "The full case record", "When first seen, at least weekly, after a hearing, on change, on request"],
     ["Current Status", "Next date, status and bench, 250 cases per call", "Daily at 20:00"],
     ["Show Order", "The order or judgment document", "When a new order appears"],
     ["Show Business", "Business of a hearing", "System health test only"],

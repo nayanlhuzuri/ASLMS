@@ -7,9 +7,10 @@ cycle.
 - `load_priority(settings, kind, list_date)`: decision 3's table for the two detail kinds (cause-list days and
   dossiers). The preset ranks them; the 1st runs at 41 inside the period brought forward and 44 outside it, the 2nd
   at 42 / 46. `cases_first` and `cases_with_orders` put dossiers first, `lists_first` cause-list days first.
-- Case details before order PDFs (owner, 24 Oct 2026): an order PDF outside the request lane waits behind every
-  detail kind, whatever the preset: 60 for a pending case (after daily dossiers 40, the load 41-46, discovery 41-43,
-  the weekly sweep 50 and the disposed refresh 55) and 80 for any other case (disposed or unknown).
+- Case details before order PDFs (owner, 24 Oct 2026, confirmed 12 Nov 2026): an order PDF outside the request lane
+  waits behind every detail kind, whatever the preset: 60 for a pending case (after daily dossiers 40, the load 41-46,
+  discovery 41-43, status-change re-fetches, hearing follow-ups and first fetches 50, the disposed refresh 55 and the
+  nightly routine refresh 56-59, design `rolling-case-refresh`) and 80 for any other case (disposed or unknown).
   `load_priority` gives a load order PDF 60, so `cases_with_orders` no longer brings PDFs forward; it orders
   dossiers before cause-list days, as `cases_first` does.
 - `QueueOrigin(lane, list_date)`: who asked for the work a stage is doing; the rows it spawns inherit the lane and

@@ -179,6 +179,14 @@ const SCHEDULE: DataSchedule = {
       facts: { eligible: 1234, due_now: 56 },
     },
     {
+      key: "nightly-refresh",
+      when: "22:00",
+      what: "Refresh cases heard recently until their order arrives, then every case not disposed whose details are 7 days old, claimed cases first",
+      last_run_at: "2026-10-25T22:00:00+05:30",
+      result: "succeeded",
+      facts: { pending: 37248, not_refreshed_7d: 0, heard_waiting: 560 },
+    },
+    {
       key: "day-gaps",
       when: "04:15",
       what: "Ask the court for past days' cause lists never asked for",
@@ -573,6 +581,13 @@ describe("Automatic Collection (data-collection-redesign, decisions 34-41)", () 
     expect(within(schedule).getByText("04:15")).toBeInTheDocument();
     expect(
       within(schedule).getByText("Ask the court for past days' cause lists never asked for (last run queued 4 days)"),
+    ).toBeInTheDocument();
+    // design rolling-case-refresh, decision 20: the 22:00 refresh's facts sentence, Indian digit grouping
+    expect(within(schedule).getByText("22:00")).toBeInTheDocument();
+    expect(
+      within(schedule).getByText(
+        "Refresh cases heard recently until their order arrives, then every case not disposed whose details are 7 days old, claimed cases first (37,248 not disposed, 0 not refreshed in 7 days, 560 heard and awaiting their order)",
+      ),
     ).toBeInTheDocument();
     expect(within(schedule).getAllByText("Not Recorded")).toHaveLength(2);
     const daily = screen.getByRole("table", { name: "Daily Updates, Last 7 Days" });

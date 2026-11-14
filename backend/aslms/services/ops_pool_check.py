@@ -4,7 +4,7 @@ through PgBouncer, run next to the running stack (`docker compose exec api aslms
 It builds the engines exactly as `api` does, from the same settings (`db.session.get_engine` and `get_apart_engine`),
 in its own process, and simulates a burst of court searches:
 - `holders` sessions that open a transaction and sleep inside it (`SELECT pg_sleep(seconds)`), as a request waiting on
-  NAPIX does (default `NAPIX_REQUEST_SLOTS + 2`);
+  NAPIX does (default `NAPIX_REQUEST_SLOTS + 3`: the api's slots plus two worker slots and the scheduler);
 - `pages` short transactions per second on the main engine (`SELECT 1`), the other pages of the portal;
 - `apart` apart-style transactions on the apart engine (`SELECT 1`, committed), spread over the run.
 It writes no row and changes no data, so it writes no audit row. The result: the counts, the p50 and maximum wait for

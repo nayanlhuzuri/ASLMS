@@ -3164,6 +3164,9 @@ export const T = {
       disposed: (eligible: string, due: string) => `${eligible} in their first year, ${due} due now`,
       purge: (n: string) => `last run removed ${n}`,
       dayGaps: (n: number) => `last run queued ${plural(n, "day", "days")}`,
+      // design rolling-case-refresh, decision 20
+      nightly: (pending: number, notRefreshed: number, heard: number) =>
+        `${num(pending)} not disposed, ${num(notRefreshed)} not refreshed in 7 days, ${num(heard)} heard and awaiting their order`,
     },
     dailyTitle: "Daily Updates, Last 7 Days",
     dailyStatus: { done: "Done", waiting: "Waiting", failed: "Failed", none: "No List Published" } as Record<string, string>,

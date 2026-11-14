@@ -222,3 +222,28 @@ def test_ops_metrics_worker_alive_unchanged(session):
     samples, _ = ops_metrics.collect_database(session, SETTINGS, NOW)
     gauge = next(s for s in samples if s.name == "aslms_worker_alive_timestamp")
     assert gauge.value == alive.timestamp()
+
+
+def test_worker_check_names_both_slots(session):
+    """Design rolling-case-refresh, decision 19: the facts name both slots; `warn` when one slot shows no sign for over
+    70 minutes while rows wait; `ok` while the queue is empty; `down` stays on the combined liveness."""
+    _clean(session)
+    _run(session, "queue-run", NOW - timedelta(minutes=5))
+    ok = sc.check_worker(session, NOW)
+    facts = {f["label"]: f["value"] for f in ok.facts}
+    assert "Main slot: last sign of work" in facts and facts["Second slot: last sign of work"] == "never"
+    assert ok.status == "ok"  # nothing waits
+    session.add(FetchQueueItem(kind=FetchKind.ORDER_PDF, ref="GAHC010000032025|1|2025-01-10", priority=60))
+    session.flush()
+    warn = sc.check_worker(session, NOW)
+    assert warn.status == "warn" and "second slot" in warn.headline
+    _run(session, "queue-run-second", NOW - timedelta(minutes=2))
+    assert sc.check_worker(session, NOW).status == "ok"
+    later = NOW + timedelta(
+        minutes=72
+    )  # the main slot's pass 77 min old, the second's 74: the combined age warns
+    assert sc.check_worker(session, later).status == "warn"
+    _run(session, "queue-run", NOW + timedelta(minutes=70))
+    stale = sc.check_worker(session, later)
+    assert stale.status == "warn" and "second slot" in stale.headline
+    assert sc.check_worker(session, NOW + timedelta(minutes=200)).status == "down"

@@ -103,6 +103,18 @@ groups:
           summary: "no queue worker activity for 2 hours while the queue has runnable rows"
           runbook: "docs/operations.md section 17, WorkerStalled"
 
+      - alert: WorkerSlotStalled
+        # design rolling-case-refresh, decision 19: one worker slot (`worker` = main, `worker2` = second) shows no sign,
+        # a pass start or a NAPIX call of its own passes, for 2 hours while rows are runnable; WorkerStalled stays the
+        # any-slot alert
+        expr: (time() - aslms_worker_slot_alive_timestamp > 7200) and on() (max(aslms_queue_oldest_pending_seconds) > 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "worker slot {{ $labels.slot }} shows no sign of work for 2 hours while the queue has runnable rows"
+          runbook: "docs/operations.md section 17, WorkerSlotStalled"
+
       - alert: JobStuck
         expr: aslms_job_running_oldest_seconds > 6 * 3600
         labels:

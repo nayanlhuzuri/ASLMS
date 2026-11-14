@@ -1,10 +1,12 @@
 """Pipeline stage 5: order PDFs. Every order reference the dossier gives (`orders` rows) gets a low-priority
 `order_pdf` queue row (`<CNR>|<order_no>|<YYYY-MM-DD>`); Show Order → `documents` → `orders.document_id`.
-A 628 means the court has not published the PDF: recorded as `not_available` and retried by the weekly
-sweep, never forever."""
+A 628 means the court has not published the PDF: recorded as `not_available` and retried by the Sunday
+job at 60 (design `rolling-case-refresh`, decision 14), never forever."""
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import Collection
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -38,24 +40,38 @@ def order_ref(cnr: str, order: Order) -> str:
     return f"{cnr}|{order.order_no}|{order.order_date.isoformat()}"
 
 
-def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None = None) -> int:
+def enqueue_order_pdfs(
+    session: Session,
+    case: Case,
+    origin: QueueOrigin | None = None,
+    *,
+    priority: int | None = None,
+    order_ids: Collection[uuid.UUID] | None = None,
+) -> int:
     """Queue the PDFs this case still lacks, in the lane of the work that found them (design `data-load-console`,
     decisions 1 and 5): the daily cycle, the load and discovery put a pending case's PDFs at 60, after every detail
     kind, and a disposed case's at 80 (owner, 24 Oct 2026); a person's request 40. Each row is tagged with the requests
-    of the work that found it (`origin.request_ids`, or those of the claimed row `origin.parent_id` as it is now)."""
+    of the work that found it (`origin.request_ids`, or those of the claimed row `origin.parent_id` as it is now).
+    `priority` overrides the origin's (the Sunday retry of missing orders passes 60; design `rolling-case-refresh`,
+    decision 14) and `order_ids` limits the call to those orders (the retried ones only, so the case's other PDFs keep
+    their own priority)."""
     if not case.cnr:
         return 0
     # spawned by a claimed row: its priority and requests as they are now (row 174 review)
     origin = queue.from_parent(session, origin or DAILY)
-    priority = origin.order_pdf_priority(case.status == CaseStatus.PENDING)
+    if priority is None:
+        priority = origin.order_pdf_priority(case.status == CaseStatus.PENDING)
+    stmt = select(Order).where(
+        Order.case_id == case.id,
+        Order.document_id.is_(None),
+        Order.download_status == DownloadStatus.PENDING,
+    )
+    if order_ids is not None:
+        if not order_ids:
+            return 0
+        stmt = stmt.where(Order.id.in_(list(order_ids)))
     n = 0
-    for o in session.scalars(
-        select(Order).where(
-            Order.case_id == case.id,
-            Order.document_id.is_(None),
-            Order.download_status == DownloadStatus.PENDING,
-        )
-    ).all():
+    for o in session.scalars(stmt).all():
         emit_event(
             session,
             EventType.ORDER_FOUND,

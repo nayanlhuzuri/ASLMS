@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     # the connection budget (design followups-oct, decisions 2 to 4): the api's apart writes (NAPIX call rows, apart
     # audit rows) use a small engine of their own; at most NAPIX_REQUEST_SLOTS api requests per process wait on NAPIX
     # at once, each holding one connection, and a request waits this long for a slot, holding none, before 503
-    # `napix_busy`. Slots + 1 worker + 1 scheduler + apart pool + a reserve of 4 must not exceed PgBouncer's pool.
+    # `napix_busy`. Slots + 2 workers + 1 scheduler + apart pool + a reserve of 4 must not exceed PgBouncer's pool.
     db_apart_pool_size: int = Field(3, ge=1, le=10)
     db_apart_pool_timeout_seconds: int = Field(10, ge=1, le=60)
     napix_request_slots: int = Field(6, ge=1, le=30)
@@ -227,6 +227,9 @@ class Settings(BaseSettings):
     disposed_refresh_days: int = Field(365, ge=90, le=730)
     disposed_refresh_every_days: int = Field(28, ge=7, le=60)
     disposed_refresh_daily_max: int = Field(1000, ge=0, le=5000)
+    # design rolling-case-refresh, decision 5: the nightly refresh of cases not disposed (22:00 IST); a safety cap on
+    # its night's quota, not a target (0 = off)
+    rolling_refresh_daily_max: int = Field(12000, ge=0, le=50000)
     # the evening recheck of held lists skips a list fetched or checked within this many minutes; the 06:30 run
     # also rechecks today's lists while CAUSELIST_RECHECK_MORNING is on (owner's answer (a), 21 Oct 2026)
     causelist_recheck_fresh_minutes: int = Field(180, ge=30, le=720)

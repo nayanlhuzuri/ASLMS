@@ -149,9 +149,17 @@ def test_order_pdfs_stored_or_not_available(clean_db, napix, tmp_path):
             s.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.type == "order_stored")) == 1
         )
         assert s.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.type == "order_found")) == 3
-        # the weekly sweep retries the two not-available PDFs and re-fetches the pending dossier
+        # the Sunday job retries the two not-available PDFs at 60; the fetched case is the nightly refresh's (design
+        # rolling-case-refresh, decision 14), so no dossier unless the case was never fully fetched
         out = schedules.enqueue_weekly(s)
-        assert out == {"dossiers": 1, "orders_retried": 2, "orders_queued": 2}
+        fetched = s.get(Case, case_id).last_full_refresh_at is not None
+        assert out == {"dossiers": 0 if fetched else 1, "orders_retried": 2, "orders_queued": 2}
+        retried = s.scalars(
+            sa.select(FetchQueueItem).where(
+                FetchQueueItem.kind == FetchKind.ORDER_PDF, FetchQueueItem.status == FetchStatus.PENDING
+            )
+        ).all()
+        assert len(retried) == 2 and {r.priority for r in retried} == {60}
         s.rollback()
 
 

@@ -132,8 +132,8 @@ function cover() {
     ["Title", "ASLMS Hosting Guide"],
     ["Owner", "Government of Assam"],
     ["Audience", "System administrators of the data centre that hosts ASLMS"],
-    ["Version", "1.3"],
-    ["Date", "5 November 2026"],
+    ["Version", "1.4"],
+    ["Date", "13 November 2026"],
     ["Status", "Draft for review with the data centre"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -175,6 +175,7 @@ function documentControl() {
     ["1.1", "28 October 2026", "Session time-out (backlog row 169) merged and in service: the session settings in Annexure B no longer carry a condition, and the retired refresh-token setting is removed from the sign-in settings. The local Case Assistant model (backlog row 188) merged and in service: chapter 6 checked against the runbook and `.env.example` (where Ollama runs, the preflight checks, every `ASSISTANT_OLLAMA_*` setting with its default, the `aslms assistant` commands), and the row 188 conditions removed throughout (sections 2.3 and 5, chapter 6, the checklist and Annexures B to D)."],
     ["1.2", "2 November 2026", "Cause-list days nobody asked for (backlog row 200): the 04:15 sweep added to the scheduled jobs (9.6) and to the runs to keep away from, the catch-up at the scheduler's start, and the setting `CAUSELIST_CATCHUP_DAYS` in Annexure B."],
     ["1.3", "5 November 2026", "Dependency locks (backlog row 98): the backend images install exactly the hashed dependency lock that the tests run on, and `migrate` (section 8.2) also refuses an image whose dependency lock differs from the release's code."],
+    ["1.4", "13 November 2026", "Rolling case refresh (backlog row 238): a second court-data worker service `worker2` (the services table, every stop list, the image list, the connection budget now 6 + 2 + 1 + 3 + 4 = 16 of 20 and `pool-check --holders 9`, the new `WorkerSlotStalled` alert, and the rule that exactly one of each worker slot runs); the nightly 22:00 refresh and the Sunday job's new purpose in the scheduled jobs (9.6)."],
   ], [1400, 2200, CW - 3600]));
   add(table(["Source in the ASLMS repository (branch main)", "Used for"], [
     ["`docs/operations.md` (the operations runbook)", "Installation, upgrades, backups, restore, certificates, monitoring, PgBouncer, troubleshooting"],
@@ -233,11 +234,11 @@ function s1() {
   add(H2("1.5 Rules that must never be broken"));
   add(RULE("From the ASLMS runbook and project rules", [
     "**The court-data master switch `NAPIX_ENABLED` is never written into a file.** It defaults to `false`. It is given on the command line of every `docker compose up` that creates or recreates the `api` or `worker`, for example `{ON} docker compose up -d --wait`. A start without it turns court data off (section 9.1).",
-    "**The database is upgraded only through the `migrate` step**, after stopping `api`, `worker`, `scheduler`, `web` and `pgbouncer`. The order is always: build (or load), stop, migrate, start (section 8.5).",
+    "**The database is upgraded only through the `migrate` step**, after stopping `api`, `worker`, `worker2`, `scheduler`, `web` and `pgbouncer`. The order is always: build (or load), stop, migrate, start (section 8.5).",
     "**Secrets come only from `.env`.** Never print, paste, e-mail or commit `.env`; never put a secret in a log or a ticket.",
     "**Sign-in needs a working mail relay.** There is no bypass.",
     "**The portal is reached only by its proper host name** (`PORTAL_BASE_URL`). Any other name or a bare IP address is refused.",
-    "**The `scheduler` and the `worker` run exactly once.** Never start a second copy, on this VM or another.",
+    "**The `scheduler`, the `worker` and the `worker2` each run exactly once.** Never start a second copy of any of them, on this VM or another.",
     "**No cloud AI model, ever.** The AI model runs on a Government-controlled machine; never run `ollama signin`.",
     "**Legal records are never deleted.** Never delete the document store, its backup mirror or the database volume.",
     "**Backups leave the VM.** **SELinux stays enforcing.**",
@@ -263,13 +264,14 @@ function s2() {
     ["`proxy`", "nginx 1.28: TLS, host-name check, body limits, per-address throttling", "443 and 80 (80 only redirects)"],
     ["`web`", "The portal (Next.js backend-for-frontend), one process only", "none"],
     ["`api`", "The HTTP API, as database role `aslms_app`", "none"],
-    ["`worker`", "The court-data load-and-refresh queue (`aslms queue-worker`)", "none"],
+    ["`worker`", "The court-data load-and-refresh queue (`aslms queue-worker`, slot `main`: every kind of item)", "none"],
+    ["`worker2`", "The second slot of the queue (`aslms queue-worker --slot second`: every kind except Current Status, so order documents keep moving while `worker` waits on a slow status answer)", "none"],
     ["`scheduler`", "Celery beat and its jobs", "none"],
     ["`init`", "Preflight, document-store check, migration guard, role passwords, seed; then exits", "none"],
     ["`backup`", "Dumps, store mirror, retention, weekly restore check", "none"],
     ["`migrate`", "Profile `ops`: the explicit upgrade and `aslms ops restore`; never started by `up`", "none"],
     ["`postgres`", "PostgreSQL 16.15, the database", "none"],
-    ["`pgbouncer`", "Connection pooling (transaction mode) for `api`, `worker`, `scheduler`", "none"],
+    ["`pgbouncer`", "Connection pooling (transaction mode) for `api`, `worker`, `worker2`, `scheduler`", "none"],
     ["`redis`", "Redis 7.4: the court-data token and Celery messages; password, memory only", "none"],
     ["`clamav`", "ClamAV 1.5.4: virus scan of every upload", "none"],
     ["Monitoring profile", "`prometheus`, `alertmanager`, `grafana`, `flower`, `postgres-exporter`, `redis-exporter`, `pgbouncer-exporter`, `ops-exporter`", "Grafana, Prometheus, Alertmanager and Flower on 127.0.0.1 only"],
@@ -604,7 +606,7 @@ function s5() {
     "docker compose --profile monitoring pull",
     "docker save -o aslms-images.tar \\",
     "  postgres:16.15 redis:7.4.10-alpine nginx:1.28-alpine clamav/clamav:1.5.4 \\",
-    "  aslms-init aslms-api aslms-worker aslms-scheduler aslms-web aslms-backup aslms-migrate \\",
+    "  aslms-init aslms-api aslms-worker aslms-worker2 aslms-scheduler aslms-web aslms-backup aslms-migrate \\",
     "  aslms-pgbouncer aslms-ops-exporter \\",
     "  prom/prometheus:v3.7.2 prom/alertmanager:v0.29.0 grafana/grafana:12.2.1 mher/flower:2.0.1 \\",
     "  quay.io/prometheuscommunity/postgres-exporter:v0.18.1 oliver006/redis_exporter:v1.78.0 \\",
@@ -662,7 +664,7 @@ function s5() {
   add(B("**Ports:** from another machine only 443 and 80 answer (5432, 5433, 6379, 6432, 8000, 3000, 3310 and 11434 closed)."));
 
   add(H2("5.10 Turning on court data and the backdated collection"));
-  add(P("When the checks pass and the owner authorises it, turn court data on. This recreates `api` and `worker` with the switch; every later `up` must carry it:"));
+  add(P("When the checks pass and the owner authorises it, turn court data on. This recreates `api`, `worker` and `worker2` with the switch; every later `up` must carry it:"));
   add(code(["cd /srv/aslms", "{ON} docker compose up -d --wait"]));
   add(P("The daily cycle then runs by itself (section 9.6). The database starts empty and fills only from the court's data, user searches and department discovery. To collect the past, the Super Administrator starts the backdated collection on the Data Collection screen (Automatic Collection, Load Control), or by command with the start date the owner chooses (the development system loads from 1 January 2025):"));
   add(code([
@@ -863,7 +865,7 @@ function s8() {
   ], [2600, 4600, CW - 7200]));
 
   add(H2("8.4 The maintenance window"));
-  add(P("Keep away from the scheduled runs (IST, from `backend/aslms/jobs/celery_app.py` and the backup service): cause lists **06:30 and 18:30**, status refresh **20:00**, masters 06:00, digests 08:00, disposed refresh 02:30, dedupe 03:00, call-log purge 03:45, days-not-asked-for sweep 04:15, weekly sweep **Sunday 02:00**, discovery Saturday 02:00, backups 00:30 / 06:30 / 12:30 / 18:30, restore check **Sunday 04:30**."));
+  add(P("Keep away from the scheduled runs (IST, from `backend/aslms/jobs/celery_app.py` and the backup service): cause lists **06:30 and 18:30**, status refresh **20:00**, case refresh **22:00**, masters 06:00, digests 08:00, disposed refresh 02:30, dedupe 03:00, call-log purge 03:45, days-not-asked-for sweep 04:15, weekly sweep **Sunday 02:00**, discovery Saturday 02:00, backups 00:30 / 06:30 / 12:30 / 18:30, restore check **Sunday 04:30**."));
   add(REC([
     "Releases with a migration, and reboots: about **21:00–23:00 on a weekday** (the 18:30 and 20:00 work is queued in the database and resumes after the start) or a **Sunday morning after 09:00**. Expected downtime 10–20 minutes.",
     "Patches without a database change at any quiet time. Notify users in advance; silence alerts in Alertmanager for the window; take a VM snapshot first.",
@@ -876,7 +878,7 @@ function s8() {
     "Manual backup: `docker compose exec backup aslms ops backup --tag before-<release>`.",
     "New code: unpack the release into `/srv/aslms` (keeping `.env` and `data`); add any new `.env` lines named in the release notes.",
     "Images: `sha256sum -c` and `docker load -i <images file>` (or, building on the VM, `docker compose build` **and** `docker compose --profile ops build migrate`).",
-    "Stop: `docker compose stop api worker scheduler web pgbouncer`.",
+    "Stop: `docker compose stop api worker worker2 scheduler web pgbouncer`.",
     "Migrate: `docker compose --profile ops run --rm migrate` (preflight; refuses while an application session is connected; writes and verifies a `pre-migrate` backup; upgrades; seeds; writes an audit row).",
     "Start with the switch as before: `{ON} docker compose up -d --wait` (or `NAPIX_ENABLED=false` if court data was off).",
     "Checks: the portal page, System Health, `docker compose exec api aslms data-load status`, section 10.3; any one-off step from the release notes.",
@@ -891,7 +893,7 @@ function s8() {
   add(P("Migrations go forward only, and some refuse a downgrade (a reference-data migration writes append-only audit rows). A rollback is therefore **the `pre-migrate` backup restored plus the previous release's images**, never `alembic downgrade`:"));
   add(steps([
     "Put the previous release's code back in `/srv/aslms` and load its images.",
-    "Stop: `docker compose stop api worker scheduler web pgbouncer backup`.",
+    "Stop: `docker compose stop api worker worker2 scheduler web pgbouncer backup`.",
     "Restore: `docker compose --profile ops run --rm migrate aslms ops restore --dump /backups/db/aslms-<…>-pre-migrate.dump --roles /backups/db/roles-<…>.sql --confirm-overwrite aslms --store-from /backups/store`.",
     "Start with the switch as before; run the checks.",
   ]));
@@ -911,7 +913,7 @@ function s9() {
   add(P("This chapter applies to the pilot VM and, later, to every VM of Part 2."));
   add(H2("9.1 Starting, stopping, the switch, and reboots"));
   add(RULE("The court-data switch", [
-    "`NAPIX_ENABLED` is set only on the command line, never in `.env`, `compose.yml` or any other file. Compose passes it to the `worker` and the `api`. **Every `docker compose up` that creates or recreates a service, even a single one, must carry it**, or that service comes back with court data off.",
+    "`NAPIX_ENABLED` is set only on the command line, never in `.env`, `compose.yml` or any other file. Compose passes it to the `worker`, the `worker2` and the `api`. **Every `docker compose up` that creates or recreates a service, even a single one, must carry it**, or that service comes back with court data off.",
   ]));
   add(table(["Task", "Command (in /srv/aslms)"], [
     ["Start or apply `.env` changes, court data on", "`{ON} docker compose up -d --wait`"],
@@ -932,7 +934,7 @@ function s9() {
   add(steps([
     "Prepare the VM (chapter 4) and the application folder (sections 5.1 to 5.5) with the **same `.env` secrets** and the same release as the backup. Do not start the stack.",
     "Start only the database: `docker compose up -d postgres`.",
-    "Make sure nothing else runs: `docker compose stop api worker scheduler web pgbouncer backup`.",
+    "Make sure nothing else runs: `docker compose stop api worker worker2 scheduler web pgbouncer backup`.",
     "Restore: `docker compose --profile ops run --rm migrate aslms ops restore --dump /backups/db/aslms-<…>.dump --roles /backups/db/roles-<…>.sql --confirm-overwrite aslms --store-from /backups/store`",
     "Start with the switch as before: `NAPIX_ENABLED=<as before> docker compose up -d --wait`.",
     "Check: the Super Administrator signs in; `docker compose exec api aslms ops load-report` matches the manifest; the data-health screen loads.",
@@ -959,12 +961,13 @@ function s9() {
     ["CertExpiring", "Renew (section 5.4); `docker compose restart proxy`."],
     ["DiskLow", "`BACKUP_DIR`, the store, old images, `docker system df`. Never delete the store or its mirror."],
     ["WorkerStalled", "`docker compose logs worker`; `docker compose restart worker`."],
+    ["WorkerSlotStalled", "One slot shows no sign for 2 hours while rows wait: `docker compose logs worker` (slot `main`) or `docker compose logs worker2` (slot `second`); restart that service with the court-data switch carried."],
     ["JobStuck / JobLate", "`aslms ops repair-jobs --dry-run`; `docker compose logs scheduler`; Flower; the data-health screen."],
     ["BackupMissing / RestoreCheckMissing", "`docker compose logs backup`; `aslms ops backup-status`; run by hand once fixed."],
     ["NapixErrorsHigh", "Data-health screen's court-data block; pause the load if the gateway fails. Never change the switch in a file."],
     ["MailFailing", "Sign-in codes may not arrive: `aslms alerts test-mail --to <address>`; check the relay."],
   ], [2800, CW - 2800]));
-  add(P("**PgBouncer and the connection budget.** `api`, `worker` and `scheduler` reach PostgreSQL through PgBouncer (transaction mode, 6432, never published). The preflight checks `NAPIX_REQUEST_SLOTS` + 1 + 1 + `DB_APART_POOL_SIZE` + 4 ≤ `PGBOUNCER_DEFAULT_POOL_SIZE` (defaults 6 + 1 + 1 + 3 + 4 = 15 ≤ 20). Checks: `docker compose exec api psql -h pgbouncer -p 6432 -U aslms_readonly pgbouncer -c \"SHOW POOLS\"` (asks for `ASLMS_READONLY_PASSWORD`) and `docker compose exec api aslms ops pool-check --holders 8 --pages 20 --apart 200 --seconds 30`."));
+  add(P("**PgBouncer and the connection budget.** `api`, `worker`, `worker2` and `scheduler` reach PostgreSQL through PgBouncer (transaction mode, 6432, never published). The preflight checks `NAPIX_REQUEST_SLOTS` + 2 + 1 + `DB_APART_POOL_SIZE` + 4 ≤ `PGBOUNCER_DEFAULT_POOL_SIZE` (defaults 6 + 2 + 1 + 3 + 4 = 16 ≤ 20). Checks: `docker compose exec api psql -h pgbouncer -p 6432 -U aslms_readonly pgbouncer -c \"SHOW POOLS\"` (asks for `ASLMS_READONLY_PASSWORD`) and `docker compose exec api aslms ops pool-check --holders 9 --pages 20 --apart 200 --seconds 30`."));
 
   add(H2("9.5 Logs"));
   add(code([
@@ -982,7 +985,8 @@ function s9() {
     ["02:30 / 03:00 / 03:45 daily", "Disposed-case refresh / duplicate-case sweep / court-call log purge (older than 2 years)"],
     ["04:15 daily", "Cause-list days no collection has asked for, queued (the scheduler's start also catches up the last `CAUSELIST_CATCHUP_DAYS` days)"],
     ["08:00 daily", "Daily e-mail digests"],
-    ["Sunday 02:00 / Saturday 02:00", "Weekly sweep of cases not fully fetched / department discovery"],
+    ["22:00 daily", "Case refresh: cases heard recently, then every case not disposed last refreshed 7 days ago, claimed cases first (the worker fetches overnight)"],
+    ["Sunday 02:00 / Saturday 02:00", "First fetches of cases never fully fetched and missing orders / department discovery"],
     ["Every 2 minutes", "E-mail notifications; storing search results"],
     ["Every 5 minutes", "Alert event scan; text extraction; next dates from orders; SourceTrace ingestion (sends nothing until a connector exists)"],
     ["Every 15 minutes / hourly at :10", "Rescoring after rule changes / alert date sweep"],
@@ -1272,7 +1276,7 @@ function annexC() {
   add(table(["Command", "What it does"], [
     ["`<switch> docker compose up -d --wait`", "Start or apply `.env` changes (`init`: preflight, migration guard, role passwords, seed)"],
     ["`docker compose ps` / `docker compose logs <service>`", "State and logs"],
-    ["`docker compose stop api worker scheduler web pgbouncer`", "Stop before `migrate` or a restore"],
+    ["`docker compose stop api worker worker2 scheduler web pgbouncer`", "Stop before `migrate` or a restore"],
     ["`sha256sum -c <file>.sha256` / `docker load -i <images file>`", "Verify and load a release's images"],
     ["`docker compose build` and `docker compose --profile ops build migrate`", "Build on the VM (runbook alternative)"],
     ["`docker compose --profile ops run --rm migrate`", "The explicit upgrade: backup, migrate, seed, audit row"],

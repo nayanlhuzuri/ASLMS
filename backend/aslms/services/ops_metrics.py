@@ -5,8 +5,9 @@ a gauge, computed at most once per `OPS_METRICS_CACHE_SECONDS` (60) and served f
 - the database, in one `READ ONLY` transaction under `SET LOCAL statement_timeout` (`OPS_METRICS_STATEMENT_TIMEOUT_
   SECONDS`, 10): the queue by lane, kind and status and the oldest runnable row per lane; each job's last success,
   running rows and the oldest running row; the worker's last pass (the latest `queue-run` start) and its liveness
-  (the later of that and the latest row it claimed, `search_rows` excepted: design pre-pilot-hardening, decision 4;
-  Flower cannot see it); NAPIX calls of the last hour, the detected window's remaining calls
+  (the later of the latest pass of either slot and the latest row claimed, `search_rows` excepted: design
+  pre-pilot-hardening, decision 4; Flower cannot see it); each worker slot's liveness (the later of its latest pass
+  and its latest NAPIX call of the last 3 hours: design rolling-case-refresh, decision 19); NAPIX calls of the last hour, the detected window's remaining calls
   (`services/napix_window.py`) and the master switch as this process sees it; open source failures by kind
   (`data_health.failures`), e-mail notifications by status and the oldest queued (`data_health.mail`), SourceTrace
   documents by status (`sourcetrace_ingest.status`);
@@ -52,10 +53,14 @@ from aslms.domain.ops import (
     renewal_step,
 )
 from aslms.domain.org import Channel
+from aslms.services.job_repair import SLOT_JOBS
 
 log = logging.getLogger(__name__)
 
 WORKER_PASS_JOB = "queue-run"
+# design rolling-case-refresh, decisions 18 and 19: the passes of each worker slot
+SLOT_PASS_JOBS = SLOT_JOBS
+SLOT_CALL_LOOKBACK = timedelta(hours=3)
 SUCCESS = (JobStatus.SUCCEEDED, JobStatus.PARTIAL)
 PROBE_TARGETS = ("portal", "web", "api")
 
@@ -69,6 +74,10 @@ HELP: dict[str, str] = {
     "aslms_worker_alive_timestamp": (
         "the queue worker's liveness: the later of the latest queue-run pass start and the latest row it claimed "
         "(0: never)"
+    ),
+    "aslms_worker_slot_alive_timestamp": (
+        "one worker slot's liveness: the later of its latest pass start and its latest NAPIX call of the last 3 hours "
+        "(0: no sign)"
     ),
     "aslms_napix_calls_last_hour": "NAPIX calls in the last hour by outcome (ok, failed, renewal)",
     "aslms_napix_window_remaining": "calls left in the detected NAPIX window (NaN: not known)",
@@ -119,11 +128,29 @@ def worker_alive_at(session: Session) -> datetime | None:
     health screen (design `api-health-checker`, decision 16). None when the worker never ran."""
     from aslms.services import queue
 
-    last_pass = session.scalar(select(func.max(JobRun.started_at)).where(JobRun.job == WORKER_PASS_JOB))
+    last_pass = session.scalar(
+        select(func.max(JobRun.started_at)).where(JobRun.job.in_(sorted(SLOT_PASS_JOBS.values())))
+    )
     last_claim = session.scalar(
         select(func.max(FetchQueueItem.started_at)).where(FetchQueueItem.kind.not_in(queue.LOCAL_KINDS))
     )
     return max((t for t in (last_pass, last_claim) if t is not None), default=None)
+
+
+def slot_alive_at(session: Session, slot: str, now: datetime | None = None) -> datetime | None:
+    """One worker slot's liveness (design rolling-case-refresh, decision 19): the later of the slot's latest pass
+    start and its latest `napix_call_log.called_at` in the last 3 hours whose `job_run_id` is one of its passes. An
+    idle slot starts a pass every minute, a busy one calls, a waiting one wakes within about 62 minutes. None when
+    the slot shows no sign."""
+    now = now or datetime.now(UTC)
+    job = SLOT_PASS_JOBS[slot]
+    last_pass = session.scalar(select(func.max(JobRun.started_at)).where(JobRun.job == job))
+    last_call = session.scalar(
+        select(func.max(NapixCallLog.called_at))
+        .join(JobRun, JobRun.id == NapixCallLog.job_run_id)
+        .where(NapixCallLog.called_at >= now - SLOT_CALL_LOOKBACK, JobRun.job == job)
+    )
+    return max((t for t in (last_pass, last_call) if t is not None), default=None)
 
 
 def collect_database(
@@ -202,6 +229,12 @@ def collect_database(
         out.append(Sample("aslms_job_running_oldest_seconds", {"job": job}, 0))
     out.append(Sample("aslms_worker_last_pass_timestamp", {}, _ts(last_pass)))
     out.append(Sample("aslms_worker_alive_timestamp", {}, _ts(worker_alive_at(session))))
+    for slot in SLOT_PASS_JOBS:
+        out.append(
+            Sample(
+                "aslms_worker_slot_alive_timestamp", {"slot": slot}, _ts(slot_alive_at(session, slot, now))
+            )
+        )
 
     # NAPIX: the last hour, the detected window, the switch
     # a token renewal's 401 step is its own series, so `failed` (and NapixErrorsHigh) leaves it out while ok + failed +

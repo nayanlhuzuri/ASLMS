@@ -28,7 +28,7 @@ from aslms.domain.ops import (
     SourceFailure,
 )
 from aslms.services import backups, db_guard, load_report
-from aslms.services.job_repair import SCHEDULER_JOBS, WORKER_JOBS, repair_interrupted
+from aslms.services.job_repair import SCHEDULER_JOBS, WORKER2_JOBS, WORKER_JOBS, repair_interrupted
 from tests.db.conftest import head_revision
 from tests.db.world import add_listing, make_case
 
@@ -55,6 +55,26 @@ def test_repair_interrupted_marks_only_own_jobs_before_start(session):
     assert repair_interrupted(s, SCHEDULER_JOBS, START, "scheduler restarted") >= 1
     s.expire_all()
     assert other.status == JobStatus.FAILED and other.error == "interrupted: scheduler restarted"
+
+
+def test_repair_at_start_second_slot_leaves_main_runs(session):
+    """Design rolling-case-refresh, decision 18: a restart of the second slot marks only its own `queue-run-second`
+    passes interrupted, never the main slot's running pass, and the other way round."""
+    s = session
+    main = JobRun(job="queue-run", started_at=START - timedelta(hours=1))
+    second = JobRun(job="queue-run-second", started_at=START - timedelta(hours=1))
+    s.add_all([main, second])
+    s.flush()
+    assert repair_interrupted(s, WORKER2_JOBS, START, "queue-worker-second restarted") >= 1
+    s.expire_all()
+    assert second.status == JobStatus.FAILED and second.error == "interrupted: queue-worker-second restarted"
+    assert main.status == JobStatus.RUNNING
+    third = JobRun(job="queue-run-second", started_at=START - timedelta(minutes=30))
+    s.add(third)
+    s.flush()
+    assert repair_interrupted(s, WORKER_JOBS, START, "queue-worker restarted") >= 1
+    s.expire_all()
+    assert main.status == JobStatus.FAILED and third.status == JobStatus.RUNNING
 
 
 def _seed_load(s) -> dict:

@@ -357,3 +357,28 @@ Database (`tests/db/test_rolling_refresh.py` and the existing files named):
 None. Decision 4 (refreshing a few cases a day or two early to level a clump) is the one marked deviation for the
 owner's approval of this note. Decision 11 follows the owner's direction of 12 Nov 2026: case details always first, then
 order PDFs.
+
+## Deviations
+Recorded by the developer during the build (the smallest reasonable option where the note was silent):
+1. **The Sunday retry raises only the retried orders.** `enqueue_order_pdfs` gains `order_ids` beside `priority`: the
+   Sunday job queues the orders it has just turned from `not_available` back to pending at 60, and only those, so a
+   disposed case's other PDFs (165,357 at 80 on dev) are never raised to 60 by `LEAST`. The old job's general pass over
+   every case with a PDF still lacking (which revives a failed `order_pdf` row) stays, at each PDF's own priority (60
+   pending, 80 otherwise); `orders_queued` counts the retried orders plus the other cases' PDFs.
+2. **`ROLLING_REFRESH_DAILY_MAX=0` switches the whole 22:00 job off**, follow-ups included (`test_cap_zero_queues_nothing`);
+   the run is still recorded with its counters.
+3. **Two test names follow decision 11, not the first draft:** `test_new_order_pdf_is_claimed_before_routine_refresh`
+   is written as `test_routine_refresh_is_claimed_before_a_new_order_pdf`, and
+   `test_pdfs_after_details_keeps_new_orders_at_52` as `test_pdfs_after_details_keeps_pending_order_pdfs_at_60`.
+4. **Counters:** the nightly counters also carry `due` (the cases due before the cap, so `over_cap` can be read); the
+   routine `due_*` and `early_*` counters are the rows queued in each group (a follow-up case is counted once, as a
+   follow-up). A dry run returns `dry_run: true` and `queued` = what would be queued; `--dry-run` with any other
+   `daily-cycle` target is refused.
+5. **With the gateway off** (`NAPIX_ENABLED=false`) `runner.claim_kinds` narrows a slot's list of kinds to cause-list
+   days, so `worker2` never claims a dossier or order PDF it could only fail; `queue-run --kind dossier` is unchanged.
+6. **Liveness:** `aslms_worker_alive_timestamp` (and System Health's combined "Last sign of work") reads the passes of
+   both slots, so it keeps its "any slot" meaning; a slot with no sign shows "never" in the Queue worker facts. The
+   second slot's start-up repair is logged as `queue-worker-second`.
+7. **Compose:** `worker` keeps `command: aslms queue-worker` (the default slot `main`); `aslms ops pool-check` holds
+   `NAPIX_REQUEST_SLOTS + 3` by default and the runbook example uses `--holders 9`.
+8. **Follow-ups are queued oldest hearing first** (then CNR); the note named no order.

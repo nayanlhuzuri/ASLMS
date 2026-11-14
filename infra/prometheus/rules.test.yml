@@ -290,6 +290,55 @@ tests:
 
   - interval: 1m
     input_series:
+      # design rolling-case-refresh, decision 19: the second slot silent for hours while rows wait, the main slot busy
+      - series: 'aslms_worker_slot_alive_timestamp{slot="main"}'
+        values: "0+60x10"
+      - series: 'aslms_worker_slot_alive_timestamp{slot="second"}'
+        values: "-10000x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="daily"}'
+        values: "3600x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WorkerSlotStalled
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WorkerSlotStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, slot: second }
+            exp_annotations:
+              summary: "worker slot second shows no sign of work for 2 hours while the queue has runnable rows"
+              runbook: "docs/operations.md section 17, WorkerSlotStalled"
+
+  - interval: 1m
+    input_series:
+      # both slots idle for hours with an empty queue: nothing to do
+      - series: 'aslms_worker_slot_alive_timestamp{slot="main"}'
+        values: "-10000x10"
+      - series: 'aslms_worker_slot_alive_timestamp{slot="second"}'
+        values: "-10000x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="daily"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkerSlotStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # a long pass started hours ago, but each slot made a NAPIX call recently: alive
+      - series: 'aslms_worker_slot_alive_timestamp{slot="main"}'
+        values: "0+60x10"
+      - series: 'aslms_worker_slot_alive_timestamp{slot="second"}'
+        values: "0+60x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
+        values: "3600x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkerSlotStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
       - series: 'aslms_job_running_oldest_seconds{job="extract_text"}'
         values: "30000x5"
       - series: 'aslms_job_running_oldest_seconds{job="digests"}'

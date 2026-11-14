@@ -17,7 +17,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[3]
 PACKAGE = ROOT / "backend" / "aslms"
 PGB = ROOT / "infra" / "pgbouncer"
-APP_SERVICES = ("api", "worker", "scheduler")
+APP_SERVICES = ("api", "worker", "worker2", "scheduler")
 DIRECT_SERVICES = ("init", "migrate", "backup", "ops-exporter")
 
 # Part 1, line-based (design pre-pilot-hardening, decision 9): unambiguous anywhere in a line. It also catches
@@ -347,7 +347,7 @@ def test_pgbouncer_entrypoint_settings_and_secrets():
 
 def test_runbook_stops_pgbouncer_before_migrate_and_restore():
     runbook = (ROOT / "docs" / "operations.md").read_text("utf-8")
-    assert "docker compose stop api worker scheduler web pgbouncer`" in runbook
-    assert "docker compose stop api worker scheduler web pgbouncer backup`" in runbook
+    assert "docker compose stop api worker worker2 scheduler web pgbouncer`" in runbook
+    assert "docker compose stop api worker worker2 scheduler web pgbouncer backup`" in runbook
     assert "## 18. PgBouncer" in runbook
     assert "**PgBouncerClientsWaiting**" in runbook

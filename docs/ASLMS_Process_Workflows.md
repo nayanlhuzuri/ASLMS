@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -187,7 +187,8 @@ NAPIX. All times are Indian Standard Time.
 | 03:45 daily | Call log purge | Removes call-log rows older than 2 years (section 2.7) | No |
 | 04:15 daily | Days not asked for | Queues every past day of the collection period whose cause list no collection has asked for yet: the last 7 days with the daily cause lists, older days with the historical load (section 2.5) | No (the worker fetches them later) |
 | Saturday 02:00 | Discovery | Searches the court by each department's "search the court" keywords (section 2.5) | Yes |
-| Sunday 02:00 | Weekly sweep | Fetches the full record of every case not yet disposed, and of every case never fully fetched; retries missing orders | Yes |
+| 22:00 daily | Case refresh | Queues a full record for each case heard recently whose order has not arrived (3, 7, 14 and 30 days after the hearing), then for every case not disposed whose last full record is 7 days old, claimed cases first, oldest first (section 2.4) | Yes (the worker fetches overnight) |
+| Sunday 02:00 | First fetches and missing orders | Fetches the full record of every case never fully fetched, and tries again the order documents the court had not published | Yes |
 | 00:30, 06:30, 12:30, 18:30 | Backups | Database dump and a copy of the document store | No |
 | Sunday 04:30 | Restore check | Restores the latest backup into a scratch database and compares it | No |
 
@@ -264,8 +265,8 @@ sequenceDiagram
         D->>A: event, so owners get an alert
     end
 
-    Note over S,A: Every Sunday at 02:00
-    S->>W: full record for every case not disposed
+    Note over S,A: Every night at 22:00
+    S->>W: full records: cases heard recently, then every case not refreshed in 7 days (claimed first)
     W->>N: Search by CNR, one call per case
     W->>D: refresh parties, hearings, orders...
     W->>N: download new order PDFs
@@ -273,26 +274,34 @@ sequenceDiagram
 
 In short:
 
-- **Cases not disposed:** current status **every day**, and a full record **every Sunday** and **whenever the
-  status changes**.
+- **Cases not disposed:** current status **every day**, and a full record **whenever the status changes** and **at
+  least once every 7 days**. Each night at 22:00 the system queues the cases whose last full record is 7 days old,
+  oldest first, **claimed cases before unclaimed ones**. A case fully refreshed for any reason (a status change, "Fetch
+  from court", a claim or transfer) waits a fresh 7 days. If many cases would fall due on one night, a few are
+  refreshed a day or two early to level the load; none waits longer than 7 days.
+- **A case just heard:** the court's own record of the last hearing date is followed up 3, 7, 14 and 30 days after
+  the hearing, with a fresh full record each time, until the order for that hearing is stored; then no more.
 - **New orders:** found in the full record. Each new PDF is downloaded in the background, its text is read, and the
-  owners get an alert.
+  owners get an alert. Case details come first and order documents after them (section 2.6), so an order found
+  during the night is downloaded once the night's refreshes are done, before the working day.
 - **The next hearing date** comes from the court's own field (`date_next_list`) in the status and the full record.
   Dates read from order text are only suggestions until a person confirms them (section 4.5).
 - **Disposed cases:** a case within a year of its disposal is refreshed **monthly**: every day at 02:30 the system
   queues a full record for those last refreshed more than 28 days ago (at most 1,000 a night, after all live work).
-  A case the court restores to pending rejoins the daily status refresh and the Sunday sweep, and its owners get a
+  A case the court restores to pending rejoins the daily status refresh and the 7-day refresh, and its owners get a
   "status changed" alert. After a year, a disposed case is no longer refreshed.
 - **Corrected cause lists:** at 18:30 the system asks the court again for each list already held for today and
   tomorrow, and at 06:30 for today's lists. A list whose entries changed is kept as a new version; a file that differs
   only in its heading is not. A download that cannot be read never replaces a good list. A case whose listing moved or
   was removed gets a "Cause list corrected" entry on its timeline, and its hearing and "listed for tomorrow" alerts
   follow the current list.
+- **Sunday 02:00** is now only for cases never fully fetched and for order documents the court had not yet
+  published.
 - **A person can ask for a fresh fetch at any time:** "Fetch from court" on a case page, for a case not yet fully
   fetched. Re-fetching a case already fetched is an operator function.
 
-> ⚠️ **Worth a decision:** claiming a case does **not** make the system fetch it again or refresh it more often. A
-> claimed case is refreshed exactly like an unclaimed one. (Section 6, item 1.)
+> Claiming a case queues a fresh full record at once (unless one is under a day old), and claimed cases come first
+> in each night's refresh. (Section 6, item 1.)
 
 ### 2.5 The historical load and department discovery
 
@@ -382,15 +391,22 @@ All court work waits in one queue (`fetch_queue`). Each item has a **priority**,
 | 30 | The daily status refresh, and **requests made by people** |
 | 40 | Full records of live cases, and the **order PDFs of a case a person asked for** (a search, a fetch from the court or a claim refresh) |
 | 41–46 | The historical load: cause lists and full records (discovery's records and searches at 41–43) |
-| 50 | The weekly sweep |
+| 50 | A full record after a status change, a follow-up after a hearing, and the Sunday first fetches |
 | 55 | The monthly refresh of disposed cases |
-| 60 | Order PDFs of live cases (daily cycle, historical load and discovery) |
+| 56 / 57 | The nightly 7-day refresh: claimed cases / unclaimed cases |
+| 58 / 59 | The same, refreshed a day or two early to level a busy night: claimed / unclaimed |
+| 60 | Order PDFs of live cases (daily cycle, historical load and discovery) and the Sunday retry of missing orders |
 | 80 | Order PDFs of disposed cases |
 
 **Case details first, order PDFs later** (owner, 24 Oct 2026): order PDFs wait behind every cause list and full
 record, so the remaining cause lists and every case's details are completed first. A person's own case still gets
 its orders at once (40). Order PDFs queued before the change are moved once by the operator with
 `aslms data-load pdfs-after-details` (a dry run) and then `--apply`.
+
+**Two worker slots.** Two workers take items from the queue. The second never takes the daily status check, so while
+the first waits on a slow Current Status answer (25 to 42 seconds from the court), order documents, cause lists and
+full records keep moving. Both stay within the hourly allowance. A nightly refresh item whose case was refreshed
+after it was queued is ended without a court call.
 
 **When an item fails**, it is tried again after 10 minutes, then 1 hour, 6 hours, 24 hours and 72 hours. After six
 failures it is marked failed and listed under data health. An operator can put it back in the queue. "Not found" and
@@ -650,7 +666,7 @@ sequenceDiagram
 - It can **never return to the unclaimed pool**.
 - If another department claims it later through its own recommendation, that department becomes a **watcher**, not
   the owner.
-- The case keeps being refreshed by the daily and weekly cycle (section 2.4).
+- The case keeps being refreshed by the daily status check and the 7-day refresh (section 2.4).
 
 **Instead of claiming, you can:**
 
@@ -660,8 +676,8 @@ sequenceDiagram
 **The Unclaimed pool** lists cases no department has claimed. Any department head or admin can open them and claim.
 
 > ⚠️ **Worth a decision:**
-> - Claiming makes **no fresh NAPIX fetch**. A case known only from a cause-list line stays that way until the
->   weekly sweep, unless someone presses "Fetch from court".
+> - Claiming queues a fresh full record at once (unless one is under a day old). A case known only from a
+>   cause-list line is fetched in full by the first-fetch cycle or when someone presses "Fetch from court".
 > - The **pool is State-wide**: every department's head and admin can open every unclaimed case.
 > - When one department claims, other departments' open recommendations **stay open**.
 > - Possible matches, and suggestions from another department, **raise no alert**.
@@ -1044,7 +1060,7 @@ design for your approval.
 
 **About claiming and recommendations**
 
-1. **Done (changed on 22 Oct 2026, row 120).** **Claiming does not fetch fresh court data.** A claimed case is not refreshed sooner or more often than any other.
+1. **Done (changed on 22 Oct 2026, row 120; nightly order added in row 238).** **Claiming does not fetch fresh court data.** A claimed case is not refreshed sooner or more often than any other. (Since row 238 a claimed case is refreshed before unclaimed ones in each night's 7-day refresh.)
    *Option:* on claim, queue a full court record at once (request priority) when the case has none or it is more
    than a day old.
 2. **Search does not fall back to the court automatically.** The person chooses "Search the court". *Option:* keep
