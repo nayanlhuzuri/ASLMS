@@ -3839,3 +3839,9 @@ Backlog row 238 (row 220 points 2 and the revived-priority fix folded in). Desig
 ## Build order (owner, 13 Nov 2026)
 
 - After row 238: 257 `offices-import` (waits for the owner's workbook; its design can be approved before), 189 `assistant-ollama-work`, 250 `order-sections`, 258 `state-insights`, then 251 to 253, then the rest of the order as before, ending with 192 `scale-out-load-test`.
+
+## Design approvals (14 Nov 2026)
+
+- 2026-11-14 — offices-import (row 257): approved by the owner (docs/design/offices-import.md) with the three recommendations: a department with no head yet only through the import, shown with a No Head Yet badge (a deviation from the owner's answer of 26 Oct 2026, now approved); SEC-EDU keeps its code and is renamed "School Education" (option A; the owner puts SEC-EDU in that workbook row's Code cell); head and admin of one department must be different people (the workbook's Read Me is wrong on this). The build needs no filled workbook; the trial run and the apply wait for it.
+- 2026-11-14 — state-insights (row 258): approved by the owner (docs/design/state-insights.md) with the nine recommendations: split into three rows (258 backend, 259 `state-insights-portal`, 260 `cause-title-signal`), built after row 250; the 15 subject groups of docs/design/state-insights-subject-groups.md with the three service groups kept apart; the State-case bases officer, title and writ added; interlocutory applications out of the figures with "Applications Pending: n"; NJDG age bands as in the Pending Cases report; Due Soon = the dashboard's 2-day setting; export limits PDF 2,000 and Excel 100,000 rows; signal weight 0.600 inside the possible band; groupings edited by the Super Administrator only, cause-title names mapped by department admins. Row 250's design exposes the cause-title span, the linked-case entries and the layout flag.
+

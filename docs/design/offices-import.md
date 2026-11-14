@@ -2,10 +2,10 @@
 
 ```
 slug: offices-import
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-14
-approved_by: (pending)
+approved_by: owner on 2026-11-14
 ```
 
 ## Context
