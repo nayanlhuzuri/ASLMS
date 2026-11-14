@@ -27,3 +27,9 @@ See the final handoff: main and the tag pushed when the remote accepts them.
 ## Load status (`aslms queue-status`)
 order_pdf pending 147,210 (done 247,508); status_batch done 3,364; dossier skipped 69; masters done 1.
 Migration 0036 is not yet applied to the dev database: apply with the `migrate` step.
+
+## Deploy (14 Nov 2026, 22:10 to 23:06 IST)
+- Deployed together with row 189 `assistant-ollama-work` (migration 0037). CI green on `a503b92` and `cb54036`. Images built from a clean `main` (`cb54036`), `migrate` included.
+- After the first 22:00 nightly refresh had queued (22:00:05, 8,030 dossier rows), `docker compose stop api worker worker2 scheduler web pgbouncer`, then `docker compose --profile ops run --rm migrate`: preflight passed (dev warnings only), the image matched `./backend`, backup `20261114-2210-pre-migrate` written and listed by `pg_restore`, upgrade 0035 → 0036 → 0037, seed nothing to insert, audit row `system.migrated`. Then `docker compose up -d` and the app services recreated with `--no-deps --force-recreate api worker worker2 scheduler web`, the court-data switch on. Portal down 22:10 to 23:06.
+- Checked: `init` exited 0; the switch on in `api`, `worker` and `worker2`; both slots started ("slot main" and "slot second", NAPIX on, one interrupted run each repaired); web build ID `si0gDyIOe_PhmNS_KFM8b`; portal 307 to sign-in, API health 200; `alembic_version` 0037; `ref_office_kind` holds the six new kinds and "Directorate / Commissionerate"; `assistant_scope` includes `my_work`; `aslms assistant check` six zero counts including `work_rows_out_of_rule`; `aslms offices import --help` answers.
+- The SEC-EDU rename to School Education happens through the import (the owner's workbook), not by the migration: the office still reads "Department of School Education". The real import waits for row 261.
