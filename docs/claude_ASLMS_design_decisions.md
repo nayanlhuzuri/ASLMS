@@ -3887,3 +3887,7 @@ Row 189 `assistant-ollama-work`, design `docs/design/assistant-ollama-work.md` (
 **Deviations** (the design note's "Deviations"): migration 0037; `open` keeps `{kind, href}`; `model_info` also stores `list_label` and `full_list_href`; week ranges Monday to Sunday; keyword phrases added for due dates; count-sentence variants for `all` and bands; `needs_attention` counts the whole attention list; office names read by code; `bench` and some `parties` empty where the service gives none; the software documentation's contents page numbers not checked against a rendered copy.
 
 **Left for later**: the owner's live check with `ASSISTANT_MODE=ollama` (whether `qwen3.5:4b` returns `message.tool_calls`, recorded here then), the owner's browser check, the screen check on a private network, and the `migrate` step for 0037 after the merge.
+
+## Owner check (14 Nov 2026)
+
+- Row 196 `causelist-pdf-access`: View Cause List and the Original PDF per bench passed in the owner's browser on 14 Nov 2026. No browser check is left open with the owner.

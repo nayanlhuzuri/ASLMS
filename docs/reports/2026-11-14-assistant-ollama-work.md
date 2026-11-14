@@ -9,7 +9,7 @@ The sidebar Assistant gains My Work (nine fixed work questions run through the e
 - ruff check: all checks passed (re-run on the merged tree).
 - pytest: 3499 passed, 3 skipped on 48e5675. `git diff --stat 48e5675 e024aab` touches only the design note and three frontend files (no backend file), so the earlier result was relied on; the 56-minute suite was not re-run.
 - Frontend: eslint clean, tsc clean, vitest 106 files, 2694 passed (re-run by the integrator).
-- Screen check: the developer's run on a private network with temporary images built from e024aab (finished 20:10, after the commit at 20:10:28 IST cycle): 854 passed, 14 skipped, 0 failed, 0 findings (findings.json empty; logs data/uicheck-aow2/, gitignored). Judged sufficient; the earlier failed run (838 passed, 16 failed) is explained by the fixture, fixed.
+- Screen check: the developer's run on a private network with temporary images built from the working tree holding exactly the changes then committed as e024aab (findings written at 20:10, the commit at 20:10:28 IST): 854 passed, 14 skipped, 0 failed, 0 findings (findings.json empty; logs data/uicheck-aow2/, gitignored). Judged sufficient; the earlier failed run (838 passed, 16 failed) is explained by the fixture, fixed.
 - docker compose build: succeeded (api, worker, worker2, web).
 - CI on main before the merge: success (run 43576345704). git status clean; design status approved.
 

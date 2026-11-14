@@ -214,3 +214,5 @@ Small choices made while building where the note was silent (developer, 2 Nov 20
    the heading links are drawn in the new All Benches case (`e2e/fixtures/index.ts`, `tidy`).
 6. **Software documentation contents page.** The 4.10 paragraph grew by about two lines; `TOC_PAGES` was not
    re-checked against a rendered copy (no renderer on the build machine).
+
+**Owner check passed, 14 Nov 2026:** View Cause List with Choose a Bench, View and Original PDF per bench, and View PDF and Download PDF on each list heading, checked in the owner's browser.
