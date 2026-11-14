@@ -32,8 +32,9 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { MAPPING_KEY } from "@/lib/api/hooks";
+import { MAPPING_KEY, useLabels } from "@/lib/api/hooks";
 import type { Watch, WatchList } from "@/lib/api/types";
+import enumCodes from "@/lib/enumCodes.json";
 import { formatDateTime } from "@/lib/format";
 import { matchesWords, searchShown } from "@/lib/listSearch";
 import { given, isCnr, normaliseCnr, officeRequired } from "@/lib/mapping";
@@ -45,8 +46,15 @@ import { conflictAware, OfficeCell, RuleMenu, RuleToolbar, SearchLink } from "./
 import s from "./mapping.module.css";
 
 const WATCH_KEY = [...MAPPING_KEY, "watchlist"] as const;
-/** Every kind but the State: a watch belongs to a department or an office below it. */
-const WATCH_KINDS = ["department", "central", "advocate_general", "directorate", "unit"];
+/**
+ * Every kind but the State: a watch belongs to a department or an office below it. Read from the server's labels
+ * (design offices-import, decision 5), so a new office kind is offered without a change here; until they load, from the
+ * backend's own code list (`enumCodes.json`, generated from the same enum).
+ */
+export function watchKinds(kinds: readonly { code: string }[] | undefined): string[] {
+  const all = kinds ? kinds.map((k) => k.code) : enumCodes.enums.OfficeKind;
+  return all.filter((code) => code !== "state");
+}
 const WATCH_SORTS = ["cnr", "case", "office"] as const;
 
 /** After a save: queued details for a CNR not held yet, else the held case was scored again at once. */
@@ -169,6 +177,7 @@ export function Watchlist() {
 
 /** The add row (decision 41): CNR, Office (picker, optional) and Add. */
 function AddWatch({ onSaved, onConflict }: { onSaved: (row: Watch) => void; onConflict: () => void }) {
+  const labels = useLabels();
   const [cnr, setCnr] = useState("");
   const [office, setOffice] = useState<string | null>(null);
   const [cnrError, setCnrError] = useState<string | null>(null);
@@ -214,7 +223,7 @@ function AddWatch({ onSaved, onConflict }: { onSaved: (row: Watch) => void; onCo
         <OfficePicker
           label={T.mapping.office}
           purpose="watchlist"
-          kinds={WATCH_KINDS}
+          kinds={watchKinds(labels.data?.office_kinds)}
           placeholder={T.mapping.ownDepartmentPlaceholder}
           hint={T.mapping.watchOfficeHint}
           value={office}

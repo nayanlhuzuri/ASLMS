@@ -387,7 +387,9 @@ describe("offices", () => {
     await chooseOffice(parent, "Secondary Education");
     await userEvent.type(screen.getByLabelText("Code"), "EDU-NEW");
     await userEvent.type(screen.getByLabelText("Name"), "New Cell");
-    await userEvent.selectOptions(screen.getByLabelText("Kind"), "directorate");
+    // design offices-import, decision 5: under a directorate only a Unit is offered
+    expect(within(screen.getByLabelText("Kind")).queryByRole("option", { name: "Directorate / Commissionerate" })).toBeNull();
+    await userEvent.selectOptions(screen.getByLabelText("Kind"), "unit");
     await userEvent.click(screen.getByRole("button", { name: "Create Office" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     expect(api.calls.find((c) => c.method === "POST")!.body).toMatchObject({ parent_code: "EDU-DSE" });

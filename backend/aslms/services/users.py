@@ -9,14 +9,22 @@ import re
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import exists, select, update
+from sqlalchemy.orm import Session, sessionmaker
 
-from aslms.domain.events import Event, EventVisibility
-from aslms.domain.org import Designation, Office, OtpCode, RefreshToken, SessionEndReason, User
-from aslms.domain.reference import EventType, Role
+from aslms.domain.events import AuditLog, Event, EventVisibility
+from aslms.domain.org import (
+    Designation,
+    Office,
+    OtpCode,
+    RefreshToken,
+    SessionEndReason,
+    User,
+    UserMembership,
+)
+from aslms.domain.reference import EventType, RefRole, Role
 from aslms.services import sessions
-from aslms.services.audit import Actor, write_audit
+from aslms.services.audit import Actor, write_audit, write_audit_apart
 from aslms.services.passwords import (
     DUMMY_HASH,
     MIN_PASSWORD,
@@ -24,6 +32,7 @@ from aslms.services.passwords import (
     WeakPassword,
     check_policy,
     hash_password,
+    hash_unusable,
     verify_password,
 )
 
@@ -37,10 +46,12 @@ __all__ = [
     "end_codes",
     "end_sessions",
     "hash_password",
+    "send_welcome",
     "set_password",
     "update_profile",
     "user_summary",
     "verify_password",
+    "welcome_pending",
 ]
 
 log = logging.getLogger(__name__)
@@ -107,7 +118,7 @@ def create_user(
     actor: Actor,
     *,
     email: str,
-    password: str,
+    password: str | None,
     full_name: str,
     role: Role | None,
     office: Office | None,
@@ -118,7 +129,9 @@ def create_user(
 ) -> User:
     """A login with its first membership (`role` at `office`), or, with both None, a login with no office yet
     (design `office-head-picker`, decisions 15-16, 20): the mirror columns stay NULL, no membership is written, and
-    the audit row carries `no_office: true`. Who may create which is checked by the caller."""
+    the audit row carries `no_office: true`. Who may create which is checked by the caller. `password=None` (design
+    offices-import, decision 16) stores the hash of a random secret nobody knows, so the login cannot sign in until
+    the person sets a password through Forgot password?; the audit row carries `password: "unset"`."""
     if (role is None) != (office is None):
         raise UserError(
             "a type and an office go together; give both, or neither for a login with no office yet"
@@ -137,7 +150,7 @@ def create_user(
         raise UserError(f"the office {office.code} is inactive")
     user = User(
         email=email,
-        password_hash=hash_password(password),
+        password_hash=hash_password(password) if password is not None else hash_unusable(),
         full_name=full_name.strip()[:200],
         role=role,
         office_id=office.id if office is not None else None,
@@ -167,6 +180,8 @@ def create_user(
     after = user_summary(user)
     if no_office:
         after["no_office"] = True
+    if password is None:
+        after["password"] = PASSWORD_UNSET
     write_audit(session, actor, "user.create", "user", user.id, after=after)
     session.add(
         Event(
@@ -183,6 +198,106 @@ def create_user(
     )
     session.flush()
     return user
+
+
+PASSWORD_UNSET = "unset"
+WELCOME_SUBJECT = "Your ASLMS Sign-In Is Ready"
+
+
+def welcome_text(full_name: str, email: str, holdings: list[tuple[str, str]], portal_base_url: str) -> str:
+    """The welcome mail's body (design offices-import, decision 18): the offices and user types the login holds, by
+    name, and the steps to set a password. No password, no code and no link token."""
+    base = (portal_base_url or "").rstrip("/")
+    lines = [f"Dear {full_name},", "", "An ASLMS sign-in has been made for you."]
+    if holdings:
+        lines += ["", "You hold:"]
+        lines += [f"- {office}: {user_type}" for office, user_type in holdings]
+    lines += [
+        "",
+        "Setting your password",
+        f"1. Open {base}/forgot",
+        f"2. Enter this e-mail address: {email}",
+        "3. Enter the 6-digit code that arrives by e-mail, and choose a password.",
+        "",
+        "At your first sign-in you will be asked to confirm your profile and your mobile number.",
+        "Every sign-in needs your password and a code sent to this e-mail address.",
+        "",
+        "If you did not expect this message, contact your department administrator.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _holdings(session: Session, user: User) -> list[tuple[str, str]]:
+    labels = dict(session.execute(select(RefRole.code, RefRole.label)).all())
+    rows = session.execute(
+        select(Office.name, UserMembership.role)
+        .join(Office, Office.id == UserMembership.office_id)
+        .where(UserMembership.user_id == user.id, UserMembership.is_active.is_(True))
+        .order_by(UserMembership.is_primary.desc(), Office.path)
+    ).all()
+    out = []
+    for name, role in rows:
+        code = role.value if isinstance(role, Role) else str(role)
+        out.append((name, labels.get(code, code)))
+    return out
+
+
+def send_welcome(
+    session_factory: sessionmaker[Session],
+    mailer,
+    settings,
+    user: User,
+    *,
+    actor: Actor | None = None,
+) -> bool:
+    """One welcome mail to a new login, sent after the commit that created it (design offices-import, decision 18).
+    Each attempt is audited `user.welcome_sent` with `{sent, reason}` in a session of its own; the reason is the
+    exception class only. True when sent."""
+    actor = actor or Actor.system("welcome")
+    with session_factory() as s:
+        fresh = s.get(User, user.id)
+        if fresh is None:
+            raise UserError("no such user")
+        text = welcome_text(fresh.full_name, fresh.email, _holdings(s, fresh), settings.portal_base_url)
+        to = fresh.email
+    sent, reason = True, None
+    try:
+        mailer.send(to, WELCOME_SUBJECT, text)
+    except Exception as exc:  # noqa: BLE001 - every failure is recorded and can be sent again
+        sent, reason = False, exc.__class__.__name__
+        from aslms.services.mailer import mask_address
+
+        log.warning("welcome mail to %s not sent: %s", mask_address(to), reason)
+    write_audit_apart(
+        session_factory, actor, "user.welcome_sent", "user", user.id, after={"sent": sent, "reason": reason}
+    )
+    return sent
+
+
+def welcome_pending(session: Session) -> list[User]:
+    """The logins still waiting for a welcome mail (design offices-import, decision 18): created with no password
+    (`user.create` says `password: "unset"`), no password set since (`password_changed_at` empty), active, and no
+    `user.welcome_sent` row with `sent: true`."""
+    unset = select(AuditLog.entity_id).where(
+        AuditLog.action == "user.create", AuditLog.after["password"].astext == PASSWORD_UNSET
+    )
+    sent = exists().where(
+        AuditLog.action == "user.welcome_sent",
+        AuditLog.entity_id == User.id,
+        AuditLog.after["sent"].astext == "true",
+    )
+    return list(
+        session.scalars(
+            select(User)
+            .where(
+                User.id.in_(unset),
+                User.password_changed_at.is_(None),
+                User.is_active.is_(True),
+                ~sent,
+            )
+            .order_by(User.email)
+        ).all()
+    )
 
 
 def update_profile(

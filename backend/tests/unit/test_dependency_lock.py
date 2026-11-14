@@ -259,5 +259,6 @@ def test_dockerfile_installs_only_from_the_lock():
     assert smoke
     modules = {m.strip() for m in smoke[1].split(",")}
     assert {"kombu.transport.redis", "aslms.jobs.celery_app", "aslms.api.main", "aslms.cli.main"} <= modules
+    assert {"openpyxl", "defusedxml"} <= modules  # design offices-import, decision 21
     assert not re.search(r'pip install(?!.*--no-deps)[^\n]*"\.\[', text)
     assert ".[redis]" not in text

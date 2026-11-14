@@ -24,7 +24,7 @@ from aslms.domain.reference import (
 )
 from aslms.services import access
 from aslms.services.case_filters import bench_sql
-from aslms.services.offices import tier_of
+from aslms.services.offices import NEW_KIND_PARENTS, tier_of
 from aslms.services.reporting_common import today_ist
 
 
@@ -53,7 +53,16 @@ def labels(session: Session, user: User) -> dict:
             {"code": r.code, "label": r.label, "description": r.description, "assignable": r.code in allowed}
             for r in _rows(session, RefRole)
         ],
-        "office_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefOfficeKind)],
+        # design offices-import, decision 5: the "What It Covers" text and the kinds a parent may have
+        "office_kinds": [
+            {
+                "code": r.code,
+                "label": r.label,
+                "description": r.description,
+                "parents": NEW_KIND_PARENTS.get(r.code, []),
+            }
+            for r in _rows(session, RefOfficeKind)
+        ],
         "ticket_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefTicketKind)],
         "alert_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefAlertKind)],
     }

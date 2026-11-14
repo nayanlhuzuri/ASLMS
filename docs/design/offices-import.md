@@ -722,3 +722,38 @@ None block the build. Three decisions carry a default the owner confirms or chan
 - **Decision 12, head and admin the same person.** Default: refused, as the one-membership-per-department rule
   already says. The owner names a different administrator or leaves Admin empty, and may grant the head the admin
   functions per user afterwards.
+
+## Deviations
+
+Written by the developer during the build (14 Nov 2026). None changes a rule of the design; each is the smallest
+choice where the design was silent.
+
+1. **Problem code `parent_unknown`** (decision 13). An office whose Parent Department is neither a Departments-sheet
+   row nor an existing department is an error with this code; the design's list had no code for it.
+2. **"Partly filled" person** (decisions 9 and 11). A person whose cells are partly filled is an error only when a cell
+   the person needs is empty: the e-mail and the designation always, the full name for a new login. Mobile and
+   "Already Has an ASLMS Login?" may be blank, since decision 11 makes the mobile optional (a `no_mobile` notice). The
+   code is `head_partial` for a department head and `person_incomplete` for an administrator or office head.
+3. **Include? values.** Anything other than Yes or No (To Decide, blank, or an unknown word) makes the row wait
+   (`include_wait`).
+4. **Placeholders** (decision 11) are recognised as a cell holding both `[` and `]`, four or more X's in a row, or `…`.
+5. **Kind descriptions.** Only the seven kinds the design gives text for (the six new ones and `directorate`) carry a
+   description, in the migration and the seed alike; `department`, `central`, `advocate_general` and `unit` keep none,
+   so a fresh seed and a migrated database stay identical. The New Office form falls back to its general hint.
+6. **`POST /admin/offices` with a code over 17 characters** answers 422 from `max_length=17` (decision 6), before the
+   service's message; `aslms offices create`, the import and the service give the message "2 to 17 characters …".
+7. **`users.send_welcome(..., *, actor=None)`** takes the acting Super Administrator so the `user.welcome_sent` rows
+   carry the run's user agent (decision 19). The commit-then-mail order lives in a service function
+   `offices_import.run_apply(session_factory, wb, *, expect, run_id, mailer, settings)` used by the command and the
+   tests; `import_actor` gives the Super Administrator with the run's user agent.
+8. **The dry run also needs the Super Administrator** (exit 5), as `--apply` does, since the command acts as them.
+9. **The Watchlist picker's kinds** come from the labels (decision 5); until they have loaded, from the generated
+   `enumCodes.json` list of `OfficeKind`, so the State root is never offered.
+10. **The No Head Yet badge** uses the kit's `warning` tone (the kit's tones are danger, warning, success and info).
+11. **A kind the new parent does not accept** is cleared from the New Office form when the parent changes.
+12. **Test files.** The seed-and-migration agreement is `test_seed_and_migration_agree` in `test_migration_0036.py`
+    (beside the other 0036 cases) rather than in `test_seed_and_refno.py`; the Offices tests are in
+    `frontend/src/components/admin/officeKinds.test.tsx`; the workbooks are built in memory by
+    `backend/tests/offices_workbook.py`. Two existing tests follow the new rules: `test_offices_rules.py` (17-character
+    codes, the placement table and the delegable kinds) and `test_migration_0033.py` (0036 is the single head); the
+    admin test choosing a Directorate under a directorate now chooses a Unit, the only kind offered there.

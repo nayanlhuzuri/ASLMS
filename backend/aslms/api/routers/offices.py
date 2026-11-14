@@ -88,6 +88,7 @@ def _detail(session: Session, office: Office) -> schemas.OfficeDetailOut:
         created_at=office.created_at,
         updated_at=office.updated_at,
         counts=schemas.OfficeCountsOut(**offices.dependents(session, office)),
+        no_head=offices.has_no_head(session, office),
     )
 
 
@@ -97,6 +98,7 @@ def _node(node: OfficeNode) -> schemas.OfficeNodeOut:
         tier=node.tier,
         depth=node.depth,
         users_active=node.users_active,
+        no_head=node.no_head,
         children=[_node(c) for c in node.children],
     )
 

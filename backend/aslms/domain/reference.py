@@ -35,6 +35,13 @@ class OfficeKind(enum.StrEnum):
     CENTRAL = "central"
     DEPARTMENT = "department"
     DIRECTORATE = "directorate"
+    # offices-import (migration 0036): offices under a department, at the directorate tier, never Department-tier
+    BOARD_CORPORATION = "board_corporation"
+    STATUTORY_AUTHORITY = "statutory_authority"
+    SOCIETY_MISSION = "society_mission"
+    INSTITUTION = "institution"
+    LOCAL_BODY = "local_body"
+    AUTONOMOUS_COUNCIL = "autonomous_council"
     ADVOCATE_GENERAL = "advocate_general"
     UNIT = "unit"
 

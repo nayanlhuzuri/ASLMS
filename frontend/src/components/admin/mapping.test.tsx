@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CounselCode, Keyword, Me, NamePattern, OfficeChoice, Permission, ScoringSettings, UnmappedCode, UnmappedCodePage, Watch } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, type BrowserCall, toastStatus } from "@/test/render";
+import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient, type BrowserCall, toastStatus } from "@/test/render";
 
 import { CounselCodes } from "./mapping/CounselCodes";
 import { CourtSearch } from "./mapping/CourtSearch";
@@ -618,6 +618,22 @@ describe("watchlist", () => {
     expect(await within(toastStatus()).findByText("The case was scored again now.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/watchlist")[1]!.body).toEqual({ cnr: "ASHC010012342025", office_code: null });
     expect(calls(api, "GET", "/admin/offices/choices")[0]!.path).toContain("purpose=watchlist");
+  });
+
+  it("the Office picker offers an office of a new kind, read from the labels (design offices-import, decision 5)", async () => {
+    const BOARD = choice("EDU-BRD", "Education Board", 2, "EDU", "board_corporation");
+    browserApi({
+      "GET /me": superAdmin(),
+      "GET /reference/labels": labels(),
+      "GET /admin/offices/choices": choices([ROOT, EDU, BOARD]),
+      "GET /admin/watchlist": { items: [], total: 0 },
+    });
+    renderWithClient(<Watchlist />);
+    const form = await screen.findByRole("form", { name: "Watchlist" });
+    await userEvent.click(within(form).getByRole("combobox", { name: "Office" }));
+    const list = await screen.findByRole("listbox");
+    expect(within(list).getByText("Education Board")).toBeInTheDocument();
+    expect(within(list).queryByText("Government of Assam")).toBeNull();
   });
 
   it("shows the API's office_code refusal on the picker; the search narrows the list", async () => {

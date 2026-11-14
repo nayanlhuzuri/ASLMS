@@ -20588,8 +20588,8 @@
       "OfficeCreateIn": {
         "properties": {
           "code": {
-            "description": "the Secretariat's code, upper-cased, immutable; `<PARENT>-<CHILD>` is the convention",
-            "maxLength": 40,
+            "description": "the Secretariat's code, upper-cased, immutable, 2 to 17 characters (part of every reference number the office issues); `<PARENT>-<CHILD>` is the convention",
+            "maxLength": 17,
             "minLength": 2,
             "title": "Code",
             "type": "string"
@@ -20702,6 +20702,12 @@
             "title": "Name",
             "type": "string"
           },
+          "no_head": {
+            "default": false,
+            "description": "an active department with no active head (design offices-import, decision 23)",
+            "title": "No Head",
+            "type": "boolean"
+          },
           "notes": {
             "anyOf": [
               {
@@ -20781,11 +20787,54 @@
           "central",
           "department",
           "directorate",
+          "board_corporation",
+          "statutory_authority",
+          "society_mission",
+          "institution",
+          "local_body",
+          "autonomous_council",
           "advocate_general",
           "unit"
         ],
         "title": "OfficeKind",
         "type": "string"
+      },
+      "OfficeKindLabelOut": {
+        "description": "An office kind (design offices-import, decision 5): its \"What It Covers\" text and the kinds its parent may\nhave, from the placement rule.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "parents": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "OfficeKindLabelOut",
+        "type": "object"
       },
       "OfficeNameOut": {
         "description": "Design `portal-names-and-labels`, decision 1: an office's display name, nothing else.",
@@ -20888,6 +20937,12 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "no_head": {
+            "default": false,
+            "description": "an active department with no active head (design offices-import, decision 23)",
+            "title": "No Head",
+            "type": "boolean"
           },
           "path": {
             "title": "Path",
@@ -23363,7 +23418,7 @@
           },
           "office_kinds": {
             "items": {
-              "$ref": "#/components/schemas/LabelOut"
+              "$ref": "#/components/schemas/OfficeKindLabelOut"
             },
             "title": "Office Kinds",
             "type": "array"

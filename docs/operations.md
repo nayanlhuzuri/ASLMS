@@ -865,7 +865,7 @@ Then `python tools/deps.py sync` and `pytest -q`. `python tools/deps.py check` s
 **How a refresh is tested.** A refresh is an ordinary commit and gets the full CI run: `backend` installs the new
 `dev.txt` and runs ruff, the lock check and pytest; `compose` builds every backend image from the new `image.txt` with
 `pip check` and the import smoke (`aslms.cli.main`, `aslms.api.main`, `aslms.jobs.celery_app`,
-`kombu.transport.redis`, `uvicorn.loops.uvloop`). Deploying it is the normal rebuild (section 6). There is no
+`kombu.transport.redis`, `uvicorn.loops.uvloop`, `openpyxl`, `defusedxml`). Deploying it is the normal rebuild (section 6). There is no
 automatic update: Dependabot watches the action pins only.
 
 **Platforms.** The lock covers `sys_platform == 'linux'` and `'win32'` only and requires a wheel for Linux x86_64 and
@@ -882,6 +882,52 @@ does not name for this platform (never `pip` or `aslms`) and runs `pip check`. A
 **The portal** is locked already: `frontend/package-lock.json` with integrity hashes and every platform's optional
 packages, installed by `npm ci` in the Dockerfile and in CI alike (`npm ci` refuses a `package.json` that disagrees
 with the lock). The browser-check image does the same with `frontend/e2e/package-lock.json`.
+
+## 24. Importing offices from the workbook
+
+Design [offices-import](design/offices-import.md) (backlog row 257, migration 0036). The owner's workbook lists the
+departments of the Assam State Portal, the offices under them, the department heads, the first Department
+Administrators and any office heads. `aslms offices import` checks it and then creates everything in one audited run,
+acting as the Super Administrator. It never reads a password: each new login gets an e-mail to set its own.
+
+**Keep the workbook out of the repository.** It holds officers' names, e-mails and mobiles. It lives in
+`Claude outputs/` (excluded from git), `*.xlsx`, `*.xlsm` and `*.xls` are ignored, and the repository policy refuses
+any spreadsheet path (rule `spreadsheet`). The command reads the file from standard input, so it is never copied into
+a container; it prints problems by sheet, row, column and office code with e-mails masked (`a***@assam.gov.in`), and
+never prints a name or a mobile number.
+
+1. **Back up first:** `docker compose exec backup aslms ops backup --tag before-offices-import`.
+2. **Dry run** (writes nothing, no audit row):
+   `docker compose exec -T api aslms offices import - < "Claude outputs/ASLMS_Offices_From_State_Portal.xlsx"`.
+   It lists the errors (they block the import for the whole file), the notices (they do not), the rows left out
+   (Include? = No) or waiting (To Decide, or under a department that waits), the plan, and a **fingerprint** of 12
+   hex characters. Send the listing to the owner; fix the workbook and run the dry run again until it has no errors.
+3. **Apply, after the owner approves that listing:**
+   `docker compose exec -T api aslms offices import - --apply --expect <fingerprint> < "Claude outputs/ASLMS_Offices_From_State_Portal.xlsx"`.
+   If the workbook or the database changed since that dry run the fingerprint differs and nothing is written (exit 3):
+   run the dry run again. Everything is created in one transaction, so a failure leaves nothing half imported.
+4. **Check:** the Audit Log filtered on the user agent the command prints (`aslms offices import <run id>`) shows the
+   whole run with one "Offices Imported" row (`office_import.applied`). Running the same dry run again says
+   "nothing to change".
+
+**Exit codes:** 0 done (or a dry run with no errors), 1 errors in the workbook, 2 a bad file (not an .xlsx, over 5 MB,
+a sheet or a column heading missing), 3 the fingerprint does not match, 4 mail is not ready, 5 no Super Administrator.
+
+**Welcome e-mails.** After the commit each new login gets "Your ASLMS Sign-In Is Ready": the offices and user types it
+holds and the steps (Forgot password? at `PORTAL_BASE_URL/forgot`, the 6-digit code, a password of their own; the
+profile and mobile at the first sign-in). The mail holds no password, code or link token. Each attempt is audited
+(`user.welcome_sent`). `--apply` refuses before any write when mail is not ready (exit 4); `--no-welcome` skips the
+mails on purpose. In development the mails go to Mailpit. To send again:
+`docker compose exec api aslms users welcome --pending` (every login created without a password that has not set one
+and has no welcome sent) or `--email ADDRESS`.
+
+**What the import never does:** replace an existing department's head or administrator (a notice; use Head Change or
+the swap), change an existing login's name, mobile, designation or password, move an office or change its kind or
+code. An existing office matched by code is renamed to the workbook's name. A department with all five Head cells
+empty is created with **No Head Yet** (shown on the office tree and page); name the head later by a Head Change
+request or by running the import again with the Head cells filled in. The same person cannot be both head and
+administrator of one department. Codes are 2 to 17 characters. A designation not in ASLMS is added, with its code
+listed in the dry run.
 
 ## Pilot go-live checklist
 

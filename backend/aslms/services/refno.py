@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from aslms.domain.courts import Court
 
 IST = ZoneInfo("Asia/Kolkata")
-REF_NO_RE = re.compile(r"^ASLMS/([A-Z0-9_]{2,20})/([A-Z]{2,10})/(\d{4})/(\d{6})$")
+REF_NO_RE = re.compile(r"^ASLMS/([A-Z0-9_-]{2,20})/([A-Z]{2,10})/(\d{4})/(\d{6})$")
 CASE = "CASE"
 # DB_STANDARD §3a: every `GOA` case number ever issued was a Gauhati High Court case and names the `GHC` case with
 # the same year and number (the owner's one-time renumbering of 25 Oct 2026). A frozen fact, not a setting.

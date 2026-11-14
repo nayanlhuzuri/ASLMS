@@ -24,6 +24,11 @@ roles-*.sql
 infra/proxy/certs/
 infra/clamav/freshclam.conf
 
+# --- spreadsheets: the offices workbook holds officers' names, e-mails and mobiles (design offices-import) ---
+*.xlsx
+*.xlsm
+*.xls
+
 # --- decrypted NAPIX responses written by `aslms napix-check` (review locally; commit deliberately) ---
 docs/specs/napix/hc/samples/
 

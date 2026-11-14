@@ -29,6 +29,7 @@ from aslms.domain.reference import (
     RefDocType,
     RefEventType,
     RefNoteKind,
+    RefOfficeKind,
     RefPermission,
     RefRole,
     Role,
@@ -192,6 +193,43 @@ EVENT_TIMELINE_LABELS = {
     EventType.CASE_CLOSED: "Case closed",  # design close-case, migration 0035
     EventType.CASE_REOPENED: "Case reopened",
 }
+# the office kinds' label, description and sort order (design offices-import, decision 1; the same rows as migration
+# 0036). Used on insert; `directorate` is relabelled only while it still reads "Directorate" (`_relabel_office_kinds`).
+OFFICE_KIND_COLUMNS: dict[OfficeKind, tuple[str, str | None, int]] = {
+    OfficeKind.CENTRAL: ("Central", None, 20),
+    OfficeKind.DEPARTMENT: ("Department", None, 30),
+    OfficeKind.DIRECTORATE: (
+        "Directorate / Commissionerate",
+        "Heads of department under a department: directorates, commissionerates, inspectorates, controllers, "
+        "registrars, police and similar headquarters.",
+        40,
+    ),
+    OfficeKind.BOARD_CORPORATION: (
+        "Board / Corporation",
+        "State public sector companies, corporations, boards and federations that act in their own name.",
+        41,
+    ),
+    OfficeKind.STATUTORY_AUTHORITY: (
+        "Statutory Authority / Commission",
+        "Bodies set up by law: commissions, authorities, tribunals, regulatory and statutory boards and councils.",
+        42,
+    ),
+    OfficeKind.SOCIETY_MISSION: (
+        "Society / Mission / Project",
+        "Registered societies, missions and externally aided projects.",
+        43,
+    ),
+    OfficeKind.INSTITUTION: ("Institution", "Universities, colleges, training and research institutes.", 44),
+    OfficeKind.LOCAL_BODY: ("Local Body", "Municipal corporations and municipal boards.", 45),
+    OfficeKind.AUTONOMOUS_COUNCIL: (
+        "Autonomous Council",
+        "Autonomous and territorial councils under the Sixth Schedule.",
+        46,
+    ),
+    OfficeKind.ADVOCATE_GENERAL: ("Advocate general", None, 50),
+    OfficeKind.UNIT: ("Unit", None, 60),
+}
+OFFICE_KIND_OLD_LABELS = {OfficeKind.DIRECTORATE: "Directorate"}
 # event-type labels that differ from the code (new rows only)
 EVENT_TYPE_LABELS = {
     EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
@@ -220,6 +258,9 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
         return {"label": label, "description": description, "module": member.module}
     if model is RefRole:
         return {"label": ROLE_LABELS[member], "description": ROLE_DESCRIPTIONS[member]}
+    if model is RefOfficeKind and member in OFFICE_KIND_COLUMNS:
+        label, description, sort_order = OFFICE_KIND_COLUMNS[member]
+        return {"label": label, "description": description, "sort_order": sort_order}
     if model is RefNoteKind and member in NOTE_KIND_LABELS:
         return {"label": NOTE_KIND_LABELS[member]}
     if model is RefEventType:
@@ -250,6 +291,7 @@ def seed_ref_tables(session: Session, report: SeedReport) -> None:
     session.flush()
     _retire_codes(session, report)
     _relabel_note_kinds(session, report)
+    _relabel_office_kinds(session, report)
 
 
 def _retire_codes(session: Session, report: SeedReport) -> None:
@@ -273,6 +315,18 @@ def _relabel_note_kinds(session: Session, report: SeedReport) -> None:
         if row is not None and row.label == _label(member.value) and row.label != label:
             row.label = label
             report.add("ref_note_kind_relabelled")
+    session.flush()
+
+
+def _relabel_office_kinds(session: Session, report: SeedReport) -> None:
+    """`directorate` reads "Directorate / Commissionerate" with its description (design offices-import, decision 1)
+    unless an administrator already changed the label."""
+    for member, old_label in OFFICE_KIND_OLD_LABELS.items():
+        label, description, _ = OFFICE_KIND_COLUMNS[member]
+        row = session.get(RefOfficeKind, member.value)
+        if row is not None and row.label == old_label:
+            row.label, row.description = label, description
+            report.add("ref_office_kind_relabelled")
     session.flush()
 
 

@@ -89,10 +89,30 @@ export function labels(assignable: readonly string[] = []): ReferenceLabels {
       description: null,
       assignable: assignable.includes(code),
     })),
+    // design offices-import, decision 5: each kind with its "What It Covers" text and the kinds its parent may have
     office_kinds: [
-      { code: "state", label: "State" },
-      { code: "department", label: "Department" },
-      { code: "directorate", label: "Directorate" },
+      { code: "state", label: "State", description: null, parents: [] },
+      { code: "central", label: "Central", description: null, parents: ["state"] },
+      { code: "department", label: "Department", description: null, parents: ["state"] },
+      {
+        code: "directorate",
+        label: "Directorate / Commissionerate",
+        description: "Heads of department under a department.",
+        parents: ["department"],
+      },
+      {
+        code: "board_corporation",
+        label: "Board / Corporation",
+        description: "State public sector companies, corporations, boards and federations that act in their own name.",
+        parents: ["department"],
+      },
+      { code: "institution", label: "Institution", description: "Universities, colleges, training and research institutes.", parents: ["department"] },
+      {
+        code: "unit",
+        label: "Unit",
+        description: null,
+        parents: ["advocate_general", "board_corporation", "central", "department", "directorate", "institution"],
+      },
     ],
     ticket_kinds: [{ code: "head_change", label: "Head change" }],
     alert_kinds: [

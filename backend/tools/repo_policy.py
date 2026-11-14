@@ -6,9 +6,9 @@
     python backend/tools/repo_policy.py history          # every commit reachable from main
 
 Rules: (1) forbidden paths (.env files, keys and certificates, backups, local data, dumps, unreviewed NAPIX output,
-local Claude settings, Postman environments, document stores); (2) a non-empty secret value in an example env file;
-(3) the NAPIX master switch turned on in configuration; (4) a private-key block; (5) a literal NAPIX credential;
-(6) a file over 20 MB. A finding prints the path, the line and the rule, never the matched value. Exit status 0 when
+local Claude settings, Postman environments, document stores, spreadsheets); (2) a non-empty secret value in an
+example env file; (3) the NAPIX master switch turned on in configuration; (4) a private-key block; (5) a literal
+NAPIX credential; (6) a file over 20 MB. A finding prints the path, the line and the rule, never the matched value. Exit status 0 when
 clean, 1 with findings, 2 on a usage or git error. Standard library only.
 
 The switch-on and private-key patterns are assembled from pieces at import time: the repository's guard hook refuses
@@ -109,6 +109,10 @@ def check_path(path: str) -> list[str]:
         out.append("postman-environment")
     if {"cause-list-directory", "case_documents", "order_documents"} & set(dirs):
         out.append("document-store")
+    if PurePosixPath(name).suffix.lower() in {".xlsx", ".xlsm", ".xls"}:
+        out.append(
+            "spreadsheet"
+        )  # design offices-import, decision 20: workbooks hold officers' personal details
     return out
 
 

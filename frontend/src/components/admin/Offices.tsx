@@ -37,7 +37,7 @@ import {
   UserPicker,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { OFFICE_NAMES_KEY, useLabels, useMe } from "@/lib/api/hooks";
+import { OFFICE_NAMES_KEY, useLabels, useMe, useOfficeChoices } from "@/lib/api/hooks";
 import { labelOf } from "@/lib/displayLabels";
 import type { Designation, OfficeDetail, OfficeKind, OfficeNode, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin, readsAudit } from "@/lib/can";
@@ -52,6 +52,21 @@ import { DesignationInput, useDesignations } from "./Users";
 
 export const DEPARTMENT_TIER: readonly string[] = ["department", "central", "advocate_general"];
 
+interface KindLabel {
+  code: string;
+  label: string;
+  description?: string | null;
+  parents?: string[];
+}
+
+/**
+ * The kinds a new office under a parent of `parentKind` may have (design offices-import, decision 5: the placement rule
+ * from the server's labels); every kind but the State while no parent is chosen.
+ */
+export function kindsForParent(kinds: readonly KindLabel[] | undefined, parentKind: string | null | undefined): KindLabel[] {
+  return (kinds ?? []).filter((k) => k.code !== "state" && (!parentKind || (k.parents ?? []).includes(parentKind)));
+}
+
 function TreeItems({ nodes, kinds }: { nodes: OfficeNode[]; kinds: { code: string; label: string }[] | undefined }) {
   return (
     <ul className="tree">
@@ -59,6 +74,12 @@ function TreeItems({ nodes, kinds }: { nodes: OfficeNode[]; kinds: { code: strin
         <li key={n.id}>
           <Link href={`/admin/offices/${encodeURIComponent(n.code)}`}>{n.name}</Link>{" "}
           <span className="mono muted">{n.code}</span> · {labelOf(kinds, n.kind)} · {T.offices.users(n.users_active)}
+          {n.no_head ? (
+            <>
+              {" "}
+              <Badge tone="warning">{T.offices.noHeadYet}</Badge>
+            </>
+          ) : null}
           {n.is_active === false ? (
             <>
               {" "}
@@ -256,6 +277,11 @@ export function NewOfficeForm() {
   const [head, setHead] = useState<HeadDraft>({ user: null, designationId: kept?.designationId ?? "" });
   const save = useAction();
   const needsHead = DEPARTMENT_TIER.includes(form.kind);
+  // the chosen parent's kind, from the Office Picker's own list (the same cached query)
+  const parents = useOfficeChoices("office_parent");
+  const parentKind = parents.data?.items.find((o) => o.code === form.parent.trim().toUpperCase())?.kind;
+  const kindOptions = kindsForParent(labels.data?.office_kinds, parentKind);
+  const chosenKind = (labels.data?.office_kinds ?? []).find((k) => k.code === form.kind) as KindLabel | undefined;
   const headId = params.get("head");
   usePickedHead(headId, (user) => setHead((h) => ({ ...h, user })));
 
@@ -306,11 +332,11 @@ export function NewOfficeForm() {
         <TextField label={T.offices.name} hint={T.offices.hints.name} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <SelectField
           label={T.offices.kind}
-          hint={T.offices.hints.kind}
+          hint={chosenKind?.description || T.offices.hints.kind}
           required
           value={form.kind}
           placeholder=""
-          options={(labels.data?.office_kinds ?? []).filter((k) => k.code !== "state").map((k) => ({ value: k.code, label: k.label }))}
+          options={kindOptions.map((k) => ({ value: k.code, label: k.label }))}
           onChange={(e) => setForm({ ...form, kind: e.target.value })}
         />
         {/* design portal-ui-polish-2, decision 30: the parent from the Office Picker (purpose office_parent) */}
@@ -320,7 +346,12 @@ export function NewOfficeForm() {
           purpose="office_parent"
           required
           value={form.parent || null}
-          onChange={(parent) => setForm({ ...form, parent: parent ?? "" })}
+          onChange={(parent) => {
+            // a kind the new parent does not accept is cleared (decision 5)
+            const kind = parents.data?.items.find((o) => o.code === parent)?.kind;
+            const keep = kindsForParent(labels.data?.office_kinds, kind).some((k) => k.code === form.kind);
+            setForm({ ...form, parent: parent ?? "", kind: keep ? form.kind : "" });
+          }}
         />
         <TextField label={T.offices.validFrom} hint={T.offices.hints.validFrom} type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
       </div>
@@ -460,8 +491,18 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
           <h2>
             {o.name} <span className="mono muted">{o.code}</span>
           </h2>
-          {o.is_active === false ? <Badge tone="warning">{T.inactive}</Badge> : <Badge tone="success">{T.active}</Badge>}
+          <div className="row">
+            {o.no_head ? <Badge tone="warning">{T.offices.noHeadYet}</Badge> : null}
+            {o.is_active === false ? <Badge tone="warning">{T.inactive}</Badge> : <Badge tone="success">{T.active}</Badge>}
+          </div>
         </div>
+        {o.no_head ? (
+          // design offices-import, decision 23: the head is named through a Head Change request (operation set)
+          <p>
+            {T.offices.nameHeadLead}{" "}
+            <Link href={`/admin/tickets/new${queryString({ department: o.code, operation: "set" })}`}>{T.offices.nameHeadLink}</Link>
+          </p>
+        ) : null}
         {refused && o.is_active !== false ? <Notice tone="warning">{T.offices.alreadyActive}</Notice> : null}
         {editing ? (
           <form className="stack" onSubmit={saveEdit}>

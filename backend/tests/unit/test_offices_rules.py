@@ -1,5 +1,6 @@
-"""The office rules without a database: code normalisation, the placement table of design decision 3, the
-tier derived from the path."""
+"""The office rules without a database: code normalisation (2 to 17 characters since design offices-import, decision
+6), the placement table of design decision 3 with the six kinds of offices-import (decisions 2 and 4), the tier
+derived from the path."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from aslms.domain.org import Office
 from aslms.domain.reference import OfficeKind as K
 from aslms.services.offices import (
     DELEGABLE_KINDS,
+    NEW_KINDS,
     PLACEMENT,
     OfficeError,
     child_path,
@@ -20,13 +22,15 @@ from aslms.services.offices import (
 
 
 @pytest.mark.parametrize(
-    ("raw", "code"), [("edu", "EDU"), (" EDU-DSE ", "EDU-DSE"), ("a1", "A1"), ("X" * 40, "X" * 40)]
+    ("raw", "code"), [("edu", "EDU"), (" EDU-DSE ", "EDU-DSE"), ("a1", "A1"), ("X" * 17, "X" * 17)]
 )
 def test_codes_are_upper_cased_and_trimmed(raw, code):
     assert normalise_code(raw) == code
 
 
-@pytest.mark.parametrize("raw", ["", "E", "X" * 41, "EDU DSE", "EDU_DSE", "-EDU", "édu", "edu/dse", None])
+@pytest.mark.parametrize(
+    "raw", ["", "E", "X" * 18, "X" * 41, "EDU DSE", "EDU_DSE", "-EDU", "édu", "edu/dse", None]
+)
 def test_bad_codes_are_refused(raw):
     with pytest.raises(OfficeError):
         normalise_code(raw)
@@ -47,6 +51,9 @@ EXPECTED = {(K.STATE, parent): False for parent in K} | {
     (K.UNIT, K.DIRECTORATE): True,
     (K.UNIT, K.CENTRAL): True,
     (K.UNIT, K.ADVOCATE_GENERAL): True,
+    # offices-import, decision 2: each new kind under a department only, and a Unit inside each
+    **{(kind, K.DEPARTMENT): True for kind in NEW_KINDS},
+    **{(K.UNIT, kind): True for kind in NEW_KINDS},
 }
 
 
@@ -56,10 +63,12 @@ def test_placement_table_matches_decision_3(child, parent):
     assert (parent in PLACEMENT[child]) is EXPECTED.get((child, parent), False)
 
 
-def test_state_is_never_creatable_and_only_two_kinds_are_delegable():
+def test_state_is_never_creatable_and_only_the_offices_below_a_department_are_delegable():
     assert PLACEMENT[K.STATE] == frozenset()
     assert set(PLACEMENT) == set(K)
-    assert DELEGABLE_KINDS == {K.DIRECTORATE, K.UNIT}
+    # offices-import, decision 4: the six new kinds are delegable like a directorate
+    assert DELEGABLE_KINDS == {K.DIRECTORATE, K.UNIT, *NEW_KINDS}
+    assert len(NEW_KINDS) == 6
 
 
 def test_tier_and_depth_from_a_synthetic_path():

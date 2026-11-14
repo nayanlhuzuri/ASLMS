@@ -233,6 +233,14 @@ class LabelOut(BaseModel):
     label: str
 
 
+class OfficeKindLabelOut(LabelOut):
+    """An office kind (design offices-import, decision 5): its "What It Covers" text and the kinds its parent may
+    have, from the placement rule."""
+
+    description: str | None = None
+    parents: list[str] = Field(default_factory=list)
+
+
 class CaseTypeOut(BaseModel):
     """An active case type of the High Court master (court-public)."""
 
@@ -246,7 +254,7 @@ class ReferenceLabelsOut(BaseModel):
     """Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's."""
 
     user_types: list[UserTypeLabelOut]
-    office_kinds: list[LabelOut]
+    office_kinds: list[OfficeKindLabelOut]
     ticket_kinds: list[LabelOut]
     alert_kinds: list[LabelOut]  # design portal-workflow, decision 20f: active `ref_alert_kind` rows
 
@@ -309,6 +317,9 @@ class OfficeNodeOut(OfficeOut):
     tier: str
     depth: int
     users_active: int
+    no_head: bool = Field(
+        False, description="an active department with no active head (design offices-import, decision 23)"
+    )
     children: list[OfficeNodeOut] = Field(default_factory=list)
 
 
@@ -343,13 +354,19 @@ class OfficeDetailOut(OfficeOut):
     created_at: datetime
     updated_at: datetime
     counts: OfficeCountsOut
+    no_head: bool = Field(
+        False, description="an active department with no active head (design offices-import, decision 23)"
+    )
 
 
 class OfficeCreateIn(BaseModel):
     code: str = Field(
         min_length=2,
-        max_length=40,
-        description="the Secretariat's code, upper-cased, immutable; `<PARENT>-<CHILD>` is the convention",
+        max_length=17,
+        description=(
+            "the Secretariat's code, upper-cased, immutable, 2 to 17 characters (part of every reference number the "
+            "office issues); `<PARENT>-<CHILD>` is the convention"
+        ),
     )
     name: str = Field(min_length=1, max_length=200)
     kind: OfficeKind

@@ -464,3 +464,54 @@ def test_failed_writes_leave_no_audit_rows(world):
     assert api.post("/admin/offices/NOPE/deactivate", headers=root).status_code == 404
     assert api.patch("/admin/offices/NOPE", json={"name": "x"}, headers=root).status_code == 404
     assert audit_actions(Session) == before
+
+
+def test_tree_and_detail_no_head_flag(world):
+    """Design offices-import, decision 23: `no_head` is true only for an active department with no active head."""
+    api, _Session = world
+    root = login(api, "root@example.org")
+    r = api.post(
+        "/admin/offices",
+        json={
+            "code": "FIN",
+            "name": "Finance",
+            "kind": "department",
+            "parent_code": "GOA",
+            "head": fin_head(),
+        },
+        headers=root,
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["no_head"] is False
+    tree = api.get("/admin/offices/tree", headers=root).json()
+
+    def walk(nodes):
+        for n in nodes:
+            yield n
+            yield from walk(n["children"])
+
+    flags = {n["code"]: n["no_head"] for n in walk(tree)}
+    assert flags["EDU"] is True and flags["HEALTH"] is True and flags["FIN"] is False
+    assert flags["GOA"] is False and flags["EDU-DSE"] is False
+    assert api.get("/admin/offices/EDU", headers=root).json()["no_head"] is True
+    assert api.get("/admin/offices/FIN", headers=root).json()["no_head"] is False
+    assert api.get("/admin/offices/EDU-DSE", headers=root).json()["no_head"] is False
+
+
+def test_labels_office_kinds_description_and_parents(world):
+    """Design offices-import, decision 5: each office kind carries its "What It Covers" text and its parents."""
+    api, _Session = world
+    officer = login(api, "officer@example.org")
+    kinds = {k["code"]: k for k in api.get("/reference/labels", headers=officer).json()["office_kinds"]}
+    assert kinds["board_corporation"]["label"] == "Board / Corporation"
+    assert kinds["board_corporation"]["parents"] == ["department"]
+    assert "corporations" in kinds["board_corporation"]["description"]
+    assert kinds["directorate"]["label"] == "Directorate / Commissionerate"
+    assert kinds["directorate"]["parents"] == ["department"]
+    assert "board_corporation" in kinds["unit"]["parents"] and "directorate" in kinds["unit"]["parents"]
+    assert "state" not in kinds["unit"]["parents"] and "department" in kinds["unit"]["parents"]
+    assert kinds["department"]["parents"] == ["state"]
+    assert kinds["state"]["parents"] == []
+    order = [k for k in kinds]
+    assert order.index("directorate") < order.index("board_corporation") < order.index("autonomous_council")
+    assert order.index("autonomous_council") < order.index("advocate_general")

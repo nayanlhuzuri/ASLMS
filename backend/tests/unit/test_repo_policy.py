@@ -77,6 +77,20 @@ def test_allowed_paths(path):
     assert rp.check_path(path) == []
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "Claude outputs/ASLMS_Offices_From_State_Portal.xlsx",
+        "docs/offices.XLSX",
+        "backend/tests/fixtures/offices.xlsm",
+        "old.xls",
+    ],
+)
+def test_spreadsheet_paths_refused(path):
+    """Design offices-import, decision 20: no workbook is pushed; tests build theirs in memory."""
+    assert "spreadsheet" in rp.check_path(path)
+
+
 def test_switch_on_in_configuration_fires():
     for path, line in [
         ("compose.yml", f"      {SWITCH}: {ON}"),

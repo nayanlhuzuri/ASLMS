@@ -415,3 +415,58 @@ def set_cmd(role: str, permission: str, state: str = typer.Argument(..., help="o
             raise typer.BadParameter("there is no super admin yet; create-super-admin first")
         access.set_matrix(s, actor, actor_user, Role(role), Permission(permission), state.lower() == "on")
         rprint(f"{role}: {permission} {state}")
+
+
+def _welcome_session_factory():
+    """The session factory of `users welcome` (tests point it at their database)."""
+    from aslms.db.session import get_sessionmaker
+
+    return get_sessionmaker()
+
+
+def _welcome_mailer(settings):
+    from aslms.services.mailer import get_mailer
+
+    return get_mailer(settings)
+
+
+@users_app.command("welcome")
+def welcome(
+    email: str | None = typer.Option(None, "--email", help="send the welcome e-mail to this login again"),
+    pending: bool = typer.Option(
+        False, "--pending", help="every login created with no password that has not received it"
+    ),
+) -> None:
+    """Send the welcome e-mail ("Your ASLMS Sign-In Is Ready") again (design `offices-import`, decision 18). Each
+    send is audited `user.welcome_sent`. Exactly one of --email or --pending."""
+    from aslms.core.config import get_settings
+    from aslms.services.mailer import MailError, mask_address
+    from aslms.services.otp import MailNotConfigured, ensure_mail_ready
+    from aslms.services.users import send_welcome, welcome_pending
+
+    if bool(email) == pending:
+        raise typer.BadParameter("give --email ADDRESS or --pending")
+    settings = get_settings()
+    try:
+        mailer = _welcome_mailer(settings)
+        ensure_mail_ready(mailer, settings)
+    except (MailError, MailNotConfigured) as exc:
+        rprint(f"[red]mail is not ready ({exc.__class__.__name__})[/red]")
+        raise typer.Exit(4) from exc
+    factory = _welcome_session_factory()
+    with factory() as s:
+        actor, actor_user = _actor(s)
+        if actor_user is None:
+            raise typer.BadParameter("there is no super admin yet; create-super-admin first")
+        targets = welcome_pending(s) if pending else [_user(s, email)]
+    sent = failed = 0
+    for u in targets:
+        if send_welcome(factory, mailer, settings, u, actor=actor):
+            sent += 1
+            rprint(f"sent to {mask_address(u.email)}")
+        else:
+            failed += 1
+            rprint(f"[yellow]not sent to {mask_address(u.email)}[/yellow]")
+    rprint(f"welcome e-mails: {sent} sent, {failed} not sent")
+    if failed:
+        raise typer.Exit(1)

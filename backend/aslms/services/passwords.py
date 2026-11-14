@@ -8,6 +8,7 @@ a weak password too; the API maps `WeakPassword` to 422 `weak_password`."""
 from __future__ import annotations
 
 import re
+import secrets
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -60,3 +61,10 @@ def hash_password(password: str) -> str:
 
 
 DUMMY_HASH = _hasher.hash("not-a-real-password-just-timing-1")
+
+
+def hash_unusable() -> str:
+    """The argon2id hash of a random 48-byte secret that is never shown, logged or kept (design offices-import,
+    decision 16): a login created with no password cannot sign in until the person sets one through Forgot password?.
+    No special case in `verify_password`: the hash is an ordinary one nobody knows the secret of."""
+    return _hasher.hash(secrets.token_bytes(48).hex())

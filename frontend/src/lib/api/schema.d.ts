@@ -11511,7 +11511,7 @@ export interface components {
         OfficeCreateIn: {
             /**
              * Code
-             * @description the Secretariat's code, upper-cased, immutable; `<PARENT>-<CHILD>` is the convention
+             * @description the Secretariat's code, upper-cased, immutable, 2 to 17 characters (part of every reference number the office issues); `<PARENT>-<CHILD>` is the convention
              */
             code: string;
             /** @description required for a Department-tier kind (user-memberships) */
@@ -11554,6 +11554,12 @@ export interface components {
             kind: string;
             /** Name */
             name: string;
+            /**
+             * No Head
+             * @description an active department with no active head (design offices-import, decision 23)
+             * @default false
+             */
+            no_head: boolean;
             /** Notes */
             notes: string | null;
             /** Parent Code */
@@ -11579,7 +11585,22 @@ export interface components {
          * OfficeKind
          * @enum {string}
          */
-        OfficeKind: "state" | "central" | "department" | "directorate" | "advocate_general" | "unit";
+        OfficeKind: "state" | "central" | "department" | "directorate" | "board_corporation" | "statutory_authority" | "society_mission" | "institution" | "local_body" | "autonomous_council" | "advocate_general" | "unit";
+        /**
+         * OfficeKindLabelOut
+         * @description An office kind (design offices-import, decision 5): its "What It Covers" text and the kinds its parent may
+         *     have, from the placement rule.
+         */
+        OfficeKindLabelOut: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Label */
+            label: string;
+            /** Parents */
+            parents?: string[];
+        };
         /**
          * OfficeNameOut
          * @description Design `portal-names-and-labels`, decision 1: an office's display name, nothing else.
@@ -11630,6 +11651,12 @@ export interface components {
             kind: string;
             /** Name */
             name: string;
+            /**
+             * No Head
+             * @description an active department with no active head (design offices-import, decision 23)
+             * @default false
+             */
+            no_head: boolean;
             /** Path */
             path: string;
             /** Tier */
@@ -12393,7 +12420,7 @@ export interface components {
             /** Alert Kinds */
             alert_kinds: components["schemas"]["LabelOut"][];
             /** Office Kinds */
-            office_kinds: components["schemas"]["LabelOut"][];
+            office_kinds: components["schemas"]["OfficeKindLabelOut"][];
             /** Ticket Kinds */
             ticket_kinds: components["schemas"]["LabelOut"][];
             /** User Types */

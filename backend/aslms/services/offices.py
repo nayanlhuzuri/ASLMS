@@ -71,6 +71,16 @@ class OfficeInUse(OfficeError):
 
 
 K = OfficeKind
+# design offices-import, decisions 1-4: the six kinds that sit under a department, at the directorate tier, as a
+# directorate does; never Department-tier, and delegable like a directorate.
+NEW_KINDS = (
+    K.BOARD_CORPORATION,
+    K.STATUTORY_AUTHORITY,
+    K.SOCIETY_MISSION,
+    K.INSTITUTION,
+    K.LOCAL_BODY,
+    K.AUTONOMOUS_COUNCIL,
+)
 # child kind -> the kinds its parent may have (design decision 3). `state` is the seeded root only.
 PLACEMENT: dict[OfficeKind, frozenset[OfficeKind]] = {
     K.STATE: frozenset(),
@@ -78,12 +88,24 @@ PLACEMENT: dict[OfficeKind, frozenset[OfficeKind]] = {
     K.CENTRAL: frozenset({K.STATE}),
     K.ADVOCATE_GENERAL: frozenset({K.STATE}),
     K.DIRECTORATE: frozenset({K.DEPARTMENT}),
-    K.UNIT: frozenset({K.DEPARTMENT, K.DIRECTORATE, K.CENTRAL, K.ADVOCATE_GENERAL}),
+    **{kind: frozenset({K.DEPARTMENT}) for kind in NEW_KINDS},
+    K.UNIT: frozenset({K.DEPARTMENT, K.DIRECTORATE, *NEW_KINDS, K.CENTRAL, K.ADVOCATE_GENERAL}),
 }
-DELEGABLE_KINDS = frozenset({K.DIRECTORATE, K.UNIT})
+# the parents each kind accepts, as codes, for `GET /reference/labels` (`parents`, design offices-import, decision 5)
+NEW_KIND_PARENTS: dict[str, list[str]] = {
+    kind.value: sorted(p.value for p in parents) for kind, parents in PLACEMENT.items()
+}
+DELEGABLE_KINDS = frozenset({K.DIRECTORATE, *NEW_KINDS, K.UNIT})
 DEPARTMENT_TIER_KINDS = frozenset({K.DEPARTMENT, K.CENTRAL, K.ADVOCATE_GENERAL})
 
-OFFICE_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,39}$")
+# design offices-import, decision 6: at most 17 characters, so `ASLMS/<CODE>/NOTE/2026/000001` fits `ref_no`
+# varchar(40) and `ref_sequences.office_code` varchar(20)
+OFFICE_CODE_MAX = 17
+OFFICE_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,16}$")
+OFFICE_CODE_RULE = (
+    "a code is 2 to 17 characters: capital letters, digits and hyphens, starting with a letter or digit, "
+    "because it is part of every reference number the office issues"
+)
 DESIGNATION_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{1,39}$")  # the seed uses `CS_SEC`, `LEGAL_OFFICER`
 MAX_PATH = 400
 TIERS = ("state", "department", "directorate")
@@ -92,14 +114,53 @@ TIERS = ("state", "department", "directorate")
 def normalise_code(code: str, *, pattern: re.Pattern[str] = OFFICE_CODE_RE) -> str:
     code = (code or "").strip().upper()
     if not pattern.match(code):
+        if pattern is OFFICE_CODE_RE:
+            raise OfficeError(OFFICE_CODE_RULE)
         raise OfficeError(
-            "a code is 2 to 40 characters: letters, digits and hyphens, starting with a letter or digit"
+            "a code is 2 to 40 characters: letters, digits, hyphens and underscores, starting with a letter or "
+            "digit"
         )
     return code
 
 
 def normalise_designation_code(code: str) -> str:
     return normalise_code(code, pattern=DESIGNATION_CODE_RE)
+
+
+_NAME_PUNCT = re.compile(r"[^a-z0-9 ]+")
+
+
+def normalised_name(name: str | None) -> str:
+    """An office name for the duplicate check (design offices-import, decision 10): lower case, `&` read as "and",
+    punctuation dropped, white space collapsed, a leading "department of" or a trailing "department" dropped. So
+    "Department of School Education" and "School Education" are the same name."""
+    text = (name or "").replace("\u00a0", " ").lower().replace("&", " and ")
+    text = " ".join(_NAME_PUNCT.sub(" ", text).split())
+    if text.startswith("department of "):
+        text = text[len("department of ") :]
+    if text.endswith(" department"):
+        text = text[: -len(" department")]
+    return text.strip()
+
+
+def designation_code_from_name(name: str, taken: set[str] | frozenset[str]) -> str:
+    """A designation code made from its name (design offices-import, decision 11): upper case, `&` becomes `AND`,
+    other non-alphanumerics `_`, cut to 40 characters, with `_2`, `_3` … added on a clash with `taken`. An ASLMS
+    internal code, not an external identifier."""
+    base = (name or "").strip().upper().replace("&", " AND ")
+    base = re.sub(r"[^A-Z0-9]+", "_", base).strip("_")[:40].rstrip("_")
+    if len(base) < 2:
+        base = (base + "_DESIGNATION")[:40] if base else "DESIGNATION"
+    taken_upper = {t.upper() for t in taken}
+    if base not in taken_upper:
+        return base
+    n = 2
+    while True:
+        suffix = f"_{n}"
+        candidate = base[: 40 - len(suffix)].rstrip("_") + suffix
+        if candidate not in taken_upper:
+            return candidate
+        n += 1
 
 
 def _as_kind(value: OfficeKind | str) -> OfficeKind:
@@ -222,6 +283,7 @@ class OfficeNode:
     depth: int
     users_active: int
     children: list[OfficeNode] = field(default_factory=list)
+    no_head: bool = False  # design offices-import, decision 23: an active department with no active head
 
 
 def office_tree(session: Session, roots: list[Office], *, include_inactive: bool = False) -> list[OfficeNode]:
@@ -242,8 +304,23 @@ def office_tree(session: Session, roots: list[Office], *, include_inactive: bool
             .group_by(UserMembership.office_id)
         ).all()
     )
+    headed = set(
+        session.scalars(
+            select(UserMembership.department_id).where(
+                UserMembership.department_id.in_(list(offices)),
+                UserMembership.role == Role.DEPT_HEAD,
+                UserMembership.is_active.is_(True),
+            )
+        ).all()
+    )
     nodes = {
-        o.id: OfficeNode(office=o, tier=tier_of(o), depth=depth_of(o), users_active=int(counts.get(o.id, 0)))
+        o.id: OfficeNode(
+            office=o,
+            tier=tier_of(o),
+            depth=depth_of(o),
+            users_active=int(counts.get(o.id, 0)),
+            no_head=is_headless_department(o, o.id in headed),
+        )
         for o in offices.values()
     }
     top: list[OfficeNode] = []
@@ -254,6 +331,33 @@ def office_tree(session: Session, roots: list[Office], *, include_inactive: bool
         node.children.sort(key=lambda n: n.office.code)
     top.sort(key=lambda n: n.office.path)
     return top
+
+
+def is_headless_department(office: Office, has_head: bool) -> bool:
+    """True only for an active Department-tier office at the department tier with no active `dept_head` membership
+    (the `departments_without_head` condition; design offices-import, decision 23)."""
+    return (
+        bool(office.is_active)
+        and not has_head
+        and _as_kind(office.kind) in DEPARTMENT_TIER_KINDS
+        and tier_of(office) == "department"
+    )
+
+
+def has_no_head(session: Session, office: Office) -> bool:
+    """`no_head` of one office (the office page)."""
+    if not office.is_active or _as_kind(office.kind) not in DEPARTMENT_TIER_KINDS:
+        return False
+    head = session.scalar(
+        select(UserMembership.id)
+        .where(
+            UserMembership.department_id == office.id,
+            UserMembership.role == Role.DEPT_HEAD,
+            UserMembership.is_active.is_(True),
+        )
+        .limit(1)
+    )
+    return is_headless_department(office, head is not None)
 
 
 def find_office(session: Session, code: str) -> Office | None:
@@ -292,10 +396,14 @@ def create_office(
     notes: str | None = None,
     valid_from: date | None = None,
     head: dict | None = None,
+    allow_no_head: bool = False,
 ) -> Office:
     """A Department-tier office needs `head` (decision 24 of `user-memberships`): an existing login by `user_id`
     or `email`, with `designation` / `designation_id` (design `office-head-picker`, decision 6); the office and the
-    head membership are created together and recorded as an approved head-change ticket."""
+    head membership are created together and recorded as an approved head-change ticket. `allow_no_head` (passed
+    only by `offices_import`, design offices-import, decision 9) creates a Department-tier office with no head yet;
+    the audit row then carries `head: null` and `no_head_yet: true`. The portal, the API and `aslms offices create`
+    keep `head_required`."""
     kind = _as_kind(kind)
     assert_can_manage_office(session, actor_user, parent=parent, kind=kind)
     if kind == OfficeKind.STATE:
@@ -316,9 +424,10 @@ def create_office(
     if session.scalar(select(Court.id).where(Court.ref_code == code).limit(1)) is not None:
         # design case-ref-court-prefix, decision 3: `ASLMS/GHC/NOTE/…` would read as a court's number
         raise OfficeError(f"{code} is a court's code in case numbers and cannot be an office code")
-    if kind in DEPARTMENT_TIER_KINDS and not head:
+    no_head_yet = kind in DEPARTMENT_TIER_KINDS and not head and allow_no_head
+    if kind in DEPARTMENT_TIER_KINDS and not head and not allow_no_head:
         raise HeadRequired("a department is created with its head")
-    chosen = resolve_head(session, head) if kind in DEPARTMENT_TIER_KINDS else None
+    chosen = resolve_head(session, head) if kind in DEPARTMENT_TIER_KINDS and head else None
     office = Office(
         code=code,
         name=name[:200],
@@ -337,14 +446,10 @@ def create_office(
     head_after = None
     if chosen is not None:
         head_after = _set_head(session, actor, actor_user, office, chosen)
-    write_audit(
-        session,
-        actor,
-        "office.create",
-        "office",
-        office.id,
-        after={**office_summary(office), "head": head_after},
-    )
+    after = {**office_summary(office), "head": head_after}
+    if no_head_yet:
+        after["no_head_yet"] = True
+    write_audit(session, actor, "office.create", "office", office.id, after=after)
     _event(session, office, "create")
     session.flush()
     return office
@@ -429,6 +534,23 @@ def _set_head(session: Session, actor: Actor, actor_user: User, office: Office, 
     }
     ticket = tickets.record_direct_set(session, actor, actor_user, office, incoming)
     return {"ticket_ref": ticket.ref_no, **(ticket.result or {}).get("incoming", {})}
+
+
+def set_missing_head(session: Session, actor: Actor, actor_user: User, office: Office, head: dict) -> dict:
+    """The head of a department that has none (design offices-import, decision 15): `resolve_head` then `_set_head`,
+    recorded as an approved head-change ticket. Never replaces a head: 409 `one_dept_head` when the department
+    already has one."""
+    from aslms.services import memberships
+
+    assert_can_manage_office(session, actor_user, office=office, kind=office.kind)
+    if not office.is_active:
+        raise OfficeError(f"the office {office.code} is inactive")
+    if _as_kind(office.kind) not in DEPARTMENT_TIER_KINDS or tier_of(office) != "department":
+        raise OfficeError(f"{office.code} is not a department")
+    if memberships.head_of(session, office) is not None:
+        raise access.Conflict("one_dept_head", f"{office.code} already has a head")
+    chosen = resolve_head(session, head)
+    return _set_head(session, actor, actor_user, office, chosen)
 
 
 def update_office(
@@ -571,15 +693,18 @@ def add_department_admin(
     actor_user: User,
     office: Office,
     *,
-    email: str,
-    password: str,
-    full_name: str,
+    email: str | None = None,
+    password: str | None = None,
+    full_name: str | None = None,
     designation: str | None = None,
     designation_id: uuid.UUID | None = None,
     mobile: str | None = None,
+    user: User | None = None,
 ) -> User:
-    """The first `dept_admin` of a Department-tier office. The same user row `POST /admin/users` would create,
-    through `create_user`; the delegation rule admits only the super admin (`dept_admin` is not delegable)."""
+    """The first `dept_admin` of a Department-tier office. Without `user`: the same user row `POST /admin/users`
+    would create, through `create_user`. With `user` (an existing login, design offices-import, decision 17): the
+    `dept_admin` membership through `memberships.insert_membership`, after the same checks. The delegation rule admits
+    only the super admin (`dept_admin` is not delegable). Either way `office.admin_added` is written."""
     access.assert_can_manage(session, actor_user, "create", target_office=office, target_role=Role.DEPT_ADMIN)
     if not office.is_active:
         raise OfficeError(f"the office {office.code} is inactive")
@@ -590,19 +715,36 @@ def add_department_admin(
         )
     if department_admins(session, office):
         raise AdminExists(f"{office.code} already has a Department Administrator; use the swap")
-    user = create_user(
-        session,
-        actor,
-        email=email,
-        password=password,
-        full_name=full_name,
-        role=Role.DEPT_ADMIN,
-        office=office,
-        designation=designation,
-        designation_id=designation_id,
-        mobile=mobile,
-        must_confirm_profile=True,
-    )
+    if user is not None:
+        from aslms.services import memberships
+
+        if not user.is_active:
+            raise access.Conflict("login_inactive", "the chosen person's sign-in is turned off")
+        memberships.insert_membership(
+            session,
+            actor,
+            user,
+            office=office,
+            role=Role.DEPT_ADMIN,
+            designation=designation,
+            designation_id=designation_id,
+        )
+    else:
+        if not email or not full_name:
+            raise OfficeError("a new Department Administrator needs an e-mail and a full name")
+        user = create_user(
+            session,
+            actor,
+            email=email,
+            password=password,
+            full_name=full_name,
+            role=Role.DEPT_ADMIN,
+            office=office,
+            designation=designation,
+            designation_id=designation_id,
+            mobile=mobile,
+            must_confirm_profile=True,
+        )
     write_audit(
         session,
         actor,

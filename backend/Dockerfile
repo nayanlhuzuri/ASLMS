@@ -33,10 +33,11 @@ COPY pyproject.toml alembic.ini ./
 COPY aslms ./aslms
 COPY migrations ./migrations
 # the import smoke: aslms.cli.main (init, worker, backup, migrate, ops-exporter), aslms.api.main (api),
-# aslms.jobs.celery_app (scheduler), kombu.transport.redis and uvicorn.loops.uvloop; APP_ENV=test on this line only
+# aslms.jobs.celery_app (scheduler), kombu.transport.redis, uvicorn.loops.uvloop, and openpyxl and defusedxml
+# (`aslms offices import`, design offices-import, decision 21); APP_ENV=test on this line only
 RUN pip install --no-cache-dir --no-deps --no-build-isolation . \
  && pip check \
- && APP_ENV=test python -c "import aslms.cli.main, aslms.api.main, aslms.jobs.celery_app, kombu.transport.redis, uvicorn.loops.uvloop" \
+ && APP_ENV=test python -c "import aslms.cli.main, aslms.api.main, aslms.jobs.celery_app, kombu.transport.redis, uvicorn.loops.uvloop, openpyxl, defusedxml" \
  && groupadd --system --gid 10001 aslms \
  && useradd --system --uid 10001 --gid 10001 --home-dir /app --no-create-home aslms \
  && mkdir -p /data /backups && chown 10001:10001 /data /backups
