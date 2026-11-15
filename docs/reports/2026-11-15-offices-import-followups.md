@@ -30,3 +30,8 @@ See the final commit notes; fast-forward push of `main` and the tag.
 
 ## Load status
 `aslms queue-status` did not return within the 2-minute limit during the merge (database busy); not recorded.
+
+## Deploy (15 Nov 2026 at 14:35 IST)
+- CI green on `3143cda` (run 43695648438). Images built from a clean `main`.
+- `docker compose up -d --no-deps --force-recreate api worker worker2 scheduler` with the court-data switch on; no migration, the portal stayed up (web unchanged).
+- Checked: the switch on in `api`, `worker` and `worker2`; both slots started; portal 307 to sign-in, API health 200; the running `offices_import` module holds the `reset_dimensions` fix.
