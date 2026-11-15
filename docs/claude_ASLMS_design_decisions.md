@@ -3896,6 +3896,8 @@ Row 189 `assistant-ollama-work`, design `docs/design/assistant-ollama-work.md` (
 
 - 2026-11-15 — offices-import-followups (row 261): approved by the owner (docs/design/offices-import-followups.md): every row read whatever the stored sheet dimension; codes checked on every row including Include? = No and To Decide; a turned-off designation refused with `designation_inactive` when it would be used for a new membership; names over 200 characters refused (`bad_name`, `bad_designation`). Before the real import of the owner's workbook.
 
+- 2026-11-15 — order-sections (row 250): approved by the owner (docs/design/order-sections.md) with its four confirmations: decision 1, the order reading by rules inside ASLMS rather than SourceTrace (a deviation from the plan, following the owner's "local first" of 12 Nov 2026); decision 12, the part named "Respondents' Submissions" in place of "State's submissions"; decision 17, the outcome values `partly_allowed` and `closed` added; decision 25, the wider masking in Annexure E (every personal name including judges', every address, and the CNR and case-number digits). Migration 0038.
+
 ## Offices import follow-ups, row 261 (2026-11-15)
 
 Design `docs/design/offices-import-followups.md` (approved by the owner 15 Nov 2026). The four review advisories of
