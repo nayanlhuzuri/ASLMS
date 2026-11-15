@@ -921,6 +921,9 @@ never prints a name or a mobile number.
    It lists the errors (they block the import for the whole file), the notices (they do not), the rows left out
    (Include? = No) or waiting (To Decide, or under a department that waits), the plan, and a **fingerprint** of 12
    hex characters. Send the listing to the owner; fix the workbook and run the dry run again until it has no errors.
+   - Every row needs its own code, even one left out or waiting (`duplicate_code_in_file`).
+   - A designation turned off in Administration → Designations is refused for a new head, administrator or office
+     head (`designation_inactive`); turn it on or type another.
 3. **Apply, after the owner approves that listing:**
    `docker compose exec -T api aslms offices import - --apply --expect <fingerprint> < "Claude outputs/ASLMS_Offices_From_State_Portal.xlsx"`.
    If the workbook or the database changed since that dry run the fingerprint differs and nothing is written (exit 3):

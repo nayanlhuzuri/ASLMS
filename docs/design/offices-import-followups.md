@@ -227,3 +227,28 @@ The integrator, on the branch, then on `main` after the merge:
 ## Open questions
 
 None.
+
+## Deviations
+
+Written by the developer during the build (15 Nov 2026).
+
+1. **Where an office's long name is checked.** Decision 4 says `bad_name` comes "before any other check of the row".
+   On the Departments sheet it is the first check. On the Offices sheet it sits where the empty-name check already
+   was, after the Include? skip and the parent lookup, so an office that waits with its parent (`parent_waiting`) is
+   not given an error for a cell of a row the owner has not decided on (decision 13 of `offices-import`). Either way
+   the row is not planned, and its code and office type are still checked so the owner sees every fault at once.
+2. **Where `duplicate_code_in_file` is added.** The first pass marks the rows; each marked row's error is added as
+   that row is checked (`report_clash`, before its skip or any other check), so the listing stays in row order and a
+   row that stops early (a waiting or unknown parent) still gets its error. `check_code` returns `None` for a marked
+   row without a second problem, as designed.
+3. **A designation turned off and the one-per-department rule together.** `plan_membership` reports
+   `designation_inactive` and still checks the one-per-department rule, so a row with both faults lists both; it plans
+   nothing when either is found.
+4. **The oversized stored dimension.** openpyxl 3.1.5 does not in fact pad the tail beyond the last row in the XML
+   (`ReadOnlyWorksheet._cells_by_row` adds trailing empty rows only when the stored last row is below the last row
+   read), so
+   `A1:Z1048576` was not slow before the change. `test_stale_dimension_oversized_reads_only_real_rows` stays as a
+   guard: it counts the rows the reader yields below the header (6 and 8), so a later openpyxl that pads would fail
+   it. The short stored range (`A1:E5`) was the real fault and its test fails without `reset_dimensions()`.
+5. **The full name cut.** `NewLogin.full_name` lost its `[:200]` too: a new login's full name is already checked to
+   be 2 to 200 characters (`bad_name`), so the cut was dead code like the others.

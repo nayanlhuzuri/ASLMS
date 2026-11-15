@@ -548,7 +548,8 @@ No other table or column changes. The welcome mail, the run correlation and the 
     `head_partial`, `person_incomplete`, `bad_email`, `bad_mobile`, `bad_name`, `placeholder`, `person_conflict`,
     `login_missing`, `login_exists`, `login_inactive`, `super_admin_single`, `same_person_head_admin`,
     `one_per_department`, `type_unknown`, `type_not_allowed`, `designation_new`, `head_differs`, `admin_differs`,
-    `no_admin`, `no_head_yet`, `rename`, `no_mobile`, `include_no`, `include_wait`. The checks are read-only queries.
+    `no_admin`, `no_head_yet`, `rename`, `no_mobile`, `include_no`, `include_wait`, and (design
+    `offices-import-followups`) `designation_inactive` and `bad_designation`. The checks are read-only queries.
   - `fingerprint(data, plan) -> str` (12 hex characters).
   - `apply(session, actor, actor_user, wb, *, expect, run_id) -> ImportResult`, in the order of decision 14, entirely
     through `offices`, `memberships`, `users` and `tickets`, with no SQL of its own except the advisory lock. It

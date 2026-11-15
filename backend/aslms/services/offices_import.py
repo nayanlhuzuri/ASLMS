@@ -13,6 +13,10 @@ department heads, first department administrators and office heads, checked and 
   `office_import.applied`. A second run with the same workbook matches everything and writes nothing.
 - `run_apply(...)` commits, then sends the welcome mails (decision 18), so a rolled-back run e-mails nobody.
 
+Problem codes added by design `offices-import-followups`: `designation_inactive` (a designation turned off in
+Administration named for a new membership) and `bad_designation` (a new designation over 200 characters);
+`duplicate_code_in_file` now covers every row whatever its Include? says, and `bad_name` names over 200 characters.
+
 Personal details stay out of every message (decision 20): problems name the sheet, the row, the column and the office
 code; an e-mail appears only masked; names and mobiles never. Nothing from a row is logged."""
 
@@ -49,6 +53,7 @@ from aslms.services.offices import (
 from aslms.services.users import EMAIL_RE, create_user
 
 MAX_BYTES = 5 * 1024 * 1024
+MAX_NAME = 200  # offices.name and designations.name are varchar(200); the portal refuses longer names too
 ZIP_SIGNATURE = b"PK\x03\x04"
 HEADER_SCAN_ROWS = 10
 LOCK_KEY = "aslms_offices_import"
@@ -253,7 +258,12 @@ def read_workbook(data: bytes) -> Workbook:
         raise ImportFileError(f"the file cannot be read as a workbook ({exc.__class__.__name__})") from exc
     try:
         wb = Workbook(sha256=hashlib.sha256(data).hexdigest())
-        for n, r in _rows(_sheet(book, DEPT_SHEET), DEPT_SHEET, DEPT_COLUMNS):
+        dept_ws, office_ws = _sheet(book, DEPT_SHEET), _sheet(book, OFFICE_SHEET)
+        # design offices-import-followups, decision 1: a stale stored <dimension> would cut rows and columns (or
+        # claim a million empty rows); without it the parser reads every row in the XML and nothing more
+        dept_ws.reset_dimensions()
+        office_ws.reset_dimensions()
+        for n, r in _rows(dept_ws, DEPT_SHEET, DEPT_COLUMNS):
             if not r["name"] and not r["code"]:
                 continue
             wb.departments.append(
@@ -279,7 +289,7 @@ def read_workbook(data: bytes) -> Workbook:
                     ),
                 )
             )
-        for n, r in _rows(_sheet(book, OFFICE_SHEET), OFFICE_SHEET, OFFICE_COLUMNS):
+        for n, r in _rows(office_ws, OFFICE_SHEET, OFFICE_COLUMNS):
             if not r["name"] and not r["code"]:
                 continue
             wb.offices.append(
@@ -639,7 +649,10 @@ class _Checker:
         self.new_designations: dict[str, NewDesignation] = {}  # normalised name -> new designation
         self.mentions: dict[str, list[_Mention]] = {}  # e-mail -> mentions (valid e-mails only)
         self.planned: list[tuple[str, str, str, str, _Mention]] = []  # (email, dept, office, role, mention)
-        self.codes_seen: dict[str, tuple[str, int]] = {}
+        # design offices-import-followups, decision 2: (sheet, row) -> the duplicate_code_in_file message
+        self.code_clashes: dict[tuple[str, int], tuple[str, str]] = {}
+        # decision 3: codes of matched designations that Administration has turned off
+        self.inactive_designation_codes: set[str] = set()
         self.names_seen: dict[tuple[str, str], tuple[str, int]] = {}
         role_labels = lookup.role_labels()
         self.type_words = dict(TYPE_WORDS)
@@ -666,6 +679,60 @@ class _Checker:
         return self._logins[email]
 
     # ------------------------------------------------------------------ codes and names
+    def register_codes(self) -> None:
+        """Every row's well-formed code, whatever its Include? says (design offices-import-followups, decision 2).
+        A code on more than one row, at least one of them included: the first included row in sheet order keeps it,
+        every other row with it is marked for `duplicate_code_in_file`. A clash among rows none of which is included
+        is not reported."""
+        rows: dict[str, list[tuple[str, int, str]]] = {}
+        for sheet, items in ((DEPT_SHEET, self.wb.departments), (OFFICE_SHEET, self.wb.offices)):
+            for r in items:
+                code = r.code.strip().upper()
+                if code and OFFICE_CODE_RE.match(code):
+                    rows.setdefault(code, []).append((sheet, r.row, _include(r.include)))
+        for code, found in rows.items():
+            if len(found) < 2:
+                continue
+            keeper = next((f for f in found if f[2] == "yes"), None)
+            if keeper is None:
+                continue
+            for sheet, row, inc in found:
+                if (sheet, row) == keeper[:2]:
+                    continue
+                message = f"the code is also used on {SHEET_SHORT[keeper[0]]} row {keeper[1]} (included)"
+                if inc == "no":
+                    message += "; this row is left out (Include? = No), but every row needs its own code, even one left out"
+                elif inc == "wait":
+                    message += (
+                        "; this row waits (Include? = To Decide or blank), but every row needs its own code, even "
+                        "one waiting"
+                    )
+                self.code_clashes[(sheet, row)] = (code, message)
+
+    def report_clash(self, sheet: str, row: int) -> None:
+        """The row's `duplicate_code_in_file`, added once as the row is checked, whatever its Include? says."""
+        clash = self.code_clashes.get((sheet, row))
+        if clash is not None:
+            self.add(sheet, row, "Code", "duplicate_code_in_file", ERROR, clash[1], clash[0])
+
+    def check_name(self, sheet: str, row: int, column: str, name: str, code: str | None) -> bool:
+        """An office name: not empty and at most 200 characters (decision 4 of offices-import-followups)."""
+        if not name:
+            self.add(sheet, row, column, "bad_name", ERROR, "the name is empty", code)
+            return False
+        if len(name) > MAX_NAME:
+            self.add(
+                sheet,
+                row,
+                column,
+                "bad_name",
+                ERROR,
+                f"the name has {len(name)} characters; an office name is at most {MAX_NAME}",
+                code,
+            )
+            return False
+        return True
+
     def check_code(self, sheet: str, row: int, raw: str) -> str | None:
         code = raw.strip().upper()
         if not code:
@@ -686,19 +753,8 @@ class _Checker:
             else:
                 self.add(sheet, row, "Code", "bad_code", ERROR, offices.OFFICE_CODE_RULE, code)
             return None
-        seen = self.codes_seen.get(code)
-        if seen is not None:
-            self.add(
-                sheet,
-                row,
-                "Code",
-                "duplicate_code_in_file",
-                ERROR,
-                f"the code is also used on {SHEET_SHORT[seen[0]]} row {seen[1]}",
-                code,
-            )
-            return None
-        self.codes_seen[code] = (sheet, row)
+        if (sheet, row) in self.code_clashes:
+            return None  # its duplicate_code_in_file is already reported (report_clash)
         return code
 
     def check_new_code(self, sheet: str, row: int, code: str, name: str, parent_code: str) -> bool:
@@ -780,7 +836,7 @@ class _Checker:
         self.names_seen.setdefault((parent_code, normalised_name(existing.name)), (sheet, row))
         rename = None
         if ok and name and name != existing.name:
-            rename = name[:200]
+            rename = name  # at most 200 characters (check_name), so a second run finds it equal
             self.add(
                 sheet, row, None, "rename", NOTICE, f"{code} will be renamed to the workbook's name", code
             )
@@ -788,18 +844,34 @@ class _Checker:
 
     # ------------------------------------------------------------------ people
     def designation(self, m: _Mention) -> tuple[str, str] | None:
-        """(name, code) of the person's designation: an existing one matched by code or name, else a new one."""
+        """(name, code) of the person's designation: an existing one matched by code or name (an active one first),
+        else a new one. None (with `bad_designation`) for a text over 200 characters, which no stored name can match
+        (design offices-import-followups, decision 4). A matched designation that is turned off is remembered for
+        `plan_membership` (decision 3)."""
         typed = clean(m.person.designation)
+        if len(typed) > MAX_NAME:
+            self.add(
+                m.sheet,
+                m.row,
+                f"{m.label}: Designation",
+                "bad_designation",
+                ERROR,
+                f"the designation has {len(typed)} characters; a designation is at most {MAX_NAME}",
+                m.office_code,
+            )
+            return None
         key = _key(typed)
         for d in sorted(self.designations, key=lambda d: not d.is_active):
             if _key(d.code) == key or _key(d.name) == key:
+                if not d.is_active:
+                    self.inactive_designation_codes.add(d.code)
                 return d.name, d.code
         norm = " ".join(key.split())
         new = self.new_designations.get(norm)
         if new is None:
             code = designation_code_from_name(typed, self.taken_designation_codes)
             self.taken_designation_codes.add(code)
-            new = NewDesignation(code=code, name=typed[:200])
+            new = NewDesignation(code=code, name=typed)
             self.new_designations[norm] = new
             self.add(
                 m.sheet,
@@ -940,15 +1012,31 @@ class _Checker:
             ok = False
         if not ok:
             return None
+        found = self.designation(m)
+        if found is None:
+            return None
         self.mentions.setdefault(email, []).append(m)
-        name, code = self.designation(m)
+        name, code = found
         return PersonRef(email=email, designation=name, designation_code=code, new_login=login is None)
 
     def plan_membership(
         self, ref: PersonRef, dept_code: str, office_code: str, role: str, m: _Mention
     ) -> bool:
         """The one-per-department rule for a new membership (decision 10): no other active membership of the login
-        in the department, and no other planned one."""
+        in the department, and no other planned one. A designation turned off in Administration is refused for the
+        new membership (design offices-import-followups, decision 3); an existing membership never comes here."""
+        inactive = ref.designation_code in self.inactive_designation_codes
+        if inactive:
+            self.add(
+                m.sheet,
+                m.row,
+                f"{m.label}: Designation",
+                "designation_inactive",
+                ERROR,
+                f'the designation "{ref.designation}" ({ref.designation_code}) is turned off in ASLMS; turn it on in '
+                "Administration → Designations, or type another",
+                m.office_code,
+            )
         login = self.login(ref.email)
         clash = None
         if login is not None:
@@ -972,6 +1060,8 @@ class _Checker:
                 m.office_code,
             )
             return False
+        if inactive:
+            return False
         self.planned.append((ref.email, dept_code, office_code, role, m))
         return True
 
@@ -992,6 +1082,7 @@ class _Checker:
             for k in (_key(r.name), _key(r.code)):
                 if k:
                     index.setdefault(k, (inc, code_text, OfficeKind.DEPARTMENT.value))
+            self.report_clash(DEPT_SHEET, r.row)
             if inc == "no":
                 self.add(
                     DEPT_SHEET, r.row, "Include?", "include_no", SKIP, "left out (Include? = No)", code_text
@@ -1013,10 +1104,10 @@ class _Checker:
 
     def department(self, r: DeptRow) -> None:
         sheet = DEPT_SHEET
-        if not r.name:
-            self.add(sheet, r.row, "Department Name (as on the site)", "bad_name", ERROR, "the name is empty")
+        code_text = r.code.strip().upper() or None
+        name_ok = self.check_name(sheet, r.row, "Department Name (as on the site)", r.name, code_text)
         code = self.check_code(sheet, r.row, r.code)
-        if code is None or not r.name:
+        if code is None or not name_ok:
             return
         root = self.root.code
         existing = self.lk.office(code)
@@ -1026,7 +1117,7 @@ class _Checker:
             )
             if not ok:
                 return
-            action = DeptAction(r.row, code, r.name[:200], r.website or None, "match", rename_to=rename)
+            action = DeptAction(r.row, code, r.name, r.website or None, "match", rename_to=rename)
         else:
             if not self.check_new_code(sheet, r.row, code, r.name, root):
                 return
@@ -1041,7 +1132,7 @@ class _Checker:
                     code,
                 )
                 return
-            action = DeptAction(r.row, code, r.name[:200], r.website or None, "create")
+            action = DeptAction(r.row, code, r.name, r.website or None, "create")
         head_ref = admin_ref = None
         head_m = _Mention(sheet, r.row, code, "Head", r.head, "head_partial")
         admin_m = _Mention(sheet, r.row, code, "Admin", r.admin, "person_incomplete")
@@ -1144,6 +1235,7 @@ class _Checker:
         sheet = OFFICE_SHEET
         code_text = r.code.strip().upper() or None
         inc = _include(r.include)
+        self.report_clash(sheet, r.row)
         if inc == "no":
             self.add(sheet, r.row, "Include?", "include_no", SKIP, "left out (Include? = No)", code_text)
             return
@@ -1186,15 +1278,14 @@ class _Checker:
                 code_text,
             )
             return
-        if not r.name:
-            self.add(sheet, r.row, "Office Name", "bad_name", ERROR, "the name is empty", code_text)
+        name_ok = self.check_name(sheet, r.row, "Office Name", r.name, code_text)
         kind = self.kind_words.get(_key(r.kind))
         if kind is None or kind == OfficeKind.STATE:
             self.add(
                 sheet, r.row, "Office Type", "kind_unknown", ERROR, "the office type is not known", code_text
             )
         code = self.check_code(sheet, r.row, r.code)
-        if code is None or kind is None or kind == OfficeKind.STATE or not r.name:
+        if code is None or kind is None or kind == OfficeKind.STATE or not name_ok:
             return
         if OfficeKind(parent_kind) not in PLACEMENT[kind]:
             self.add(
@@ -1215,7 +1306,7 @@ class _Checker:
             action = OfficeAction(
                 r.row,
                 code,
-                r.name[:200],
+                r.name,
                 r.website or None,
                 kind.value,
                 parent_code,
@@ -1236,9 +1327,7 @@ class _Checker:
                     code,
                 )
                 return
-            action = OfficeAction(
-                r.row, code, r.name[:200], r.website or None, kind.value, parent_code, "create"
-            )
+            action = OfficeAction(r.row, code, r.name, r.website or None, kind.value, parent_code, "create")
         if not r.head.empty:
             m = _Mention(sheet, r.row, code, "Office Head", r.head, "person_incomplete")
             role = self.type_words.get(_key(r.head.user_type)) if r.head.user_type else None
@@ -1310,9 +1399,11 @@ class _Checker:
                     first.office_code,
                 )
             full_name = next(m.person.full_name for m in ms if m.person.full_name)
-            self.plan.new_logins.append(NewLogin(email=email, full_name=full_name[:200], mobile=mobile))
+            # the full name of a new login is checked to be 2 to 200 characters in person()
+            self.plan.new_logins.append(NewLogin(email=email, full_name=full_name, mobile=mobile))
 
     def run(self) -> ImportPlan:
+        self.register_codes()
         index = self.departments()
         for r in self.wb.offices:
             self.office(r, index)

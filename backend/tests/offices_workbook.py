@@ -193,3 +193,36 @@ def build(
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def with_stale_dimension(data: bytes, sheet_title: str, ref: str) -> bytes:
+    """The workbook with the stored `<dimension ref>` of one sheet set to `ref`, as some tools leave it (design
+    `offices-import-followups`, decision 1). The sheet's XML file is found through `xl/workbook.xml` and its
+    relationships, not by number."""
+    import re
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    pkg_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    src = zipfile.ZipFile(io.BytesIO(data))
+    book = ET.fromstring(src.read("xl/workbook.xml"))
+    rid = next(
+        s.get(f"{{{rel_ns}}}id") for s in book.iter(f"{{{main}}}sheet") if s.get("name") == sheet_title
+    )
+    rels = ET.fromstring(src.read("xl/_rels/workbook.xml.rels"))
+    target = next(r.get("Target") for r in rels.iter(f"{{{pkg_ns}}}Relationship") if r.get("Id") == rid)
+    target = target.lstrip("/")
+    path = target if target.startswith("xl/") else f"xl/{target}"
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            body = src.read(item.filename)
+            if item.filename == path:
+                xml = body.decode("utf-8")
+                xml, n = re.subn(r'<dimension ref="[^"]*"\s*/>', f'<dimension ref="{ref}"/>', xml, count=1)
+                assert n == 1, "the sheet has no <dimension> element"
+                body = xml.encode("utf-8")
+            dst.writestr(item, body)
+    return out.getvalue()

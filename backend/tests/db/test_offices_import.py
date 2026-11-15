@@ -649,3 +649,95 @@ def test_inactive_existing_office_is_an_error(world):
     )
     plan, _ = dry(world, data)
     assert "office_inactive" in {p.code for p in plan.errors}
+
+
+# ------------------------------------------------------------------------------------------------ offices-import-followups
+
+
+def _set_designation(world, code: str, enabled: bool) -> None:
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        d = s.scalar(sa.select(Designation).where(Designation.code == code))
+        offices.set_designation_active(s, actor, root, d, enabled)
+        s.commit()
+
+
+def test_inactive_designation_refused_then_accepted_after_reactivation(world, monkeypatch, tmp_path):
+    """Decision 3 of offices-import-followups: a designation turned off in Administration is refused for a new head;
+    once turned on again the dry run is clean and `--apply` gives the membership that designation."""
+    patch_cli(world, monkeypatch)
+    _set_designation(world, "SECY", False)
+    data = workbook(departments=[dept("Transport", "TRANS", **ASHA)], offices=[])
+    before = counts(world)
+    plan, _ = dry(world, data)
+    assert [p.code for p in plan.errors] == ["designation_inactive"]
+    assert plan.new_designations == []
+    r = cli(data=data, tmp_path=tmp_path)
+    assert r.exit_code == 1 and "designation_inactive" in r.output
+    assert "Asha" not in r.output and "asha@example.gov.in" not in r.output
+    assert counts(world) == before
+    _set_designation(world, "SECY", True)
+    plan, _ = dry(world, data)
+    assert not plan.errors and plan.departments[0].head.designation_code == "SECY"
+    apply(world, data)
+    with world.Session() as s:
+        secy = s.scalar(sa.select(Designation).where(Designation.code == "SECY"))
+        m = s.scalar(
+            sa.select(UserMembership)
+            .join(User, User.id == UserMembership.user_id)
+            .where(User.email == "asha@example.gov.in")
+        )
+        assert m.designation_id == secy.id and m.designation == secy.name
+
+
+def test_second_apply_changes_nothing_with_200_character_name(world, monkeypatch, tmp_path):
+    """Decision 4: a 200-character name is stored whole, so a second run plans no rename and writes no
+    `office.update` row; 201 characters is refused."""
+    patch_cli(world, monkeypatch)
+    name = ("Directorate of Very Long Names " * 7)[:199] + "Z"
+    assert len(name) == 200
+    data = workbook(
+        departments=[dept("Transport", "TRANS", **ASHA)],
+        offices=[office("Transport", name, "Directorate / Commissionerate", "TRANS-LONG")],
+    )
+    apply(world, data)
+    assert office_of(world, "TRANS-LONG").name == name
+    before = counts(world)
+    plan, _ = dry(world, data)
+    assert not plan.errors and not plan.has_changes
+    assert "rename" not in [p.code for p in plan.notices]
+    out = cli(data=data, tmp_path=tmp_path).output
+    assert "nothing to change" in out
+    r = cli("--apply", "--expect", fingerprint_of(out), data=data, tmp_path=tmp_path)
+    assert r.exit_code == 0 and "nothing to change" in r.output
+    assert counts(world) == before
+    with world.Session() as s:
+        updates = s.scalars(sa.select(AuditLog).where(AuditLog.action == "office.update")).all()
+        assert updates == []
+    too_long = workbook(
+        departments=[dept("Transport", "TRANS", **ASHA)],
+        offices=[office("Transport", name + "Y", "Directorate / Commissionerate", "TRANS-LONG")],
+    )
+    plan, _ = dry(world, too_long)
+    assert [p.code for p in plan.errors] == ["bad_name"]
+
+
+def test_new_designation_matched_on_second_run(world):
+    """Decision 4: a new designation of 200 characters is created once and matched by the second run (no `_2`)."""
+    typed = ("Additional Chief Executive Officer and Mission Director " * 4)[:199] + "X"
+    assert len(typed) == 200
+    data = workbook(
+        departments=[dept("Transport", "TRANS", **head("Asha Das", "asha@example.gov.in", typed))],
+        offices=[],
+    )
+    plan, _ = dry(world, data)
+    assert [d.name for d in plan.new_designations] == [typed]
+    apply(world, data)
+    before = counts(world)
+    plan, _ = dry(world, data)
+    assert not plan.errors and plan.new_designations == [] and not plan.has_changes
+    apply(world, data)
+    assert counts(world) == before
+    with world.Session() as s:
+        rows = s.scalars(sa.select(Designation).where(Designation.name == typed)).all()
+        assert len(rows) == 1 and not rows[0].code.endswith("_2")

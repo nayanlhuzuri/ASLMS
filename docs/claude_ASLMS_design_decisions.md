@@ -3895,3 +3895,57 @@ Row 189 `assistant-ollama-work`, design `docs/design/assistant-ollama-work.md` (
 ## Design approvals (15 Nov 2026)
 
 - 2026-11-15 — offices-import-followups (row 261): approved by the owner (docs/design/offices-import-followups.md): every row read whatever the stored sheet dimension; codes checked on every row including Include? = No and To Decide; a turned-off designation refused with `designation_inactive` when it would be used for a new membership; names over 200 characters refused (`bad_name`, `bad_designation`). Before the real import of the owner's workbook.
+
+## Offices import follow-ups, row 261 (2026-11-15)
+
+Design `docs/design/offices-import-followups.md` (approved by the owner 15 Nov 2026). The four review advisories of
+row 257. Only `backend/aslms/services/offices_import.py` changed (the `aslms offices import` command). No table,
+column, migration, API or screen change; `schema.md` unchanged. The import has still not been run on the owner's
+workbook.
+
+**What was built**
+- `read_workbook` calls `ws.reset_dimensions()` on both data sheets, so every row and column is read whatever
+  dimension the file stores. Rows below a short stored range and columns such as Website are no longer dropped.
+- A first pass, `_Checker.register_codes()`, checks every row's code for duplicates before the sheets are checked,
+  including rows with Include? = No, To Decide or blank. When at least one row sharing a code is included, the first
+  included row keeps the code and every other row gets `duplicate_code_in_file` (error). Clashes only between rows
+  that are all left out are not reported. `check_code` keeps the format checks and no longer keeps `codes_seen`.
+- A designation turned off in Administration is still matched (never re-created under a second code) but gives
+  `designation_inactive` (error) when the run would create a membership with it (a head, an administrator or an
+  office head). An existing, matched membership writes nothing and is not reported. An active match is preferred.
+- A Department or Office Name over 200 characters is `bad_name`; a typed designation over 200 characters that matches
+  no existing one is the new problem `bad_designation`. The `[:200]` cuts in the plan are removed (also on
+  `NewLogin.full_name`), so a second run compares the text that would be stored and plans no rename and no empty
+  `office.update` audit row, and no `_2` designation.
+- `docs/operations.md` section 24 gains two lines under the dry run; the problem-code list in `offices-import.md`
+  gains `designation_inactive` and `bad_designation`.
+
+**Decisions and reasons**
+- The duplicate-code error applies to a left-out row too: it costs the owner one cell, and without it an office
+  naming its parent by that code can resolve to the wrong row in the same run.
+- A turned-off designation is refused, not reactivated or used: no portal picker offers it, and reactivating inside
+  a data load would hide an Administration decision.
+- Names over 200 characters are refused, not cut: the portal refuses them (`max_length=200`) and a cut name never
+  equals the workbook text.
+- The fingerprint code is unchanged. A fingerprint printed by an earlier dry run may no longer match and `--apply`
+  refuses it with exit 3; no real dry run had been approved, so nothing is lost.
+
+**Deviations from the design (recorded in the design note)**
+1. On the Offices sheet the long-name check sits where the empty-name check was, after the Include? skip and the
+   parent lookup, so an office waiting with its parent gets no error for a cell of an undecided row; the row is still
+   not planned and its code and type are still checked. On Departments it is the first check.
+2. Each marked row's `duplicate_code_in_file` is added as that row is checked (`report_clash`), keeping the listing
+   in row order and reaching rows that stop early.
+3. `designation_inactive` and the one-per-department rule are both reported on one row; nothing is planned if either
+   fires.
+4. openpyxl 3.1.5 does not pad the tail for an oversized stored dimension (`A1:Z1048576`), so that case was not slow;
+   its test stays as a guard (it counts rows yielded). The short stored range was the real fault.
+5. `NewLogin.full_name` lost its `[:200]` too (already checked to 2 to 200 characters).
+
+**Tests:** unit tests for stale short and oversized dimensions, code sharing (left-out/included in both orders and
+both sheets, waiting, two included, only skipped, malformed reported once), inactive designations (refused for new,
+active preferred, ignored for matched), 200-character names and designations; database tests (refused then accepted
+after reactivation; a 200-character office name gives no rename on a second run; a 200-character new designation is
+matched by the second run).
+
+**Left for later:** the dry run and apply on the owner's filled workbook (row 257's steps); nothing new uncovered.

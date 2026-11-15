@@ -1,7 +1,8 @@
 """The import's checks against a faked lookup (design `offices-import`, decisions 6 and 9-13): the code pattern and the
 17-character limit, duplicate codes across the sheets, placeholders, one e-mail with different names, a partly filled
 head, Include? = No / To Decide, an office under a left-out department, the user type words, designation codes from
-names and the name normalising of the duplicate check."""
+names and the name normalising of the duplicate check. Design `offices-import-followups`: codes checked on every row
+whatever its Include? says, designations turned off refused for a new membership, names over 200 characters refused."""
 
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ class FakeLookup:
     heads: dict[str, str] = field(default_factory=dict)
     admins: dict[str, str] = field(default_factory=dict)
     courts: set[str] = field(default_factory=lambda: {"GHC"})
+    extra_designations: list[imp.DesignationInfo] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.offices.setdefault(
@@ -48,6 +50,7 @@ class FakeLookup:
             imp.DesignationInfo("SECY", "Secretary", True),
             imp.DesignationInfo("DY_SECY", "Deputy Secretary", True),
             imp.DesignationInfo("DIRECTOR", "Director", True),
+            *self.extra_designations,
         ]
 
     def role_labels(self):
@@ -298,3 +301,235 @@ def test_problem_output_has_no_names_or_mobiles():
     text = " ".join(p.where() + p.message for p in plan.problems)
     assert "Asha" not in text and "12345" not in text and "9864012345" not in text
     assert "asha@example.gov.in" not in text
+
+
+# ------------------------------------------------------------------------------------------------ offices-import-followups
+
+
+def _dup(plan):
+    return [p for p in plan.problems if p.code == "duplicate_code_in_file"]
+
+
+def test_code_shared_by_left_out_row_and_included_row_is_error():
+    # skipped first, included later, across the sheets: Departments "No" and Offices "Yes"
+    plan = _plan(
+        [dept("Transport", "TRANS", **H), dept("Health", "HFW-X", include="No")],
+        [office("Transport", "Health Board", "Board / Corporation", "HFW-X")],
+    )
+    dup = _dup(plan)
+    assert [(p.sheet, p.row, p.severity) for p in dup] == [(imp.DEPT_SHEET, 6, "error")]
+    assert "Offices row 5 (included)" in dup[0].message and "even one left out" in dup[0].message
+    assert [o.code for o in plan.offices] == ["HFW-X"] and plan.errors
+    assert "include_no" in _codes(plan, "skip")
+    # included first, skipped later, across the sheets: Departments "Yes" and Offices "No"
+    plan = _plan(
+        [dept("Transport", "TRANS", **H)],
+        [office("Transport", "Transport Board", "Board / Corporation", "TRANS", include="No")],
+    )
+    dup = _dup(plan)
+    assert [(p.sheet, p.row) for p in dup] == [(imp.OFFICE_SHEET, 5)]
+    assert "Departments row 5 (included)" in dup[0].message
+    assert [d.code for d in plan.departments] == ["TRANS"] and plan.errors
+    # the same sheet: two department rows, the left-out one first
+    plan = _plan([dept("Health Old", "HEALTH", include="No"), dept("Health", "HEALTH", **H)])
+    assert [(p.sheet, p.row) for p in _dup(plan)] == [(imp.DEPT_SHEET, 5)]
+    assert [d.code for d in plan.departments] == ["HEALTH"]
+    # the same sheet: two office rows, the included one first
+    plan = _plan(
+        [dept("Transport", "TRANS", **H)],
+        [
+            office("Transport", "Board One", "Board / Corporation", "TRANS-B1"),
+            office("Transport", "Board Two", "Board / Corporation", "TRANS-B1", include="No"),
+        ],
+    )
+    assert [(p.sheet, p.row) for p in _dup(plan)] == [(imp.OFFICE_SHEET, 6)]
+    assert [o.code for o in plan.offices] == ["TRANS-B1"]
+
+
+def test_code_shared_by_waiting_row_and_included_row_is_error():
+    for include in ("To Decide", ""):
+        plan = _plan(
+            [dept("Transport", "TRANS", **H), dept("Tourism", "TOURISM", include=include)],
+            [office("Transport", "Tourism Board", "Board / Corporation", "TOURISM")],
+        )
+        dup = _dup(plan)
+        assert [(p.sheet, p.row) for p in dup] == [(imp.DEPT_SHEET, 6)], include
+        assert "even one waiting" in dup[0].message
+        assert "include_wait" in _codes(plan, "skip")
+        assert [o.code for o in plan.offices] == ["TOURISM"]
+
+
+def test_code_shared_by_two_included_rows_still_error_on_later_row():
+    plan = _plan([dept("Transport", "TRANS", **H), dept("Tourism", "TRANS")])
+    dup = _dup(plan)
+    assert [(p.sheet, p.row) for p in dup] == [(imp.DEPT_SHEET, 6)]
+    assert "Departments row 5 (included)" in dup[0].message
+    assert [d.code for d in plan.departments] == ["TRANS"]
+
+
+def test_code_shared_only_by_skipped_rows_not_reported():
+    plan = _plan(
+        [dept("Transport", "TRANS", **H), dept("Tourism", "TOURISM", include="No")],
+        [office("Transport", "Tourism Board", "Board / Corporation", "TOURISM", include="To Decide")],
+    )
+    assert not plan.errors
+    assert _codes(plan, "skip") == ["include_no", "include_wait"]
+
+
+def test_malformed_code_reported_once():
+    plan = _plan([dept("Transport", "TR ANS", **H), dept("Tourism", "TR ANS", include="No")])
+    assert _codes(plan, "error") == ["bad_code"]
+
+
+def test_inactive_designation_refused_for_new_membership():
+    lookup = FakeLookup(extra_designations=[imp.DesignationInfo("MD", "Managing Director", False)])
+    plan = _plan(
+        [
+            dept(
+                "Transport",
+                "TRANS",
+                **head("Asha Das", "asha@example.gov.in", designation="Managing Director"),
+                **admin("Bina Roy", "bina@example.gov.in", designation="md"),
+            )
+        ],
+        [
+            office(
+                "Transport",
+                "Transport Board",
+                "Board / Corporation",
+                "TRANS-B1",
+                **office_head("Chandan Bora", "chandan@example.gov.in", designation="Managing Director"),
+            )
+        ],
+        lookup=lookup,
+    )
+    inactive = [p for p in plan.errors if p.code == "designation_inactive"]
+    assert [p.column for p in inactive] == [
+        "Head: Designation",
+        "Admin: Designation",
+        "Office Head: Designation",
+    ]
+    assert '"Managing Director" (MD) is turned off' in inactive[0].message
+    assert plan.new_designations == [] and "designation_new" not in _codes(plan)
+    assert plan.departments[0].head_action == "none" and plan.departments[0].admin_action == "none"
+    assert plan.offices[0].head_action == "none"
+    # an existing department with no head: a head `set` is refused the same way
+    lookup.offices["HEALTH"] = imp.OfficeInfo("HEALTH", "Health", "department", "GOA/HEALTH", "GOA", True)
+    plan = _plan(
+        [dept("Health", "HEALTH", **head("Asha Das", "asha@example.gov.in", designation="MD"))], lookup=lookup
+    )
+    assert _codes(plan, "error") == ["designation_inactive"]
+
+
+def test_active_designation_preferred_over_inactive():
+    lookup = FakeLookup(
+        extra_designations=[
+            imp.DesignationInfo("COMMISSIONER", "Commissioner (Old)", False),
+            imp.DesignationInfo("COMMR", "Commissioner", True),
+        ]
+    )
+    plan = _plan(
+        [dept("Transport", "TRANS", **head("Asha Das", "asha@example.gov.in", designation="Commissioner"))],
+        lookup=lookup,
+    )
+    assert not plan.errors and plan.new_designations == []
+    assert plan.departments[0].head.designation_code == "COMMR"
+    assert plan.departments[0].head_action == "create_with"
+
+
+def test_inactive_designation_ignored_for_matched_membership():
+    lookup = FakeLookup(extra_designations=[imp.DesignationInfo("MD", "Managing Director", False)])
+    lookup.offices["TRANS"] = imp.OfficeInfo("TRANS", "Transport", "department", "GOA/TRANS", "GOA", True)
+    lookup.offices["TRANS-B1"] = imp.OfficeInfo(
+        "TRANS-B1", "Transport Board", "board_corporation", "GOA/TRANS/TRANS-B1", "TRANS", True
+    )
+    lookup.heads["TRANS"] = "asha@example.gov.in"
+    lookup.admins["TRANS"] = "bina@example.gov.in"
+    lookup.logins["asha@example.gov.in"] = imp.LoginInfo(
+        "asha@example.gov.in", True, False, (imp.MemberInfo("TRANS", "TRANS", "dept_head"),)
+    )
+    lookup.logins["bina@example.gov.in"] = imp.LoginInfo(
+        "bina@example.gov.in", True, False, (imp.MemberInfo("TRANS", "TRANS", "dept_admin"),)
+    )
+    lookup.logins["chandan@example.gov.in"] = imp.LoginInfo(
+        "chandan@example.gov.in", True, False, (imp.MemberInfo("TRANS-B1", "TRANS", "directorate_user"),)
+    )
+    plan = _plan(
+        [
+            dept(
+                "Transport",
+                "TRANS",
+                **head("Asha Das", "asha@example.gov.in", designation="Managing Director"),
+                **admin("Bina Roy", "bina@example.gov.in", designation="MD"),
+            )
+        ],
+        [
+            office(
+                "Transport",
+                "Transport Board",
+                "Board / Corporation",
+                "TRANS-B1",
+                **office_head("Chandan Bora", "chandan@example.gov.in", designation="MD"),
+            )
+        ],
+        lookup=lookup,
+    )
+    assert not plan.errors, [p.code for p in plan.errors]
+    assert plan.departments[0].head_action == "match" and plan.departments[0].admin_action == "match"
+    assert plan.offices[0].head_action == "match"
+    assert not plan.has_changes
+
+
+def test_office_name_over_200_is_error():
+    long = "A" * 199 + " B"  # 201 characters
+    plan = _plan(
+        [dept("Transport", "TRANS", **H), dept(long, "TOURISM")],
+        [
+            office("Transport", long, "Board / Corporation", "TRANS-B1"),
+            office("Transport", "Transport Board", "Board / Corporation", "TRANS-B2"),
+        ],
+    )
+    bad = [p for p in plan.errors if p.code == "bad_name"]
+    assert [(p.sheet, p.row, p.column) for p in bad] == [
+        (imp.DEPT_SHEET, 6, "Department Name (as on the site)"),
+        (imp.OFFICE_SHEET, 5, "Office Name"),
+    ]
+    assert "201 characters" in bad[0].message and "at most 200" in bad[0].message
+    assert [d.code for d in plan.departments] == ["TRANS"]
+    assert [o.code for o in plan.offices] == ["TRANS-B2"]
+    # an existing office renamed to a name over 200 characters is refused, not cut
+    lookup = FakeLookup()
+    lookup.offices["HEALTH"] = imp.OfficeInfo("HEALTH", "Health", "department", "GOA/HEALTH", "GOA", True)
+    plan = _plan([dept(long, "HEALTH")], lookup=lookup)
+    assert _codes(plan, "error") == ["bad_name"] and plan.departments == []
+
+
+def test_name_of_exactly_200_accepted():
+    name = "A" * 198 + " B"  # 200 characters
+    plan = _plan(
+        [dept(name, "TRANS", **H)],
+        [office(name, name, "Board / Corporation", "TRANS-B1")],
+    )
+    assert not plan.errors
+    assert plan.departments[0].name == name and plan.offices[0].name == name
+    lookup = FakeLookup()
+    lookup.offices["HEALTH"] = imp.OfficeInfo("HEALTH", "Health", "department", "GOA/HEALTH", "GOA", True)
+    plan = _plan([dept(name, "HEALTH")], lookup=lookup)
+    assert not plan.errors and plan.departments[0].rename_to == name
+
+
+def test_designation_over_200_is_error_and_not_planned():
+    long = "Additional " * 19 + "Director"  # 217 characters
+    assert len(long) > 200
+    plan = _plan(
+        [
+            dept("Transport", "TRANS", **head("Asha Das", "asha@example.gov.in", designation=long)),
+            dept("Tourism", "TOURISM", **head("Bina Roy", "bina@example.gov.in", designation="A" * 200)),
+        ]
+    )
+    bad = [p for p in plan.errors if p.code == "bad_designation"]
+    assert [(p.row, p.column) for p in bad] == [(5, "Head: Designation")]
+    assert f"{len(long)} characters" in bad[0].message and "at most 200" in bad[0].message
+    assert [d.name for d in plan.new_designations] == ["A" * 200]
+    assert plan.departments[0].head is None and plan.departments[0].head_action == "none"
+    assert [n.email for n in plan.new_logins] == ["bina@example.gov.in"]

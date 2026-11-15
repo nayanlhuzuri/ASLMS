@@ -1,13 +1,15 @@
 """Reading the offices workbook (design `offices-import`, decision 8): sheets and columns by their header text, not by
 letter; a missing header, a non-zip or an oversized file refused; formula and remark columns never read; cells trimmed
-with non-breaking spaces collapsed; a mobile typed as a number read as its digits; empty rows skipped."""
+with non-breaking spaces collapsed; a mobile typed as a number read as its digits; empty rows skipped. A stale stored
+sheet dimension neither cuts rows or columns nor produces an empty tail (design `offices-import-followups`,
+decision 1)."""
 
 from __future__ import annotations
 
 import pytest
 
 from aslms.services import offices_import as imp
-from tests.offices_workbook import build, dept, head, office, office_head
+from tests.offices_workbook import build, dept, head, office, office_head, with_stale_dimension
 
 
 def test_reads_sheets_by_header_text_not_letter():
@@ -114,3 +116,59 @@ def test_office_head_type_column_read():
     wb = imp.read_workbook(data)
     assert wb.offices[0].head.user_type == "Department Officer"
     assert wb.offices[0].head.email == "chandan@example.gov.in"
+
+
+def _stale_book(ref: str) -> bytes:
+    data = build(
+        [
+            dept(
+                f"Department {i}",
+                f"DEPT{i}",
+                website=f"https://d{i}.assam.gov.in",
+                **head(f"P{i}", f"p{i}@x.in"),
+            )
+            for i in range(6)
+        ],
+        [
+            office("Department 0", f"Office {i}", "Unit", f"DEPT0-U{i}", website=f"https://o{i}.assam.gov.in")
+            for i in range(8)
+        ],
+        blank_rows=0,
+    )
+    data = with_stale_dimension(data, imp.DEPT_SHEET, ref)
+    return with_stale_dimension(data, imp.OFFICE_SHEET, ref)
+
+
+def test_stale_dimension_short_reads_every_row():
+    import io
+
+    import openpyxl
+
+    data = _stale_book("A1:E5")
+    # the helper did make the stored range short: without the reset openpyxl would stop at row 5, column E
+    ws = openpyxl.load_workbook(io.BytesIO(data), read_only=True)[imp.DEPT_SHEET]
+    assert (ws.max_row, ws.max_column) == (5, 5)
+    wb = imp.read_workbook(data)
+    assert [d.code for d in wb.departments] == [f"DEPT{i}" for i in range(6)]
+    assert [d.website for d in wb.departments] == [f"https://d{i}.assam.gov.in" for i in range(6)]
+    assert all(d.include == "Yes" and d.head.email for d in wb.departments)
+    assert [o.code for o in wb.offices] == [f"DEPT0-U{i}" for i in range(8)]
+    assert [o.website for o in wb.offices] == [f"https://o{i}.assam.gov.in" for i in range(8)]
+    assert all(o.kind == "Unit" and o.include == "Yes" for o in wb.offices)
+
+
+def test_stale_dimension_oversized_reads_only_real_rows(monkeypatch):
+    data = _stale_book("A1:Z1048576")
+    yielded = {imp.DEPT_SHEET: 0, imp.OFFICE_SHEET: 0}
+    real_rows = imp._rows
+
+    def counting(ws, sheet, columns):
+        for item in real_rows(ws, sheet, columns):
+            yielded[sheet] += 1
+            yield item
+
+    monkeypatch.setattr(imp, "_rows", counting)
+    wb = imp.read_workbook(data)
+    assert len(wb.departments) == 6 and len(wb.offices) == 8
+    # the data rows below the header are the real rows only, not a million empty ones
+    assert yielded == {imp.DEPT_SHEET: 6, imp.OFFICE_SHEET: 8}
