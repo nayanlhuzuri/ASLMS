@@ -3891,3 +3891,7 @@ Row 189 `assistant-ollama-work`, design `docs/design/assistant-ollama-work.md` (
 ## Owner check (14 Nov 2026)
 
 - Row 196 `causelist-pdf-access`: View Cause List and the Original PDF per bench passed in the owner's browser on 14 Nov 2026. No browser check is left open with the owner.
+
+## Design approvals (15 Nov 2026)
+
+- 2026-11-15 — offices-import-followups (row 261): approved by the owner (docs/design/offices-import-followups.md): every row read whatever the stored sheet dimension; codes checked on every row including Include? = No and To Decide; a turned-off designation refused with `designation_inactive` when it would be used for a new membership; names over 200 characters refused (`bad_name`, `bad_designation`). Before the real import of the owner's workbook.
