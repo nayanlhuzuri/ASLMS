@@ -4,11 +4,24 @@ help with its four commands. No database."""
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from typer.testing import CliRunner
 
 from aslms.core.config import Settings
 from aslms.services.job_repair import SCHEDULER_JOBS
+
+# Rich colours option names in CI, which splits `--backfill` across escape codes; read plain text.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_ENV = {"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"}
+
+
+def _help(*args: str) -> tuple[int, str]:
+    from aslms.cli.main import app
+
+    r = CliRunner(env=_ENV).invoke(app, [*args, "--help"])
+    return r.exit_code, _ANSI.sub("", r.output)
 
 
 def test_beat_entry_and_repair_set():
@@ -30,14 +43,13 @@ def test_batch_setting_default_and_bounds():
 
 
 def test_cli_help_lists_orders_and_its_commands():
-    from aslms.cli.main import app
-
-    r = CliRunner().invoke(app, ["--help"])
-    assert r.exit_code == 0 and "orders" in r.output
-    r = CliRunner().invoke(app, ["orders", "--help"])
-    assert r.exit_code == 0
+    code, out = _help()
+    assert code == 0 and "orders" in out
+    code, out = _help("orders")
+    assert code == 0
     for command in ("parse", "status", "show", "checks"):
-        assert command in r.output
-    r = CliRunner().invoke(app, ["orders", "parse", "--help"])
+        assert command in out
+    code, out = _help("orders", "parse")
+    assert code == 0
     for option in ("--backfill", "--order", "--limit", "--batch", "--pause-ms", "--dry-run"):
-        assert option in r.output
+        assert option in out
