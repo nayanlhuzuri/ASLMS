@@ -2,10 +2,10 @@
 
 ```
 slug: order-sections-review-advisories
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-16
-approved_by:
+approved_by: owner on 2026-11-16
 ```
 
 ## Context
