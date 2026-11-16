@@ -4037,3 +4037,9 @@ yet merged or deployed.
   255); the new Annexure E page number in `TOC_PAGES` is an estimate.
 - Row 251 `research-index` moves the Assistant to the bodies and chunks them; rows 252 and 253 extend the same
   section and annexure. The next-date reader still reads the whole text.
+
+## Owner decisions (16 Nov 2026)
+
+- Row 264 `order-sections-review-advisories` comes before row 258 `state-insights` (owner: "Yes fix it"): the `Linked Case :` spans of a `whole` reading must stop where the linked block ends, not run into the body, before Insights reads them. The fix bumps the parser version, so every order is read again (about 1 to 2 hours, no court call). Row 264 gets its own design note for approval first.
+- The office `IT-SEMT-ASSAM` ("SeMT ASSAM") stays as it is in the data (owner). It is an office record the owner made, not text ASLMS writes; the rule that portal text, e-mails and documents written for others never name the agency still holds for everything ASLMS writes itself.
+- District Court scope (row 224 onwards) and the production mail service: the owner will decide later.
