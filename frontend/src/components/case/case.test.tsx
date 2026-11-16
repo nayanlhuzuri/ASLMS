@@ -2040,3 +2040,226 @@ describe("the case page after the screen fixes (portal-screen-fixes-work, decisi
     expect(badges.nextElementSibling).toBe(state);
   });
 });
+
+/**
+ * "What the Order Says" (design order-sections, decision 19): the reading loaded when the disclosure opens, the
+ * next-date sentence marked, the badges, a judgment's facts with page links, the off-layout notice, the not-read states
+ * with the old sentence, and no page links without the view right.
+ */
+describe("What the Order Says", () => {
+  const ORDER = {
+    kind: "interim",
+    order_judge_name: null,
+    download_status: "stored",
+    document_id: "doc-1",
+    text_status: "extracted",
+    order_details: "ORDER",
+    is_reportable: null,
+    date_judgement_pronounced: null,
+    date_judgement_reserved: null,
+    next_date_status: "specific",
+    next_date_found: "2026-03-04",
+    next_date_rule: "list_on_date",
+    next_date_phrase: "List this matter on 04.03.2026.",
+    order_no: "1",
+    order_date: "2026-01-28",
+  };
+  const BRIEF = {
+    layout: "template",
+    form: "interim",
+    procedural: true,
+    registrar: false,
+    outcome: null,
+    body_chars: 120,
+    parts: [],
+    has_compliance_directions: false,
+    common_order: false,
+    printed_case_no: null,
+  };
+  const BODY = "Heard Mr. Advocate A, learned counsel.\n\nIssue notice. List this matter on 04.03.2026.";
+  const READING = {
+    order_id: "o-1",
+    layout: "template",
+    form: "interim",
+    heading: "ORDER",
+    oral: false,
+    cav: false,
+    printed_date: "2026-01-28",
+    author: null,
+    neutral_citation: null,
+    registrar: false,
+    procedural: true,
+    flags: [],
+    outcome: null,
+    body_text: BODY,
+    paragraphs: [
+      { label: null, page: 2, part: "body", txt: [0, 38] },
+      { label: null, page: 2, part: "body", txt: [40, BODY.length] },
+    ],
+    parts: [],
+    directions: [],
+    acts: [],
+    judgments: [],
+    next_date: { txt: [54, BODY.length - 1], phrase: "List this matter on 04.03.2026." },
+    common_order: null,
+    made_from: { document_id: "doc-1", pdf_sha256: "a".repeat(64), parser_version: 1, parsed_at: "2026-11-15T10:00:00Z" },
+  };
+  const JUDGMENT_BODY = "1. Heard.\n\n2. The facts.\n\n3. The writ petition is allowed. The respondents are directed to pay.";
+  const JUDGMENT = {
+    ...READING,
+    order_id: "o-2",
+    form: "judgment",
+    procedural: false,
+    body_text: JUDGMENT_BODY,
+    paragraphs: [
+      { label: "1.", page: 2, part: "opening", txt: [0, 9] },
+      { label: "2.", page: 2, part: "facts", txt: [11, 24] },
+      { label: "3.", page: 3, part: "conclusion", txt: [26, JUDGMENT_BODY.length] },
+    ],
+    parts: [
+      { part: "opening", page: 2, txt: [0, 9] },
+      { part: "facts", page: 2, txt: [11, 24] },
+      { part: "conclusion", page: 3, txt: [26, JUDGMENT_BODY.length] },
+    ],
+    outcome: { value: "allowed", text: "The writ petition is allowed.", page: 3, txt: [29, 58] },
+    directions: [
+      {
+        kind: "compliance",
+        text: "The respondents are directed to pay.",
+        addressee: "The respondents",
+        period: { n: 30, unit: "days", from: "order_date", phrase: "within 30 days from the date of this order" },
+        due_on: "2026-02-27",
+        page: 3,
+        txt: [59, JUDGMENT_BODY.length],
+      },
+      {
+        kind: "procedural",
+        text: "The respondents shall file an affidavit.",
+        addressee: "The respondents",
+        period: null,
+        due_on: null,
+        page: 3,
+        txt: [59, 60],
+      },
+    ],
+    acts: [{ act: "Assam Services (Pay) Act, 2017", provisions: ["3"], kind: "section", count: 2, page: 2, txt: [11, 20] }],
+    judgments: [
+      { citation: "(2015) 4 SCC 123", reporter: "SCC", year: 2015, case_name: "State of Assam v. Party K", count: 1, page: 2, txt: [11, 20] },
+    ],
+    next_date: { txt: null, phrase: "List after four weeks." },
+  };
+
+  async function openSays(n = 0) {
+    const summaries = await screen.findAllByText("What the Order Says", { selector: "summary" });
+    await userEvent.click(summaries[n]!);
+  }
+
+  it("an interim order: the text with the next-date sentence marked and the Procedural badge, loaded on opening", async () => {
+    const { calls } = browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders/o-1/sections`]: READING,
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await screen.findByText("Next Date Read:");
+    expect(calls.some((c) => c.path.endsWith("/sections"))).toBe(false);
+    await openSays();
+    const region = await screen.findByRole("region", { name: "What the Order Says" });
+    expect(within(region).getByText("Procedural")).toBeInTheDocument();
+    const mark = region.querySelector("mark");
+    expect(mark?.textContent).toBe("List this matter on 04.03.2026");
+    expect(within(region).getByText("The next-date sentence is marked in the text.")).toBeInTheDocument();
+    expect(within(region).queryByText("Outcome")).not.toBeInTheDocument();
+    expect(region.textContent).not.toMatch(/PETITIONER|body_text/);
+  });
+
+  it("a judgment: Outcome, Directions with the time limit and Due By, Acts, Judgments Cited and part links to the page", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: {
+        items: [{ ...ORDER, id: "o-2", kind: "judgment", reading: { ...BRIEF, form: "judgment", procedural: false, outcome: "allowed" } }],
+        total: 1,
+      },
+      [`GET ${BASE}/orders/o-2/sections`]: JUDGMENT,
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    const region = await screen.findByRole("region", { name: "What the Order Says" });
+    expect(within(region).getByText("Judgment")).toBeInTheDocument();
+    expect(within(region).getByText("Allowed")).toBeInTheDocument();
+    expect(within(region).getByText("Directions to the State")).toBeInTheDocument();
+    expect(within(region).getByText("The respondents are directed to pay.")).toBeInTheDocument();
+    expect(within(region).queryByText("The respondents shall file an affidavit.")).not.toBeInTheDocument();
+    expect(within(region).getByText("Within 30 days from the date of the order")).toBeInTheDocument();
+    expect(within(region).getByText("Due By 27 Feb 2026")).toBeInTheDocument();
+    expect(within(region).getByText(/Section 3 · Assam Services \(Pay\) Act, 2017/)).toBeInTheDocument();
+    expect(within(region).getByText(/State of Assam v\. Party K, \(2015\) 4 SCC 123/)).toBeInTheDocument();
+    const facts = within(region).getByRole("link", { name: "Facts: open the PDF at page 2" });
+    expect(facts).toHaveAttribute("href", `/api/backend${BASE}/orders/o-2/file?disposition=inline#page=2`);
+    expect(within(region).getByRole("link", { name: "Conclusion: open the PDF at page 3" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/#page=3$/),
+    );
+    // the sentence not found in the text follows it, as before
+    expect(within(region).getByText("“List after four weeks.”")).toBeInTheDocument();
+  });
+
+  it("an off-layout order says so; a common order names the printed case number", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: { ...BRIEF, layout: "whole" } }], total: 1 },
+      [`GET ${BASE}/orders/o-1/sections`]: { ...READING, layout: "whole", common_order: { printed_case_no: "WP(C)/7013/2024" } },
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    const region = await screen.findByRole("region", { name: "What the Order Says" });
+    expect(within(region).getByText("This order does not follow the usual layout; shown as printed.")).toBeInTheDocument();
+    expect(within(region).getByText("Common Order Under WP(C)/7013/2024")).toBeInTheDocument();
+  });
+
+  it("Not Read Yet and Scanned, Not Read keep the old sentence", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: {
+        items: [
+          { ...ORDER, id: "o-1", reading: null },
+          { ...ORDER, id: "o-2", reading: null, text_status: "none", next_date_phrase: "List after two weeks." },
+        ],
+        total: 2,
+      },
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays(0);
+    expect(await screen.findByText("Not Read Yet")).toBeInTheDocument();
+    expect(screen.getByText("“List this matter on 04.03.2026.”")).toBeInTheDocument();
+    await openSays(1);
+    expect(await screen.findByText("Scanned, Not Read")).toBeInTheDocument();
+    expect(screen.getByText("“List after two weeks.”")).toBeInTheDocument();
+  });
+
+  it("an order read after the list was loaded answers no_reading: Not Read Yet", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders/o-1/sections`]: () =>
+        json(404, { detail: { code: "no_reading", message: "this order has not been read yet", text_status: "extracted" } }),
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    expect(await screen.findByText("Not Read Yet")).toBeInTheDocument();
+  });
+
+  it("no reading and no page links without the view right", async () => {
+    const { calls } = browserApi({
+      "GET /me": me(["cases.view_scope"]),
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-2", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders/o-2/sections`]: JUDGMENT,
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    expect(await screen.findByText("“List this matter on 04.03.2026.”")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "What the Order Says" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /open the PDF at page/ })).not.toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/sections"))).toBe(false);
+  });
+});

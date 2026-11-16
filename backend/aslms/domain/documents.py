@@ -21,7 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aslms.db.base import (
@@ -260,3 +260,117 @@ class Order(TimestampMixin, Base):
     next_date_phrase: Mapped[str | None] = mapped_column(String(400))
     next_date_rules_version: Mapped[int | None] = mapped_column(SmallInteger)
     next_date_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OrderLayout(enum.StrEnum):
+    """Design `order-sections`, decision 8: the court's template was found (a coram and a heading) or not."""
+
+    TEMPLATE = "template"
+    WHOLE = "whole"
+
+
+class OrderOutcome(enum.StrEnum):
+    """Decision 17: the outcome of the main matter, read by rule (`partly_allowed` and `closed` beside the owner's
+    four)."""
+
+    ALLOWED = "allowed"
+    PARTLY_ALLOWED = "partly_allowed"
+    DISMISSED = "dismissed"
+    DISPOSED_OF = "disposed_of"
+    WITHDRAWN = "withdrawn"
+    CLOSED = "closed"
+
+
+class OrderSectionFlag(enum.StrEnum):
+    """Decision 15: intrinsic flags about the text itself (the live checks against `orders` and `cases` are never
+    stored)."""
+
+    OFF_TEMPLATE = "off_template"
+    NO_CNR_LINE = "no_cnr_line"
+    NO_CASE_NO = "no_case_no"
+    NO_DATE = "no_date"
+    PAGE_MARKS_DIFFER = "page_marks_differ"
+    EMPTY_BODY = "empty_body"
+    CAPPED = "capped"
+
+
+class OrderSectionReplaceReason(enum.StrEnum):
+    """Decision 18: why a reading was replaced by a newer one (`text_gone`: replaced with no successor)."""
+
+    PARSER_VERSION = "parser_version"
+    TEXT_REEXTRACTED = "text_reextracted"
+    DOCUMENT_CHANGED = "document_changed"
+    TEXT_GONE = "text_gone"
+
+
+class OrderSection(TimestampMixin, Base):
+    """One reading of a court order's stored text into its parts, by rules (design `order-sections`): spans and
+    offsets into `document_text.full_text` (`src`) and the cleaned `body_text` (`txt`), 0-based code points, end
+    exclusive. Derived and re-buildable; written only by `services/order_sections.py`. A row never changes except to
+    be marked replaced once (`replaced_at`, `replaced_by_id`, `replace_reason`; trigger
+    `order_sections_replace_once`); never deleted. One current row per order (`ix_order_sections_current`).
+    Parties, advocates and coram are not copied, only their spans; mismatches with `orders` and `cases` are computed
+    when read (decision 5)."""
+
+    __tablename__ = "order_sections"
+    __table_class__ = TableClass.DERIVED
+    __table_args__ = (
+        Index(
+            "ix_order_sections_current", "order_id", unique=True, postgresql_where=text("replaced_at IS NULL")
+        ),
+        Index("ix_order_sections_order_created", "order_id", "created_at"),
+        Index("ix_order_sections_body_sha256", "body_sha256", postgresql_where=text("replaced_at IS NULL")),
+        CheckConstraint("(replaced_at IS NULL) = (replace_reason IS NULL)", name="replaced"),
+        CheckConstraint(
+            "(replaced_by_id IS NULL OR replaced_at IS NOT NULL) AND (replace_reason IS NULL OR "
+            "replace_reason = 'text_gone' OR replaced_by_id IS NOT NULL)",
+            name="successor",
+        ),
+        CheckConstraint("layout = 'template' OR 'off_template' = ANY(flags)", name="whole"),
+        CheckConstraint("NOT registrar OR procedural", name="registrar"),
+        CheckConstraint("outcome IS NULL OR form <> 'interim'", name="outcome"),
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    order_id: Mapped[uuid.UUID] = uuid_fk("orders.id", index=False)
+    document_id: Mapped[uuid.UUID] = uuid_fk("documents.id")
+    pdf_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    text_chars: Mapped[int] = mapped_column(Integer, nullable=False)
+    parser_version: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    layout: Mapped[OrderLayout] = mapped_column(pg_enum(OrderLayout, "order_layout"), nullable=False)
+    form: Mapped[OrderKind] = mapped_column(pg_enum(OrderKind, "order_kind"), nullable=False)
+    heading: Mapped[str | None] = mapped_column(String(80))
+    oral: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    cav: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    printed_cnr: Mapped[str | None] = mapped_column(String(16))
+    printed_case_no: Mapped[str | None] = mapped_column(String(80))
+    printed_date: Mapped[date | None] = mapped_column(Date)
+    printed_reserved_on: Mapped[date | None] = mapped_column(Date)
+    printed_pronounced_on: Mapped[date | None] = mapped_column(Date)
+    neutral_citation: Mapped[str | None] = mapped_column(String(40))
+    author: Mapped[str | None] = mapped_column(String(200))
+    registrar: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    procedural: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    outcome: Mapped[OrderOutcome | None] = mapped_column(pg_enum(OrderOutcome, "order_outcome"))
+    spans: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    linked_cases: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    body_text: Mapped[str] = mapped_column(Text, nullable=False)
+    body_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    paragraphs: Mapped[list] = mapped_column(JSONB, nullable=False)
+    parts: Mapped[list] = mapped_column(JSONB, nullable=False)
+    facts: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    flags: Mapped[list[OrderSectionFlag]] = mapped_column(
+        ARRAY(pg_enum(OrderSectionFlag, "order_section_flag")),
+        nullable=False,
+        server_default=text("'{}'"),
+    )
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # deferred: the old row names its successor in the same savepoint before the successor's insert (decision 23)
+    replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("order_sections.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"),
+        index=True,
+    )
+    replace_reason: Mapped[OrderSectionReplaceReason | None] = mapped_column(
+        pg_enum(OrderSectionReplaceReason, "order_section_replace_reason")
+    )

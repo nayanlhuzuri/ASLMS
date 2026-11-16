@@ -464,8 +464,11 @@ export interface paths {
          * Get Gaps
          * @description Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details
          *     with the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or
-         *     failed (`kind=orders`), paged, with counts by state and the documents without searchable text. References, CNRs
-         *     and case numbers only. Never calls NAPIX; writes nothing; 503 `search_timeout` when the query takes too long.
+         *     failed (`kind=orders`), paged, with counts by state and the documents without searchable text; or the order
+         *     readings that differ from what is held or carry a flag about the text (`kind=order_checks`, optional `check`, else
+         *     400 `bad_input`; design order-sections, decision 21), with the order readings' block. References, CNRs, case
+         *     numbers, order numbers, dates and printed identifiers only, never body or title text. Never calls NAPIX; writes
+         *     nothing; 503 `search_timeout` when the query takes too long.
          */
         get: operations["get_gaps_admin_data_load_gaps_get"];
         put?: never;
@@ -3490,6 +3493,29 @@ export interface paths {
          *     published it or the fetch is still pending. Court records are not audited on download.
          */
         get: operations["order_file_cases__ref__orders__order_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{ref}/orders/{order_id}/sections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Case Order Sections
+         * @description "What the Order Says" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,
+         *     for a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 "no such
+         *     case". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited
+         *     (viewing a court record writes no audit row); never calls NAPIX.
+         */
+        get: operations["case_order_sections_cases__ref__orders__order_id__sections_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8402,8 +8428,9 @@ export interface components {
         };
         /**
          * DataGapsOut
-         * @description `GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),
-         *     `total` and `counts` by state, and the documents without searchable text.
+         * @description `GET /admin/data-load/gaps`: one page of `cases`, `orders` or `order_checks` (`items` of `GapCaseOut`,
+         *     `GapOrderOut` or `GapOrderCheckOut`), `total` and `counts` by state (by check for `order_checks`), the documents
+         *     without searchable text and the order readings' block.
          */
         DataGapsOut: {
             /** Counts */
@@ -8412,12 +8439,13 @@ export interface components {
             };
             documents_text: components["schemas"]["DocumentsTextOut"];
             /** Items */
-            items: components["schemas"]["GapCaseOut"][] | components["schemas"]["GapOrderOut"][];
+            items: components["schemas"]["GapCaseOut"][] | components["schemas"]["GapOrderOut"][] | components["schemas"]["GapOrderCheckOut"][];
             /**
              * Kind
              * @enum {string}
              */
-            kind: "cases" | "orders";
+            kind: "cases" | "orders" | "order_checks";
+            order_sections?: components["schemas"]["OrderSectionsStatusOut"] | null;
             /** Total */
             total: number;
         };
@@ -8439,6 +8467,7 @@ export interface components {
             /** Masters */
             masters: components["schemas"]["MasterSyncOut"][];
             napix: components["schemas"]["NapixHealthOut"];
+            order_sections?: components["schemas"]["OrderSectionsStatusOut"] | null;
             queue: components["schemas"]["QueueDepthsOut"];
             retention?: components["schemas"]["RetentionOut"] | null;
             sourcetrace: components["schemas"]["SourcetraceStatusOut"];
@@ -9700,6 +9729,36 @@ export interface components {
             state: "being_fetched" | "not_found" | "failed" | "not_queued";
         };
         /**
+         * GapOrderCheckOut
+         * @description An order whose reading differs from what is held, or carries a flag about its text (design order-sections,
+         *     decision 21): identifiers and printed values only, never body or title text.
+         */
+        GapOrderCheckOut: {
+            case: components["schemas"]["DuplicateCaseOut"];
+            /** Checks */
+            checks: string[];
+            /** Flags */
+            flags: string[];
+            /** Form */
+            form: string;
+            held: components["schemas"]["GapPrintedOut"];
+            /** Kind */
+            kind: string;
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Order No */
+            order_no: string;
+            printed: components["schemas"]["GapPrintedOut"];
+        };
+        /**
          * GapOrderOut
          * @description An order whose PDF the court marked not available, or whose fetch failed.
          */
@@ -9726,6 +9785,19 @@ export interface components {
              * @enum {string}
              */
             state: "not_available" | "failed";
+        };
+        /** GapPrintedOut */
+        GapPrintedOut: {
+            /** Case No */
+            case_no?: string | null;
+            /** Cnr */
+            cnr?: string | null;
+            /** Date */
+            date?: string | null;
+            /** Pronounced On */
+            pronounced_on?: string | null;
+            /** Reserved On */
+            reserved_on?: string | null;
         };
         /** GraphEdgeOut */
         GraphEdgeOut: {
@@ -11782,12 +11854,101 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** OrderActOut */
+        OrderActOut: {
+            /** Act */
+            act: string;
+            /** Count */
+            count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "section" | "article" | "rule" | "order";
+            /** Page */
+            page?: number | null;
+            /** Provisions */
+            provisions: string[];
+            /** Txt */
+            txt?: number[] | null;
+        };
+        /** OrderCommonOut */
+        OrderCommonOut: {
+            /** Printed Case No */
+            printed_case_no?: string | null;
+        };
+        /** OrderDirectionOut */
+        OrderDirectionOut: {
+            /** Addressee */
+            addressee?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "compliance" | "procedural";
+            /** Page */
+            page?: number | null;
+            period?: components["schemas"]["OrderPeriodOut"] | null;
+            /** Text */
+            text: string;
+            /** Txt */
+            txt?: number[] | null;
+        };
+        /** OrderJudgmentCitedOut */
+        OrderJudgmentCitedOut: {
+            /** Case Name */
+            case_name?: string | null;
+            /** Citation */
+            citation: string;
+            /** Count */
+            count: number;
+            /** Page */
+            page?: number | null;
+            /** Reporter */
+            reporter: string;
+            /** Txt */
+            txt?: number[] | null;
+            /** Year */
+            year?: number | null;
+        };
         /** OrderListOut */
         OrderListOut: {
             /** Items */
             items: components["schemas"]["OrderOut"][];
             /** Total */
             total: number;
+        };
+        /** OrderMadeFromOut */
+        OrderMadeFromOut: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Parsed At
+             * Format: date-time
+             */
+            parsed_at: string;
+            /** Parser Version */
+            parser_version: number;
+            /** Pdf Sha256 */
+            pdf_sha256: string;
+        };
+        /** OrderNextDateSpanOut */
+        OrderNextDateSpanOut: {
+            /**
+             * Phrase
+             * @description the stored next-date sentence
+             */
+            phrase?: string | null;
+            /**
+             * Txt
+             * @description the next-date sentence's span in `body_text`, when found
+             */
+            txt?: number[] | null;
         };
         /** OrderOut */
         OrderOut: {
@@ -11829,8 +11990,214 @@ export interface components {
             order_no: string;
             /** Page Count */
             page_count?: number | null;
+            /** @description the order's reading by rules (design order-sections, decision 20); null when not read yet, or when the caller may not open the order's PDF */
+            reading?: components["schemas"]["OrderReadingBrief"] | null;
             /** Text Status */
             text_status?: string | null;
+        };
+        /** OrderOutcomeOut */
+        OrderOutcomeOut: {
+            /** Page */
+            page?: number | null;
+            /** Text */
+            text: string;
+            /** Txt */
+            txt?: number[] | null;
+            /**
+             * Value
+             * @enum {string}
+             */
+            value: "allowed" | "partly_allowed" | "dismissed" | "disposed_of" | "withdrawn" | "closed";
+        };
+        /** OrderParagraphOut */
+        OrderParagraphOut: {
+            /** Label */
+            label?: string | null;
+            /** Page */
+            page?: number | null;
+            /** Part */
+            part: string;
+            /** Txt */
+            txt?: number[] | null;
+        };
+        /** OrderPartOut */
+        OrderPartOut: {
+            /** Page */
+            page?: number | null;
+            /** Part */
+            part: string;
+            /** Txt */
+            txt?: number[] | null;
+        };
+        /** OrderPeriodOut */
+        OrderPeriodOut: {
+            /**
+             * From
+             * @enum {string}
+             */
+            from: "order_date" | "receipt_of_copy" | "other" | "none";
+            /** N */
+            n: number;
+            /** Phrase */
+            phrase: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "days" | "weeks" | "months";
+        };
+        /**
+         * OrderReadingBrief
+         * @description Design order-sections, "API": the tags of an order's current reading for the Orders list.
+         */
+        OrderReadingBrief: {
+            /** Body Chars */
+            body_chars: number;
+            /** Common Order */
+            common_order: boolean;
+            /**
+             * Form
+             * @enum {string}
+             */
+            form: "interim" | "final" | "judgment";
+            /** Has Compliance Directions */
+            has_compliance_directions: boolean;
+            /**
+             * Layout
+             * @enum {string}
+             */
+            layout: "template" | "whole";
+            /** Outcome */
+            outcome: ("allowed" | "partly_allowed" | "dismissed" | "disposed_of" | "withdrawn" | "closed") | null;
+            /**
+             * Parts
+             * @description the parts found, in order; empty when the body is one part
+             */
+            parts: string[];
+            /**
+             * Printed Case No
+             * @description the case number printed on a common order
+             */
+            printed_case_no?: string | null;
+            /** Procedural */
+            procedural: boolean;
+            /** Registrar */
+            registrar: boolean;
+        };
+        /**
+         * OrderSectionsOut
+         * @description `GET /cases/{ref}/orders/{order_id}/sections` (design order-sections, decision 19): "What the Order Says",
+         *     read by rules from the stored text, every item with its PDF page and its span in `body_text`.
+         */
+        OrderSectionsOut: {
+            /** Acts */
+            acts: components["schemas"]["OrderActOut"][];
+            /** Author */
+            author?: string | null;
+            /** Body Text */
+            body_text: string;
+            /** Cav */
+            cav: boolean;
+            common_order?: components["schemas"]["OrderCommonOut"] | null;
+            /** Directions */
+            directions: components["schemas"]["OrderDirectionOut"][];
+            /** Flags */
+            flags: string[];
+            /**
+             * Form
+             * @enum {string}
+             */
+            form: "interim" | "final" | "judgment";
+            /** Heading */
+            heading?: string | null;
+            /** Judgments */
+            judgments: components["schemas"]["OrderJudgmentCitedOut"][];
+            /**
+             * Layout
+             * @enum {string}
+             */
+            layout: "template" | "whole";
+            made_from: components["schemas"]["OrderMadeFromOut"];
+            /** Neutral Citation */
+            neutral_citation?: string | null;
+            next_date: components["schemas"]["OrderNextDateSpanOut"];
+            /** Oral */
+            oral: boolean;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            outcome?: components["schemas"]["OrderOutcomeOut"] | null;
+            /** Paragraphs */
+            paragraphs: components["schemas"]["OrderParagraphOut"][];
+            /** Parts */
+            parts: components["schemas"]["OrderPartOut"][];
+            /** Printed Date */
+            printed_date?: string | null;
+            /** Procedural */
+            procedural: boolean;
+            /** Registrar */
+            registrar: boolean;
+        };
+        /** OrderSectionsRunOut */
+        OrderSectionsRunOut: {
+            /** Counters */
+            counters: {
+                [key: string]: number;
+            };
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * OrderSectionsStatusOut
+         * @description Design order-sections, decision 21: the readings of court orders by rules, counts only.
+         */
+        OrderSectionsStatusOut: {
+            /** By Form */
+            by_form: {
+                [key: string]: number;
+            };
+            /** By Layout */
+            by_layout: {
+                [key: string]: number;
+            };
+            /** Checks */
+            checks: {
+                [key: string]: number;
+            };
+            /** Distinct Bodies */
+            distinct_bodies: number;
+            /** Failed */
+            failed: number;
+            /** Flags */
+            flags: {
+                [key: string]: number;
+            };
+            last_run?: components["schemas"]["OrderSectionsRunOut"] | null;
+            /** Orders With Text */
+            orders_with_text: number;
+            /** Parser Version */
+            parser_version: number;
+            /** Procedural */
+            procedural: number;
+            /** Read */
+            read: number;
+            /** Registrar */
+            registrar: number;
+            /** Waiting */
+            waiting: number;
+            /** With Directions */
+            with_directions: number;
+            /** With Outcome */
+            with_outcome: number;
         };
         /** OrderTotalsOut */
         OrderTotalsOut: {
@@ -15529,6 +15896,7 @@ export interface operations {
         parameters: {
             query?: {
                 kind?: string;
+                check?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -23305,6 +23673,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    case_order_sections_cases__ref__orders__order_id__sections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSectionsOut"];
                 };
             };
             /** @description Not Found */

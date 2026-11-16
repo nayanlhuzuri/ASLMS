@@ -17,11 +17,12 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, require, require_any
+from aslms.api.errors import detail
 from aslms.api.filters import case_filter_query, search_filter_query, with_legacy
 from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
-from aslms.services import case_detail, case_search, court_search
+from aslms.services import case_detail, case_search, court_search, order_sections
 from aslms.services.case_filters import CaseFilters
 from aslms.services.case_search import SearchError
 from aslms.services.cases import CaseNotFound, resolve_case_ref
@@ -177,6 +178,33 @@ def case_orders(
     except NOT_FOUND as exc:
         raise _http(exc) from exc
     return schemas.OrderListOut(items=page.items, total=page.total)
+
+
+@router.get(
+    "/{ref}/orders/{order_id}/sections",
+    response_model=schemas.OrderSectionsOut,
+    responses={404: {"model": schemas.ErrorOut}},
+)
+def case_order_sections(
+    ref: str,
+    order_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    user: User = Depends(read),
+) -> schemas.OrderSectionsOut:
+    """ "What the Order Says" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,
+    for a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 "no such
+    case". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited
+    (viewing a court record writes no audit row); never calls NAPIX."""
+    case = _case(session, ref)
+    try:
+        out = order_sections.sections_out(session, user, case, order_id)
+    except NOT_FOUND as exc:
+        raise _http(exc) from exc
+    except order_sections.NoReading as exc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail("no_reading", str(exc), text_status=exc.text_status)
+        ) from exc
+    return schemas.OrderSectionsOut(**out)
 
 
 @router.get("/{ref}/listings", response_model=schemas.ListingListOut)

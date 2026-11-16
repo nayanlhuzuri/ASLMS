@@ -167,8 +167,8 @@ function cover() {
   const meta = table(["Document", "Details"], [
     ["Title", "ASLMS Software Documentation"],
     ["Owner", "Government of Assam"],
-    ["Version", "1.8"],
-    ["Date", "14 November 2026"],
+    ["Version", "1.9"],
+    ["Date", "16 November 2026"],
     ["Status", "Submitted for review"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -243,16 +243,17 @@ function brochure() {
 const C = [];
 function add(...xs) { xs.flat().forEach((x) => C.push(x)); }
 
-const TOC_PAGES = { "1. Introduction": 7, "2. System overview": 8, "3. Users, roles and access": 10, "4. Functional description": 12, "5. Court data integration (NAPIX)": 17, "6. Case Assistant and SourceTrace": 19, "7. System architecture": 21, "8. Data design": 23, "9. Security": 25, "10. Non-functional characteristics": 27, "11. Deployment and operations": 28, "12. Quality assurance": 29, "13. Status, variations from the plan and planned enhancements": 30, "Annexure A. Scheduled jobs": 33, "Annexure B. Functions": 34, "Annexure C. Court APIs": 37, "Annexure D. Glossary": 38 };
+const TOC_PAGES = { "1. Introduction": 7, "2. System overview": 8, "3. Users, roles and access": 10, "4. Functional description": 12, "5. Court data integration (NAPIX)": 17, "6. Case Assistant and SourceTrace": 19, "7. System architecture": 21, "8. Data design": 23, "9. Security": 25, "10. Non-functional characteristics": 27, "11. Deployment and operations": 28, "12. Quality assurance": 29, "13. Status, variations from the plan and planned enhancements": 30, "Annexure A. Scheduled jobs": 33, "Annexure B. Functions": 34, "Annexure C. Court APIs": 37, "Annexure D. Glossary": 38, "Annexure E. Worked example: one order from text to answer": 40 };
 function documentControl() {
   add(H1("Document control"));
-  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."], ["1.1", "27 October 2026", "Data collection console (first part) in service; the local-model Case Assistant approved as a variation from the plan; status figures and planned enhancements brought up to date."], ["1.2", "28 October 2026", "Session time-out, the next-hearing highlight, the Case Assistant’s local model (first part) and search and sort in lists (first round) in service; sign-in session rules corrected; status figures of 28 October 2026; Case Assistant polish and the next hearing shown directly from the latest court order added as planned enhancements."], ["1.3", "28 October 2026", "Case Assistant polish built: Enter sends a question, six quick facts answered from the court record held for the case without the AI, sources opened from their reference, fewer repeated answers; a variation from the plan added for the quick facts."], ["1.4", "28 October 2026", "Next hearing shown directly from the latest court order: one next hearing per case, court-given dates not editable, approximate dates for periods, a flag where the order and the court differ, and functions to report and correct a misread order."], ["1.5", "2 November 2026", "Brought up to date with the portal of 2 November 2026: the case inbox in four tabs (With Me, My Cases, Sent by Me, Department); the data collection console’s Problems and Fixes tab and requests carried out at once from Collect Now; the court calls section of system health; the Case Assistant polish and the next hearing from the latest court order in service; functions annexure refreshed (53 functions); status figures of 2 November 2026; the portal framework upgraded to its latest security release; Close Case and sign-in with an authenticator app added as planned enhancements."], ["1.6", "2 November 2026", "Cause-list days nobody asked for: a nightly check at 04:15 queues every past day of the collection period whose cause list was never asked for, the daily cycle catches up the missed recent days after an outage, and the data collection overview names such days; the setting `CAUSELIST_CATCHUP_DAYS`."], ["1.7", "2 November 2026", "Cause list screen: the original PDF of a list reachable without first choosing a bench (a bench chooser behind View Cause List, a note while all benches are shown, and View PDF and Download PDF on each list heading)."], ["1.8", "14 November 2026", "The Case Assistant split by purpose: the case page’s Assistant tab is about its own case; the Assistant page has the tabs My Work, My Cases and All Court Orders; My Work answers twelve fixed questions about the officer’s own work, including the cases the officer or the department claimed and the cases waiting to be claimed, with the count first and the rows written by ASLMS from the portal’s own lists, the local model only choosing the list; the variation in section 13.2 extended."]], [1400, 2200, CW - 3600]));
+  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."], ["1.1", "27 October 2026", "Data collection console (first part) in service; the local-model Case Assistant approved as a variation from the plan; status figures and planned enhancements brought up to date."], ["1.2", "28 October 2026", "Session time-out, the next-hearing highlight, the Case Assistant’s local model (first part) and search and sort in lists (first round) in service; sign-in session rules corrected; status figures of 28 October 2026; Case Assistant polish and the next hearing shown directly from the latest court order added as planned enhancements."], ["1.3", "28 October 2026", "Case Assistant polish built: Enter sends a question, six quick facts answered from the court record held for the case without the AI, sources opened from their reference, fewer repeated answers; a variation from the plan added for the quick facts."], ["1.4", "28 October 2026", "Next hearing shown directly from the latest court order: one next hearing per case, court-given dates not editable, approximate dates for periods, a flag where the order and the court differ, and functions to report and correct a misread order."], ["1.5", "2 November 2026", "Brought up to date with the portal of 2 November 2026: the case inbox in four tabs (With Me, My Cases, Sent by Me, Department); the data collection console’s Problems and Fixes tab and requests carried out at once from Collect Now; the court calls section of system health; the Case Assistant polish and the next hearing from the latest court order in service; functions annexure refreshed (53 functions); status figures of 2 November 2026; the portal framework upgraded to its latest security release; Close Case and sign-in with an authenticator app added as planned enhancements."], ["1.6", "2 November 2026", "Cause-list days nobody asked for: a nightly check at 04:15 queues every past day of the collection period whose cause list was never asked for, the daily cycle catches up the missed recent days after an outage, and the data collection overview names such days; the setting `CAUSELIST_CATCHUP_DAYS`."], ["1.7", "2 November 2026", "Cause list screen: the original PDF of a list reachable without first choosing a bench (a bench chooser behind View Cause List, a note while all benches are shown, and View PDF and Download PDF on each list heading)."], ["1.8", "14 November 2026", "The Case Assistant split by purpose: the case page’s Assistant tab is about its own case; the Assistant page has the tabs My Work, My Cases and All Court Orders; My Work answers twelve fixed questions about the officer’s own work, including the cases the officer or the department claimed and the cases waiting to be claimed, with the count first and the rows written by ASLMS from the portal’s own lists, the local model only choosing the list; the variation in section 13.2 extended."], ["1.9", "16 November 2026", "Court orders read into their parts by rules (a variation from the plan, owner’s case research plan of 12 November 2026): the new section 6.5 and Annexure E, a worked example on one masked order; the order-reading job in Annexure A; What the Order Says on the case page and Order Reading Checks on the data collection console described; case research added as a planned enhancement."]], [1400, 2200, CW - 3600]));
   add(new Paragraph({ heading: HeadingLevel.HEADING_3, pageBreakBefore: true, children: [new TextRun({ text: "Contents", font: FONT })] })); // its own page, so a longer version table never moves the sections
   [
     "1. Introduction", "2. System overview", "3. Users, roles and access", "4. Functional description", "5. Court data integration (NAPIX)",
     "6. Case Assistant and SourceTrace", "7. System architecture", "8. Data design", "9. Security", "10. Non-functional characteristics",
     "11. Deployment and operations", "12. Quality assurance", "13. Status, variations from the plan and planned enhancements",
     "Annexure A. Scheduled jobs", "Annexure B. Functions", "Annexure C. Court APIs", "Annexure D. Glossary",
+    "Annexure E. Worked example: one order from text to answer",
   ].forEach((t) => add(new Paragraph({ spacing: { after: 60 }, tabStops: [{ type: "right", position: CW, leader: "dot" }], children: [new TextRun({ text: t, font: FONT }), new TextRun({ text: "	" + (TOC_PAGES[t] ?? ""), font: FONT })] })));
 }
 
@@ -535,6 +536,17 @@ function s6() {
     ["SourceTrace unchanged", "SourceTrace keeps the plan’s rule: court orders and court filings only."],
   ], [2800, CW - 2800], { boldFirst: true }));
   add(P("The default model is qwen3.5:4b, which runs on a graphics card with 8 GB of memory and answers in a few seconds; a larger model can be set for the pilot server. The assistant informs and never acts: it cannot send files, change stages or write notes."));
+
+  add(H2("6.5 Case research: how orders and case details are used"));
+  add(P("The owner’s case research plan (12 November 2026) has four steps, local first and SourceTrace later: reading every court order into its parts, a meaning search over the orders, similar cases and summaries, and precedent notes. The first step is built. It uses fixed rules, with no AI and no court call, and is a variation from the plan, which gave the reading of orders to SourceTrace (section 13.2). Nothing it produces is sent anywhere. This section explains how it works; Annexure E follows one order through it."));
+  add(P("**The order template.** Every order is printed from the court’s template. In order, the text has a page marker on each page (Page No. n/N), the case’s CNR, the court’s header, the case number, the cause title with the parties and their addresses, the advocates for each side with their counsel codes, an optional block of linked cases, the word BEFORE and the judges (or the Deputy Registrar for a registrar’s order), a heading (ORDER, JUDGMENT or JUDGMENT & ORDER), the date, numbered paragraphs, the judge’s sign-off and the line Comparing Assistant. On 3,000 orders from the development database, 98.0% followed this layout; the rest are kept whole as one body with a note. Variations seen in practice are also handled, for example a coram followed directly by the date, a heading spaced out as O R D E R, and an order date broken over two lines."));
+  add(P("**The clean-up.** The reader removes the page markers, the stray word “undefined” and the trailer, and rejoins lines broken across pages, so the body is the court’s own words in paragraphs. It never edits the stored text. Every part it finds keeps its page and its start and end positions in that stored text, so any part can be found again exactly."));
+  add(P("**The cross-checks.** The CNR, case number and date printed in the order are compared with what ASLMS holds from the court. A difference is shown to the Super Administrator on the data collection console, Problems and Fixes, Data Gaps, as Order Reading Checks. It lists identifiers and printed values only, never the order’s text, and nothing held is ever overwritten. An order printed once for several cases (a common order, shared by up to 64 cases in the development data) is labelled Common Order and is not an error."));
+  add(P("**The tags.** Each order is tagged as an interim order, a final order or a judgment; as a registrar’s order or not; and as procedural (for example “List after four weeks”) or substantive. The tags are read from the order’s words and never change the form the court reported. Orders with the same body are recognised by a fingerprint so that later research can hold each once and rank routine orders low, while every order still counts fully in the case’s history."));
+  add(P("**The facts.** For judgments and final orders, rules extract the outcome (allowed, partly allowed, dismissed, disposed of, withdrawn or closed), the directions to a named party with any time limit and the date it falls due, the acts and sections cited and the earlier judgments cited, each with its page. A judgment’s paragraphs are grouped into its parts (opening, facts, the petitioner’s submissions, the respondents’ submissions, issues, reasoning, conclusion) found by the court’s own headings and standard phrases; a part never cuts a paragraph, and an interim order’s short body is one unit."));
+  add(P("**What the Order Says.** On the case page’s Orders tab, each order opens a reading: the cleaned order without the cause title and addresses, with the next-date sentence marked, the labels Procedural, Registrar Order, Judgment, Final Order and Common Order, and, for judgments and final orders, the outcome, directions, acts and judgments cited, with links that open the order’s PDF at the right page. Only a person who may open the case and its documents sees it."));
+  add(P("**The chain of evidence.** Each reading keeps the order it came from, the stored PDF’s SHA-256 fingerprint, the fingerprint of the exact text read and the version of the rules. The order record holds the court’s answer verbatim, the PDF is the verbatim Show Order answer, and the order belongs to a case by its CNR, so any statement can be traced back to the court’s own record. When a PDF or its text changes, or the rules are improved, the order is read again; the old reading is marked replaced and kept, never deleted."));
+  add(P("**Running it.** A job every 5 minutes reads new orders in batches, with no call to the court or SourceTrace and no priority over court work; a one-time catch-up reads the roughly 260,000 orders already held. An order that cannot be read is recorded as a failure and tried again after the others. Orders without a text layer (scanned) are not read until text recognition is available."));
 }
 
 function s7() {
@@ -729,6 +741,7 @@ function s13() {
     ["Migrate the data collected by the earlier system", "The database starts empty and is filled only from the official court interface, user actions and discovery", "Every record traceable to the official source; no inherited errors"],
     ["Search the database first, then the court automatically", "The person chooses to search the court; held cases are answered locally", "Court calls stay deliberate and within the hourly allowance"],
     ["Next dates read by SourceTrace", "Read by fixed rules and shown directly; a person enters a date only where the court gave none; SourceTrace to assist when connected", "SourceTrace API documentation awaited"],
+    ["Court orders read by SourceTrace", "Read into their parts by fixed rules inside ASLMS, with no AI and no external call (section 6.5); SourceTrace later for the research index", "Owner’s case research plan of 12 Nov 2026: local first; SourceTrace API documentation awaited"],
     ["Requests between offices", "Sending the file with a pending action and a due date", "One simpler mechanism covering the same need"],
     ["SMS for high-priority alerts", "In-app and e-mail; SMS refused until a gateway is provided", "No SMS gateway available yet"],
     ["One-time password at sign-in", "Six-digit code by e-mail at every sign-in", "Uses the government mail relay"],
@@ -749,6 +762,7 @@ function s13() {
     ["Next hearing from the latest court order", "The next hearing shown directly from the latest court order: dates given by the court shown without confirmation and not editable by anyone; a Report Wrong Next Date function and a Correct Misread Next Date function; periods such as “list after three weeks” shown as an approximate date counted from the order (in service)"],
     ["Close Case", "A department closes a claimed case once the court has disposed of it, with a required remark kept as a permanent note and an audit record; closing ends the file’s movement. A case reopens by itself when the court record shows it active again, and the Super Administrator, department head and department administrator can reopen it with a reason; every reopening raises an alert"],
     ["Sign-in with an authenticator app", "An optional second way to sign in, for every login including the Super Administrator: a code from any standard authenticator app on the person’s phone (time-based codes, RFC 6238) in place of the e-mailed code. Once switched on it is always used; one recovery code is shown on screen and replaced after use; a lost phone is reset only by the Super Administrator on a ticket. SMS is provided for only as a later option, switched off, with no charges"],
+    ["Case research", "Court orders read into their parts by rules (built, awaiting deployment: section 6.5); then a meaning search over the orders, similar cases and summaries, and precedent notes, by the local model first and SourceTrace later"],
     ["SourceTrace connector", "The real connection for the Case Assistant and the ingestion of court orders and filings, when the API documentation is received"],
     ["Portal framework upgrade", "The web framework upgraded to its latest security release, Next.js 16.4.3 (in service)"],
     ["Text recognition of scanned orders", "Reading scanned orders through SourceTrace"],
@@ -766,6 +780,7 @@ function annexA() {
     ["20:00 daily", "Status refresh", "Current status of every case not disposed, 250 per call", "Yes"],
     ["Every 5 minutes", "Order text", "Read the text of new orders and uploads", "No"],
     ["Every 5 minutes", "Next dates", "Read listing directions in order text", "No"],
+    ["Every 5 minutes", "Order reading", "Read new court orders into their parts (header, body, outcome, directions, acts) by fixed rules", "No"],
     ["Every 5 minutes", "Alerts", "Turn new events into alerts", "No"],
     ["Hourly at :10", "Date alerts", "Hearing reminders, due and overdue actions", "No"],
     ["Every 2 minutes", "E-mail", "Send alert e-mails", "No"],
@@ -831,12 +846,68 @@ function annexD() {
     ["SourceTrace", "The Government’s in-house AI (retrieval-augmented generation) service for the Case Assistant"],
     ["Preview mode", "The Case Assistant’s development stand-in: text search over stored court records, with no AI; refused in production"],
     ["Ollama", "The software that serves the Case Assistant’s local AI model on the ASLMS host or a Government server, used until SourceTrace is connected"],
+    ["Order reading", "ASLMS reading a stored court order into its parts and facts by fixed rules, with no AI, keeping the page and place of each part in the order’s text"],
     ["Hourly allowance", "The number of court calls ASLMS may make per hour (about 1,000)"],
   ], [2600, CW - 2600], { boldFirst: true }));
 }
 
+function annexE() {
+  add(H1("Annexure E. Worked example: one order from text to answer"));
+  add(P("This annexure follows one order through the order reading of section 6.5. It is a masked copy of a real Gauhati High Court final order of three pages. Every personal name (parties, advocates, judges and officers) and every address is replaced by a letter or by the word MASKED, and the digits of the CNR and the case number are replaced by X. The court, the case type, the year, the dates, the act and the rule are as printed. The reading shown below was produced by the system’s own rules on the masked text, so the page and position numbers are the ones the system keeps. Further steps of the case research plan (the meaning search, similar cases and summaries) will extend this annexure."));
+  add(H2("E.1 The order as stored"));
+  add(P("Text extraction stores the order as one text of 1,628 characters, with a form feed between pages. Its parts, in order, with the position (start to end character) the system keeps for each:"));
+  add(table(["Part", "As printed (masked)", "Position"], [
+    ["Header", "Page marker, CNR GAHC01XXXXXX2024, the word undefined, the court’s name, “Case No. : WP(C)/XXXX/2024”", "0 to 171"],
+    ["Cause title", "PETITIONER D, D/O PARENT D, R/O MASKED, DIST. MASKED, ASSAM, VERSUS THE STATE OF ASSAM AND 2 ORS, REP. BY THE COMMISSIONER AND SECRETARY TO THE GOVT. OF ASSAM, SECONDARY EDUCATION DEPARTMENT, DISPUR, GUWAHATI-6", "172 to 379"],
+    ["Advocates", "Advocate for the Petitioner : MR. ADVOCATE G; Advocate for the Respondent : SC, SEC. EDU.", "380 to 472"],
+    ["Coram", "BEFORE, HONOURABLE MRS. JUSTICE JUDGE C", "474 to 512"],
+    ["Heading", "ORDER", "513 to 518"],
+    ["Date", "Date : 10.03.2025", "519 to 537"],
+    ["Body", "Six numbered paragraphs, over pages 1 and 2", "538 to 1601"],
+    ["Sign-off", "JUDGE, then the trailer Comparing Assistant", "1603 to 1628"],
+  ], [1700, CW - 3400, 1700], { boldFirst: true }));
+  add(H2("E.2 The clean-up and the layout"));
+  add(P("The reader removes the three page markers and the word “undefined”, rejoins paragraph 2, which runs across pages 1 and 2, and drops the trailer. The layout is template (the order follows the court’s template), so the cause title, addresses and advocates are kept out of the body. On a real order the CNR and case number are compared with the case held."));
+  add(H2("E.3 The clean body, its paragraphs and parts"));
+  add(table(["Paragraph", "Page", "Part", "Content (masked)"], [
+    ["1", "1", "Opening", "Heard learned counsel for the petitioner and the Standing Counsel, Secondary Education Department."],
+    ["2", "1 to 2", "Facts", "The petitioner was appointed as an Assistant Teacher; her salary from April, 2023 has not been released; a representation dated 12.08.2024 remains undisposed of."],
+    ["3", "2", "Facts", "The petition is filed under Article 226 of the Constitution of India for release of the salary under Rule 3 of the Assam Secondary Education (Provincialised) Service Rules, 2004."],
+    ["4", "2", "Reasoning", "The respondent No. 2 is directed to consider and dispose of the representation by a reasoned order within 30 (thirty) days from the date of this order."],
+    ["5", "2", "Reasoning", "The respondents shall file an affidavit in the meantime, if so advised."],
+    ["6", "2", "Conclusion", "With the above direction, the writ petition stands disposed of."],
+  ], [1100, 900, 1500, CW - 3500]));
+  add(H2("E.4 The tags"));
+  add(table(["Tag", "Value", "Why"], [
+    ["Form", "Final order", "An outcome of the main matter is read (the court disposed of the petition)"],
+    ["Registrar order", "No", "The coram is a judge"],
+    ["Procedural", "No", "The order decides the petition and gives a direction with a time limit"],
+  ], [2200, 2200, CW - 4400], { boldFirst: true }));
+  add(H2("E.5 The facts, each with its page and position"));
+  add(table(["Fact", "Value", "Page", "Position"], [
+    ["Outcome", "Disposed of (paragraph 6: “the writ petition stands disposed of”)", "2", "1514 to 1584"],
+    ["Direction 1", "Kind: compliance. To the respondent No. 2: consider and dispose of the representation by a reasoned order within 30 days from the date of the order; due on 9 April 2025 (10 March 2025 plus 30 days)", "2", "1203 to 1434"],
+    ["Direction 2", "Kind: procedural. The respondents shall file an affidavit in the meantime; no time limit", "2", "1435 to 1513"],
+    ["Act cited 1", "Constitution of India, Article 226", "2", "1022 to 1062"],
+    ["Act cited 2", "Assam Secondary Education (Provincialised) Service Rules, 2004, Rule 3", "2", "1125 to 1201"],
+    ["Judgments cited", "None in this order. In a judgment, a citation such as “(2006) 4 SCC 1” is listed with its reporter, year and page", "", ""],
+  ], [1700, CW - 4600, 700, 2200], { boldFirst: true }));
+  add(P("Every position above is a place in the stored text: the characters from the start to the end position, counted from zero, are exactly the passage shown."));
+  add(H2("E.6 What the Order Says on the case page"));
+  add(P("The Orders tab shows this order with the label Final Order and the cleaned body of six paragraphs without the cause title. Above the body it shows the outcome (Disposed Of), the direction with its time limit and Due By date, the act and rule cited, and the parts Facts, Reasoning and Conclusion, each a link that opens the stored PDF on that part’s first page (page 1 for Facts, page 2 for Reasoning and Conclusion). A sentence naming the next date, if the order had one, would be marked in the body."));
+  add(H2("E.7 The chain of evidence"));
+  add(table(["Link", "What is kept"], [
+    ["Reading", "The parts, tags and facts above, with the version of the rules (version 1 here) and the fingerprint of the exact text read"],
+    ["Order", "The order record of the case, which holds the court’s answer verbatim"],
+    ["Stored PDF", "The order’s PDF and its SHA-256 fingerprint, shown shortened, for example 656d2fcd5851 for the masked text of this example; in the system the PDF’s own fingerprint is kept beside the text’s"],
+    ["Court answer", "The verbatim Show Order answer, kept in the answers store"],
+    ["Case", "The case’s CNR, which ties the order to its case and to the full court record held for it"],
+  ], [2200, CW - 2200], { boldFirst: true }));
+  add(P("If the PDF or its text later changes, the order is read again, the old reading is marked replaced and kept, and nothing built on the old reading is cited as if it were current."));
+}
+
 documentControl(); s1(); s2(); s3(); s4(); s5(); s6(); s7(); s8(); s9(); s10(); s11(); s12(); s13();
-annexA(); annexB(); annexC(); annexD();
+annexA(); annexB(); annexC(); annexD(); annexE();
 
 // ---------- document ----------
 const numberingCfg = (reference, format, text) => ({ reference, levels: [{ level: 0, format, text, alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 440, hanging: 300 } } } }, { level: 1, format: LevelFormat.BULLET, text: "–", alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 880, hanging: 300 } } } }] });

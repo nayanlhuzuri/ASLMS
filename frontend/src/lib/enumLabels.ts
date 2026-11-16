@@ -74,6 +74,23 @@ export const LABELLED: Record<string, { map: LabelMap; sentence?: true; extra?: 
   FirstSeenSource: { map: T.case.firstSeenSources },
   "GapCaseOut.state": { map: T.pf.caseStates },
   "GapOrderOut.state": { map: T.pf.orderStates },
+  // design order-sections: the outcome read from an order, and the domain enum it comes from
+  "OrderOutcomeOut.value": { map: T.os.outcomes },
+  "OrderReadingBrief.outcome": { map: T.os.outcomes },
+  OrderOutcome: { map: T.os.outcomes },
+  // the live checks are computed by the server's SQL, not an enum (design order-sections, decision 13)
+  OrderSectionFlag: {
+    map: T.pf.orderChecks,
+    extra: [
+      "cnr_differs",
+      "case_no_differs",
+      "date_differs",
+      "reserved_date_differs",
+      "pronounced_date_differs",
+      "form_differs",
+      "common_order",
+    ],
+  },
   JobStatus: { map: T.dc.results },
   ListType: { map: T.causelist.listTypes },
   LoadOrder: { map: T.data.presets, sentence: true },
@@ -111,6 +128,17 @@ export const SERVER_LABELLED: Record<string, string> = {
 
 /** Never shown to a reader as a word of its own (the reason). */
 export const NOT_SHOWN: Record<string, string> = {
+  // design order-sections: values that choose a badge, a notice or a sentence, never printed as a word of their own
+  "OrderReadingBrief.form": "Chooses the Judgment or Final Order badge of What the Order Says",
+  "OrderSectionsOut.form": "Chooses the Judgment or Final Order badge of What the Order Says",
+  "OrderReadingBrief.layout": "Chooses the off-layout notice, a sentence of its own",
+  "OrderSectionsOut.layout": "Chooses the off-layout notice, a sentence of its own",
+  OrderLayout: "Chooses the off-layout notice, a sentence of its own",
+  "OrderDirectionOut.kind": "Filters the directions shown (compliance only); never printed",
+  "OrderActOut.kind": "Chooses the Section, Article or Rule word of the provisions line",
+  "OrderPeriodOut.unit": "Worded inside the time limit sentence",
+  "OrderPeriodOut.from": "Worded inside the time limit sentence",
+  OrderSectionReplaceReason: "Kept with replaced readings for the record; no screen shows it",
   "AdminSwapIn.outgoing": "A request field; the dialog words the two choices itself",
   AdvocateSide: "Stored with the advocate rows; the screens show the advocates by party, not the code",
   "AllowanceOut.window_status": "Drives the quota window sentence on the console, never printed as a word",

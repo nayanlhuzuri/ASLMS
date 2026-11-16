@@ -139,3 +139,32 @@ def test_case_closures_table_class_and_keys():
     } <= checks
     assert {"ix_case_closures_open", "ix_case_closures_case_closed"} <= {i.name for i in t.indexes}
     assert t.c.note_id.unique and t.c.close_leg_id.unique and not t.c.note_id.nullable
+
+
+def test_order_sections_table_class_and_keys():
+    """Design order-sections, "Data": a derived table with `updated_at` (mutable for the replacement only, not
+    append-only, not cascading), RESTRICT foreign keys with the deferred self-reference, the CHECKs and the indexes."""
+    t = TABLES["order_sections"]
+    assert t.comment == "class=derived"
+    assert "order_sections" in MUTABLE_TABLES
+    assert "order_sections" not in APPEND_ONLY_TABLES and "order_sections" not in CASCADE_TABLES
+    for fk in t.foreign_key_constraints:
+        col = list(fk.columns)[0].name
+        assert (fk.ondelete or "RESTRICT").upper() == "RESTRICT", col
+        if col == "replaced_by_id":
+            assert fk.deferrable and fk.initially == "DEFERRED"
+    checks = {c.name for c in t.constraints if isinstance(c, sa.CheckConstraint)}
+    assert {
+        "ck_order_sections_replaced",
+        "ck_order_sections_successor",
+        "ck_order_sections_whole",
+        "ck_order_sections_registrar",
+        "ck_order_sections_outcome",
+    } <= checks
+    assert {
+        "ix_order_sections_current",
+        "ix_order_sections_order_created",
+        "ix_order_sections_document_id",
+        "ix_order_sections_replaced_by_id",
+        "ix_order_sections_body_sha256",
+    } <= {i.name for i in t.indexes}

@@ -550,6 +550,10 @@
       "final",
       "judgment"
     ],
+    "OrderLayout": [
+      "template",
+      "whole"
+    ],
     "OrderNextDateStatus": [
       "pending",
       "specific",
@@ -557,6 +561,29 @@
       "unclear",
       "none",
       "no_text"
+    ],
+    "OrderOutcome": [
+      "allowed",
+      "partly_allowed",
+      "dismissed",
+      "disposed_of",
+      "withdrawn",
+      "closed"
+    ],
+    "OrderSectionFlag": [
+      "off_template",
+      "no_cnr_line",
+      "no_case_no",
+      "no_date",
+      "page_marks_differ",
+      "empty_body",
+      "capped"
+    ],
+    "OrderSectionReplaceReason": [
+      "parser_version",
+      "text_reextracted",
+      "document_changed",
+      "text_gone"
     ],
     "OtpPurpose": [
       "login",

@@ -58,7 +58,16 @@ from aslms.domain.ops import (
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API, NapixHighCourt
-from aslms.services import access, case_dedupe, collect, court_search, data_health, napix_window, queue
+from aslms.services import (
+    access,
+    case_dedupe,
+    collect,
+    court_search,
+    data_health,
+    napix_window,
+    order_sections,
+    queue,
+)
 from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
@@ -1925,7 +1934,7 @@ def fetch_details(
 # searchable text. Reads only, under the report statement timeout; references, CNRs and case numbers only (as
 # Duplicates and the queue already show the same readers), never parties or notes.
 
-GAP_KINDS = ("cases", "orders")
+GAP_KINDS = ("cases", "orders", "order_checks")
 GAP_MAX = 200
 GAP_CASE_STATES = ("being_fetched", "not_found", "failed", "not_queued")
 
@@ -2011,26 +2020,54 @@ def _gap_orders(
     return sum(counts.values()), counts, items
 
 
-def gaps(session: Session, cfg: Settings, kind: str, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+def _gap_order_checks(
+    session: Session, limit: int, offset: int, check: str | None
+) -> tuple[int, dict[str, int], list[dict[str, Any]]]:
+    """Design order-sections, decision 21: the current readings with a live mismatch or a flag about the text."""
+    return order_sections.check_rows(session, check=check, limit=limit, offset=offset)
+
+
+def gaps(
+    session: Session,
+    cfg: Settings,
+    kind: str,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    check: str | None = None,
+) -> dict[str, Any]:
     """`GET /admin/data-load/gaps` (decision 45): `cases` held without details (not merged), newest first, each with
     its dossier row's state (`being_fetched` pending or running, `not_found` skipped, `failed`, `not_queued` no row);
-    or `orders` without a PDF that the court marked not available or whose fetch failed, latest order first. `counts`
-    splits the total by state; `documents_text` is the document-text block of the data-health snapshot. A cancelled
-    query raises `SearchTimeout`."""
+    or `orders` without a PDF that the court marked not available or whose fetch failed, latest order first; or
+    `order_checks`, the order readings that differ from what is held or carry a flag (design order-sections, decision
+    21; `check` narrows to one check or flag). `counts` splits the total by state (by check for `order_checks`);
+    `documents_text` is the document-text block of the data-health snapshot and `order_sections` the order readings'
+    block. A cancelled query raises `SearchTimeout`."""
     if kind not in GAP_KINDS:
         raise LoadInputError("bad_input", f"kind is one of {', '.join(GAP_KINDS)}")
+    if check is not None and (kind != "order_checks" or check not in order_sections.CHECK_NAMES):
+        raise LoadInputError(
+            "bad_input", f"check is one of {', '.join(order_sections.CHECK_NAMES)} (kind=order_checks)"
+        )
     limit = max(1, min(int(limit), GAP_MAX))
     offset = max(0, int(offset))
     with_timeout(session, cfg.report_statement_timeout_seconds)
-    reader = _gap_cases if kind == "cases" else _gap_orders
     slow = "the data gaps took too long; try again"
-    total, counts, items = _timed(lambda: reader(session, limit, offset), slow)
+    if kind == "order_checks":
+        total, counts, items = _timed(lambda: _gap_order_checks(session, limit, offset, check), slow)
+    else:
+        reader = _gap_cases if kind == "cases" else _gap_orders
+        total, counts, items = _timed(lambda: reader(session, limit, offset), slow)
     return {
         "kind": kind,
         "total": total,
         "counts": counts,
         "items": items,
         "documents_text": _timed(lambda: data_health.documents_text(session), slow),
+        # the readings' block once per page of Data Gaps: with the order checks only (Deviations of order-sections)
+        "order_sections": _timed(lambda: order_sections.status(session), slow)
+        if kind == "order_checks"
+        else None,
     }
 
 

@@ -143,6 +143,62 @@
   align-items: baseline;
 }
 
+/* "What the Order Says" (design order-sections, decision 19) */
+.orderSays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-width: 72ch;
+  min-width: 0;
+}
+
+.orderSaysBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.orderSaysBadges:empty {
+  display: none;
+}
+
+.orderSaysFacts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s1);
+  margin: 0;
+}
+
+.orderSaysFacts dt {
+  font-weight: 600;
+}
+
+.orderSaysFacts dd {
+  margin: 0 0 var(--s2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.orderSaysFacts ul {
+  margin: 0;
+  padding-left: var(--s4);
+}
+
+.orderSaysParts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+}
+
+.orderSaysBody p {
+  margin: 0 0 var(--s2);
+  overflow-wrap: anywhere;
+}
+
+.orderSaysBody mark {
+  padding: 0 2px;
+}
+
 .rail {
   position: relative;
   margin: 0;

@@ -3388,8 +3388,32 @@ export const T = {
       next_date_read: "Reading Next Dates From Orders",
       next_date_match: "Matching Next Dates",
       next_hearing_refresh: "Next Hearing Refresh",
+      order_parse: "Reading Orders Into Parts",
     } as Record<string, string>,
     recordedCols: { kind: "Kind", open: "Open", since: "Oldest" },
+    // Order Reading Checks (design order-sections, decision 21): read only, nothing is fixed from here
+    orderChecksTitle: "Order Reading Checks",
+    orderChecksNone: "No order reading differs from what ASLMS holds.",
+    orderChecksNote:
+      "Each order's own text is compared with the court data ASLMS holds. Nothing is changed from here; a difference is for a person to look at.",
+    orderChecks: {
+      cnr_differs: "CNR Differs",
+      case_no_differs: "Case Number Differs",
+      date_differs: "Order Date Differs",
+      reserved_date_differs: "Reserved Date Differs",
+      pronounced_date_differs: "Pronounced Date Differs",
+      form_differs: "Kind of Order Differs",
+      common_order: "Common Order",
+      off_template: "Not in the Usual Layout",
+      no_cnr_line: "No CNR Line",
+      no_case_no: "No Case Number",
+      no_date: "No Order Date",
+      page_marks_differ: "Page Numbers Differ",
+      empty_body: "No Text After Clean-up",
+      capped: "Too Long, Read in Part",
+    } as Record<string, string>,
+    orderCheckCols: { case: "Case", order: "Order", what: "What Differs", printed: "Printed", held: "Held" },
+    orderChecksCounted: (read: string, waiting: string) => `${read} orders read, ${waiting} waiting.`,
     cols: {
       when: "When",
       what: "What",
@@ -3907,6 +3931,76 @@ export const T = {
     characters: (n: number, max: number) => `${n} / ${max} characters`,
     // design portal-screen-fixes-work, decision 15: the counter with its floor, the field's one hint
     charactersMin: (n: number, max: number, min: number) => `${n} / ${max} characters, at least ${min}`,
+  },
+  // "What the Order Says": a court order read into its parts by rules, with no AI (design order-sections, decision 19)
+  os: {
+    title: "What the Order Says",
+    regionLabel: "What the Order Says",
+    notReadTitle: "Not Read Yet",
+    notReadNote: "This order has not been read into its parts yet. New orders are read every few minutes.",
+    scannedTitle: "Scanned, Not Read",
+    scannedNote: "This order is a scanned copy with no text in it, so it could not be read.",
+    offTemplateNote: "This order does not follow the usual layout; shown as printed.",
+    badges: {
+      procedural: "Procedural",
+      registrar: "Registrar Order",
+      judgment: "Judgment",
+      final: "Final Order",
+      common: "Common Order",
+    },
+    commonBadge: (caseNo: string) => `Common Order Under ${caseNo}`,
+    outcomeTitle: "Outcome",
+    outcomes: {
+      allowed: "Allowed",
+      partly_allowed: "Partly Allowed",
+      dismissed: "Dismissed",
+      disposed_of: "Disposed Of",
+      withdrawn: "Withdrawn",
+      closed: "Closed",
+    } as Record<string, string>,
+    directionsTitle: "Directions to the State",
+    dueBy: (d: string) => `Due By ${d}`,
+    // a direction's time limit in words: "within 30 days from the date of the order"
+    timeLimitNote: (n: number, unit: string, from: string) => {
+      const units: Record<string, [string, string]> = { days: ["day", "days"], weeks: ["week", "weeks"], months: ["month", "months"] };
+      const [one, many] = units[unit] ?? [unit, unit];
+      const froms: Record<string, string> = {
+        order_date: " from the date of the order",
+        receipt_of_copy: " from the receipt of a copy of the order",
+        other: "",
+        none: "",
+      };
+      return `Within ${n} ${n === 1 ? one : many}${froms[from] ?? ""}`;
+    },
+    actsTitle: "Acts and Provisions Cited",
+    judgmentsTitle: "Judgments Cited",
+    partsTitle: "Parts",
+    parts: {
+      opening: "Opening",
+      facts: "Facts",
+      petitioner_submissions: "Petitioner's Submissions",
+      respondent_submissions: "Respondents' Submissions",
+      issues: "Issues",
+      reasoning: "Reasoning",
+      conclusion: "Conclusion",
+      body: "The Order",
+    } as Record<string, string>,
+    bodyTitle: "The Order's Text",
+    pageLink: (n: number) => `Page ${n}`,
+    openAria: (what: string, n: number) => `${what}: open the PDF at page ${n}`,
+    citedAs: (citation: string, name: string | null | undefined) => (name ? `${name}, ${citation}` : citation),
+    provisionsLine: (kind: string, provisions: string[]) => {
+      const words: Record<string, [string, string]> = {
+        section: ["Section", "Sections"],
+        article: ["Article", "Articles"],
+        rule: ["Rule", "Rules"],
+        order: ["", ""],
+      };
+      const [one, many] = words[kind] ?? ["", ""];
+      const word = provisions.length === 1 ? one : many;
+      return `${word ? `${word} ` : ""}${provisions.join(", ")}`;
+    },
+    sentenceNote: "The next-date sentence is marked in the text.",
   },
   // next dates from orders (design portal-next-dates, decision 12)
   nd: {

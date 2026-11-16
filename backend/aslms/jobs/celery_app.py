@@ -15,7 +15,9 @@ the connector is `disabled` or `not_implemented` it returns at once, sends nothi
 writes a `job_runs` row with `{merged, needs_review, court_linked}`; it makes no NAPIX call. `next-dates-read` (every 5
 minutes, two minutes after `extract-text`) reads the next-date direction of newly stored orders by rule, in batches
 of `NEXT_DATE_BATCH`, and writes a `job_runs` row `next_dates_read` (design next-date-extraction); no NAPIX or
-SourceTrace call. `store-search-rows` (every 2 minutes, also dispatched by the API after a capped advocate search)
+SourceTrace call. `order-sections` (every 5 minutes at minute 3) reads newly extracted court orders into their parts by
+rule, in batches of `ORDER_SECTIONS_BATCH`, and writes a `job_runs` row `order_sections` (design order-sections); no
+NAPIX, SourceTrace or model call. `store-search-rows` (every 2 minutes, also dispatched by the API after a capped advocate search)
 stores the remaining rows of those searches from the responses kept in `napix_responses` (queue kind `search_rows`,
 design safety-fixes, decision 13); no NAPIX call. Design court-data-freshness: the 06:30 and 18:30 list runs also queue
 the rechecks of held lists (`enqueue_morning_lists`, `enqueue_evening_lists`); `disposed-refresh` (02:30 IST) queues the
@@ -53,6 +55,7 @@ from aslms.services import (
     matching,
     next_dates,
     notifications,
+    order_sections,
     schedules,
     sourcetrace_ingest,
     text_extract,
@@ -91,6 +94,8 @@ app.conf.update(
         "rescore-dirty": {"task": "aslms.rescore_if_dirty", "schedule": crontab(minute="*/15")},
         "extract-text": {"task": "aslms.extract_pending_text", "schedule": crontab(minute="*/5")},
         "next-dates-read": {"task": "aslms.next_dates_read", "schedule": crontab(minute="2-59/5")},
+        # court orders read into their parts by rules (design order-sections, decision 23); no NAPIX call
+        "order-sections": {"task": "aslms.order_sections_read", "schedule": crontab(minute="3-59/5")},
         "alerts-scan-events": {"task": "aslms.alerts_scan_events", "schedule": crontab(minute="*/5")},
         "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
@@ -282,6 +287,15 @@ def next_dates_read() -> dict:
     order failed (recorded in `source_failures`, kind `next_date_read`)."""
     with session_scope() as s:
         return next_dates.run_job(s, cfg=next_dates.NextDateConfig.from_settings(settings))
+
+
+@app.task(name="aslms.order_sections_read")
+def order_sections_read() -> dict:
+    """Court orders read into their parts by rules (design order-sections, "Jobs"): one `job_runs` row
+    `order_sections`, `partial` when an order failed (recorded in `source_failures`, kind `order_parse`). No NAPIX,
+    SourceTrace or model call; no `fetch_queue` row."""
+    with session_scope() as s:
+        return order_sections.run_job(s, cfg=settings)
 
 
 @app.task(name="aslms.extract_document_text")

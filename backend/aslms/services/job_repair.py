@@ -37,6 +37,7 @@ SCHEDULER_JOBS = frozenset(
         "causelist-gap-sweep",  # design causelist-day-gap-sweep, decisions 4 and 5
         "lists-catchup",
         "nightly-refresh",  # design rolling-case-refresh, decision 8
+        "order_sections",  # design order-sections, decision 22
     }
 )
 # `aslms ops backup-scheduler` (services/backups.py)

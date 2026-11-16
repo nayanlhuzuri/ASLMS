@@ -1079,6 +1079,27 @@ const STATES: State[] = [
       await page.getByRole("table", { name: "Cases Without Details" }).waitFor();
       await page.getByRole("table", { name: "Orders Not Available or Failed" }).waitFor();
       await page.getByRole("table", { name: "Documents Without Searchable Text" }).waitFor();
+      await page.getByRole("table", { name: "Order Reading Checks" }).waitFor();
+    },
+  },
+  // design order-sections, decision 19: What the Order Says opened on an interim order and on a judgment
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/orders (What the Order Says, interim order)`,
+    path: `/cases/${SAMPLE.caseRefPath}/orders`,
+    open: async (page) => {
+      await page.locator("summary", { hasText: "What the Order Says" }).first().click();
+      const region = page.getByRole("region", { name: "What the Order Says" }).first();
+      await region.locator("mark").first().waitFor();
+    },
+  },
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/orders (What the Order Says, judgment)`,
+    path: `/cases/${SAMPLE.caseRefPath}/orders`,
+    open: async (page) => {
+      await page.locator("summary", { hasText: "What the Order Says" }).nth(1).click();
+      const region = page.getByRole("region", { name: "What the Order Says" }).first();
+      await region.getByText("Directions to the State").waitFor();
+      await region.scrollIntoViewIfNeeded();
     },
   },
   {

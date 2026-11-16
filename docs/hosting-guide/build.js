@@ -132,8 +132,8 @@ function cover() {
     ["Title", "ASLMS Hosting Guide"],
     ["Owner", "Government of Assam"],
     ["Audience", "System administrators of the data centre that hosts ASLMS"],
-    ["Version", "1.4"],
-    ["Date", "13 November 2026"],
+    ["Version", "1.5"],
+    ["Date", "16 November 2026"],
     ["Status", "Draft for review with the data centre"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -176,6 +176,7 @@ function documentControl() {
     ["1.2", "2 November 2026", "Cause-list days nobody asked for (backlog row 200): the 04:15 sweep added to the scheduled jobs (9.6) and to the runs to keep away from, the catch-up at the scheduler's start, and the setting `CAUSELIST_CATCHUP_DAYS` in Annexure B."],
     ["1.3", "5 November 2026", "Dependency locks (backlog row 98): the backend images install exactly the hashed dependency lock that the tests run on, and `migrate` (section 8.2) also refuses an image whose dependency lock differs from the release's code."],
     ["1.4", "13 November 2026", "Rolling case refresh (backlog row 238): a second court-data worker service `worker2` (the services table, every stop list, the image list, the connection budget now 6 + 2 + 1 + 3 + 4 = 16 of 20 and `pool-check --holders 9`, the new `WorkerSlotStalled` alert, and the rule that exactly one of each worker slot runs); the nightly 22:00 refresh and the Sunday job's new purpose in the scheduled jobs (9.6)."],
+    ["1.5", "16 November 2026", "Order sections (backlog row 250): the `order-sections` job every 5 minutes reads court orders into their parts by rules, with no court call and no model, in the scheduled jobs (9.6); the setting `ORDER_SECTIONS_BATCH` (default 500) in the settings table; after migration 0038 the one-time catch-up `aslms orders parse --backfill` (an estimate of one to two hours for about 260,000 orders, runnable while the system is in use) and the new table, about 0.4 to 0.6 GB per parser version (estimate), in the database size."],
   ], [1400, 2200, CW - 3600]));
   add(table(["Source in the ASLMS repository (branch main)", "Used for"], [
     ["`docs/operations.md` (the operations runbook)", "Installation, upgrades, backups, restore, certificates, monitoring, PgBouncer, troubleshooting"],
@@ -988,7 +989,7 @@ function s9() {
     ["22:00 daily", "Case refresh: cases heard recently, then every case not disposed last refreshed 7 days ago, claimed cases first (the worker fetches overnight)"],
     ["Sunday 02:00 / Saturday 02:00", "First fetches of cases never fully fetched and missing orders / department discovery"],
     ["Every 2 minutes", "E-mail notifications; storing search results"],
-    ["Every 5 minutes", "Alert event scan; text extraction; next dates from orders; SourceTrace ingestion (sends nothing until a connector exists)"],
+    ["Every 5 minutes", "Alert event scan; text extraction; next dates from orders; court orders read into their parts by rules (backlog row 250); SourceTrace ingestion (sends nothing until a connector exists)"],
     ["Every 15 minutes / hourly at :10", "Rescoring after rule changes / alert date sweep"],
     ["Every 6 hours at :30; Sunday 04:30", "Backup; restore check (`backup` service)"],
   ], [3200, CW - 3200]));
@@ -1266,7 +1267,7 @@ function annexB() {
     ["Case Assistant", "`ASSISTANT_MODE`, `ASSISTANT_TIMEOUT_SECONDS`, `ASSISTANT_*` limits; `ASSISTANT_OLLAMA_URL`, `ASSISTANT_OLLAMA_MODEL`, `ASSISTANT_OLLAMA_NUM_CTX`, `ASSISTANT_OLLAMA_NUM_PREDICT`, `ASSISTANT_OLLAMA_KEEP_ALIVE`, `ASSISTANT_OLLAMA_TIMEOUT_SECONDS`, `ASSISTANT_OLLAMA_SLOTS`, `ASSISTANT_OLLAMA_SLOT_WAIT_SECONDS`, `ASSISTANT_OLLAMA_SOURCES`, `ASSISTANT_OLLAMA_SOURCE_CHARS`, `ASSISTANT_OLLAMA_HISTORY_TURNS`, `ASSISTANT_OLLAMA_INTERNAL_CHARS`, `ASSISTANT_OLLAMA_HEARINGS`", "Engine and limits; no API key for the local model"],
     ["Mail", "`MAIL_BACKEND`, `MAILTRAP_API_TOKEN` (secret), `MAILTRAP_API_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (secret), `SMTP_STARTTLS`, `SMTP_FROM`, `SMTP_FROM_NAME`, `MAIL_TIMEOUT_SECONDS`", "The mail relay (mandatory)"],
     ["Portal", "`PORTAL_BASE_URL`, `COOKIE_SECURE`, `RELAY_TIMEOUT_SECONDS`, `ASLMS_SUBNET`, `WEB_IP`", "Address and private network"],
-    ["Alerts, reports, data collection", "`ALERT_*`, `COURT_SITTING_TIME`, `REQUEST_DUE_SOON_DAYS`, `NOTIFY_*`, `REPORT_*`, `DASHBOARD_LIST_SIZE`, `DATA_LOAD_ESTIMATE_WINDOW_DAYS`, `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR`, `NEXT_DATE_*`, `DISPOSED_REFRESH_*`, `CAUSELIST_RECHECK_*`, `CAUSELIST_CATCHUP_DAYS`, `NAPIX_CALL_LOG_*`", "Behaviour limits; defaults normally kept"],
+    ["Alerts, reports, data collection", "`ALERT_*`, `COURT_SITTING_TIME`, `REQUEST_DUE_SOON_DAYS`, `NOTIFY_*`, `REPORT_*`, `DASHBOARD_LIST_SIZE`, `DATA_LOAD_ESTIMATE_WINDOW_DAYS`, `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR`, `NEXT_DATE_*`, `ORDER_SECTIONS_BATCH`, `DISPOSED_REFRESH_*`, `CAUSELIST_RECHECK_*`, `CAUSELIST_CATCHUP_DAYS`, `NAPIX_CALL_LOG_*`", "Behaviour limits; defaults normally kept"],
   ], [2200, 4700, CW - 6900]));
 }
 

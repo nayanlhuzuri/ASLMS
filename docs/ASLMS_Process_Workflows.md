@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5); and, on branch `feature/order-sections` (row 250), the reading of every court order into its parts by rules and What the Order Says (4.9) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -1069,6 +1069,46 @@ and Shift+Enter starts a new line. Each user may ask 30 questions an hour, one a
 > returns a choice for the twelve questions (otherwise every choice is made by the keyword table, which is still
 > correct). The model's reply fields were written from Ollama's published documentation and the owner's own test; the
 > owner's live check (row 195) confirms them.
+
+
+#### How ASLMS reads an order
+
+*Built on branch `feature/order-sections` (row 250, 15 November 2026; migration 0038), not yet deployed. It uses fixed
+rules: no AI, no court call, nothing sent to SourceTrace. It varies the plan, which gave the reading of orders to
+SourceTrace; the owner chose "local first" on 12 November 2026.*
+
+**What it does, in plain words.** Every order of the Gauhati High Court is printed from one template. ASLMS reads the
+stored text of each order the way a clerk would: it finds the header (the CNR, the case number, the parties and their
+addresses, the advocates), the judges, the heading, the date, the numbered paragraphs and the judge's sign-off. It
+removes the page markers, the stray word "undefined" and the closing line "Comparing Assistant", and joins lines that
+were broken across pages. It never changes the stored text. For every part it keeps the page and the exact place in
+the text, so a statement can always be traced to the court's own words.
+
+- **Orders are tagged** as a judgment, a final order or an interim order; as a registrar's order or not; and as
+  procedural (for example "List after four weeks") or substantive. The tag never changes what the court reported.
+- **For judgments and final orders** it also reads the outcome (allowed, partly allowed, dismissed, disposed of,
+  withdrawn or closed), the directions to a party with any time limit and the date it falls due, the acts and sections
+  cited and the earlier judgments cited, each with its page. A judgment's paragraphs are grouped into its parts
+  (facts, the petitioner's submissions, the respondents' submissions, issues, reasoning, conclusion), and a part never
+  cuts a paragraph. An interim order is one unit.
+- **Checks against the court data:** the CNR, case number and date printed in the order are compared with what ASLMS
+  holds. A difference is shown to the Super Administrator on Data Collection, Problems and Fixes, Data Gaps, as "Order
+  Reading Checks" (identifiers and printed values only, never the order's text). Nothing held is overwritten.
+- **Common orders**, one PDF printed for several cases (20,613 on 15 November 2026, up to 64 cases on one), are
+  labelled "Common Order" and are not errors.
+- **On the case page,** the Orders tab's "What the Order Says" shows the cleaned order without the cause title and
+  addresses, the next-date sentence marked, the labels above, and for judgments and final orders the outcome,
+  directions, acts and judgments cited with links that open the PDF at the right page. A person sees it only if they
+  may open the case and its documents.
+- **Traceability.** Each reading keeps the order, the PDF's SHA-256 fingerprint, the fingerprint of the text read and
+  the version of the rules. When a PDF, its text or the rules change, the order is read again, and the old reading is
+  marked replaced and kept, never deleted.
+- **Running it.** A job every 5 minutes reads new orders (no court call, no effect on court work); a one-time catch-up
+  reads the roughly 260,000 orders already held. In a test on 3,000 dev orders 98.0% followed the template; the rest
+  are kept whole with a note. Scanned orders are not read (no text recognition in Phase 1).
+
+The worked example is Annexure E of the Software Documentation. Rows 251 to 253 add the meaning search, similar cases,
+summaries and precedent notes.
 
 ---
 

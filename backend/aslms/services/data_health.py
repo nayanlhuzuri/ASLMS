@@ -34,7 +34,7 @@ from aslms.domain.ops import (
 from aslms.domain.org import Channel, User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API
-from aslms.services import access, napix_window, sourcetrace_ingest
+from aslms.services import access, napix_window, order_sections, sourcetrace_ingest
 from aslms.services.access import Member
 from aslms.services.audit_search import AuditInputError, decode_cursor, encode_cursor, like_escape, to_ist
 from aslms.services.filetypes import DOC_MIME, JPEG_MIME, PDF_MIME, PNG_MIME
@@ -534,6 +534,7 @@ def snapshot(
         "sourcetrace": sourcetrace_ingest.status(session, settings),
         "failures": failures(session),
         "documents_text": documents_text(session),
+        "order_sections": order_sections.status(session),
         "retention": retention(session, settings, now),
     }
 

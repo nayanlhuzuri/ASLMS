@@ -326,6 +326,7 @@ NOT_DATA_COLLECTION: frozenset[str] = frozenset(
         "rescore-dirty",
         "extract-text",
         "next-dates-read",
+        "order-sections",  # design order-sections: court orders read into their parts by rules
         "alerts-scan-events",
         "alerts-sweep-dates",
         "notifications-send",

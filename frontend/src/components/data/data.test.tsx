@@ -132,6 +132,47 @@ const ORDERS_GAP = {
   documents_text: DOCS,
 } as unknown as DataGaps;
 
+const CHECKS_GAP = {
+  kind: "order_checks",
+  total: 60,
+  counts: { cnr_differs: 2, common_order: 5, no_date: 58, case_no_differs: 0 },
+  items: [
+    {
+      case: brief(6),
+      order_id: "oc-1",
+      order_no: "3",
+      order_date: "2026-01-12",
+      kind: "interim",
+      form: "interim",
+      checks: ["cnr_differs"],
+      flags: ["no_date"],
+      printed: { cnr: "GAHC010000992025", case_no: "WP(C)/6/2025", date: null, reserved_on: null, pronounced_on: null },
+      held: { cnr: "GAHC0100062025", case_no: "WP(C)/6/2025", date: "2026-01-12", reserved_on: null, pronounced_on: null },
+    },
+  ],
+  documents_text: DOCS,
+  order_sections: {
+    parser_version: 1,
+    orders_with_text: 1200,
+    read: 1150,
+    waiting: 50,
+    failed: 0,
+    by_layout: { template: 1100, whole: 50 },
+    by_form: { interim: 1000, final: 100, judgment: 50 },
+    procedural: 700,
+    registrar: 20,
+    with_outcome: 150,
+    with_directions: 90,
+    distinct_bodies: 900,
+    flags: { no_date: 58 },
+    checks: { cnr_differs: 2, common_order: 5 },
+    last_run: null,
+  },
+} as unknown as DataGaps;
+
+const gapFor = (url: string) =>
+  url.includes("kind=order_checks") ? CHECKS_GAP : url.includes("kind=orders") ? ORDERS_GAP : CASES_GAP;
+
 const emptyGap = (kind: string) => ({ kind, total: 0, counts: {}, items: [], documents_text: DOCS }) as unknown as DataGaps;
 
 const DUPLICATES: DuplicatesList = {
@@ -155,7 +196,7 @@ function problemRoutes(functions: Permission[], extra: Record<string, unknown> =
     "GET /admin/napix/health": NAPIX,
     "GET /admin/napix/queue": FAILED_ROWS,
     "GET /admin/data-load/duplicates": DUPLICATES,
-    "GET /admin/data-load/gaps": (c: { url: string }) => (c.url.includes("kind=orders") ? ORDERS_GAP : CASES_GAP),
+    "GET /admin/data-load/gaps": (c: { url: string }) => gapFor(c.url),
     "GET /admin/data-health": {
       failures: [
         { kind: "text_extraction", open: 4, oldest_first_seen: "2026-10-20T10:00:00+05:30" },
@@ -185,7 +226,8 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     problemRoutes(OPERATOR, {
       "GET /admin/data-load/overview": NO_PROBLEMS,
       "GET /admin/data-load/duplicates": { total: 0, items: [] },
-      "GET /admin/data-load/gaps": (c: { url: string }) => emptyGap(c.url.includes("kind=orders") ? "orders" : "cases"),
+      "GET /admin/data-load/gaps": (c: { url: string }) =>
+        emptyGap(c.url.includes("kind=order_checks") ? "order_checks" : c.url.includes("kind=orders") ? "orders" : "cases"),
     });
     renderWithClient(<ProblemsAndFixes />);
     expect(await screen.findByText("No fetch has failed.")).toBeInTheDocument();
@@ -385,6 +427,27 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     expect(await within(section).findByText("The order PDF will be fetched again.")).toBeInTheDocument();
     const docs = within(section).getByRole("table", { name: "Documents Without Searchable Text" });
     expect(within(docs).getByRole("columnheader", { name: "Scanned PDFs, Not Read" })).toBeInTheDocument();
+  });
+
+  it("Data Gaps: the Order Reading Checks with their counts, the printed and held values and paging, read only", async () => {
+    const api = problemRoutes(["reports.state"]);
+    renderWithClient(<ProblemsAndFixes />);
+    const section = await screen.findByRole("region", { name: "Data Gaps (118)" });
+    expect(await within(section).findByRole("heading", { name: "Order Reading Checks (60)" })).toBeInTheDocument();
+    expect(within(section).getByText(`${formatNumber(1150)} orders read, 50 waiting.`)).toBeInTheDocument();
+    expect(within(section).getByText("CNR Differs (2)")).toBeInTheDocument();
+    expect(within(section).getByText("Common Order (5)")).toBeInTheDocument();
+    expect(within(section).queryByText(/Case Number Differs \(0\)/)).toBeNull();
+    const table = within(section).getByRole("table", { name: "Order Reading Checks" });
+    expectDataTable(table);
+    expect(within(table).getByText("CNR Differs, No Order Date")).toBeInTheDocument();
+    expect(within(table).getByText("GAHC010000992025 · WP(C)/6/2025")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "ASLMS/GHC/CASE/2026/000006" })).toBeInTheDocument();
+    expect(within(table).queryByRole("button")).toBeNull();
+    await userEvent.click(within(section).getAllByRole("button", { name: /Next/ }).at(-1)!);
+    await waitFor(() =>
+      expect(api.calls.some((c) => c.url.includes("kind=order_checks") && c.url.includes("offset=50"))).toBe(true),
+    );
   });
 
   it("no heading is doubled: the section headings carry the names, the table captions stay hidden", async () => {

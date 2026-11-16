@@ -951,6 +951,38 @@ request or by running the import again with the Head cells filled in. The same p
 administrator of one department. Codes are 2 to 17 characters. A designation not in ASLMS is added, with its code
 listed in the dry run.
 
+## 25. Court orders read into their parts (row 250)
+
+Design `docs/design/order-sections.md`, migration 0038 (table `order_sections`, derived, never deleted). The scheduler's
+`order-sections` job (every 5 minutes at minute 3, task `aslms.order_sections_read`) reads newly extracted court orders
+by rules, `ORDER_SECTIONS_BATCH` (default 500, 1 to 5000) a run, and writes a `job_runs` row `order_sections`. It makes
+no court call, no SourceTrace call and no model call, and takes no `fetch_queue` row.
+
+**On deploy** (after the merge, with the court-data switch carried on every `up`; the owner holds this deploy for a
+late-night window):
+1. `docker compose run --rm migrate` (0038), then `docker compose build`; the app services are recreated as for any
+   deploy. `aslms ops preflight` passes.
+2. `docker compose exec api aslms orders parse --dry-run --limit 3000` prints the counts by layout and form, the flags
+   and citations by reporter, and the time; it writes nothing. On 3,000 dev orders: 98.0% template, no failure.
+3. The one-time catch-up: `docker compose exec api aslms orders parse --backfill`. It is resumable (stopped and started
+   again it carries on), commits one batch at a time and pauses between batches (`--pause-ms`, default 200); an estimate
+   of one to two hours for about 259,432 orders. It ends when only orders that keep failing are left, each listed in
+   `source_failures` (kind `order_parse`); those come last and never keep newer orders out of the 5-minute job.
+4. `docker compose exec api aslms orders status` (the same block as the data-health screen): `read` equals the orders
+   with text, `waiting` 0, `failed` 0 or each failure listed, `distinct_bodies` well below `read`.
+   `aslms orders show <order id | CNR|order_no|YYYY-MM-DD> [--text]` prints one order's spans, paragraphs with pages,
+   facts and live checks; `aslms orders checks [--check NAME]` lists the identifier mismatches.
+5. No court call is made: the `napix_call_log` count does not change during the backfill.
+
+**Checks on screen.** Data Collection, Problems and Fixes, Data Gaps, "Order Reading Checks" lists the differences
+between the printed CNR, case number and date and what is held (identifiers only, no order text); nothing is fixed
+there. The case page's Orders tab shows "What the Order Says". The owner's sample of 20 orders (5 interim, 5 final,
+5 judgments, 5 registrar or off-template) is compared with the PDFs in the browser (design Verification 8); a wrong
+reading is a defect for a follow-up row, never a data change.
+
+**Roll-back.** A reading is derived data and can be rebuilt; the migration's downgrade drops the table. There is no
+new `.env` key beyond `ORDER_SECTIONS_BATCH`.
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.

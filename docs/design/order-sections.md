@@ -665,7 +665,7 @@ Database (`backend/tests/db/test_order_sections.py`):
 - `test_status_block_counts`, `test_check_rows_paging_and_check_filter`
 - `test_backfill_commits_per_batch_resumes_and_dry_run_writes_nothing`
 
-API (`backend/tests/api/test_order_sections_api.py`):
+API (`backend/tests/db/test_api_order_sections.py`; see Deviation 11):
 - `test_orders_list_reading_brief_with_documents_view`
 - `test_orders_list_reading_null_without_documents_view`
 - `test_sections_route_returns_body_parts_facts_and_next_date_span`
@@ -749,3 +749,67 @@ approval:
 - decision 12, the part named "Respondents' Submissions" in place of "State's Submissions";
 - decision 17, the two outcome values added (`partly_allowed`, `closed`);
 - decision 25, masking judges' names as well as parties, advocates and addresses in the worked example.
+
+## Deviations
+Recorded by the developer while building (15 Nov 2026). None changes a business rule; each is the smallest reading of a
+point the note leaves open, or a variant measured in the data.
+1. **Coram then date, no heading, is the template.** Decision 8 makes an order `whole` when the heading is missing.
+   On 3,000 random dev orders that literal rule gave 87% `template`; most of the rest were older and division-bench
+   orders printed as coram → date → body with no `ORDER` line. A coram followed within four lines by the order date
+   now counts as `template` (heading null). With it, 98.0% of the sample is `template` (the note expects at least
+   92%), and those orders keep their cause title and addresses out of the body.
+2. **More measured variants in `order_parse_rules.py`.** Page markers `Page n of N` (judgments typed outside the
+   template); a heading indented, spaced out (`O R D E R`), printed one letter per line, or with the date before it on
+   the same line; `Date :  --19.03.2025`; an author in square brackets (`[A. B., J]`); the `Date of Hearing` /
+   `Date of Judgment` lines in the judgment block; a digital-signature block after `Comparing Assistant` (the trailer
+   is looked for in the last 15 lines). The heading is looked for within 40 non-blank lines of the coram, because
+   judgments put the advocates and the judgment dates between them.
+3. **Blank lines.** A blank line starts a paragraph only after a line that ends a sentence, and blank lines next to a
+   page break are ignored. Extraction leaves a blank line at every page join, and some judgments have a blank line
+   between single words.
+4. **Hyphen at a line end.** The two lines are joined with no space, keeping the hyphen (`P.O.-` / `UDAYAN` reads
+   `P.O.-UDAYAN`).
+5. **Parts.** The opening is only the "Heard" and appearance paragraphs among the first three; an unmarked paragraph
+   after it starts the facts, and a first paragraph without the formula is the facts. A conclusion phrase
+   ("accordingly", "in view of the above", …) counts only in the second half of the body, because these phrases open
+   many paragraphs mid-judgment.
+6. **One parse per (document, order date, NAPIX kind).** The form uses `orders.kind` and `due_on` uses the order date,
+   so orders on one PDF with a different kind or date are parsed separately. Orders sharing a PDF normally share both,
+   so a common order is still parsed once.
+7. **Outcome and directions wording.** "Bail application" is a main-matter subject (the main matter of a bail case);
+   `closed` also covers "these writ petitions stand closed". Appellants are an addressee only as "State appellants";
+   titles (Commissioner, Secretary, Director, …) match only with their capital letter; "Government Advocate",
+   "Government Pleader" and "State counsel" are never addressees.
+8. **Deferred self-reference.** `fk_order_sections_replaced_by_id_order_sections` is `DEFERRABLE INITIALLY DEFERRED`.
+   The old row must name its successor in the update that frees the one-current-row slot, before the successor is
+   inserted in the same savepoint (`ck_order_sections_successor` and the trigger allow no second update).
+9. **API shapes.** `OrderSectionsOut` also carries `order_id` and `flags`; `common_order` is `{printed_case_no}` or
+   null; `parts` leaves out a single `body` part, and the list's `reading.parts` is empty when the body is one part.
+   `GapOrderCheckOut` carries `form` beside `kind`, and `printed` / `held` as `{cnr, case_no, date, reserved_on,
+   pronounced_on}`. The `kind=order_checks` list leaves out readings whose only check is `common_order` unless
+   `check=common_order` is asked; `counts` gives every check and flag. `DataGapsOut.order_sections` is filled for
+   `kind=order_checks` only (null for `cases` and `orders`): Data Gaps asks for its three lists at once, and the block
+   counts every current reading with its live checks, so it is computed once per page; `GET /admin/data-health`
+   always carries it.
+10. **Job counters.** Flat keys: `replaced_parser_version`, `replaced_text_reextracted`, `replaced_document_changed`
+    beside `claimed`, `parsed`, `template`, `whole`, `text_gone`, `skipped`, `failed` and `retried` (deviation 14).
+11. **Test files.** The API tests are `backend/tests/db/test_api_order_sections.py` (this repository keeps its API
+    tests under `tests/db`). The fixtures put a synthetic CNR (`GAHC01000001…`) in place of the mask at load time,
+    so the masked files never hold a CNR.
+12. **Portal.** "What the Order Says" is a native disclosure under each order row: an order with a reading loads it on
+    first opening; a stored order not read yet, or scanned, shows that state with the court's sentence; a caller
+    without `documents.view` sees the court's sentence alone, as before. The new CSS classes change the layout
+    signature, so `layout-signature.json` is regenerated (additions only). The uicheck fixtures answer the orders list
+    and the readings, and two states open the interim and the judgment readings.
+13. **Dry run on the dev database.** `aslms orders parse --dry-run` reads `order_sections` (it skips orders already
+    read), so it runs only once 0038 is applied. The numbers in the build report were measured read-only with the
+    same parser on 3,000 random dev orders: 98.0% `template`, 2.0% `whole`, 76% of interim orders procedural, no
+    failure, about 3.2 s of parsing per 1,000 orders.
+14. **Orders that keep failing come last** (review finding, 15 Nov 2026). Decision 18's five sets are first taken
+    without the orders that have an open `order_parse` failure; those orders are then taken by the same five sets as
+    a retry pass, so they fill only the room left in a batch and never keep newer orders or replacements out of the
+    5-minute job. `retried` counts the orders claimed in that pass. The backfill stops when a batch claims nothing, or
+    reads nothing and holds only retries (a batch of first failures goes on, and the next batch passes them by), so
+    `aslms orders parse --backfill` ends when only failing orders are left, each listed in `source_failures`.
+    `status().waiting` leaves those orders out too, so `waiting` and `failed` never count the same order and
+    Verification 3's "waiting 0, each failure listed" can be reached.

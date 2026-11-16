@@ -4,7 +4,7 @@
  * Problems and Fixes (design data-collection-redesign, decisions 42-46): the Court Connection line with Check the
  * Court Connection, Failed Fetches (a summary by kind with Retry All, the failed items with Retry), Possible Duplicates
  * (three kinds, Scan Now) and Data Gaps (cases without details with Collect These, orders not available or failed with
- * Try Again, documents without searchable text). Each section heading carries its count and each section has an empty
+ * Try Again, documents without searchable text, and the Order Reading Checks of design order-sections). Each section heading carries its count and each section has an empty
  * state. Every figure is shown to every reader; each button only to the holder of its function, and every action is an
  * existing endpoint with its own audit. The page has no primary.
  */
@@ -54,6 +54,7 @@ import {
   type DataPulse,
   type GapCase,
   type GapOrder,
+  type GapOrderCheck,
 } from "@/lib/dataCollection";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { COLLECT_ERRORS, T } from "@/lib/messages";
@@ -468,7 +469,7 @@ function PossibleDuplicates({ review }: { review: number }) {
 
 const TEXT_KINDS = ["order", "upload", "attachment"] as const;
 
-function useGaps(kind: "cases" | "orders", offset: number) {
+function useGaps(kind: "cases" | "orders" | "order_checks", offset: number) {
   return useQuery({
     queryKey: [...DC_KEYS.gaps, kind, offset],
     queryFn: () => api<DataGaps>("/admin/data-load/gaps", { query: { kind, limit: LIMIT, offset } }),
@@ -480,8 +481,10 @@ function DataGapsSection({ data }: { data: DataOverview }) {
   const total = p.cases_without_details + p.orders_not_available + (p.orders_failed ?? 0);
   const [casesOffset, setCasesOffset] = useState(0);
   const [ordersOffset, setOrdersOffset] = useState(0);
+  const [checksOffset, setChecksOffset] = useState(0);
   const cases = useGaps("cases", casesOffset);
   const orders = useGaps("orders", ordersOffset);
+  const checks = useGaps("order_checks", checksOffset);
   const text = cases.data?.documents_text ?? orders.data?.documents_text;
   return (
     <Section id="gaps" title={T.pf.gapsTitle} count={total}>
@@ -489,6 +492,7 @@ function DataGapsSection({ data }: { data: DataOverview }) {
       <CasesGap query={cases} offset={casesOffset} onPage={setCasesOffset} />
       <OrdersGap query={orders} offset={ordersOffset} onPage={setOrdersOffset} />
       {text ? <DocumentsGap text={text} /> : null}
+      <OrderChecksGap query={checks} offset={checksOffset} onPage={setChecksOffset} />
     </Section>
   );
 }
@@ -692,6 +696,77 @@ function OrdersGap({ query, offset, onPage }: { query: GapsQuery; offset: number
                         },
                       ]
                     : []),
+                ]}
+              />
+            </ScrollBox>
+            <Pagination offset={offset} limit={LIMIT} total={total} onChange={onPage} />
+          </>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+/** "What Differs": the checks and flags of a reading, in words. */
+function checkWords(o: GapOrderCheck): string {
+  return [...(o.checks ?? []), ...(o.flags ?? [])].map((c) => labelFor(T.pf.orderChecks, c)).join(", ") || "—";
+}
+
+function printedLine(v: GapOrderCheck["printed"]): string {
+  return [v.cnr, v.case_no, v.date ? formatDate(v.date) : null].filter(Boolean).join(" · ") || "—";
+}
+
+/**
+ * Order Reading Checks (design order-sections, decision 21): the counts by check and the readings whose printed CNR,
+ * case number or dates differ from what ASLMS holds, or whose text carries a flag. Read only: nothing is fixed from
+ * here, and no body or title text is shown.
+ */
+function OrderChecksGap({ query, offset, onPage }: { query: GapsQuery; offset: number; onPage: (o: number) => void }) {
+  const items = (query.data?.items ?? []) as GapOrderCheck[];
+  const total = query.data?.total ?? 0;
+  const block = query.data?.order_sections;
+  const counts = Object.entries(query.data?.counts ?? {}).filter(([, v]) => v > 0);
+  return (
+    <div className="stack">
+      <h3>{T.pf.withCount(T.pf.orderChecksTitle, n(total))}</h3>
+      <p className={ds.line}>{T.pf.orderChecksNote}</p>
+      {block ? <p className={ds.line}>{T.pf.orderChecksCounted(n(block.read), n(block.waiting))}</p> : null}
+      <ErrorBanner error={query.error} onRetry={() => query.refetch()} />
+      {query.isPending ? <Loading /> : null}
+      {counts.length ? (
+        <div className={ds.line}>
+          {counts.map(([k, v]) => (
+            <Badge key={k}>{T.pf.withCount(labelFor(T.pf.orderChecks, k), n(v))}</Badge>
+          ))}
+        </div>
+      ) : null}
+      {query.data ? (
+        total === 0 ? (
+          <EmptyState>{T.pf.orderChecksNone}</EmptyState>
+        ) : (
+          <>
+            <ScrollBox label={T.pf.orderChecksTitle}>
+              <DataTable
+                caption={T.pf.orderChecksTitle}
+                rows={items}
+                rowKey={(o) => o.order_id}
+                columns={[
+                  { key: "case", header: T.pf.orderCheckCols.case, cell: (o) => brief(o.case) },
+                  {
+                    key: "order",
+                    header: T.pf.orderCheckCols.order,
+                    primary: true,
+                    cell: (o) => (
+                      <>
+                        {o.order_no}
+                        <br />
+                        <span className="muted">{formatDate(o.order_date)}</span>
+                      </>
+                    ),
+                  },
+                  { key: "what", header: T.pf.orderCheckCols.what, cell: (o) => checkWords(o) },
+                  { key: "printed", header: T.pf.orderCheckCols.printed, cell: (o) => <span className="mono">{printedLine(o.printed)}</span> },
+                  { key: "held", header: T.pf.orderCheckCols.held, cell: (o) => <span className="mono">{printedLine(o.held)}</span> },
                 ]}
               />
             </ScrollBox>

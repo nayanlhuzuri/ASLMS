@@ -108,6 +108,9 @@ export type HearingList = S["HearingListOut"];
 export type Hearing = S["HearingOut"];
 export type OrderList = S["OrderListOut"];
 export type Order = S["OrderOut"];
+/** Design order-sections: an order's reading by rules (the list's brief and "What the Order Says"). */
+export type OrderReadingBrief = S["OrderReadingBrief"];
+export type OrderSections = S["OrderSectionsOut"];
 export type ListingList = S["ListingListOut"];
 export type Listing = S["ListingOut"];
 export type LinkList = S["LinkListOut"];

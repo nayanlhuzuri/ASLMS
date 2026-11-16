@@ -11115,7 +11115,7 @@
         "type": "object"
       },
       "DataGapsOut": {
-        "description": "`GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),\n`total` and `counts` by state, and the documents without searchable text.",
+        "description": "`GET /admin/data-load/gaps`: one page of `cases`, `orders` or `order_checks` (`items` of `GapCaseOut`,\n`GapOrderOut` or `GapOrderCheckOut`), `total` and `counts` by state (by check for `order_checks`), the documents\nwithout searchable text and the order readings' block.",
         "properties": {
           "counts": {
             "additionalProperties": {
@@ -11140,6 +11140,12 @@
                   "$ref": "#/components/schemas/GapOrderOut"
                 },
                 "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GapOrderCheckOut"
+                },
+                "type": "array"
               }
             ],
             "title": "Items"
@@ -11147,10 +11153,21 @@
           "kind": {
             "enum": [
               "cases",
-              "orders"
+              "orders",
+              "order_checks"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "order_sections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderSectionsStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "total": {
             "title": "Total",
@@ -11210,6 +11227,16 @@
           },
           "napix": {
             "$ref": "#/components/schemas/NapixHealthOut"
+          },
+          "order_sections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderSectionsStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "queue": {
             "$ref": "#/components/schemas/QueueDepthsOut"
@@ -15020,6 +15047,70 @@
         "title": "GapCaseOut",
         "type": "object"
       },
+      "GapOrderCheckOut": {
+        "description": "An order whose reading differs from what is held, or carries a flag about its text (design order-sections,\ndecision 21): identifiers and printed values only, never body or title text.",
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/DuplicateCaseOut"
+          },
+          "checks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "form": {
+            "title": "Form",
+            "type": "string"
+          },
+          "held": {
+            "$ref": "#/components/schemas/GapPrintedOut"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          },
+          "printed": {
+            "$ref": "#/components/schemas/GapPrintedOut"
+          }
+        },
+        "required": [
+          "case",
+          "order_id",
+          "order_no",
+          "order_date",
+          "kind",
+          "form",
+          "checks",
+          "flags",
+          "printed",
+          "held"
+        ],
+        "title": "GapOrderCheckOut",
+        "type": "object"
+      },
       "GapOrderOut": {
         "description": "An order whose PDF the court marked not available, or whose fetch failed.",
         "properties": {
@@ -15073,6 +15164,70 @@
           "attempts"
         ],
         "title": "GapOrderOut",
+        "type": "object"
+      },
+      "GapPrintedOut": {
+        "properties": {
+          "case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "pronounced_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pronounced On"
+          },
+          "reserved_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved On"
+          }
+        },
+        "title": "GapPrintedOut",
         "type": "object"
       },
       "GraphEdgeOut": {
@@ -21268,6 +21423,235 @@
         "title": "OfficeRefOut",
         "type": "object"
       },
+      "OrderActOut": {
+        "properties": {
+          "act": {
+            "title": "Act",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "section",
+              "article",
+              "rule",
+              "order"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "provisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Provisions",
+            "type": "array"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          }
+        },
+        "required": [
+          "act",
+          "provisions",
+          "kind",
+          "count"
+        ],
+        "title": "OrderActOut",
+        "type": "object"
+      },
+      "OrderCommonOut": {
+        "properties": {
+          "printed_case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Case No"
+          }
+        },
+        "title": "OrderCommonOut",
+        "type": "object"
+      },
+      "OrderDirectionOut": {
+        "properties": {
+          "addressee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addressee"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "kind": {
+            "enum": [
+              "compliance",
+              "procedural"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "OrderDirectionOut",
+        "type": "object"
+      },
+      "OrderJudgmentCitedOut": {
+        "properties": {
+          "case_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Name"
+          },
+          "citation": {
+            "title": "Citation",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "reporter": {
+            "title": "Reporter",
+            "type": "string"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "citation",
+          "reporter",
+          "count"
+        ],
+        "title": "OrderJudgmentCitedOut",
+        "type": "object"
+      },
       "OrderListOut": {
         "properties": {
           "items": {
@@ -21287,6 +21671,69 @@
           "total"
         ],
         "title": "OrderListOut",
+        "type": "object"
+      },
+      "OrderMadeFromOut": {
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "parsed_at": {
+            "format": "date-time",
+            "title": "Parsed At",
+            "type": "string"
+          },
+          "parser_version": {
+            "title": "Parser Version",
+            "type": "integer"
+          },
+          "pdf_sha256": {
+            "title": "Pdf Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "pdf_sha256",
+          "parser_version",
+          "parsed_at"
+        ],
+        "title": "OrderMadeFromOut",
+        "type": "object"
+      },
+      "OrderNextDateSpanOut": {
+        "properties": {
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the stored next-date sentence",
+            "title": "Phrase"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the next-date sentence's span in `body_text`, when found",
+            "title": "Txt"
+          }
+        },
+        "title": "OrderNextDateSpanOut",
         "type": "object"
       },
       "OrderOut": {
@@ -21438,6 +21885,17 @@
             ],
             "title": "Page Count"
           },
+          "reading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderReadingBrief"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the order's reading by rules (design order-sections, decision 20); null when not read yet, or when the caller may not open the order's PDF"
+          },
           "text_status": {
             "anyOf": [
               {
@@ -21464,6 +21922,597 @@
           "document_id"
         ],
         "title": "OrderOut",
+        "type": "object"
+      },
+      "OrderOutcomeOut": {
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          },
+          "value": {
+            "enum": [
+              "allowed",
+              "partly_allowed",
+              "dismissed",
+              "disposed_of",
+              "withdrawn",
+              "closed"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "text"
+        ],
+        "title": "OrderOutcomeOut",
+        "type": "object"
+      },
+      "OrderParagraphOut": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "part": {
+            "title": "Part",
+            "type": "string"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          }
+        },
+        "required": [
+          "part"
+        ],
+        "title": "OrderParagraphOut",
+        "type": "object"
+      },
+      "OrderPartOut": {
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "part": {
+            "title": "Part",
+            "type": "string"
+          },
+          "txt": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txt"
+          }
+        },
+        "required": [
+          "part"
+        ],
+        "title": "OrderPartOut",
+        "type": "object"
+      },
+      "OrderPeriodOut": {
+        "properties": {
+          "from": {
+            "enum": [
+              "order_date",
+              "receipt_of_copy",
+              "other",
+              "none"
+            ],
+            "title": "From",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "days",
+              "weeks",
+              "months"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "n",
+          "unit",
+          "from",
+          "phrase"
+        ],
+        "title": "OrderPeriodOut",
+        "type": "object"
+      },
+      "OrderReadingBrief": {
+        "description": "Design order-sections, \"API\": the tags of an order's current reading for the Orders list.",
+        "properties": {
+          "body_chars": {
+            "title": "Body Chars",
+            "type": "integer"
+          },
+          "common_order": {
+            "title": "Common Order",
+            "type": "boolean"
+          },
+          "form": {
+            "enum": [
+              "interim",
+              "final",
+              "judgment"
+            ],
+            "title": "Form",
+            "type": "string"
+          },
+          "has_compliance_directions": {
+            "title": "Has Compliance Directions",
+            "type": "boolean"
+          },
+          "layout": {
+            "enum": [
+              "template",
+              "whole"
+            ],
+            "title": "Layout",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "allowed",
+                  "partly_allowed",
+                  "dismissed",
+                  "disposed_of",
+                  "withdrawn",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "parts": {
+            "description": "the parts found, in order; empty when the body is one part",
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "printed_case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the case number printed on a common order",
+            "title": "Printed Case No"
+          },
+          "procedural": {
+            "title": "Procedural",
+            "type": "boolean"
+          },
+          "registrar": {
+            "title": "Registrar",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layout",
+          "form",
+          "procedural",
+          "registrar",
+          "outcome",
+          "body_chars",
+          "parts",
+          "has_compliance_directions",
+          "common_order"
+        ],
+        "title": "OrderReadingBrief",
+        "type": "object"
+      },
+      "OrderSectionsOut": {
+        "description": "`GET /cases/{ref}/orders/{order_id}/sections` (design order-sections, decision 19): \"What the Order Says\",\nread by rules from the stored text, every item with its PDF page and its span in `body_text`.",
+        "properties": {
+          "acts": {
+            "items": {
+              "$ref": "#/components/schemas/OrderActOut"
+            },
+            "title": "Acts",
+            "type": "array"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "body_text": {
+            "title": "Body Text",
+            "type": "string"
+          },
+          "cav": {
+            "title": "Cav",
+            "type": "boolean"
+          },
+          "common_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderCommonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "directions": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDirectionOut"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "form": {
+            "enum": [
+              "interim",
+              "final",
+              "judgment"
+            ],
+            "title": "Form",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "judgments": {
+            "items": {
+              "$ref": "#/components/schemas/OrderJudgmentCitedOut"
+            },
+            "title": "Judgments",
+            "type": "array"
+          },
+          "layout": {
+            "enum": [
+              "template",
+              "whole"
+            ],
+            "title": "Layout",
+            "type": "string"
+          },
+          "made_from": {
+            "$ref": "#/components/schemas/OrderMadeFromOut"
+          },
+          "neutral_citation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neutral Citation"
+          },
+          "next_date": {
+            "$ref": "#/components/schemas/OrderNextDateSpanOut"
+          },
+          "oral": {
+            "title": "Oral",
+            "type": "boolean"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderOutcomeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/OrderParagraphOut"
+            },
+            "title": "Paragraphs",
+            "type": "array"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/OrderPartOut"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "printed_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Date"
+          },
+          "procedural": {
+            "title": "Procedural",
+            "type": "boolean"
+          },
+          "registrar": {
+            "title": "Registrar",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "order_id",
+          "layout",
+          "form",
+          "oral",
+          "cav",
+          "registrar",
+          "procedural",
+          "flags",
+          "body_text",
+          "paragraphs",
+          "parts",
+          "directions",
+          "acts",
+          "judgments",
+          "next_date",
+          "made_from"
+        ],
+        "title": "OrderSectionsOut",
+        "type": "object"
+      },
+      "OrderSectionsRunOut": {
+        "properties": {
+          "counters": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counters",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "started_at",
+          "status",
+          "counters"
+        ],
+        "title": "OrderSectionsRunOut",
+        "type": "object"
+      },
+      "OrderSectionsStatusOut": {
+        "description": "Design order-sections, decision 21: the readings of court orders by rules, counts only.",
+        "properties": {
+          "by_form": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Form",
+            "type": "object"
+          },
+          "by_layout": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Layout",
+            "type": "object"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "distinct_bodies": {
+            "title": "Distinct Bodies",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "flags": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Flags",
+            "type": "object"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderSectionsRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "orders_with_text": {
+            "title": "Orders With Text",
+            "type": "integer"
+          },
+          "parser_version": {
+            "title": "Parser Version",
+            "type": "integer"
+          },
+          "procedural": {
+            "title": "Procedural",
+            "type": "integer"
+          },
+          "read": {
+            "title": "Read",
+            "type": "integer"
+          },
+          "registrar": {
+            "title": "Registrar",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "with_directions": {
+            "title": "With Directions",
+            "type": "integer"
+          },
+          "with_outcome": {
+            "title": "With Outcome",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "parser_version",
+          "orders_with_text",
+          "read",
+          "waiting",
+          "failed",
+          "by_layout",
+          "by_form",
+          "procedural",
+          "registrar",
+          "with_outcome",
+          "with_directions",
+          "distinct_bodies",
+          "flags",
+          "checks"
+        ],
+        "title": "OrderSectionsStatusOut",
         "type": "object"
       },
       "OrderTotalsOut": {
@@ -30494,7 +31543,7 @@
     },
     "/admin/data-load/gaps": {
       "get": {
-        "description": "Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details\nwith the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or\nfailed (`kind=orders`), paged, with counts by state and the documents without searchable text. References, CNRs\nand case numbers only. Never calls NAPIX; writes nothing; 503 `search_timeout` when the query takes too long.",
+        "description": "Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details\nwith the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or\nfailed (`kind=orders`), paged, with counts by state and the documents without searchable text; or the order\nreadings that differ from what is held or carry a flag about the text (`kind=order_checks`, optional `check`, else\n400 `bad_input`; design order-sections, decision 21), with the order readings' block. References, CNRs, case\nnumbers, order numbers, dates and printed identifiers only, never body or title text. Never calls NAPIX; writes\nnothing; 503 `search_timeout` when the query takes too long.",
         "operationId": "get_gaps_admin_data_load_gaps_get",
         "parameters": [
           {
@@ -30503,9 +31552,26 @@
             "required": false,
             "schema": {
               "default": "cases",
-              "pattern": "^(cases|orders)$",
+              "pattern": "^(cases|orders|order_checks)$",
               "title": "Kind",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "check",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Check"
             }
           },
           {
@@ -43521,6 +44587,74 @@
         "summary": "Order File",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/cases/{ref}/orders/{order_id}/sections": {
+      "get": {
+        "description": "\"What the Order Says\" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,\nfor a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 \"no such\ncase\". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited\n(viewing a court record writes no audit row); never calls NAPIX.",
+        "operationId": "case_order_sections_cases__ref__orders__order_id__sections_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSectionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Case Order Sections",
+        "tags": [
+          "cases"
         ]
       }
     },

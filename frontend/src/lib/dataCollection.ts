@@ -18,6 +18,9 @@ export type MonthRow = S["MonthCoverageOut"];
 export type DataGaps = S["DataGapsOut"];
 export type GapCase = S["GapCaseOut"];
 export type GapOrder = S["GapOrderOut"];
+/** Design order-sections, decision 21: an order reading that differs from what is held, and the readings' block. */
+export type GapOrderCheck = S["GapOrderCheckOut"];
+export type OrderSectionsStatus = S["OrderSectionsStatusOut"];
 export type CollectRequests = S["CollectRequestsOut"];
 export type CollectRequest = S["CollectRequestOut"];
 export type CollectSummary = S["CollectRequestSummaryOut"];

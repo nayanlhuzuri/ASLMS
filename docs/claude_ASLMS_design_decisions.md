@@ -3951,3 +3951,89 @@ after reactivation; a 200-character office name gives no rename on a second run;
 matched by the second run).
 
 **Left for later:** the dry run and apply on the owner's filled workbook (row 257's steps); nothing new uncovered.
+
+## Order sections: every court order read into its parts by rules (2026-11-15)
+Row 250 `order-sections`, branch `feature/order-sections`, design `docs/design/order-sections.md` (approved by the
+owner on 15 Nov 2026 with its four confirmation points). Migration 0038. Tests and review passed on the branch; not
+yet merged or deployed.
+
+**What was built**
+- **Parser (no AI, no network, no database):** `services/order_parse.py` (the reader) and
+  `services/order_parse_rules.py` (the patterns), the same pattern as `next_date_rules.py`. It reads
+  `document_text.full_text` of a court order into header (CNR, case number, cause title, advocates, `Linked Case :`
+  entries), coram, heading, date and author, numbered paragraphs with pages, and sign-off. Page markers, the stray
+  `undefined` and the `Comparing Assistant` trailer are stripped and lines broken across pages rejoined; every span
+  keeps its 0-based start and end offset into `full_text` (`src`) and into the cleaned body (`txt`). The parser never
+  edits `full_text` and never raises on court text.
+- **Table `order_sections`** (derived, one current row per order, migration 0038 with its five enum types: `order_layout`,
+  `order_outcome`, `order_section_flag`, `order_section_replace_reason`, and the existing `order_kind` reused):
+  cleaned body, paragraphs and parts as jsonb with page and offsets, tags, facts, flags, `body_sha256`, the PDF's
+  `pdf_sha256`, the text's `text_sha256` and `parser_version`. Rows never change except to be marked replaced (a
+  trigger enforces it); never deleted; no DELETE grant.
+- **Service** `services/order_sections.py`: the batch reader, the job, the backfill, the live checks, the status block.
+- **Job** `order-sections`, every 5 minutes at minute 3 (`aslms.order_sections_read`, scheduler process), batch
+  `ORDER_SECTIONS_BATCH` (default 500, 1 to 5000, in `.env.example`); one `job_runs` row `order_sections`; failures in
+  `source_failures` kind `order_parse`. No `fetch_queue` row, no NAPIX, SourceTrace or model call.
+- **CLI** `aslms orders parse [--backfill] [--order] [--limit] [--batch] [--pause-ms] [--dry-run]`, `status`, `show`
+  (`--text`), `checks`. The backfill is resumable, commits per batch and pauses between batches.
+- **API (read-only additions):** `reading` on each order of `GET /cases/{ref}/orders`; new
+  `GET /cases/{ref}/orders/{order_id}/sections`; `order_sections` block on `GET /admin/data-health` and
+  `GET /admin/data-load/gaps`; `kind=order_checks` (with `check`) on the gaps route.
+- **Portal:** "What the Order Says" on the Orders tab (cleaned body without the cause title, Procedural, Registrar
+  Order, Judgment, Final Order and Common Order labels, the next-date sentence marked; for a judgment or final order
+  the outcome, directions with time limits, acts, judgments cited and links to its parts that open the PDF at the page);
+  "Order Reading Checks" under Problems and Fixes, Data Gaps.
+- **Tests:** unit (`test_order_parse`, `test_order_parse_rules`, `test_order_sections_wiring`), database
+  (`test_order_sections`, `test_migration_0038`, `test_api_order_sections`) and portal tests, over masked fixtures in
+  `backend/tests/fixtures/orders/`.
+
+**Decisions and reasons**
+- Rules in ASLMS instead of SourceTrace for reading orders (the owner's "local first" of 12 Nov 2026), flagged below.
+- Cross-checks (CNR, case number, order date, form against `orders` and `cases`) are computed when read and never
+  stored, so they cannot go stale and nothing held is overwritten. Common orders (a PDF shared by several cases; 20,613
+  on 15 Nov 2026, up to 64 cases on one) are labelled "Common Order", not errors.
+- One current row per order; a changed PDF, a re-extracted text or a new parser version writes a new row and marks
+  the old one replaced, so the chain section, order, stored PDF, verbatim NAPIX answer and case stays traceable
+  ("I don't want you to cite wrong answers at all", owner, 12 Nov 2026).
+- Parties, advocates and coram already held from NAPIX are not stored again, only their spans.
+- Identical bodies are recognised by `body_sha256`, and procedural orders are tagged so research (row 251) can rank
+  them low while the case history counts them fully.
+- No audit row, event or alert: system work on derived data, as the next-date reader.
+- For row 258: the cause-title span, the `Linked Case :` entries and the layout flag are stored as it needs.
+
+**Owner's four confirmation points (approved 15 Nov 2026)**
+1. Rules in ASLMS in place of SourceTrace (a deviation from plan sections 3.2 and 5.9).
+2. The part is named "Respondents' Submissions", not "State's Submissions".
+3. Two outcome values added: `partly_allowed` and `closed`.
+4. Wider masking in the documentation's worked example: every personal name including judges', every address and the
+   digits of the CNR and case number.
+
+**Deviations from the design (recorded in the design note, Deviations 1 to 14)**
+- A coram followed within four lines by the date counts as `template` with no heading (98.0% of 3,000 random dev
+  orders template, against 87% on the literal rule; the note expected at least 92%).
+- More measured layout variants; blank-line, hyphen and part rules; one parse per (document, order date, NAPIX kind).
+- `fk_order_sections_replaced_by_id_order_sections` is `DEFERRABLE INITIALLY DEFERRED`.
+- API shapes slightly wider than the note (`order_id`, `flags`; `form`, `printed` / `held` on a check row).
+- Orders that keep failing come last (review finding): they fill only the room left in a batch, and the backfill ends
+  when only failing orders remain, each listed in `source_failures`.
+- API tests live under `backend/tests/db/`, as this repository keeps them.
+- Measured read-only on 3,000 random dev orders (the dry run needs 0038): 98.0% `template`, 2.0% `whole`, 76% of
+  interim orders procedural, no failure, about 3.2 s of parsing per 1,000 orders.
+
+**Documentation written with this row (decision 25)**
+- `docs/ASLMS_Process_Workflows.md` section 4.9 gains "How ASLMS reads an order".
+- `docs/software-documentation/build.js` (version 1.9): chapter 6 section 6.5 "Case research: how orders and case
+  details are used" and "Annexure E. Worked example: one order from text to answer", built on the masked fixture
+  `final_directions.txt` (a masked copy of a real final order, run through the real parser; no unmasked name, address,
+  CNR or case-number digit). The Annexure A job table gains the new job.
+- `docs/operations.md` section 25 (deploy, backfill, checks); `docs/DB_STANDARD.md` section 0 derived list gains
+  `order_sections` (no version change).
+
+**Left for later**
+- Deploy: `migrate` (0038), then `aslms orders parse --backfill` once (an estimate of one to two hours for about
+  259,432 orders; the owner holds the deploy for a late-night window), then the owner's sample of 20 orders compared
+  with their PDFs (design Verification 8).
+- The Word guides' contents page numbers were not checked on a rendered copy (no PDF renderer on this machine; see row
+  255); the new Annexure E page number in `TOC_PAGES` is an estimate.
+- Row 251 `research-index` moves the Assistant to the bodies and chunks them; rows 252 and 253 extend the same
+  section and annexure. The next-date reader still reads the whole text.

@@ -1315,13 +1315,153 @@ function workThread(): AssistantThread {
  * order page, as the API's does (the synthetic answer of the union would give case rows to the orders table).
  */
 function dataGaps(url: URL): unknown {
-  const kind = url.searchParams.get("kind") === "orders" ? "orders" : "cases";
+  const asked = url.searchParams.get("kind");
+  const kind = asked === "orders" || asked === "order_checks" ? asked : "cases";
   const base = synthFor("/admin/data-load/gaps")!.body as S["DataGapsOut"];
-  const schema = kind === "orders" ? "GapOrderOut" : "GapCaseOut";
+  const schema = kind === "orders" ? "GapOrderOut" : kind === "order_checks" ? "GapOrderCheckOut" : "GapCaseOut";
   const items = [0, 1].map((i) => synth({ $ref: `#/components/schemas/${schema}` }, "", "", i));
+  // design order-sections, decision 21: the Order Reading Checks with their counts by check
+  if (kind === "order_checks") {
+    const checks = [
+      { ...(items[0] as S["GapOrderCheckOut"]), checks: ["cnr_differs"], flags: ["no_date"] },
+      { ...(items[1] as S["GapOrderCheckOut"]), checks: ["common_order"], flags: [] },
+    ];
+    return { ...base, kind, total: checks.length, counts: { cnr_differs: 1, common_order: 1, no_date: 1 }, items: checks };
+  }
   const counts =
     kind === "orders" ? { not_available: 1, failed: 1 } : { being_fetched: 1, not_found: 0, failed: 0, not_queued: 1 };
   return { ...base, kind, total: items.length, counts, items };
+}
+
+/** The Orders tab's two readings (design order-sections, decision 19): an interim order and a judgment. */
+const ORDER_INTERIM = "0192a3b4-0000-7000-8000-0000000006s1";
+const ORDER_JUDGMENT = "0192a3b4-0000-7000-8000-0000000006s2";
+const READ_BRIEF = {
+  layout: "template" as const,
+  form: "interim" as const,
+  procedural: true,
+  registrar: false,
+  outcome: null,
+  body_chars: 180,
+  parts: [] as string[],
+  has_compliance_directions: false,
+  common_order: false,
+  printed_case_no: null,
+};
+
+function caseOrders(): S["OrderListOut"] {
+  const base = synthFor("/cases/x/orders")!.body as S["OrderListOut"];
+  const first = base.items[0]!;
+  const stored = { download_status: "stored", text_status: "extracted", document_id: "0192a3b4-0000-7000-8000-0000000006d1" };
+  const items = [
+    { ...first, ...stored, id: ORDER_INTERIM, kind: "interim", next_date_phrase: "List this matter on 04.03.2026.", reading: READ_BRIEF },
+    {
+      ...first,
+      ...stored,
+      id: ORDER_JUDGMENT,
+      kind: "judgment",
+      order_details: "JUDGEMENT",
+      next_date_phrase: null,
+      reading: {
+        ...READ_BRIEF,
+        form: "judgment" as const,
+        procedural: false,
+        outcome: "partly_allowed" as const,
+        parts: ["opening", "facts", "petitioner_submissions", "respondent_submissions", "reasoning", "conclusion"],
+        has_compliance_directions: true,
+      },
+    },
+  ];
+  return { ...base, items, total: items.length };
+}
+
+function orderSections(url: URL): S["OrderSectionsOut"] {
+  const made = {
+    document_id: "0192a3b4-0000-7000-8000-0000000006d1",
+    pdf_sha256: "a".repeat(64),
+    parser_version: 1,
+    parsed_at: "2026-11-15T10:00:00+05:30",
+  };
+  const common = { heading: "ORDER", oral: false, cav: false, printed_date: "2026-01-28", author: null, neutral_citation: null, flags: [], common_order: null, made_from: made };
+  if (!url.pathname.includes(ORDER_JUDGMENT)) {
+    const first = "Heard Mr. Advocate A, learned counsel for the petitioner. Also heard the learned Standing Counsel.";
+    const second = "Issue notice. List this matter on 04.03.2026.";
+    const body = `${first}\n\n${second}`;
+    const mark = body.indexOf("List this matter");
+    return {
+      ...common,
+      order_id: ORDER_INTERIM,
+      layout: "template",
+      form: "interim",
+      registrar: false,
+      procedural: true,
+      outcome: null,
+      body_text: body,
+      paragraphs: [
+        { label: null, page: 2, part: "body", txt: [0, first.length] },
+        { label: null, page: 2, part: "body", txt: [first.length + 2, body.length] },
+      ],
+      parts: [],
+      directions: [],
+      acts: [],
+      judgments: [],
+      next_date: { txt: [mark, body.length - 1], phrase: "List this matter on 04.03.2026." },
+    };
+  }
+  const paras = [
+    "1. Heard Mr. Advocate K, learned Standing Counsel for the appellants and Mr. Advocate J for the respondent.",
+    "2. The facts of the case, in brief, are that the respondent was appointed in 2009 and denied the revised pay under Section 3 of the Assam Services (Pay) Act, 2017.",
+    "3. Learned counsel for the appellants submits that the claim is barred, relying on State of Assam v. Party K reported in (2015) 4 SCC 123.",
+    "4. Learned Standing Counsel for the respondents submits that the claim is covered by Article 14 of the Constitution of India.",
+    "5. We have considered the submissions and perused the record. ".repeat(12).trim(),
+    "6. In view of the above, the appeal is partly allowed. The State appellants are directed to release the arrears of the revised pay to the respondent within 3 (three) months from the date of this order.",
+  ];
+  const parts = ["opening", "facts", "petitioner_submissions", "respondent_submissions", "reasoning", "conclusion"];
+  let at = 0;
+  const spans = paras.map((p) => {
+    const span = [at, at + p.length];
+    at += p.length + 2;
+    return span;
+  });
+  const body = paras.join("\n\n");
+  const last = spans[5]!;
+  const said = "In view of the above, the appeal is partly allowed.";
+  const outcome = body.indexOf(said);
+  const direction = body.indexOf("The State appellants are directed");
+  const pageOf = (i: number) => (i < 3 ? 2 : i < 5 ? 3 : 4);
+  return {
+    ...common,
+    order_id: ORDER_JUDGMENT,
+    heading: "JUDGMENT & ORDER",
+    cav: true,
+    layout: "template",
+    form: "judgment",
+    registrar: false,
+    procedural: false,
+    outcome: { value: "partly_allowed", text: said, page: 4, txt: [outcome, outcome + said.length] },
+    body_text: body,
+    paragraphs: paras.map((_, i) => ({ label: `${i + 1}.`, page: pageOf(i), part: parts[i]!, txt: spans[i]! })),
+    parts: parts.map((part, i) => ({ part, page: pageOf(i), txt: spans[i]! })),
+    directions: [
+      {
+        kind: "compliance",
+        text: body.slice(direction, last[1]),
+        addressee: "The State appellants",
+        period: { n: 3, unit: "months", from: "order_date", phrase: "within 3 (three) months from the date of this order" },
+        due_on: "2026-04-28",
+        page: 4,
+        txt: [direction, last[1]!],
+      },
+    ],
+    acts: [
+      { act: "Assam Services (Pay) Act, 2017", provisions: ["3"], kind: "section", count: 1, page: 2, txt: spans[1]! },
+      { act: "Constitution of India", provisions: ["14"], kind: "article", count: 1, page: 3, txt: spans[3]! },
+    ],
+    judgments: [
+      { citation: "(2015) 4 SCC 123", reporter: "SCC", year: 2015, case_name: "State of Assam v. Party K", count: 1, page: 2, txt: spans[2]! },
+    ],
+    next_date: { txt: null, phrase: null },
+  };
 }
 
 /**
@@ -1586,6 +1726,9 @@ const OVERRIDES: [RegExp, Override][] = [
     () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
   ],
   [/^\/admin\/data-load\/gaps$/, (url) => dataGaps(url)],
+  // design order-sections, decision 19: the Orders tab's readings
+  [/^\/cases\/[^/]+\/orders$/, () => caseOrders()],
+  [/^\/cases\/[^/]+\/orders\/[^/]+\/sections$/, (url) => orderSections(url)],
   // design causelist-day-gap-sweep, decision 6: four days no collection asked for, named on the Cause Lists tile
   [
     /^\/admin\/data-load\/overview$/,

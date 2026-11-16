@@ -1526,6 +1526,120 @@ class HearingListOut(BaseModel):
     total: int
 
 
+class OrderReadingBrief(BaseModel):
+    """Design order-sections, "API": the tags of an order's current reading for the Orders list."""
+
+    layout: Literal["template", "whole"]
+    form: Literal["interim", "final", "judgment"]
+    procedural: bool
+    registrar: bool
+    outcome: Literal["allowed", "partly_allowed", "dismissed", "disposed_of", "withdrawn", "closed"] | None
+    body_chars: int
+    parts: list[str] = Field(description="the parts found, in order; empty when the body is one part")
+    has_compliance_directions: bool
+    common_order: bool
+    printed_case_no: str | None = Field(None, description="the case number printed on a common order")
+
+
+class SpanTxt(BaseModel):
+    """Shared by the reading's items: the PDF page and the `[start, end)` span in `body_text`."""
+
+    page: int | None = None
+    txt: list[int] | None = None
+
+
+class OrderOutcomeOut(SpanTxt):
+    value: Literal["allowed", "partly_allowed", "dismissed", "disposed_of", "withdrawn", "closed"]
+    text: str
+
+
+class OrderParagraphOut(SpanTxt):
+    label: str | None = None
+    part: str
+
+
+class OrderPartOut(SpanTxt):
+    part: str
+
+
+class OrderPeriodOut(BaseModel):
+    n: int
+    unit: Literal["days", "weeks", "months"]
+    from_: Literal["order_date", "receipt_of_copy", "other", "none"] = Field(alias="from")
+    phrase: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OrderDirectionOut(SpanTxt):
+    kind: Literal["compliance", "procedural"]
+    text: str
+    addressee: str | None = None
+    period: OrderPeriodOut | None = None
+    due_on: date | None = None
+
+
+class OrderActOut(SpanTxt):
+    act: str
+    provisions: list[str]
+    kind: Literal["section", "article", "rule", "order"]
+    count: int
+
+
+class OrderJudgmentCitedOut(SpanTxt):
+    citation: str
+    reporter: str
+    year: int | None = None
+    case_name: str | None = None
+    count: int
+
+
+class OrderNextDateSpanOut(BaseModel):
+    txt: list[int] | None = Field(
+        None, description="the next-date sentence's span in `body_text`, when found"
+    )
+    phrase: str | None = Field(None, description="the stored next-date sentence")
+
+
+class OrderCommonOut(BaseModel):
+    printed_case_no: str | None = None
+
+
+class OrderMadeFromOut(BaseModel):
+    document_id: uuid.UUID
+    pdf_sha256: str
+    parser_version: int
+    parsed_at: datetime
+
+
+class OrderSectionsOut(BaseModel):
+    """`GET /cases/{ref}/orders/{order_id}/sections` (design order-sections, decision 19): "What the Order Says",
+    read by rules from the stored text, every item with its PDF page and its span in `body_text`."""
+
+    order_id: uuid.UUID
+    layout: Literal["template", "whole"]
+    form: Literal["interim", "final", "judgment"]
+    heading: str | None = None
+    oral: bool
+    cav: bool
+    printed_date: date | None = None
+    author: str | None = None
+    neutral_citation: str | None = None
+    registrar: bool
+    procedural: bool
+    flags: list[str]
+    outcome: OrderOutcomeOut | None = None
+    body_text: str
+    paragraphs: list[OrderParagraphOut]
+    parts: list[OrderPartOut]
+    directions: list[OrderDirectionOut]
+    acts: list[OrderActOut]
+    judgments: list[OrderJudgmentCitedOut]
+    next_date: OrderNextDateSpanOut
+    common_order: OrderCommonOut | None = None
+    made_from: OrderMadeFromOut
+
+
 class OrderOut(BaseModel):
     id: uuid.UUID
     order_no: str
@@ -1544,6 +1658,11 @@ class OrderOut(BaseModel):
     next_date_found: date | None = None
     next_date_rule: str | None = None
     next_date_phrase: str | None = None
+    reading: OrderReadingBrief | None = Field(
+        None,
+        description="the order's reading by rules (design order-sections, decision 20); null when not read yet, or "
+        "when the caller may not open the order's PDF",
+    )
 
 
 class OrderListOut(BaseModel):
@@ -3261,6 +3380,33 @@ class RetentionOut(BaseModel):
     disposed_refresh: DisposedRefreshOut
 
 
+class OrderSectionsRunOut(BaseModel):
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str
+    counters: dict[str, int]
+
+
+class OrderSectionsStatusOut(BaseModel):
+    """Design order-sections, decision 21: the readings of court orders by rules, counts only."""
+
+    parser_version: int
+    orders_with_text: int
+    read: int
+    waiting: int
+    failed: int
+    by_layout: dict[str, int]
+    by_form: dict[str, int]
+    procedural: int
+    registrar: int
+    with_outcome: int
+    with_directions: int
+    distinct_bodies: int
+    flags: dict[str, int]
+    checks: dict[str, int]
+    last_run: OrderSectionsRunOut | None = None
+
+
 class DataHealthOut(BaseModel):
     as_of: datetime
     napix: NapixHealthOut
@@ -3273,6 +3419,7 @@ class DataHealthOut(BaseModel):
     sourcetrace: SourcetraceStatusOut
     failures: list[FailureKindOut]
     documents_text: DocumentsTextOut
+    order_sections: OrderSectionsStatusOut | None = None
     retention: RetentionOut | None = None
 
 
@@ -3872,15 +4019,43 @@ class GapOrderOut(BaseModel):
     problem: str | None = None
 
 
-class DataGapsOut(BaseModel):
-    """`GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),
-    `total` and `counts` by state, and the documents without searchable text."""
+class GapPrintedOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
 
-    kind: Literal["cases", "orders"]
+    cnr: str | None = None
+    case_no: str | None = None
+    on: date | None = Field(None, alias="date")
+    reserved_on: date | None = None
+    pronounced_on: date | None = None
+
+
+class GapOrderCheckOut(BaseModel):
+    """An order whose reading differs from what is held, or carries a flag about its text (design order-sections,
+    decision 21): identifiers and printed values only, never body or title text."""
+
+    case: DuplicateCaseOut
+    order_id: uuid.UUID
+    order_no: str
+    order_date: date
+    kind: str
+    form: str
+    checks: list[str]
+    flags: list[str]
+    printed: GapPrintedOut
+    held: GapPrintedOut
+
+
+class DataGapsOut(BaseModel):
+    """`GET /admin/data-load/gaps`: one page of `cases`, `orders` or `order_checks` (`items` of `GapCaseOut`,
+    `GapOrderOut` or `GapOrderCheckOut`), `total` and `counts` by state (by check for `order_checks`), the documents
+    without searchable text and the order readings' block."""
+
+    kind: Literal["cases", "orders", "order_checks"]
     total: int
     counts: dict[str, int]
-    items: list[GapCaseOut] | list[GapOrderOut]
+    items: list[GapCaseOut] | list[GapOrderOut] | list[GapOrderCheckOut]
     documents_text: DocumentsTextOut
+    order_sections: OrderSectionsStatusOut | None = None
 
 
 # ------------------------------------------------------------------------------------------------ collect now
