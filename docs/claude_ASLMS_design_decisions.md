@@ -4099,3 +4099,12 @@ migration, no new table, column or index. Tests and review passed on the branch;
 - Rows 250 and 264 deploy together with one backfill at version 2 if this merges in time, otherwise row 250 alone
   first (owner's confirmation (d)). Contents page numbers of the two Word guides were not checked on a rendered copy
   (no PDF renderer; row 255). Row 258 `state-insights` reads the linked spans and the cause-title span next.
+
+## Deploy (17 Nov 2026): rows 250 and 264 together
+- Deployed from `main` at 716b001: 0038 applied with the `migrate` step after the `pre-migrate` backup, portal down 23:00
+  to 23:29 IST; one backfill at parser version 2 read 269,999 orders in 23 minutes, none failed, no court call.
+- Measured: `order_sections` 672 MB; every part of row 264's decision 14 inside its budget (light runs 0.66 s, the full
+  check 8.7 s of 10 s, the status block 3.8 s). `schema.md`'s estimate replaced by the measured size.
+- Verification 4: 146 `whole` readings with linked cases, 34 of whose last block reaches the body's last 10%; four read
+  by hand end at their advocates line, the body after them being a line or two. A block that takes in an `ORDER Date :`
+  line printed before the coram is added to row 266.

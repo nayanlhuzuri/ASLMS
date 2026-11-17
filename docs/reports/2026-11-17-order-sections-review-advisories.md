@@ -30,3 +30,20 @@ None beyond those in the design note (Deviation 4 is corrected by row 266 point 
 
 ## Push
 See the final return of the cycle: `main` and the tag are pushed with the two fixed forms when the remote accepts them.
+
+## Deploy
+Deployed 17 Nov 2026 together with row 264 (owner's confirmation (d) of row 264), from `main` at 716b001 after CI was
+green (the compose job's first try lost its network during `npm ci` and passed on a rerun).
+- 23:00 IST: `api`, `worker`, `worker2`, `scheduler`, `web` and `pgbouncer` stopped; `napix_call_log` held 579,170 rows.
+- `docker compose --profile ops run --rm migrate`: preflight passed (dev, 7 warnings), backup
+  `20261117-2300-pre-migrate` written and listed by `pg_restore`, 0037 -> 0038, seed nothing to insert, audit row
+  `system.migrated`. Done at 23:28.
+- `up -d` with the court-data switch, then `--no-deps --force-recreate api worker worker2 scheduler web`: the switch on
+  in `api`, `worker` and `worker2`, both workers "NAPIX on", `/signin` 307, `/api/health` 200, the running web
+  `BUILD_ID` equals the image's. Portal down 23:00 to 23:29.
+- `aslms orders parse --dry-run --limit 3000`: 2,967 template, 33 whole, no failure, 1.98 s per 1,000.
+- `aslms orders parse --backfill` 23:30 to 23:53: 269,999 read at version 2, 0 failed. `aslms orders status`:
+  `parser_version` 2, `read` = `orders_with_text` = 269,999, `waiting` 0, `failed` 0, `timed_out` empty. No version 1
+  row. No court call from the backfill (the 904 calls in the window were the queue's CNR fetches).
+- Measurements (table 672 MB, the times of decision 14, all inside budget) are in `docs/design/order-sections.md`,
+  "Measurements".

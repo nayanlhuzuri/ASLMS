@@ -846,6 +846,10 @@ The same pass: 260,177 `template` and 6,647 `whole` readings; 5.2 s of parsing p
 `parser_version` and current or replaced, after the version 2 backfill, and `schema.md`'s estimate ("about 0.4 to 0.6
 GB per parser version") is replaced by the measured figure.
 
+*Measured at the deploy, 17 Nov 2026, after the version 2 backfill:* 269,999 rows, all `parser_version` 2 and
+current, none replaced (rows 250 and 264 deployed together, so no version 1 row was ever written). Total 672 MB: heap
+470 MB, TOAST 136 MB, indexes 66 MB.
+
 **The order used for Annexure E**: the masked fixture `backend/tests/fixtures/orders/final_directions.txt`, a final
 order of 3 pages with one direction to the State and one act cited, read by the real parser. The unmasked source
 order is not named by its CNR or case number anywhere in the repository: naming it would undo the masking (owner's
@@ -870,3 +874,37 @@ and none of those is printed at the foot of a page. No follow-up row is needed.
 took 0.7 s with the texts in cache. The full check's time with the join to the current readings, and the times of
 decision 14 (the two `counts` statements, the `checks` statement, one `order_checks` page, each light set, the full
 check) with `EXPLAIN (ANALYZE, BUFFERS)`, are recorded at the deploy, after the backfill.
+
+*Measured at the deploy, 17 Nov 2026* (269,999 current readings, read-only, each part timed by wall clock through its
+service function in the `api` container with the Compose workers running; not `EXPLAIN`):
+
+| Part | Time | Budget |
+|---|---|---|
+| `counts` part (both statements) | 1.73 s | 10 s |
+| `checks` pass | 2.08 s | 10 s |
+| one `order_checks` page (50 rows) | 3.97 s | 10 s |
+| whole status block (data-health) | 3.84 s | 10 s |
+| light run, set 1 with the version gate on | 0.66 s | 1 s |
+| light run, sets 1 and 4 | 0.66 s | 1 s |
+| full check, sets 1, 4, 2, 3, 5 | 8.72 s | 10 s |
+| full check with the retry pass (no open failure) | 8.51 s | 10 s |
+| set 3's hash walk alone | 5.95 s | (inside the full check) |
+
+Every part is inside its budget, so decision 14 needs no follow-up. The full check is the closest (8.7 s of 10 s);
+with an open failure its retry pass hashes again (row 266, point 2), which would take it over. The first light run
+after the deploy (23:53 IST) ran the day's full check in 9 s and found nothing.
+
+**Backfill at the deploy, 17 Nov 2026.** `aslms orders parse --backfill` read 269,999 orders at version 2 from 23:30 to
+23:53 IST (23 minutes), none failed; 500 were skipped because the 5-minute job had claimed them first (the partial
+unique index, as designed). Template 263,282, whole 6,717; interim 254,402, final 13,178, judgment 2,419; procedural
+185,844; registrar 5,909; with an outcome 12,472; with directions 23,231; distinct bodies 212,635. Live checks: CNR
+differs 11,685, case number differs 16,685, date differs 640, common order 50,957. Flags: no CNR line 6,513, no case
+number 9,780, no date 9,595, empty body 6, capped 0. No court call came from the backfill: the 904 calls in the window
+were the queue's own `hc-cnr-api/CNR` fetches (daily lane, 23:31 to 23:39) after the workers restarted.
+
+**Linked cases after the backfill (row 264, Verification 4).** 78,713 current readings carry a linked case; 146 of
+them read `whole`, and in 34 of those the last linked block's `src` reaches the body's last 10%. Four of the 34 were
+read by hand: each block ends at its last advocates line or at the `ORDER Date :` line printed before the coram, and
+reaches the last 10% only because the order after it is a line or two. In three of the four the block's `src` takes
+in the `ORDER Date :` heading line printed before the coram; that is noted for row 266. The owner's ten-order check
+(row 265) is still to come.
