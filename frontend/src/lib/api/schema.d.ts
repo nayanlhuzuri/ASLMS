@@ -3512,8 +3512,8 @@ export interface paths {
          * Case Order Sections
          * @description "What the Order Says" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,
          *     for a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 "no such
-         *     case". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited
-         *     (viewing a court record writes no audit row); never calls NAPIX.
+         *     case". 404 `no_reading` (with `text_status` and `reading_state`) when the order is not read yet or has no text
+         *     layer. Not audited (viewing a court record writes no audit row); never calls NAPIX.
          */
         get: operations["case_order_sections_cases__ref__orders__order_id__sections_get"];
         put?: never;
@@ -11990,8 +11990,13 @@ export interface components {
             order_no: string;
             /** Page Count */
             page_count?: number | null;
-            /** @description the order's reading by rules (design order-sections, decision 20); null when not read yet, or when the caller may not open the order's PDF */
+            /** @description the order's reading by rules (design order-sections, decision 20); null unless `reading_state` is `read` */
             reading?: components["schemas"]["OrderReadingBrief"] | null;
+            /**
+             * Reading State
+             * @description the reading's state as the caller may know it (design order-sections-review-advisories, decision 15): `withheld` when the caller may not open the order's PDF (decided first); null when the order has no stored PDF
+             */
+            reading_state?: ("read" | "not_read_yet" | "scanned" | "text_failed" | "reading_failed" | "withheld") | null;
             /** Text Status */
             text_status?: string | null;
         };
@@ -12085,6 +12090,16 @@ export interface components {
             registrar: boolean;
         };
         /**
+         * OrderSectionsFullCheckOut
+         * @description The job's daily full check (design order-sections-review-advisories, decisions 6 and 7).
+         */
+        OrderSectionsFullCheckOut: {
+            /** Found */
+            found?: number | null;
+            /** Last On */
+            last_on?: string | null;
+        };
+        /**
          * OrderSectionsOut
          * @description `GET /cases/{ref}/orders/{order_id}/sections` (design order-sections, decision 19): "What the Order Says",
          *     read by rules from the stored text, every item with its PDF page and its span in `body_text`.
@@ -12158,46 +12173,52 @@ export interface components {
         };
         /**
          * OrderSectionsStatusOut
-         * @description Design order-sections, decision 21: the readings of court orders by rules, counts only.
+         * @description Design order-sections, decision 21: the readings of court orders by rules, counts only. The `counts` fields
+         *     and `checks` are null when their part ran out of time, named in `timed_out` (design
+         *     order-sections-review-advisories, decision 12); `waiting` counts new orders and readings below the parser
+         *     version.
          */
         OrderSectionsStatusOut: {
             /** By Form */
-            by_form: {
+            by_form?: {
                 [key: string]: number;
-            };
+            } | null;
             /** By Layout */
-            by_layout: {
+            by_layout?: {
                 [key: string]: number;
-            };
+            } | null;
             /** Checks */
-            checks: {
+            checks?: {
                 [key: string]: number;
-            };
+            } | null;
             /** Distinct Bodies */
-            distinct_bodies: number;
+            distinct_bodies?: number | null;
             /** Failed */
             failed: number;
             /** Flags */
-            flags: {
+            flags?: {
                 [key: string]: number;
-            };
+            } | null;
+            full_check?: components["schemas"]["OrderSectionsFullCheckOut"];
             last_run?: components["schemas"]["OrderSectionsRunOut"] | null;
             /** Orders With Text */
-            orders_with_text: number;
+            orders_with_text?: number | null;
             /** Parser Version */
             parser_version: number;
             /** Procedural */
-            procedural: number;
+            procedural?: number | null;
             /** Read */
-            read: number;
+            read?: number | null;
             /** Registrar */
-            registrar: number;
+            registrar?: number | null;
+            /** Timed Out */
+            timed_out?: ("counts" | "checks")[];
             /** Waiting */
-            waiting: number;
+            waiting?: number | null;
             /** With Directions */
-            with_directions: number;
+            with_directions?: number | null;
             /** With Outcome */
-            with_outcome: number;
+            with_outcome?: number | null;
         };
         /** OrderTotalsOut */
         OrderTotalsOut: {

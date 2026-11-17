@@ -193,8 +193,8 @@ def case_order_sections(
 ) -> schemas.OrderSectionsOut:
     """ "What the Order Says" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,
     for a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 "no such
-    case". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited
-    (viewing a court record writes no audit row); never calls NAPIX."""
+    case". 404 `no_reading` (with `text_status` and `reading_state`) when the order is not read yet or has no text
+    layer. Not audited (viewing a court record writes no audit row); never calls NAPIX."""
     case = _case(session, ref)
     try:
         out = order_sections.sections_out(session, user, case, order_id)
@@ -202,7 +202,8 @@ def case_order_sections(
         raise _http(exc) from exc
     except order_sections.NoReading as exc:
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail("no_reading", str(exc), text_status=exc.text_status)
+            status.HTTP_404_NOT_FOUND,
+            detail("no_reading", str(exc), text_status=exc.text_status, reading_state=exc.reading_state),
         ) from exc
     return schemas.OrderSectionsOut(**out)
 

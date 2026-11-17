@@ -8,7 +8,8 @@
  * sandbox headers. An order not stored says "not yet published" or "fetch pending". Under each row, always: the judge
  * and "Next date read", the order's own reading in plain words with the court's sentence (design portal-next-dates,
  * decision 11); never the review state or the rule code. The court's sentence sits under "What the Order Says",
- * which shows the order read into its parts by rules where it has been read (design order-sections, decision 19).
+ * which shows the order read into its parts by rules where it has been read (design order-sections, decision 19), or
+ * the reading's state as the server names it (design order-sections-review-advisories, decision 15).
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
@@ -16,9 +17,8 @@ import { useState, type ReactNode } from "react";
 import { OrderRow } from "@/components/claim/OrderRow";
 import { EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useMe } from "@/lib/api/hooks";
+import { caseKey } from "@/lib/api/hooks";
 import type { Order, OrderList } from "@/lib/api/types";
-import { can } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath } from "@/lib/refs";
@@ -39,19 +39,19 @@ export function documentUrl(documentId: string, disposition: "inline" | "attachm
 
 /**
  * Decision 11: the reading of one order (the date in bold, its words). Under it "What the Order Says" (design
- * order-sections, decision 19): for an order read into its parts, the reading itself, loaded when opened; for a stored
- * order not read yet or scanned without text, that state in words with the court's sentence; otherwise the court's
- * sentence as before.
+ * order-sections, decision 19), by the server's `reading_state` (design order-sections-review-advisories, decision
+ * 15): `read`, the reading itself, loaded when opened; not read yet, scanned, text not taken from the PDF, or not read
+ * into parts, that state in words with the court's sentence; `withheld` (the caller may not open the PDF) or no
+ * stored PDF, the court's sentence alone. The portal makes no permission decision of its own here.
  */
 export function OrderReading({ order, caseRef }: { order: Order; caseRef?: string }) {
-  const me = useMe();
   const reading = readingLabel(order);
-  const readable = !!caseRef && order.download_status === "stored" && can(me.data, "documents.view");
+  const state = order.reading_state ?? null;
   let says: ReactNode = null;
-  if (readable && caseRef && order.reading) {
+  if (caseRef && state === "read" && order.reading) {
     says = <OrderSays caseRef={caseRef} order={order} />;
-  } else if (readable && order.document_id) {
-    says = <OrderNotRead scanned={order.text_status === "none"} phrase={order.next_date_phrase} />;
+  } else if (caseRef && state && state !== "read" && state !== "withheld") {
+    says = <OrderNotRead state={state} phrase={order.next_date_phrase} />;
   } else if (order.next_date_phrase) {
     says = <p>{T.nd.quoted(order.next_date_phrase)}</p>;
   }
@@ -60,7 +60,7 @@ export function OrderReading({ order, caseRef }: { order: Order; caseRef?: strin
     <div>
       {reading?.date ? <strong>{reading.date}</strong> : null}
       {reading ? reading.date ? <div className="muted">{reading.words}</div> : <span>{reading.words}</span> : null}
-      {says ? <SaysDisclosure lazy={!!order.reading}>{says}</SaysDisclosure> : null}
+      {says ? <SaysDisclosure lazy={state === "read" && !!order.reading}>{says}</SaysDisclosure> : null}
     </div>
   );
 }

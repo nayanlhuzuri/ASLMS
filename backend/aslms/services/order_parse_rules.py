@@ -9,8 +9,15 @@ from __future__ import annotations
 
 import re
 
-# bump to re-read every order gradually (decision 18); the old readings stay, marked `parser_version`
-PARSER_VERSION = 1
+# bump to re-read every order gradually (decision 18); the old readings stay, marked `parser_version`. Version 2
+# (design `order-sections-review-advisories`, decisions 3 to 5): the last `Linked Case :` block of a reading with no
+# coram ends where the block ends, and a page before the first printed marker counts back by form feeds
+PARSER_VERSION = 2
+# the last linked-case block with no coram after it is cut to its own `Linked Case :` line when neither a heading, a
+# judgment-date line, a coram marker nor the end of its advocates run comes within this many non-blank lines
+# (design `order-sections-review-advisories`, decision 3): the longest last block bounded by a coram among the template
+# readings of the dev data on 16 Nov 2026 has 6,971 non-blank lines (a cause title listing every petitioner; p99 747)
+LINKED_BLOCK_MAX_LINES = 6980
 # an interim order's body at most this long may be procedural (decision 15)
 PROCEDURAL_MAX_CHARS = 1500
 # text beyond this is not read; the reading is flagged `capped` (decision 15)

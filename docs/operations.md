@@ -958,6 +958,22 @@ Design `docs/design/order-sections.md`, migration 0038 (table `order_sections`, 
 by rules, `ORDER_SECTIONS_BATCH` (default 500, 1 to 5000) a run, and writes a `job_runs` row `order_sections`. It makes
 no court call, no SourceTrace call and no model call, and takes no `fetch_queue` row.
 
+**Row 264 `order-sections-review-advisories` (no migration; the parser is at version 2).** Each 5-minute run now reads
+new orders and readings below the parser version only. One **full check** a day, in the first run at or after 01:30 IST,
+looks for changed documents, changed texts (found by the SHA-256 of the stored text), texts gone, and retries the orders
+whose reading failed; it also closes an open `order_parse` failure whose text has gone. `aslms orders parse --full` runs
+a full check at once: use it after any manual re-extraction. An order that keeps failing writes one log line a day. The
+`job_runs` counters `version_clear`, `full_check_on`, `full_check`, `full_check_found` and `failures_resolved` show the
+gates. The data-health block always answers: a part that runs past `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS` (default 10,
+1 to 60) is left out and named in `timed_out`. If row 250 is not yet deployed, the two deploy together (migration 0038
+with the `migrate` step, then one backfill at version 2); otherwise recreate the app services
+(`--no-deps --force-recreate api worker worker2 scheduler web`, the court-data switch carried) and run
+`docker compose exec api aslms orders parse --backfill` once, which reads every order again at version 2 (about one to
+two hours, no court call; the version 1 rows stay as replaced). Afterwards `aslms orders status` shows `parser_version` 2,
+`waiting` 0, and the integrator records the table size and the times of the design's decision 14 in
+`docs/design/order-sections.md`, "Measurements". The Orders tab names why an order has no reading: Not Read Yet,
+Scanned, Not Read, Text Could Not Be Read, Not Read Into Parts.
+
 **On deploy** (after the merge, with the court-data switch carried on every `up`; the owner holds this deploy for a
 late-night window):
 1. `docker compose run --rm migrate` (0038), then `docker compose build`; the app services are recreated as for any

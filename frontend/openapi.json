@@ -21894,7 +21894,27 @@
                 "type": "null"
               }
             ],
-            "description": "the order's reading by rules (design order-sections, decision 20); null when not read yet, or when the caller may not open the order's PDF"
+            "description": "the order's reading by rules (design order-sections, decision 20); null unless `reading_state` is `read`"
+          },
+          "reading_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "read",
+                  "not_read_yet",
+                  "scanned",
+                  "text_failed",
+                  "reading_failed",
+                  "withheld"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the reading's state as the caller may know it (design order-sections-review-advisories, decision 15): `withheld` when the caller may not open the order's PDF (decided first); null when the order has no stored PDF",
+            "title": "Reading State"
           },
           "text_status": {
             "anyOf": [
@@ -22195,6 +22215,36 @@
         "title": "OrderReadingBrief",
         "type": "object"
       },
+      "OrderSectionsFullCheckOut": {
+        "description": "The job's daily full check (design order-sections-review-advisories, decisions 6 and 7).",
+        "properties": {
+          "found": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found"
+          },
+          "last_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last On"
+          }
+        },
+        "title": "OrderSectionsFullCheckOut",
+        "type": "object"
+      },
       "OrderSectionsOut": {
         "description": "`GET /cases/{ref}/orders/{order_id}/sections` (design order-sections, decision 19): \"What the Order Says\",\nread by rules from the stored text, every item with its PDF page and its span in `body_text`.",
         "properties": {
@@ -22415,43 +22465,81 @@
         "type": "object"
       },
       "OrderSectionsStatusOut": {
-        "description": "Design order-sections, decision 21: the readings of court orders by rules, counts only.",
+        "description": "Design order-sections, decision 21: the readings of court orders by rules, counts only. The `counts` fields\nand `checks` are null when their part ran out of time, named in `timed_out` (design\norder-sections-review-advisories, decision 12); `waiting` counts new orders and readings below the parser\nversion.",
         "properties": {
           "by_form": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "By Form",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Form"
           },
           "by_layout": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "By Layout",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Layout"
           },
           "checks": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Checks",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checks"
           },
           "distinct_bodies": {
-            "title": "Distinct Bodies",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct Bodies"
           },
           "failed": {
             "title": "Failed",
             "type": "integer"
           },
           "flags": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Flags",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flags"
+          },
+          "full_check": {
+            "$ref": "#/components/schemas/OrderSectionsFullCheckOut"
           },
           "last_run": {
             "anyOf": [
@@ -22464,53 +22552,101 @@
             ]
           },
           "orders_with_text": {
-            "title": "Orders With Text",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orders With Text"
           },
           "parser_version": {
             "title": "Parser Version",
             "type": "integer"
           },
           "procedural": {
-            "title": "Procedural",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Procedural"
           },
           "read": {
-            "title": "Read",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
           },
           "registrar": {
-            "title": "Registrar",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registrar"
+          },
+          "timed_out": {
+            "items": {
+              "enum": [
+                "counts",
+                "checks"
+              ],
+              "type": "string"
+            },
+            "title": "Timed Out",
+            "type": "array"
           },
           "waiting": {
-            "title": "Waiting",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting"
           },
           "with_directions": {
-            "title": "With Directions",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Directions"
           },
           "with_outcome": {
-            "title": "With Outcome",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Outcome"
           }
         },
         "required": [
           "parser_version",
-          "orders_with_text",
-          "read",
-          "waiting",
-          "failed",
-          "by_layout",
-          "by_form",
-          "procedural",
-          "registrar",
-          "with_outcome",
-          "with_directions",
-          "distinct_bodies",
-          "flags",
-          "checks"
+          "failed"
         ],
         "title": "OrderSectionsStatusOut",
         "type": "object"
@@ -44592,7 +44728,7 @@
     },
     "/cases/{ref}/orders/{order_id}/sections": {
       "get": {
-        "description": "\"What the Order Says\" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,\nfor a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 \"no such\ncase\". 404 `no_reading` (with `text_status`) when the order is not read yet or has no text layer. Not audited\n(viewing a court record writes no audit row); never calls NAPIX.",
+        "description": "\"What the Order Says\" (design order-sections, decisions 19 and 20): the order's reading by rules, with no AI,\nfor a caller who may open the case, holds `documents.view` and may open the order's PDF; otherwise 404 \"no such\ncase\". 404 `no_reading` (with `text_status` and `reading_state`) when the order is not read yet or has no text\nlayer. Not audited (viewing a court record writes no audit row); never calls NAPIX.",
         "operationId": "case_order_sections_cases__ref__orders__order_id__sections_get",
         "parameters": [
           {

@@ -813,3 +813,60 @@ point the note leaves open, or a variant measured in the data.
     `aslms orders parse --backfill` ends when only failing orders are left, each listed in `source_failures`.
     `status().waiting` leaves those orders out too, so `waiting` and `failed` never count the same order and
     Verification 3's "waiting 0, each failure listed" can be reached.
+
+## Measurements
+
+Appended 16 Nov 2026 by the developer of row 264 (design `order-sections-review-advisories`, decision 17). Every
+figure was taken read-only on the dev database; nothing was written to it. The dev database is at migration 0037
+(this row's 0038 is not applied there yet), so the figures that need the `order_sections` table are taken at the
+deploy and added here then.
+
+**Citations per reporter pattern** (parser version 2 over every readable court order on the dev data: 266,824
+orders, one per order as the current readings will be; no reader failure). Citations are the sum of `count`, orders
+the orders citing the reporter at least once. Every pattern of decision 17 found citations, so none is kept "for
+nothing"; none is added.
+
+| Reporter | Citations | Orders |
+|---|---:|---:|
+| SCC | 15,721 | 2,994 |
+| SCC OnLine | 2,650 | 918 |
+| AIR | 2,343 | 786 |
+| GLT | 818 | 630 |
+| GLR | 364 | 234 |
+| INSC | 331 | 249 |
+| SCR | 308 | 169 |
+| neutral | 82 | 70 |
+| GauLT | 10 | 10 |
+| LLJ | 5 | 3 |
+
+The same pass: 260,177 `template` and 6,647 `whole` readings; 5.2 s of parsing per 1,000 orders (1,389 s in all).
+
+**Table size.** Not measurable on dev yet (no `order_sections` table). At the deploy the integrator records
+`pg_total_relation_size`, `pg_relation_size`, the TOAST and index sizes of `order_sections` and the row count by
+`parser_version` and current or replaced, after the version 2 backfill, and `schema.md`'s estimate ("about 0.4 to 0.6
+GB per parser version") is replaced by the measured figure.
+
+**The order used for Annexure E**: the masked fixture `backend/tests/fixtures/orders/final_directions.txt`, a final
+order of 3 pages with one direction to the State and one act cited, read by the real parser. The unmasked source
+order is not named by its CNR or case number anywhere in the repository: naming it would undo the masking (owner's
+confirmation (a) of 16 Nov 2026, a change to decision 25). It reads the same under parser version 2 (no linked case,
+and it starts with a printed marker).
+
+**Linked-case blocks (row 264, decision 3).** Of 219,018 readable order texts, 31,347 carry a `Linked Case :` line.
+Among the template readings, the last linked block bounded by its coram has at most 6,971 non-blank lines after its
+`Linked Case :` line (a cause title listing every petitioner; median 35, p99 747, p99.9 2,467), so
+`LINKED_BLOCK_MAX_LINES` is 6,980. 48 texts read `whole` with linked cases: in 35 the reader still found a coram, which
+bounds the block as in version 1 (10 of them reach the body's last 10%, because the heading is printed before the coram
+or the body is a few lines); in 13 no coram was found, and version 1 ran each last block to the end of the order,
+while version 2 ends all 13 at their advocates run (2 still reach the body's last 10%, both orders of a few lines).
+With a cap of 40 lines, 9 of the 13 would have been cut to their own line for a long cause title.
+
+**Pages before the first marker (row 264, decision 4).** On 3,000 random dev orders: 2,914 carry printed markers;
+none has a form feed before its first marker (so version 2 changes no page of these), 3 carry `Page n of N` markers
+and none of those is printed at the foot of a page. No follow-up row is needed.
+
+**The full check's hashing (row 264, decision 8).** Hashing every readable order text in SQL
+(`encode(sha256(convert_to(full_text, 'UTF8')), 'hex')`, 219,018 texts, `document_text` 1,127 MB with its indexes)
+took 0.7 s with the texts in cache. The full check's time with the join to the current readings, and the times of
+decision 14 (the two `counts` statements, the `checks` statement, one `order_checks` page, each light set, the full
+check) with `EXPLAIN (ANALYZE, BUFFERS)`, are recorded at the deploy, after the backfill.

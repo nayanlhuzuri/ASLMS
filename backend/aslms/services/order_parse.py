@@ -59,7 +59,13 @@ class PageMap:
     def page(self, pos: int) -> int:
         if self.marks:
             i = bisect.bisect_right([m[0] for m in self.marks], pos) - 1
-            return self.marks[max(i, 0)][1] if i >= 0 or self.marks else 1
+            if i >= 0:
+                return self.marks[i][1]
+            # before the first printed marker (version 2, design `order-sections-review-advisories`, decision 4): the
+            # first marker's number less the form feeds between the position and that marker, never below 1
+            first_at, first_no = self.marks[0]
+            between = bisect.bisect_right(self.feeds, first_at) - bisect.bisect_right(self.feeds, pos)
+            return max(1, first_no - between)
         return bisect.bisect_right(self.feeds, pos) + 1
 
 
@@ -331,7 +337,12 @@ def locate(text: str, pm: PageMap) -> Spans:  # noqa: C901 - one walk down the t
         if adv:
             span("advocates", adv[0], adv[-1])
     for idx, j in enumerate(linked):
-        block_end = linked[idx + 1] if idx + 1 < len(linked) else title_end_i
+        if idx + 1 < len(linked):
+            block_end = linked[idx + 1]
+        elif coram_i is not None:
+            block_end = title_end_i
+        else:  # no coram bounds the last block (version 2): it ends where the block ends, or is cut to its line
+            block_end = _linked_block_end(lines, j, sp.dropped)
         content = [k for k in range(j, block_end) if not lines[k].blank and k not in sp.dropped]
         last = content[-1] if content else j
         title_lines: list[int] = []
@@ -461,6 +472,53 @@ def locate(text: str, pm: PageMap) -> Spans:  # noqa: C901 - one walk down the t
                     span("date", k, k)
                     break
     return sp
+
+
+def _linked_block_end(lines: list[Line], j: int, dropped: set[int]) -> int:
+    """Version 2 (design `order-sections-review-advisories`, decision 3): the end (exclusive line index) of the last
+    `Linked Case :` block at line `j` when no coram line bounds it. The block ends before the first heading,
+    judgment-date line, coram marker or further `Linked Case :` line, or after the last line of its advocates run: the
+    first `Advocate for` line, then further advocates lines, rule lines and continuation lines (a non-blank line
+    directly after a line of the run, with no blank line between, that is not a paragraph start, a heading or a date
+    line; blank lines next to a page break do not count). When neither comes within `LINKED_BLOCK_MAX_LINES`
+    non-blank lines the block is cut to its own line (`j + 1`), so its title is null."""
+    last = j
+    in_run = False
+    blank = False
+    near_page = False
+    seen = 0
+    for k in range(j + 1, len(lines)):
+        ln = lines[k]
+        page_line = bool(R.PAGE_MARK.match(ln.raw))
+        if page_line or "" in ln.raw:
+            near_page, blank = True, False
+            if page_line or ln.blank:
+                continue
+        if k in dropped:
+            continue
+        if ln.blank:
+            if not near_page:
+                blank = True
+            continue
+        t = ln.text
+        if (
+            R.HEADING.match(t)
+            or _vertical_heading(lines, k) is not None
+            or R.JUDGMENT_DATE_LINE.match(t)
+            or R.CORAM_MARK.match(t)
+            or R.LINKED_CASE.match(t)
+        ):
+            return last + 1  # (a)
+        if in_run and not (R.ADVOCATES.match(t) or R.RULE_LINE.match(t)):
+            if blank or R.PARA_START.match(t) or R.DATE_LINE.match(t):
+                return last + 1  # (b) the advocates run has ended
+        if seen >= R.LINKED_BLOCK_MAX_LINES:
+            return j + 1  # (c) not bounded within the cap: cut to its own line
+        in_run = in_run or bool(R.ADVOCATES.match(t))
+        last = k
+        seen += 1
+        blank = near_page = False
+    return last + 1 if in_run else j + 1
 
 
 def _after_heading(lines: list[Line], k0: int, sp: Spans, span, *, author: bool = True) -> int:

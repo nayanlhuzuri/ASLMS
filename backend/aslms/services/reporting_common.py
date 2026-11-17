@@ -5,11 +5,14 @@ writes."""
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import ColumnElement, Date, and_, case, exists, func, literal, or_, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from aslms.core import clock
@@ -24,6 +27,8 @@ from aslms.services import access
 from aslms.services.alert_rules import IST
 
 IST_ZONE = IST
+log = logging.getLogger(__name__)
+T = TypeVar("T")
 
 # decision 6: the national judicial data grid bands, [low, high) in whole years; exactly N years is the next band
 AGE_BANDS: tuple[tuple[str, str, int, int | None], ...] = (
@@ -108,6 +113,32 @@ def ist_date(value: datetime | None) -> date | None:
 def with_timeout(session: Session, seconds: int) -> None:
     """Decision 2: `SET LOCAL statement_timeout` for the rest of the transaction."""
     session.execute(text(f"SET LOCAL statement_timeout = {max(1, int(seconds)) * 1000}"))
+
+
+QUERY_CANCELED = "57014"
+
+
+def isolated(
+    session: Session, seconds: int, restore_seconds: int, fn: Callable[[], T], *, part: str | None = None
+) -> tuple[T | None, bool]:
+    """Design `order-sections-review-advisories`, decision 12: `fn` inside a savepoint under its own
+    `SET LOCAL statement_timeout` of `seconds`. A cancelled statement (`57014`) rolls back to the savepoint (which also
+    undoes its `SET LOCAL`) and gives `(None, True)`; any other error is raised. The outer timeout is set back to
+    `restore_seconds` afterwards either way (a released savepoint keeps its `SET LOCAL`). Savepoints and `SET LOCAL`
+    are safe under PgBouncer transaction mode. `part` names the part in the log."""
+    timed_out = False
+    value: T | None = None
+    try:
+        with session.begin_nested():
+            with_timeout(session, seconds)
+            value = fn()
+    except OperationalError as exc:
+        if getattr(getattr(exc, "orig", None), "sqlstate", None) != QUERY_CANCELED:
+            raise
+        timed_out = True
+        log.warning("%s took longer than %s s and is left out", part or "a part", seconds)
+    with_timeout(session, restore_seconds)
+    return value, timed_out
 
 
 def department_rows(session: Session) -> list[Office]:

@@ -152,7 +152,7 @@ const CHECKS_GAP = {
   ],
   documents_text: DOCS,
   order_sections: {
-    parser_version: 1,
+    parser_version: 2,
     orders_with_text: 1200,
     read: 1150,
     waiting: 50,
@@ -166,6 +166,8 @@ const CHECKS_GAP = {
     distinct_bodies: 900,
     flags: { no_date: 58 },
     checks: { cnr_differs: 2, common_order: 5 },
+    timed_out: [],
+    full_check: { last_on: "2026-11-16", found: 0 },
     last_run: null,
   },
 } as unknown as DataGaps;
@@ -448,6 +450,33 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     await waitFor(() =>
       expect(api.calls.some((c) => c.url.includes("kind=order_checks") && c.url.includes("offset=50"))).toBe(true),
     );
+  });
+
+  it("Order Reading Checks with a part that took too long: the muted line, the missing counts hidden, the list kept", async () => {
+    const partial = {
+      ...CHECKS_GAP,
+      order_sections: {
+        ...CHECKS_GAP.order_sections,
+        orders_with_text: null,
+        read: null,
+        waiting: null,
+        by_layout: null,
+        by_form: null,
+        flags: null,
+        timed_out: ["counts"],
+      },
+    };
+    problemRoutes(["reports.state"], {
+      "GET /admin/data-load/gaps": (c: { url: string }) => (c.url.includes("kind=order_checks") ? partial : gapFor(c.url)),
+    });
+    renderWithClient(<ProblemsAndFixes />);
+    const section = await screen.findByRole("region", { name: "Data Gaps (118)" });
+    expect(await within(section).findByRole("heading", { name: "Order Reading Checks (60)" })).toBeInTheDocument();
+    const line = within(section).getByText("Some counts took too long and are not shown. Try again in a moment.");
+    expect(line).toHaveClass("muted");
+    expect(within(section).queryByText(/orders read/)).toBeNull();
+    expect(within(section).getByRole("table", { name: "Order Reading Checks" })).toBeInTheDocument();
+    expect(within(section).getByText("CNR Differs (2)")).toBeInTheDocument();
   });
 
   it("no heading is doubled: the section headings carry the names, the table captions stay hidden", async () => {

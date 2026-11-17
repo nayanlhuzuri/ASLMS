@@ -1,12 +1,16 @@
 """`aslms orders` (design `order-sections`, "CLI"): court orders read into their parts by rules, with no AI.
 
-- `parse [--backfill] [--order <uuid>] [--limit N] [--batch N] [--pause-ms N] [--dry-run]`: without `--backfill`, one
-  batch, as the 5-minute job does; with it, batches until no order is left, one commit per batch and a pause between
-  them (stopped and started again, it carries on). `--dry-run` parses and counts (layout, form, flags, citations by
-  reporter, the time) and writes nothing.
-- `status`: the data-health block.
+- `parse [--backfill] [--full] [--order <uuid>] [--limit N] [--batch N] [--pause-ms N] [--dry-run]`: without
+  `--backfill`, one light batch, as the 5-minute job does between its daily full checks; with it, light batches until
+  none is left, then the full check's sets and the retries, one commit per batch and a pause between them (stopped
+  and started again, it carries on). `--full` runs one batch with the full check (changed documents, changed texts by
+  hash, texts gone, stale failures) and the retries at once: the step after any manual re-extraction (design
+  `order-sections-review-advisories`, decision 6). `--order` checks every set for that one order. `--dry-run` parses
+  and counts (layout, form, flags, citations by reporter, the time) and writes nothing.
+- `status`: the data-health block (`timed_out` names a part that ran out of time).
 - `show <order uuid | CNR|order_no|YYYY-MM-DD> [--text]`: the layout, spans with pages, paragraphs with part and page,
-  facts, flags and live checks; `--text` also prints the body.
+  facts, flags and live checks; `--text` also prints the body. When the stored text changed since the reading, the
+  pages are replaced by a note (decision 11).
 - `checks [--check <name>] [--limit N]`: the check list (identifiers and printed values only).
 
 No NAPIX call and no audit row: system work on derived data, as `aslms next-dates read`."""
@@ -37,6 +41,11 @@ def _jsonable(obj):
 @orders_app.command("parse")
 def parse(
     backfill: bool = typer.Option(False, "--backfill", help="every order waiting, batch after batch"),
+    full: bool = typer.Option(
+        False,
+        "--full",
+        help="one batch with the daily full check and the retries now (after a re-extraction)",
+    ),
     order: str | None = typer.Option(None, "--order", help="one order (its id)"),
     limit: int | None = typer.Option(None, "--limit", min=1, help="at most this many orders"),
     batch: int | None = typer.Option(
@@ -71,6 +80,10 @@ def parse(
         with session_scope() as s:
             rprint(order_sections.read_batch(s, batch=1, order_id=order_id))
         return
+    if full and not backfill:
+        with session_scope() as s:
+            rprint(order_sections.read_batch(s, batch=min(size, limit or size), full=True, retry=True))
+        return
     if backfill:
         totals = order_sections.backfill(
             get_sessionmaker(), batch=size, pause_ms=pause_ms, limit=limit, echo=rprint
@@ -85,8 +98,17 @@ def parse(
 def status() -> None:
     """The order readings' block of the data-health screen."""
     with session_scope() as s:
-        with_timeout(s, get_settings().report_statement_timeout_seconds)
-        rprint(_jsonable(order_sections.status(s)))
+        cfg = get_settings()
+        with_timeout(s, cfg.report_statement_timeout_seconds)
+        rprint(
+            _jsonable(
+                order_sections.status(
+                    s,
+                    timeout_s=cfg.order_sections_status_timeout_seconds,
+                    restore_s=cfg.report_statement_timeout_seconds,
+                )
+            )
+        )
 
 
 @orders_app.command("show")
@@ -104,10 +126,13 @@ def show(
         if row is None:
             rprint("[yellow]this order has not been read yet[/yellow]")
             raise typer.Exit(1)
-        full = s.get(DocumentText, row.document_id)
-        pm = order_parse.pages(full.full_text or "") if full is not None else None
+        stored = s.get(DocumentText, row.document_id)
+        full_text = stored.full_text if stored is not None else None
+        same = order_sections.text_matches(row, full_text)
+        pm = order_parse.pages(full_text or "") if same else None
+        changed = "text changed since this reading; run `aslms orders parse --full`"
         spans = {
-            name: {"src": span, "page": pm.page(span[0]) if pm else None}
+            name: {"src": span, "page": pm.page(span[0]) if pm else changed}
             for name, span in (row.spans or {}).items()
         }
         out = {

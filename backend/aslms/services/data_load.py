@@ -2021,10 +2021,11 @@ def _gap_orders(
 
 
 def _gap_order_checks(
-    session: Session, limit: int, offset: int, check: str | None
+    session: Session, limit: int, offset: int, check: str | None, pass_: dict[str, Any]
 ) -> tuple[int, dict[str, int], list[dict[str, Any]]]:
-    """Design order-sections, decision 21: the current readings with a live mismatch or a flag about the text."""
-    return order_sections.check_rows(session, check=check, limit=limit, offset=offset)
+    """Design order-sections, decision 21: the current readings with a live mismatch or a flag about the text; `total`
+    and `counts` from the one checks pass (design order-sections-review-advisories, decision 13)."""
+    return order_sections.check_rows(session, check=check, limit=limit, offset=offset, pass_=pass_)
 
 
 def gaps(
@@ -2053,8 +2054,19 @@ def gaps(
     offset = max(0, int(offset))
     with_timeout(session, cfg.report_statement_timeout_seconds)
     slow = "the data gaps took too long; try again"
+    block = None
     if kind == "order_checks":
-        total, counts, items = _timed(lambda: _gap_order_checks(session, limit, offset, check), slow)
+        # the checks once (decision 13 of order-sections-review-advisories): the list's own figures under `_timed`
+        # (a cancelled statement is a 503 `search_timeout`), the readings' block reusing them and running only its
+        # isolated `counts` part (a timeout there only nulls those fields)
+        pass_ = _timed(lambda: order_sections.checks_pass(session), slow)
+        total, counts, items = _timed(lambda: _gap_order_checks(session, limit, offset, check, pass_), slow)
+        block = order_sections.status(
+            session,
+            timeout_s=cfg.order_sections_status_timeout_seconds,
+            restore_s=cfg.report_statement_timeout_seconds,
+            checks=pass_,
+        )
     else:
         reader = _gap_cases if kind == "cases" else _gap_orders
         total, counts, items = _timed(lambda: reader(session, limit, offset), slow)
@@ -2065,9 +2077,7 @@ def gaps(
         "items": items,
         "documents_text": _timed(lambda: data_health.documents_text(session), slow),
         # the readings' block once per page of Data Gaps: with the order checks only (Deviations of order-sections)
-        "order_sections": _timed(lambda: order_sections.status(session), slow)
-        if kind == "order_checks"
-        else None,
+        "order_sections": block,
     }
 
 

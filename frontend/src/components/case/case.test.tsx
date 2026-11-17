@@ -2157,7 +2157,7 @@ describe("What the Order Says", () => {
   it("an interim order: the text with the next-date sentence marked and the Procedural badge, loaded on opening", async () => {
     const { calls } = browserApi({
       "GET /me": me(READ),
-      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF, reading_state: "read" }], total: 1 },
       [`GET ${BASE}/orders/o-1/sections`]: READING,
     });
     renderWithClient(<Orders caseRef={REF} />);
@@ -2177,7 +2177,7 @@ describe("What the Order Says", () => {
     browserApi({
       "GET /me": me(READ),
       [`GET ${BASE}/orders`]: {
-        items: [{ ...ORDER, id: "o-2", kind: "judgment", reading: { ...BRIEF, form: "judgment", procedural: false, outcome: "allowed" } }],
+        items: [{ ...ORDER, id: "o-2", kind: "judgment", reading: { ...BRIEF, form: "judgment", procedural: false, outcome: "allowed" }, reading_state: "read" }],
         total: 1,
       },
       [`GET ${BASE}/orders/o-2/sections`]: JUDGMENT,
@@ -2207,7 +2207,7 @@ describe("What the Order Says", () => {
   it("an off-layout order says so; a common order names the printed case number", async () => {
     browserApi({
       "GET /me": me(READ),
-      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: { ...BRIEF, layout: "whole" } }], total: 1 },
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: { ...BRIEF, layout: "whole" }, reading_state: "read" }], total: 1 },
       [`GET ${BASE}/orders/o-1/sections`]: { ...READING, layout: "whole", common_order: { printed_case_no: "WP(C)/7013/2024" } },
     });
     renderWithClient(<Orders caseRef={REF} />);
@@ -2217,15 +2217,17 @@ describe("What the Order Says", () => {
     expect(within(region).getByText("Common Order Under WP(C)/7013/2024")).toBeInTheDocument();
   });
 
-  it("Not Read Yet and Scanned, Not Read keep the old sentence", async () => {
-    browserApi({
+  it("each reading state shows its title and note, with the next-date sentence", async () => {
+    const { calls } = browserApi({
       "GET /me": me(READ),
       [`GET ${BASE}/orders`]: {
         items: [
-          { ...ORDER, id: "o-1", reading: null },
-          { ...ORDER, id: "o-2", reading: null, text_status: "none", next_date_phrase: "List after two weeks." },
+          { ...ORDER, id: "o-1", reading: null, reading_state: "not_read_yet" },
+          { ...ORDER, id: "o-2", reading: null, reading_state: "scanned", text_status: "none", next_date_phrase: "List after two weeks." },
+          { ...ORDER, id: "o-3", reading: null, reading_state: "text_failed", text_status: "failed", next_date_phrase: "List after three weeks." },
+          { ...ORDER, id: "o-4", reading: null, reading_state: "reading_failed", next_date_phrase: "List after four weeks." },
         ],
-        total: 2,
+        total: 4,
       },
     });
     renderWithClient(<Orders caseRef={REF} />);
@@ -2235,12 +2237,72 @@ describe("What the Order Says", () => {
     await openSays(1);
     expect(await screen.findByText("Scanned, Not Read")).toBeInTheDocument();
     expect(screen.getByText("“List after two weeks.”")).toBeInTheDocument();
+    await openSays(2);
+    expect(await screen.findByText("Text Could Not Be Read")).toBeInTheDocument();
+    expect(screen.getByText("The text of this order could not be taken from its PDF.")).toBeInTheDocument();
+    expect(screen.getByText("“List after three weeks.”")).toBeInTheDocument();
+    await openSays(3);
+    expect(await screen.findByText("Not Read Into Parts")).toBeInTheDocument();
+    expect(
+      screen.getByText("This order's text could not be read into its parts; it is listed for the administrators."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("“List after four weeks.”")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/sections"))).toBe(false);
+  });
+
+  it("withheld shows the court's sentence alone, and nothing about the text", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: {
+        items: [{ ...ORDER, id: "o-1", reading: null, reading_state: "withheld", text_status: "failed" }],
+        total: 1,
+      },
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    expect(await screen.findByText("“List this matter on 04.03.2026.”")).toBeInTheDocument();
+    for (const t of ["Not Read Yet", "Text Could Not Be Read", "Not Read Into Parts", "Scanned, Not Read"]) {
+      expect(screen.queryByText(t)).not.toBeInTheDocument();
+    }
+  });
+
+  it("no client-side documents.view decision: the server's state alone decides", async () => {
+    browserApi({
+      "GET /me": me(["cases.view_scope"]),
+      [`GET ${BASE}/orders`]: {
+        items: [
+          { ...ORDER, id: "o-1", reading: BRIEF, reading_state: "read" },
+          { ...ORDER, id: "o-2", reading: null, reading_state: "text_failed", next_date_phrase: "List after two weeks." },
+        ],
+        total: 2,
+      },
+      [`GET ${BASE}/orders/o-1/sections`]: READING,
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays(0);
+    expect(await screen.findByRole("region", { name: "What the Order Says" })).toBeInTheDocument();
+    await openSays(1);
+    expect(await screen.findByText("Text Could Not Be Read")).toBeInTheDocument();
+  });
+
+  it("a no_reading answer shows the state the server names", async () => {
+    browserApi({
+      "GET /me": me(READ),
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF, reading_state: "read" }], total: 1 },
+      [`GET ${BASE}/orders/o-1/sections`]: () =>
+        json(404, {
+          detail: { code: "no_reading", message: "this order has not been read yet", text_status: "extracted", reading_state: "reading_failed" },
+        }),
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    await openSays();
+    expect(await screen.findByText("Not Read Into Parts")).toBeInTheDocument();
   });
 
   it("an order read after the list was loaded answers no_reading: Not Read Yet", async () => {
     browserApi({
       "GET /me": me(READ),
-      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-1", reading: BRIEF, reading_state: "read" }], total: 1 },
       [`GET ${BASE}/orders/o-1/sections`]: () =>
         json(404, { detail: { code: "no_reading", message: "this order has not been read yet", text_status: "extracted" } }),
     });
@@ -2249,10 +2311,10 @@ describe("What the Order Says", () => {
     expect(await screen.findByText("Not Read Yet")).toBeInTheDocument();
   });
 
-  it("no reading and no page links without the view right", async () => {
+  it("no reading and no page links when the server withholds it", async () => {
     const { calls } = browserApi({
       "GET /me": me(["cases.view_scope"]),
-      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-2", reading: BRIEF }], total: 1 },
+      [`GET ${BASE}/orders`]: { items: [{ ...ORDER, id: "o-2", reading: null, reading_state: "withheld" }], total: 1 },
       [`GET ${BASE}/orders/o-2/sections`]: JUDGMENT,
     });
     renderWithClient(<Orders caseRef={REF} />);

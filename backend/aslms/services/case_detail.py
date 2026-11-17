@@ -446,7 +446,8 @@ def orders(session: Session, user: User, case: Case, *, limit=None, offset=None)
     limit, offset = inbox.clamp(limit, offset)
     total = _count(session, stmt)
     rows = session.execute(stmt.limit(limit).offset(offset)).all()
-    # design order-sections, decision 20: each order's reading, only where the caller may open its PDF
+    # design order-sections, decision 20: each order's reading, only where the caller may open its PDF; and its state
+    # (design order-sections-review-advisories, decision 15)
     readings = order_sections.brief(session, user, [o.id for o, _ in rows])
     return Page(
         [
@@ -468,7 +469,8 @@ def orders(session: Session, user: User, case: Case, *, limit=None, offset=None)
                 "next_date_found": o.next_date_found,
                 "next_date_rule": o.next_date_rule,
                 "next_date_phrase": o.next_date_phrase,
-                "reading": readings.get(o.id),
+                "reading": (readings.get(o.id) or {}).get("reading"),
+                "reading_state": (readings.get(o.id) or {}).get("reading_state"),
             }
             for o, d in rows
         ],

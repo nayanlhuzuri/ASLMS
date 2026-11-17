@@ -4,6 +4,7 @@ parts, the facts read by rules, the tags and flags, the body hash and the next-d
 
 from __future__ import annotations
 
+import json
 import random
 import re
 from datetime import date
@@ -237,6 +238,8 @@ def test_offsets_round_trip_src_and_txt_for_every_paragraph_and_fact():
         "common_order",
         "off_template",
         "leading_blank",
+        "off_template_linked",
+        "first_page_unmarked",
     ):
         text = load(name)
         r = P.parse(text, order_date=date(2025, 3, 10))
@@ -491,3 +494,132 @@ def test_order_date_line_variants(variant):
          "HONOURABLE MR. JUSTICE JUDGE A", "ORDER", variant, "List on 03.04.2025.", "JUDGE"]
     )  # fmt: skip
     assert P.parse(text).printed_date == date(2025, 3, 19)
+
+
+# ------------------------------------------------------------------------------------------------ version 2
+
+
+FIXTURE_NAMES = (
+    "interim_template",
+    "interim_variants",
+    "registrar",
+    "final_directions",
+    "judgment_parts",
+    "common_order",
+    "off_template",
+    "leading_blank",
+)
+
+
+def test_parser_version_is_2():
+    assert R.PARSER_VERSION == 2
+    assert P.parse(load("interim_template")).parser_version == 2
+
+
+def test_linked_block_in_whole_reading_ends_after_its_advocates_run():
+    """Design `order-sections-review-advisories`, decision 3 (b): with no coram, the last block ends at its last
+    advocates line (a continuation line and a page break inside the run included), and no body paragraph lies inside
+    it."""
+    text = load("off_template_linked")
+    r = P.parse(text)
+    assert r.layout == "whole"
+    assert [lc["case_no"] for lc in r.linked_cases] == ["WP(C)/YYYY/2021", "WP(C)/ZZZZ/2021"]
+    first, last = r.linked_cases
+    assert span_text(text, first["src"]).endswith("appearing for THE STATE OF ASSAM AND 3 ORS")
+    block = span_text(text, last["src"])
+    assert block.startswith("Linked Case : WP(C)/ZZZZ/2021") and block.endswith(
+        "Advocate for : SC, EDUCATION"
+    )
+    assert "MS. ADVOCATE W" in block and "Heard" not in block and "List all three" not in block
+    assert span_text(text, last["title"]) == "PETITIONER M\n VERSUS\nTHE STATE OF ASSAM"
+    assert last["src"][1] < text.index("Heard Mr. Advocate T")
+    assert all(p["src"][0] > last["src"][1] for p in r.paragraphs[1:])
+    assert_invariants(text, r)
+
+
+def test_linked_block_ends_at_heading_or_judgment_date_line():
+    """Decision 3 (a): a heading, a judgment-date line or a coram marker right after the run ends the block even with
+    no blank line between."""
+    base = load("off_template_linked")
+    tail = "Advocate for : SC, EDUCATION\n\nHeard"
+    assert tail in base
+    for stop in ("ORDER", "Date of Hearing : 10.07.2025", "CORAM"):
+        text = base.replace(tail, f"Advocate for : SC, EDUCATION\n{stop}\nHeard")
+        last = P.parse(text).linked_cases[-1]
+        assert span_text(text, last["src"]).endswith("Advocate for : SC, EDUCATION"), stop
+    # before the run starts: a heading ends the block at the title's last line
+    head = " ------------\n Advocate for : MR. ADVOCATE V,"
+    assert head in base
+    text = base.replace(head, "ORDER\n Advocate for : MR. ADVOCATE V,")
+    last = P.parse(text).linked_cases[-1]
+    assert span_text(text, last["src"]).endswith("THE STATE OF ASSAM")
+    assert span_text(text, last["title"]) == "PETITIONER M\n VERSUS\nTHE STATE OF ASSAM"
+
+
+def test_linked_block_without_advocates_cut_to_its_line_with_null_title(monkeypatch):
+    """Decision 3 (c): not bounded within `LINKED_BLOCK_MAX_LINES` non-blank lines (or by the end of the text with no
+    advocates run), the entry keeps its case number as printed, its `src` is its own line and its title is null."""
+    lines = ["Page No.# 1/1", "GAHC010000012025", "Case No. : WP(C)/1/2025", "PARTY A", "VERSUS", "PARTY B",
+             "Advocate for the Petitioner : MR. ADVOCATE A", " Linked Case : WP(C)/2/2025"]  # fmt: skip
+    lines += [f"PETITIONER NO {n} OF THE LINKED CASE" for n in range(1, 13)]
+    lines += [
+        "Advocate for : MR. ADVOCATE B",
+        "",
+        "Heard the learned counsel.",
+        "List after two weeks.",
+        "JUDGE",
+    ]
+    text = "\n".join(lines)
+    monkeypatch.setattr(R, "LINKED_BLOCK_MAX_LINES", 10)
+    (lc,) = P.parse(text).linked_cases
+    assert lc["case_no"] == "WP(C)/2/2025" and lc["title"] is None
+    assert span_text(text, lc["src"]) == "Linked Case : WP(C)/2/2025"
+    monkeypatch.setattr(R, "LINKED_BLOCK_MAX_LINES", 20)
+    (lc,) = P.parse(text).linked_cases
+    assert span_text(text, lc["src"]).endswith("Advocate for : MR. ADVOCATE B") and lc["title"] is not None
+    monkeypatch.undo()
+    no_run = "\n".join(
+        lines[:8] + ["PETITIONER C", "VERSUS", "PARTY D", "", "List after two weeks.", "JUDGE"]
+    )
+    (lc,) = P.parse(no_run).linked_cases
+    assert span_text(no_run, lc["src"]) == "Linked Case : WP(C)/2/2025" and lc["title"] is None
+
+
+def test_template_readings_keep_version_1_linked_spans():
+    """Decision 3: a block followed by another `Linked Case :` line or by the coram ends as in version 1, on every
+    fixture (`linked_v1.json` holds the version 1 output)."""
+    v1 = json.loads((FIXTURES / "linked_v1.json").read_text(encoding="utf-8"))
+    assert set(v1) == set(FIXTURE_NAMES)
+    for name in FIXTURE_NAMES:
+        r = P.parse(load(name))
+        assert r.layout == v1[name]["layout"], name
+        assert r.linked_cases == v1[name]["linked_cases"], name
+
+
+def test_page_before_first_marker_counts_back_by_form_feeds_never_below_1():
+    """Decision 4: a first page printed without a marker, then `Page No.# 2/3`: text on the first page is page 1."""
+    text = load("first_page_unmarked")
+    r = P.parse(text)
+    assert [(p["page"], p["page_to"]) for p in r.paragraphs] == [(1, 1), (1, 1), (2, 2), (3, 3)]
+    assert "page_marks_differ" not in r.flags
+    pm = P.pages(text)
+    assert pm.page(0) == 1 and pm.page(text.index("3. The appellant")) == 2
+    # never below 1: a marker printed 1 after two form feeds
+    odd = "first\n\fsecond\n\fPage No.# 1/3\nthird"
+    pm = P.pages(odd)
+    assert [pm.page(odd.index(w)) for w in ("first", "second", "third")] == [1, 1, 1]
+    # a marker printed 5 after one form feed (blank pages lost by extraction): counted back from the marker
+    lost = "first\n\fPage No.# 5/6\nfifth"
+    pm = P.pages(lost)
+    assert pm.page(0) == 4 and pm.page(lost.index("fifth")) == 5 and pm.differ is True
+
+
+def test_pages_without_markers_and_after_first_marker_unchanged():
+    bare = "first page text\n\fsecond page text\n\fthird"
+    pm = P.pages(bare)
+    assert [pm.page(bare.index(w)) for w in ("first", "second", "third")] == [1, 2, 3]
+    text = load("final_directions")
+    pm = P.pages(text)
+    assert pm.page(0) == 1 and pm.page(text.index("authorities, which")) == 2
+    r = P.parse(load("leading_blank"))
+    assert "page_marks_differ" in r.flags and r.paragraphs[0]["page"] == 3

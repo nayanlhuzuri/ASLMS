@@ -6,13 +6,15 @@ with the common order, and the status block, check list and backfill."""
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError
 
+from aslms.core import clock
 from aslms.domain.cases import Case
 from aslms.domain.documents import (
     DocGroup,
@@ -32,6 +34,7 @@ from aslms.domain.reference import DocType
 from aslms.services import order_parse as parse_mod
 from aslms.services import order_parse_rules as R
 from aslms.services import order_sections as svc
+from aslms.services.reporting_common import with_timeout
 from tests.db import next_dates_support as h
 from tests.db import order_sections_support as o
 from tests.db.world import make_case
@@ -122,14 +125,15 @@ def test_reextracted_text_replaces_row_and_keeps_old(world):
         t.full_text = t.full_text.replace("Issue notice", "Issue fresh notice")
         s.commit()
     with world.Session() as s:
-        counters = svc.read_batch(s, batch=10)
-        assert counters["replaced_text_reextracted"] == 1
+        assert svc.read_batch(s, batch=10)["claimed"] == 0  # a light run never looks at changed texts
+        counters = svc.read_batch(s, batch=10, full=True)
+        assert counters["replaced_text_reextracted"] == 1 and counters["full_check_found"] == 1
         old_row, new_row = o.readings(s, order)
         assert old_row.id == old.id and old_row.body_text == old_body
         assert old_row.replace_reason.value == "text_reextracted" and old_row.replaced_by_id == new_row.id
         assert old_row.replaced_at is not None and old_row.updated_at >= old_updated
         assert new_row.replaced_at is None and "Issue fresh notice" in new_row.body_text
-        assert svc.read_batch(s, batch=10)["claimed"] == 0
+        assert svc.read_batch(s, batch=10, full=True)["claimed"] == 0
         s.commit()
 
 
@@ -161,12 +165,13 @@ def test_text_gone_marks_replaced_without_successor(world):
         svc.read_batch(s, batch=10)
         o.doc_of(s, order).text_status = TextStatus.NONE
         s.flush()
-        counters = svc.read_batch(s, batch=10)
+        assert svc.read_batch(s, batch=10)["claimed"] == 0
+        counters = svc.read_batch(s, batch=10, full=True)
         assert counters["text_gone"] == 1
         (row,) = o.readings(s, order)
         assert row.replace_reason.value == "text_gone" and row.replaced_by_id is None and row.replaced_at
         assert o.current(s, order) is None
-        assert svc.read_batch(s, batch=10)["claimed"] == 0
+        assert svc.read_batch(s, batch=10, full=True)["claimed"] == 0
         s.commit()
 
 
@@ -179,7 +184,7 @@ def test_document_changed_guard(world):
         )
         s.execute(sa.update(Order).where(Order.id == order.id).values(document_id=other.document_id))
         s.flush()
-        counters = svc.read_batch(s, batch=10)
+        counters = svc.read_batch(s, batch=10, full=True)
         assert counters["replaced_document_changed"] == 1
         old_row, new_row = o.readings(s, order)
         assert old_row.replace_reason.value == "document_changed" and new_row.document_id == other.document_id
@@ -279,7 +284,8 @@ def test_failure_recorded_in_source_failures_and_resolved_on_success(world, monk
         fail = s.scalar(sa.select(SourceFailure).where(SourceFailure.kind == "order_parse"))
         assert fail.ref == str(order.id) and "reader bug" in fail.error and fail.resolved_at is None
         monkeypatch.setattr(parse_mod, "parse", real)
-        assert svc.read_batch(s, batch=10)["parsed"] == 1
+        assert svc.read_batch(s, batch=10)["claimed"] == 0  # a light run never retries
+        assert svc.read_batch(s, batch=10, full=True, retry=True)["parsed"] == 1
         s.refresh(fail)
         assert fail.resolved_at is not None
         s.commit()
@@ -487,10 +493,11 @@ def test_backfill_ends_when_only_failing_orders_are_left_and_they_never_starve_n
         s.commit()
     lines: list[str] = []
     total = svc.backfill(world.Session, batch=2, pause_ms=0, echo=lines.append)
-    # batch 1: the two oldest fail for the first time and it goes on; batch 2: two readable orders (the failing ones
-    # come last); batch 3: the last readable order and one retry; batch 4: two retries, none read, so it ends
-    assert total["parsed"] == 3 and total["failed"] == 5 and total["retried"] == 3, (total, lines)
-    assert len(lines) == 4
+    # light batches: 1, the two oldest fail for the first time and it goes on; 2, two readable orders (the failing
+    # ones are left out); 3, the last readable order; 4, nothing. Then one full batch: the two retries, none read, so
+    # it ends
+    assert total["parsed"] == 3 and total["failed"] == 4 and total["retried"] == 2, (total, lines)
+    assert len(lines) == 5 and lines[-1].startswith("full batch: 2 claimed")
     with world.Session() as s:
         assert s.scalar(sa.select(sa.func.count()).select_from(OrderSection)) == 3
         st = svc.status(s)
@@ -510,7 +517,7 @@ def test_backfill_ends_when_only_failing_orders_are_left_and_they_never_starve_n
         assert len(o.readings(s, newer)) == 1
         # once the reader is fixed, the failing orders are read and their failures resolved
         monkeypatch.setattr(parse_mod, "parse", real)
-        assert svc.read_batch(s, batch=10)["parsed"] == 2
+        assert svc.read_batch(s, batch=10, full=True, retry=True)["parsed"] == 2
         assert svc.status(s)["failed"] == 0
         s.commit()
 
@@ -542,4 +549,429 @@ def test_order_document_is_court_record_order_only(world):
         s.add(Order(case_id=case.id, order_no="1", order_date=D, kind=OrderKind.INTERIM, document_id=doc.id))
         s.flush()
         assert svc.read_batch(s, batch=10)["claimed"] == 0
+        s.rollback()
+
+
+# ------------------------------------------------------------------------------------------------ the job, version 2
+# design `order-sections-review-advisories`, decisions 6 to 12
+
+
+def _ist(day: date, hh: int, mm: int) -> datetime:
+    return datetime(day.year, day.month, day.day, hh, mm, tzinfo=clock.IST)
+
+
+TODAY = date(2026, 11, 16)
+YESTERDAY = date(2026, 11, 15)
+
+
+def _ymd(d: date) -> int:
+    return d.year * 10000 + d.month * 100 + d.day
+
+
+def _prev_run(s, counters: dict, at: datetime) -> None:
+    s.add(
+        JobRun(job="order_sections", run_date=at.date(), started_at=at, status="succeeded", counters=counters)
+    )
+    s.flush()
+
+
+class _Statements:
+    """The SQL statements run on the session's connection while the block runs."""
+
+    def __init__(self, s):
+        self.conn = s.connection()
+        self.sql: list[str] = []
+
+    def __enter__(self):
+        sa.event.listen(self.conn, "before_cursor_execute", self._add)
+        return self
+
+    def __exit__(self, *exc):
+        sa.event.remove(self.conn, "before_cursor_execute", self._add)
+
+    def _add(self, conn, cursor, statement, params, context, many):
+        self.sql.append(" ".join(statement.split()))
+
+    def kinds(self) -> set[str]:
+        out = set()
+        for q in self.sql:
+            if "FROM orders JOIN documents" in q and "order_sections_1.replaced_at IS NULL" in q:
+                out.add("set1")
+            if "order_sections.parser_version <" in q and "FROM order_sections JOIN orders" in q:
+                out.add("set4")
+            if "order_sections.document_id != orders.document_id" in q:
+                out.add("set2or3")
+            if "convert_to" in q:
+                out.add("set3")
+            if "document_text.document_id = orders.document_id" in q:
+                out.add("set5")
+            if q.startswith("SELECT 1 FROM source_failures"):
+                out.add("retry_probe")
+            if q.startswith("UPDATE source_failures SET resolved_at") and "NOT (EXISTS" in q:
+                out.add("stale")
+        return out
+
+
+def test_light_run_queries_only_sets_1_and_4(world):
+    """Decision 6: a light run (full check done today) issues set 1 and, while its gate is open, set 4; never set 2,
+    3 or 5, the retry probe or the stale-failure update."""
+    with world.Session() as s:
+        _case_order(s)
+        _prev_run(s, {"full_check_on": _ymd(TODAY)}, _ist(TODAY, 1, 33))
+        with _Statements(s) as st:
+            counters = svc.run_job(s, now=_ist(TODAY, 10, 3))
+        assert counters["parsed"] == 1 and counters["full_check"] == 0
+        assert st.kinds() == {"set1", "set4"}, st.sql
+        assert counters["version_clear"] == R.PARSER_VERSION  # set 4 came back short
+        with _Statements(s) as st:
+            svc.run_job(s, now=_ist(TODAY, 10, 8))
+        assert st.kinds() == {"set1"}, st.sql  # set 4 behind its gate now
+        s.rollback()
+
+
+def test_set_4_gate_skipped_after_a_clear_run_and_reopened_by_a_version_bump(world, monkeypatch):
+    with world.Session() as s:
+        _, order = _case_order(s)
+        _prev_run(s, {"full_check_on": _ymd(TODAY)}, _ist(TODAY, 1, 33))
+        first = svc.run_job(s, now=_ist(TODAY, 9, 3))
+        assert first["parsed"] == 1 and first["version_clear"] == R.PARSER_VERSION
+        asked: list[int] = []
+        real = svc._set_current
+        monkeypatch.setattr(svc, "_set_current", lambda n, *a, **k: asked.append(n) or real(n, *a, **k))
+        second = svc.run_job(s, now=_ist(TODAY, 9, 8))
+        assert asked == [] and second["version_clear"] == R.PARSER_VERSION and second["claimed"] == 0
+        # a deploy that raises the version: the previous `version_clear` no longer equals it, so set 4 runs
+        monkeypatch.setattr(R, "PARSER_VERSION", R.PARSER_VERSION + 1)
+        third = svc.run_job(s, now=_ist(TODAY, 9, 13))
+        assert asked == [4] and third["replaced_parser_version"] == 1
+        assert third["version_clear"] == R.PARSER_VERSION
+        old_row, new_row = o.readings(s, order)
+        assert old_row.replace_reason.value == "parser_version" and new_row.parser_version == R.PARSER_VERSION
+        s.rollback()
+
+
+def test_full_check_once_a_day_after_0130_ist_repeated_while_batch_full(world):
+    cfg = svc.get_settings().model_copy(update={"order_sections_batch": 1})
+    with world.Session() as s:
+        orders = [_case_order(s)[1] for _ in range(2)]
+        svc.read_batch(s, batch=10)
+        for order in orders:  # both texts change by hand
+            t = s.get(DocumentText, order.document_id)
+            t.full_text = t.full_text.replace("Issue notice", "Issue fresh notice")
+        s.flush()
+        _prev_run(s, {"full_check_on": _ymd(YESTERDAY), "version_clear": R.PARSER_VERSION}, _ist(TODAY, 0, 3))
+        early = svc.run_job(s, cfg=cfg, now=_ist(TODAY, 1, 28))  # before 01:30: yesterday's check stands
+        assert (
+            early["full_check"] == 0 and early["claimed"] == 0 and early["full_check_on"] == _ymd(YESTERDAY)
+        )
+        due = svc.run_job(s, cfg=cfg, now=_ist(TODAY, 1, 33))
+        assert (
+            due["full_check"] == 1 and due["replaced_text_reextracted"] == 1 and due["full_check_found"] == 1
+        )
+        assert due["full_check_on"] == _ymd(YESTERDAY)  # it filled the batch: still due
+        again = svc.run_job(s, cfg=cfg, now=_ist(TODAY, 1, 38))
+        assert again["full_check"] == 1 and again["replaced_text_reextracted"] == 1
+        assert again["full_check_on"] == _ymd(YESTERDAY)
+        done = svc.run_job(s, cfg=cfg, now=_ist(TODAY, 1, 43))
+        assert done["full_check"] == 1 and done["claimed"] == 0 and done["full_check_on"] == _ymd(TODAY)
+        later = svc.run_job(s, cfg=cfg, now=_ist(TODAY, 1, 48))
+        assert later["full_check"] == 0 and later["full_check_on"] == _ymd(TODAY)
+        assert later["full_check_found"] == 0  # the last full check's figure, carried forward
+        st = svc.status(s)
+        assert st["full_check"] == {"last_on": TODAY, "found": 0}
+        # the next day, at 01:33 again
+        assert svc.run_job(s, cfg=cfg, now=_ist(date(2026, 11, 17), 1, 33))["full_check"] == 1
+        s.rollback()
+
+
+def test_full_check_runs_set_4_without_the_gate(world, monkeypatch):
+    with world.Session() as s:
+        _, order = _case_order(s)
+        svc.read_batch(s, batch=10)
+        monkeypatch.setattr(R, "PARSER_VERSION", R.PARSER_VERSION + 1)
+        # a reading left below the version while the gate says clear (written by an older process during a deploy)
+        _prev_run(s, {"full_check_on": _ymd(YESTERDAY), "version_clear": R.PARSER_VERSION}, _ist(TODAY, 0, 3))
+        light = svc.run_job(s, now=_ist(TODAY, 1, 8))
+        assert light["full_check"] == 0 and light["claimed"] == 0
+        full = svc.run_job(s, now=_ist(TODAY, 1, 33))
+        assert full["full_check"] == 1 and full["replaced_parser_version"] == 1
+        assert o.current(s, order).parser_version == R.PARSER_VERSION
+        s.rollback()
+
+
+def test_same_text_reextracted_writes_no_new_row(world):
+    with world.Session() as s:
+        _, order = _case_order(s)
+        svc.read_batch(s, batch=10)
+        s.commit()
+    with world.Session() as s:  # extracted again later with the same characters: a newer `updated_at`
+        s.execute(
+            sa.update(DocumentText)
+            .where(DocumentText.document_id == order.document_id)
+            .values(full_text=DocumentText.full_text, updated_at=sa.func.now() + sa.text("interval '1 hour'"))
+        )
+        s.commit()
+    with world.Session() as s:
+        assert svc.read_batch(s, batch=10, full=True)["claimed"] == 0
+        assert len(o.readings(s, order)) == 1
+
+
+def test_changed_text_committed_after_the_reading_is_found_by_hash(world):
+    """The race of point 3: the extraction's transaction stamps `updated_at` before the reading is written and commits
+    after it, so `updated_at` is older than the reading; the hash still finds the change."""
+    with world.Session() as s:
+        _, order = _case_order(s)
+        s.commit()
+    with world.Session() as extractor, world.Session() as reader:
+        t = extractor.get(DocumentText, order.document_id)
+        t.full_text = t.full_text.replace("Issue notice", "Issue fresh notice")
+        extractor.flush()  # not committed yet
+        assert svc.read_batch(reader, batch=10)["parsed"] == 1  # reads the old text
+        reader.commit()
+        extractor.commit()
+    with world.Session() as s:
+        (old,) = o.readings(s, order)
+        assert s.get(DocumentText, order.document_id).updated_at < old.created_at
+        counters = svc.read_batch(s, batch=10, full=True)
+        assert counters["replaced_text_reextracted"] == 1
+        old_row, new_row = o.readings(s, order)
+        assert (
+            old_row.replace_reason.value == "text_reextracted" and "Issue fresh notice" in new_row.body_text
+        )
+        s.commit()
+
+
+def test_sql_text_hash_equals_python_hash_on_assamese_text_and_form_feeds(world):
+    text = "Page No.# 1/2\nগুৱাহাটী উচ্চ ন্যায়ালয়  — “quoted”\n\fPage No.# 2/2\nমোকৰ্দমা ১২৩/২০২৬\tend"
+    with world.Session() as s:
+        case = make_case(s)
+        order = h.order_with_text(s, case, text)
+        sql = s.scalar(sa.select(svc._text_sha_sql()).where(DocumentText.document_id == order.document_id))
+        assert sql == hashlib.sha256(text.encode("utf-8")).hexdigest()
+        svc.read_batch(s, batch=10)
+        assert o.current(s, order).text_sha256 == sql
+        assert svc.read_batch(s, batch=10, full=True)["claimed"] == 0  # the hash agrees: nothing changed
+        s.rollback()
+
+
+def test_failing_order_retried_only_in_full_check_backfill_and_order_option(world, monkeypatch):
+    calls: list[str] = []
+    real = parse_mod.parse
+
+    def broken(text, **kw):
+        calls.append("parse")
+        raise RuntimeError("reader bug")
+
+    monkeypatch.setattr(parse_mod, "parse", broken)
+    with world.Session() as s:
+        _, order = _case_order(s)
+        _prev_run(s, {"full_check_on": _ymd(TODAY), "version_clear": R.PARSER_VERSION}, _ist(TODAY, 1, 33))
+        assert svc.run_job(s, now=_ist(TODAY, 9, 3))["failed"] == 1  # the first failure
+        for minute in (8, 13, 18):  # light runs: never retried
+            assert svc.run_job(s, now=_ist(TODAY, 9, minute))["claimed"] == 0
+        assert len(calls) == 1
+        nxt = svc.run_job(s, now=_ist(date(2026, 11, 17), 1, 33))  # the next day's full check retries it
+        assert nxt["retried"] == 1 and nxt["failed"] == 1 and len(calls) == 2
+        assert svc.read_batch(s, batch=10, order_id=order.id)["retried"] == 1 and len(calls) == 3
+        monkeypatch.setattr(parse_mod, "parse", real)
+        assert svc.read_batch(s, batch=10, order_id=order.id)["parsed"] == 1
+        s.commit()
+    with world.Session() as s:  # the backfill's full batches retry too
+        _, other = _case_order(s)
+        s.commit()
+    monkeypatch.setattr(parse_mod, "parse", broken)
+    svc.backfill(world.Session, batch=5, pause_ms=0)
+    monkeypatch.setattr(parse_mod, "parse", real)
+    total = svc.backfill(world.Session, batch=5, pause_ms=0)
+    assert total["retried"] == 1 and total["parsed"] == 1
+    del other
+
+
+def test_first_failure_logs_traceback_retries_log_one_line(world, monkeypatch, caplog):
+    def broken(text, **kw):
+        raise RuntimeError("reader bug")
+
+    monkeypatch.setattr(parse_mod, "parse", broken)
+    monkeypatch.setattr(
+        svc.log, "disabled", False
+    )  # alembic's logging setup in the migrated fixture disables it
+    with world.Session() as s:
+        _, order = _case_order(s)
+        with caplog.at_level(logging.WARNING, logger=svc.log.name):
+            svc.read_batch(s, batch=10)
+        (first,) = [r for r in caplog.records if r.name == svc.log.name]
+        assert (
+            first.levelno == logging.ERROR
+            and first.exc_info is not None
+            and str(order.id) in first.getMessage()
+        )
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger=svc.log.name):
+            svc.read_batch(s, batch=10, full=True, retry=True)
+        (again,) = [r for r in caplog.records if r.name == svc.log.name]
+        assert again.levelno == logging.WARNING and again.exc_info is None
+        assert (
+            again.getMessage() == f"order sections: order {order.id} failed again (attempt 2): RuntimeError"
+        )
+        fail = s.scalar(sa.select(SourceFailure).where(SourceFailure.kind == "order_parse"))
+        assert fail.attempts == 2 and fail.resolved_at is None
+        s.rollback()
+
+
+def test_open_failure_resolved_when_the_text_is_gone(world, monkeypatch):
+    def broken(text, **kw):
+        raise RuntimeError("reader bug")
+
+    monkeypatch.setattr(parse_mod, "parse", broken)
+    with world.Session() as s:
+        _, gone = _case_order(s)
+        _, kept = _case_order(s)
+        svc.read_batch(s, batch=10)
+        o.doc_of(s, gone).text_status = TextStatus.FAILED  # its text went
+        s.flush()
+        counters = svc.read_batch(s, batch=10, full=True, retry=True)
+        assert counters["failures_resolved"] == 1 and counters["retried"] == 1
+        open_refs = set(
+            s.scalars(
+                sa.select(SourceFailure.ref).where(
+                    SourceFailure.kind == "order_parse", SourceFailure.resolved_at.is_(None)
+                )
+            )
+        )
+        assert open_refs == {str(kept.id)}
+        assert svc.resolve_stale_failures(s) == 0
+        s.rollback()
+
+
+def test_backfill_light_then_full_and_ends_with_only_failing_orders(world, monkeypatch):
+    real = parse_mod.parse
+
+    def flaky(text, **kw):
+        if "UNREADABLE MARKER" in text:
+            raise RuntimeError("reader bug")
+        return real(text, **kw)
+
+    with world.Session() as s:
+        _case_order(s, body=o.BODY + " UNREADABLE MARKER.")
+        for _ in range(2):
+            _case_order(s)
+        s.commit()
+    phases: list[tuple[bool, bool]] = []
+    real_batch = svc.read_batch
+
+    def spy(sess, **kw):
+        phases.append((kw.get("full", False), kw.get("retry", False)))
+        return real_batch(sess, **kw)
+
+    monkeypatch.setattr(parse_mod, "parse", flaky)
+    monkeypatch.setattr(svc, "read_batch", spy)
+    lines: list[str] = []
+    total = svc.backfill(world.Session, batch=2, pause_ms=0, echo=lines.append)
+    # light: 2 claimed (one fails), 1 read, then nothing; full: the one retry, none read, the end
+    assert phases == [(False, False), (False, False), (False, False), (True, True)], (phases, lines)
+    assert total["parsed"] == 2 and total["failed"] == 2 and total["retried"] == 1
+    with world.Session() as s:
+        st = svc.status(s)
+        assert st["read"] == 2 and st["waiting"] == 0 and st["failed"] == 1
+
+
+def test_src_text_returns_none_when_text_hash_differs(world):
+    with world.Session() as s:
+        _, order = _case_order(s)
+        svc.read_batch(s, batch=10)
+        row = o.current(s, order)
+        full = s.get(DocumentText, order.document_id).full_text
+        span = row.spans["case_no"]
+        assert svc.src_text(row, full, span).startswith("Case No. :")
+        assert svc.text_matches(row, full)
+        changed = full.replace("Issue notice", "Issue fresh notice")
+        assert svc.src_text(row, changed, span) is None and not svc.text_matches(row, changed)
+        assert svc.src_text(row, None, span) is None
+        s.rollback()
+
+
+def test_status_part_timeout_gives_partial_block_and_outer_timeout_restored(world, monkeypatch):
+    real = svc.checks_pass
+
+    def slow(session):
+        session.execute(sa.text("SELECT pg_sleep(2)"))
+        return real(session)
+
+    monkeypatch.setattr(svc, "checks_pass", slow)
+    with world.Session() as s:
+        _case_order(s)
+        svc.read_batch(s, batch=10)
+        with_timeout(s, 30)
+        st = svc.status(s, timeout_s=1, restore_s=30)
+        assert st["timed_out"] == ["checks"] and st["checks"] is None
+        assert st["read"] == 1 and st["by_layout"]["template"] == 1 and st["failed"] == 0
+        # the transaction goes on, under the report timeout again
+        assert s.scalar(sa.text("SHOW statement_timeout")) == "30s"
+        assert s.scalar(sa.text("SELECT 1 FROM pg_sleep(1.2)")) == 1
+        s.rollback()
+
+
+def test_status_counts_and_checks_equal_the_version_1_definitions(world):
+    """On the readings of the fixtures, the single passes give the numbers of the version 1 statements
+    (`check_columns` per check, grouped counts per layout, form and flag)."""
+    with world.Session() as s:
+        case = make_case(s, cnr="GAHC010000112025", case_no="WP(C)/11/2025")
+        h.order_with_text(
+            s,
+            case,
+            o.order_text(cnr="GAHC010000992025", case_no="WP(C)/99/2025", day="27.01.2026", heading="JUDGMENT",
+                         body=o.JUDGMENT_BODY),
+            order_date=D,
+        )  # fmt: skip
+        case_a = make_case(s, cnr="GAHC010000212025", case_no="WP(C)/21/2025")
+        order_a = h.order_with_text(
+            s,
+            case_a,
+            o.order_text(cnr=case_a.cnr, case_no=case_a.case_no_text, linked=["WP(C)/22/2025"]),
+            order_date=D,
+        )
+        o.share_pdf(s, make_case(s, cnr="GAHC010000222025", case_no="WP (C)/22/2025"), order_a)
+        _case_order(s, text=o.order_text(cnr=None, case_no=None, day="x").replace("BEFORE\n", ""))
+        _case_order(s)
+        svc.read_batch(s, batch=50)
+        stmt, cols = svc._check_select()
+        sub = stmt.subquery()
+        v1_checks = dict(
+            zip(
+                svc.CHECKS,
+                s.execute(sa.select(*[sa.func.count().filter(sub.c[n]) for n in svc.CHECKS])).one(),
+            )
+        )
+        p = svc.checks_pass(s)
+        assert {n: p["counts"][n] for n in svc.CHECKS} == v1_checks
+        cur = OrderSection.replaced_at.is_(None)
+        v1_flags = dict.fromkeys(svc.FLAGS, 0)
+        flag = sa.func.unnest(OrderSection.flags).label("flag")
+        fsub = sa.select(flag).where(cur).subquery()
+        for f, n in s.execute(sa.select(fsub.c.flag, sa.func.count()).group_by(fsub.c.flag)).all():
+            v1_flags[f.value if hasattr(f, "value") else f] = n
+        assert {f: p["counts"][f] for f in svc.FLAGS} == v1_flags
+        v1_any = s.scalar(
+            sa.select(sa.func.count())
+            .select_from(sub.join(OrderSection, OrderSection.id == sub.c.section_id))
+            .where(
+                sa.or_(
+                    *[sub.c[n] for n in svc.CHECKS if n != "common_order"],
+                    sa.func.cardinality(OrderSection.flags) > 0,
+                )
+            )
+        )
+        assert p["any"] == v1_any and v1_any >= 2
+        st = svc.status(s)
+        for col, key in ((OrderSection.layout, "by_layout"), (OrderSection.form, "by_form")):
+            got = {k: v for k, v in st[key].items() if v}
+            v1 = {
+                (k.value if hasattr(k, "value") else k): n
+                for k, n in s.execute(sa.select(col, sa.func.count()).where(cur).group_by(col)).all()
+            }
+            assert got == v1, key
+        assert st["flags"] == v1_flags and st["checks"] == v1_checks
+        assert st["read"] == s.scalar(sa.select(sa.func.count()).select_from(OrderSection).where(cur))
+        total, counts, _ = svc.check_rows(s, limit=1)
+        assert total == v1_any and counts == p["counts"]
         s.rollback()

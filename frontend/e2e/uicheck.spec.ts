@@ -1102,6 +1102,15 @@ const STATES: State[] = [
       await region.scrollIntoViewIfNeeded();
     },
   },
+  // design order-sections-review-advisories, decision 15: an order whose text could not be taken from its PDF
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/orders (What the Order Says, text could not be read)`,
+    path: `/cases/${SAMPLE.caseRefPath}/orders`,
+    open: async (page) => {
+      await page.locator("summary", { hasText: "What the Order Says" }).nth(2).click();
+      await page.getByText("Text Could Not Be Read", { exact: true }).waitFor();
+    },
+  },
   {
     name: "system-court-calls",
     path: "/system#calls",

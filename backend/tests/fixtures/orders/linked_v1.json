@@ -1,0 +1,57 @@
+{
+ "interim_template": {
+  "layout": "template",
+  "linked_cases": []
+ },
+ "interim_variants": {
+  "layout": "template",
+  "linked_cases": []
+ },
+ "registrar": {
+  "layout": "template",
+  "linked_cases": []
+ },
+ "final_directions": {
+  "layout": "template",
+  "linked_cases": []
+ },
+ "judgment_parts": {
+  "layout": "template",
+  "linked_cases": []
+ },
+ "common_order": {
+  "layout": "template",
+  "linked_cases": [
+   {
+    "case_no": "WP(C)/YYYY/2023",
+    "src": [
+     407,
+     642
+    ],
+    "title": [
+     437,
+     511
+    ]
+   },
+   {
+    "case_no": null,
+    "src": [
+     644,
+     742
+    ],
+    "title": [
+     658,
+     697
+    ]
+   }
+  ]
+ },
+ "off_template": {
+  "layout": "whole",
+  "linked_cases": []
+ },
+ "leading_blank": {
+  "layout": "template",
+  "linked_cases": []
+ }
+}

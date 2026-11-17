@@ -13,16 +13,18 @@
  * - The cleaned text without the cause title, addresses or advocates, paragraphs as printed, with the next-date
  *   sentence of the order's reading marked; when it is not found, the sentence follows the text as before. Long texts
  *   sit in the kit's `ScrollBox`.
- * - Not read yet: "Not Read Yet"; no text layer: "Scanned, Not Read"; either way the next-date sentence is still shown.
+ * - By the server's `reading_state` (design order-sections-review-advisories, decision 15): not read yet, "Not Read
+ *   Yet"; no text layer, "Scanned, Not Read"; text not taken from the PDF, "Text Could Not Be Read"; text not read into
+ *   parts, "Not Read Into Parts"; every state still shows the next-date sentence. Page links need no client-side
+ *   permission test: a reading is only ever served to a caller who may open the PDF.
  */
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode } from "react";
 
 import { Badge, ErrorBanner, Loading, ScrollBox } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { caseKey, useMe } from "@/lib/api/hooks";
-import type { Order, OrderSections } from "@/lib/api/types";
-import { can } from "@/lib/can";
+import { caseKey } from "@/lib/api/hooks";
+import type { Order, OrderReadingState, OrderSections } from "@/lib/api/types";
 import { labelFor } from "@/lib/displayLabels";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -43,9 +45,8 @@ export function pageUrl(caseRef: string, orderId: string, n: number): string {
   return `${fileUrl(caseRef, orderId, "inline")}#page=${n}`;
 }
 
-function PageLink({ caseRef, orderId, page, what, canView }: { caseRef: string; orderId: string; page?: number | null; what: string; canView: boolean }) {
+function PageLink({ caseRef, orderId, page, what }: { caseRef: string; orderId: string; page?: number | null; what: string }) {
   if (!page) return null;
-  if (!canView) return <span className="muted">{T.os.pageLink(page)}</span>;
   return (
     <a href={pageUrl(caseRef, orderId, page)} target="_blank" rel="noopener noreferrer" aria-label={T.os.openAria(what, page)}>
       {T.os.pageLink(page)}
@@ -88,12 +89,10 @@ function Body({ data }: { data: OrderSections }) {
 }
 
 export function OrderSaysView({ caseRef, order, data }: { caseRef: string; order: Order; data: OrderSections }) {
-  const me = useMe();
-  const canView = can(me.data, "documents.view");
   const decided = data.form === "judgment" || data.form === "final";
   const compliance = data.directions.filter((d) => d.kind === "compliance");
   const link = (page: number | null | undefined, what: string) => (
-    <PageLink caseRef={caseRef} orderId={order.id} page={page} what={what} canView={canView} />
+    <PageLink caseRef={caseRef} orderId={order.id} page={page} what={what} />
   );
   return (
     <div className={s.orderSays} role="region" aria-label={T.os.regionLabel}>
@@ -173,7 +172,7 @@ export function OrderSaysView({ caseRef, order, data }: { caseRef: string; order
                   const name = labelFor(T.os.parts, p.part);
                   return (
                     <Fragment key={i}>
-                      {canView && p.page ? (
+                      {p.page ? (
                         <a href={pageUrl(caseRef, order.id, p.page)} target="_blank" rel="noopener noreferrer" aria-label={T.os.openAria(name, p.page)}>
                           {name}
                         </a>
@@ -198,15 +197,35 @@ export function OrderSaysView({ caseRef, order, data }: { caseRef: string; order
   );
 }
 
+/** The states shown in words: an order with a stored PDF the caller may open and no reading. */
+export type NotReadState = Exclude<OrderReadingState, "read" | "withheld">;
+
+const NOT_READ: Record<NotReadState, { title: string; note: string }> = {
+  not_read_yet: { title: T.os.notReadTitle, note: T.os.notReadNote },
+  scanned: { title: T.os.scannedTitle, note: T.os.scannedNote },
+  text_failed: { title: T.os.textFailedTitle, note: T.os.textFailedNote },
+  reading_failed: { title: T.os.readingFailedTitle, note: T.os.readingFailedNote },
+};
+
 /** Not read (yet, or ever): the state in words, then the order's next-date sentence as before. */
-export function OrderNotRead({ scanned, phrase }: { scanned: boolean; phrase?: string | null }) {
+export function OrderNotRead({ state, phrase }: { state: NotReadState; phrase?: string | null }) {
+  const words = NOT_READ[state] ?? NOT_READ.not_read_yet;
   return (
     <div className={s.orderSays}>
-      <strong>{scanned ? T.os.scannedTitle : T.os.notReadTitle}</strong>
-      <p className="muted">{scanned ? T.os.scannedNote : T.os.notReadNote}</p>
+      <strong>{words.title}</strong>
+      <p className="muted">{words.note}</p>
       {phrase ? <p>{T.nd.quoted(phrase)}</p> : null}
     </div>
   );
+}
+
+/** The state of a 404 `no_reading`: the server's `reading_state`, else read from its `text_status`. */
+function notReadState(extra: Record<string, unknown>): NotReadState {
+  const named = extra.reading_state;
+  if (typeof named === "string" && named in NOT_READ) return named as NotReadState;
+  if (extra.text_status === "none") return "scanned";
+  if (extra.text_status === "failed") return "text_failed";
+  return "not_read_yet";
 }
 
 export function OrderSays({ caseRef, order }: { caseRef: string; order: Order }) {
@@ -218,7 +237,7 @@ export function OrderSays({ caseRef, order }: { caseRef: string; order: Order })
   if (q.isPending) return <Loading />;
   if (q.error) {
     if (q.error instanceof ApiError && q.error.code === "no_reading") {
-      return <OrderNotRead scanned={q.error.extra.text_status === "none"} phrase={order.next_date_phrase} />;
+      return <OrderNotRead state={notReadState(q.error.extra)} phrase={order.next_date_phrase} />;
     }
     return <ErrorBanner error={q.error} onRetry={() => q.refetch()} />;
   }

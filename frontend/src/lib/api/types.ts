@@ -111,6 +111,8 @@ export type Order = S["OrderOut"];
 /** Design order-sections: an order's reading by rules (the list's brief and "What the Order Says"). */
 export type OrderReadingBrief = S["OrderReadingBrief"];
 export type OrderSections = S["OrderSectionsOut"];
+/** Design order-sections-review-advisories, decision 15: the reading state the server names for each order. */
+export type OrderReadingState = NonNullable<Order["reading_state"]>;
 export type ListingList = S["ListingListOut"];
 export type Listing = S["ListingOut"];
 export type LinkList = S["LinkListOut"];

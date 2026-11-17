@@ -133,6 +133,10 @@ export const NOT_SHOWN: Record<string, string> = {
   "OrderSectionsOut.form": "Chooses the Judgment or Final Order badge of What the Order Says",
   "OrderReadingBrief.layout": "Chooses the off-layout notice, a sentence of its own",
   "OrderSectionsOut.layout": "Chooses the off-layout notice, a sentence of its own",
+  // design order-sections-review-advisories, decision 15: the state chooses the title and note of What the Order Says
+  "OrderOut.reading_state": "Chooses the title and note of What the Order Says (Not Read Yet, Text Could Not Be Read and so on)",
+  // decision 12: the parts left out choose one muted line, never shown as words of their own
+  "OrderSectionsStatusOut.timed_out": "Chooses the muted line that some counts took too long",
   OrderLayout: "Chooses the off-layout notice, a sentence of its own",
   "OrderDirectionOut.kind": "Filters the directions shown (compliance only); never printed",
   "OrderActOut.kind": "Chooses the Section, Article or Rule word of the provisions line",

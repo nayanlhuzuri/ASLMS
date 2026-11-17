@@ -1333,9 +1333,11 @@ function dataGaps(url: URL): unknown {
   return { ...base, kind, total: items.length, counts, items };
 }
 
-/** The Orders tab's two readings (design order-sections, decision 19): an interim order and a judgment. */
+/** The Orders tab's two readings (design order-sections, decision 19): an interim order and a judgment; and an order
+ * whose text could not be taken from its PDF (design order-sections-review-advisories, decision 15). */
 const ORDER_INTERIM = "0192a3b4-0000-7000-8000-0000000006s1";
 const ORDER_JUDGMENT = "0192a3b4-0000-7000-8000-0000000006s2";
+const ORDER_TEXT_FAILED = "0192a3b4-0000-7000-8000-0000000006s3";
 const READ_BRIEF = {
   layout: "template" as const,
   form: "interim" as const,
@@ -1354,7 +1356,15 @@ function caseOrders(): S["OrderListOut"] {
   const first = base.items[0]!;
   const stored = { download_status: "stored", text_status: "extracted", document_id: "0192a3b4-0000-7000-8000-0000000006d1" };
   const items = [
-    { ...first, ...stored, id: ORDER_INTERIM, kind: "interim", next_date_phrase: "List this matter on 04.03.2026.", reading: READ_BRIEF },
+    {
+      ...first,
+      ...stored,
+      id: ORDER_INTERIM,
+      kind: "interim",
+      next_date_phrase: "List this matter on 04.03.2026.",
+      reading: READ_BRIEF,
+      reading_state: "read" as const,
+    },
     {
       ...first,
       ...stored,
@@ -1370,6 +1380,17 @@ function caseOrders(): S["OrderListOut"] {
         parts: ["opening", "facts", "petitioner_submissions", "respondent_submissions", "reasoning", "conclusion"],
         has_compliance_directions: true,
       },
+      reading_state: "read" as const,
+    },
+    {
+      ...first,
+      ...stored,
+      id: ORDER_TEXT_FAILED,
+      kind: "interim",
+      text_status: "failed",
+      next_date_phrase: "List after two weeks.",
+      reading: null,
+      reading_state: "text_failed" as const,
     },
   ];
   return { ...base, items, total: items.length };

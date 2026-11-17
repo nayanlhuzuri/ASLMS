@@ -719,7 +719,9 @@ function printedLine(v: GapOrderCheck["printed"]): string {
 /**
  * Order Reading Checks (design order-sections, decision 21): the counts by check and the readings whose printed CNR,
  * case number or dates differ from what ASLMS holds, or whose text carries a flag. Read only: nothing is fixed from
- * here, and no body or title text is shown.
+ * here, and no body or title text is shown. The "orders read" line only when both figures came back; when a part of
+ * the readings' block took too long (`timed_out`), one muted line says so (design order-sections-review-advisories,
+ * decision 12).
  */
 function OrderChecksGap({ query, offset, onPage }: { query: GapsQuery; offset: number; onPage: (o: number) => void }) {
   const items = (query.data?.items ?? []) as GapOrderCheck[];
@@ -730,7 +732,10 @@ function OrderChecksGap({ query, offset, onPage }: { query: GapsQuery; offset: n
     <div className="stack">
       <h3>{T.pf.withCount(T.pf.orderChecksTitle, n(total))}</h3>
       <p className={ds.line}>{T.pf.orderChecksNote}</p>
-      {block ? <p className={ds.line}>{T.pf.orderChecksCounted(n(block.read), n(block.waiting))}</p> : null}
+      {block && block.read != null && block.waiting != null ? (
+        <p className={ds.line}>{T.pf.orderChecksCounted(n(block.read), n(block.waiting))}</p>
+      ) : null}
+      {block && block.timed_out?.length ? <p className="muted">{T.pf.orderChecksTimedOut}</p> : null}
       <ErrorBanner error={query.error} onRetry={() => query.refetch()} />
       {query.isPending ? <Loading /> : null}
       {counts.length ? (

@@ -51,5 +51,21 @@ def test_cli_help_lists_orders_and_its_commands():
         assert command in out
     code, out = _help("orders", "parse")
     assert code == 0
-    for option in ("--backfill", "--order", "--limit", "--batch", "--pause-ms", "--dry-run"):
+    for option in ("--backfill", "--full", "--order", "--limit", "--batch", "--pause-ms", "--dry-run"):
         assert option in out
+
+
+def test_status_timeout_setting_default_and_bounds():
+    """Design `order-sections-review-advisories`, decision 12: `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS`, 10 (1 to 60)."""
+    assert Settings(_env_file=None).order_sections_status_timeout_seconds == 10
+    for bad in (0, 61):
+        with pytest.raises(ValueError):
+            Settings(_env_file=None, order_sections_status_timeout_seconds=bad)
+
+
+def test_full_check_constants():
+    from datetime import time
+
+    from aslms.services import order_sections
+
+    assert order_sections.FULL_CHECK_IST == time(1, 30) and order_sections.HASH_PAGE == 20_000

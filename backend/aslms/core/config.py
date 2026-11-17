@@ -226,6 +226,9 @@ class Settings(BaseSettings):
 
     # --- order sections (design order-sections, decision 23): orders read per 5-minute `order-sections` run -------
     order_sections_batch: int = Field(500, ge=1, le=5000)
+    # each part of the readings' data-health block (counts, checks) runs under this statement timeout; a part that
+    # runs out of time is left out and named (design order-sections-review-advisories, decision 12)
+    order_sections_status_timeout_seconds: int = Field(10, ge=1, le=60)
 
     # --- court data freshness (design court-data-freshness, decisions 3, 8, 14 and 19) ------------------
     # disposed cases: a dossier refresh every EVERY_DAYS for DAYS after disposal, at most DAILY_MAX a night (0 = off)

@@ -534,7 +534,13 @@ def snapshot(
         "sourcetrace": sourcetrace_ingest.status(session, settings),
         "failures": failures(session),
         "documents_text": documents_text(session),
-        "order_sections": order_sections.status(session),
+        # each part isolated under its own timeout: a slow part is left out, never a 500 (design
+        # order-sections-review-advisories, decision 12)
+        "order_sections": order_sections.status(
+            session,
+            timeout_s=settings.order_sections_status_timeout_seconds,
+            restore_s=settings.report_statement_timeout_seconds,
+        ),
         "retention": retention(session, settings, now),
     }
 

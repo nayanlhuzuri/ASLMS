@@ -1660,8 +1660,16 @@ class OrderOut(BaseModel):
     next_date_phrase: str | None = None
     reading: OrderReadingBrief | None = Field(
         None,
-        description="the order's reading by rules (design order-sections, decision 20); null when not read yet, or "
-        "when the caller may not open the order's PDF",
+        description="the order's reading by rules (design order-sections, decision 20); null unless `reading_state` "
+        "is `read`",
+    )
+    reading_state: (
+        Literal["read", "not_read_yet", "scanned", "text_failed", "reading_failed", "withheld"] | None
+    ) = Field(
+        None,
+        description="the reading's state as the caller may know it (design order-sections-review-advisories, "
+        "decision 15): `withheld` when the caller may not open the order's PDF (decided first); null when the "
+        "order has no stored PDF",
     )
 
 
@@ -3387,23 +3395,35 @@ class OrderSectionsRunOut(BaseModel):
     counters: dict[str, int]
 
 
+class OrderSectionsFullCheckOut(BaseModel):
+    """The job's daily full check (design order-sections-review-advisories, decisions 6 and 7)."""
+
+    last_on: date | None = None
+    found: int | None = None
+
+
 class OrderSectionsStatusOut(BaseModel):
-    """Design order-sections, decision 21: the readings of court orders by rules, counts only."""
+    """Design order-sections, decision 21: the readings of court orders by rules, counts only. The `counts` fields
+    and `checks` are null when their part ran out of time, named in `timed_out` (design
+    order-sections-review-advisories, decision 12); `waiting` counts new orders and readings below the parser
+    version."""
 
     parser_version: int
-    orders_with_text: int
-    read: int
-    waiting: int
+    orders_with_text: int | None = None
+    read: int | None = None
+    waiting: int | None = None
     failed: int
-    by_layout: dict[str, int]
-    by_form: dict[str, int]
-    procedural: int
-    registrar: int
-    with_outcome: int
-    with_directions: int
-    distinct_bodies: int
-    flags: dict[str, int]
-    checks: dict[str, int]
+    by_layout: dict[str, int] | None = None
+    by_form: dict[str, int] | None = None
+    procedural: int | None = None
+    registrar: int | None = None
+    with_outcome: int | None = None
+    with_directions: int | None = None
+    distinct_bodies: int | None = None
+    flags: dict[str, int] | None = None
+    checks: dict[str, int] | None = None
+    timed_out: list[Literal["counts", "checks"]] = Field(default_factory=list)
+    full_check: OrderSectionsFullCheckOut = Field(default_factory=OrderSectionsFullCheckOut)
     last_run: OrderSectionsRunOut | None = None
 
 

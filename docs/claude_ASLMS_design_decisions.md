@@ -4048,3 +4048,54 @@ yet merged or deployed.
 ## Design approvals (16 Nov 2026)
 
 - 2026-11-16 — order-sections-review-advisories (row 264): approved by the owner (docs/design/order-sections-review-advisories.md) with its four confirmations: (a) decision 17 changes decision 25 of row 250, so the unmasked source order of Annexure E is never named by CNR or case number in the repository, the masked fixture being the named source; (b) decision 6, a changed text is re-read within a day by the 01:30 IST full check, not within 5 minutes; (c) decision 15, the new Orders tab labels "Text Could Not Be Read" and "Not Read Into Parts"; (d) Verification 2, rows 250 and 264 deployed together with one backfill at parser version 2 when this row is ready in time, otherwise row 250 alone first. No migration.
+
+## Order sections review advisories: version 2 rules, a daily full check, isolated status, reading states (2026-11-17)
+Row 264 `order-sections-review-advisories`, branch `feature/order-sections-review-advisories`, design
+`docs/design/order-sections-review-advisories.md` (approved by the owner on 16 Nov 2026 with its four confirmations).
+These are the eight review advisories of row 250, built before row 258 as the owner decided on 16 Nov 2026. No
+migration, no new table, column or index. Tests and review passed on the branch; not yet merged or deployed.
+
+**What was built**
+- **Parser version 2** (`order_parse.py`, `order_parse_rules.py`): the last `Linked Case :` block of a reading with no
+  coram ends at a heading, a judgment-date line or a coram marker, else at the end of its advocates run, else (past
+  `LINKED_BLOCK_MAX_LINES`) is cut to its own line with no title. A page before the first printed marker is counted
+  back by the form feeds between it and that marker, never below 1. Template readings keep the same linked spans as
+  version 1 (a test on the fixtures). Every order is read again at the deploy; the version 1 rows stay as replaced.
+- **The 5-minute job** (`order_sections.py`): each run takes only new orders (set 1) and readings below the parser
+  version (set 4, skipped while the previous run's counter `version_clear` equals the version). One full check a day,
+  in the first run at or after 01:30 IST, takes changed documents, changed texts, texts gone and the retries of failed
+  readings. A changed text is found by the SHA-256 of `document_text.full_text` computed in SQL, in keyset pages of
+  20,000 readings, not by timestamps. The gates travel in the `job_runs` counters (`version_clear`, `full_check_on`,
+  `full_check`, `full_check_found`, `failures_resolved`). `aslms orders parse --full` runs a full check at once.
+  An order that keeps failing logs its traceback once and one warning line a day after; a failure whose text has gone
+  is resolved by the full check. `order_sections.src_text` returns a `src` span only when the text's hash still equals
+  the reading's `text_sha256`; `aslms orders show` says so on a mismatch.
+- **Data health isolated:** the order block is three parts (small indexed reads, `counts`, `checks`), each in a
+  savepoint under `SET LOCAL statement_timeout` of `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS` (new, default 10, 1 to 60,
+  in `.env.example`); a part that runs out of time is null and named in `timed_out`, so `GET /admin/data-health` always
+  answers 200. `kind=order_checks` computes the checks once. The helper is `reporting_common.isolated`.
+- **Reading states:** each `OrderOut` carries `reading_state` (`read`, `not_read_yet`, `scanned`, `text_failed`,
+  `reading_failed`, `withheld`, or null with no stored PDF), decided on the server with the document rule first; the
+  404 `no_reading` carries it too. The Orders tab shows "Not Read Yet", "Scanned, Not Read", "Text Could Not Be Read",
+  "Not Read Into Parts", or the court's next-date sentence alone when withheld. Tests deny the document rule for real
+  (one login, two memberships) on the list and the sections route.
+- **Measurements** appended to `docs/design/order-sections.md` (citations per reporter over 266,824 orders, 260,177
+  `template` and 6,647 `whole`, 5.2 s of parsing per 1,000 orders; linked blocks; pages; hashing 219,018 texts in 0.7 s).
+
+**Decisions and deviations (design "Deviations", 1 to 13)**
+- `LINKED_BLOCK_MAX_LINES` is 6,980, not 40: the longest coram-bounded linked block of a template reading has 6,971
+  non-blank lines, and a cap of 40 would have cut 9 of the 13 affected `whole` orders for a long cause title.
+- The check sub-select is fenced with `OFFSET 0`, not `LATERAL` (SQLAlchemy cannot compile it); same once-per-row cost.
+- The gates are read from the latest finished run, so an overlapping run cannot start a second full check; a batch of
+  failing orders alone does not keep the full check due.
+- `aslms orders parse --full` writes no `job_runs` row, so it does not move the 01:30 check.
+- Annexure E's source is the masked fixture `final_directions.txt`; the unmasked order is never named by CNR or case
+  number (owner's confirmation (a): a change to decision 25 of row 250).
+- A changed text is re-read within a day, not within 5 minutes (owner's confirmation (b)).
+
+**Left for later**
+- The table size and the timings of the design's decision 14 need the deployed table (the dev database is at 0037);
+  the integrator records them after the backfill and `schema.md` keeps its size estimate until then (row 265).
+- Rows 250 and 264 deploy together with one backfill at version 2 if this merges in time, otherwise row 250 alone
+  first (owner's confirmation (d)). Contents page numbers of the two Word guides were not checked on a rendered copy
+  (no PDF renderer; row 255). Row 258 `state-insights` reads the linked spans and the cause-title span next.

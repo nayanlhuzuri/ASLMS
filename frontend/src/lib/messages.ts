@@ -3414,6 +3414,7 @@ export const T = {
     } as Record<string, string>,
     orderCheckCols: { case: "Case", order: "Order", what: "What Differs", printed: "Printed", held: "Held" },
     orderChecksCounted: (read: string, waiting: string) => `${read} orders read, ${waiting} waiting.`,
+    orderChecksTimedOut: "Some counts took too long and are not shown. Try again in a moment.",
     cols: {
       when: "When",
       what: "What",
@@ -3940,6 +3941,10 @@ export const T = {
     notReadNote: "This order has not been read into its parts yet. New orders are read every few minutes.",
     scannedTitle: "Scanned, Not Read",
     scannedNote: "This order is a scanned copy with no text in it, so it could not be read.",
+    textFailedTitle: "Text Could Not Be Read",
+    textFailedNote: "The text of this order could not be taken from its PDF.",
+    readingFailedTitle: "Not Read Into Parts",
+    readingFailedNote: "This order's text could not be read into its parts; it is listed for the administrators.",
     offTemplateNote: "This order does not follow the usual layout; shown as printed.",
     badges: {
       procedural: "Procedural",

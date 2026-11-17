@@ -594,3 +594,42 @@ None. Every point has a decision above. The owner confirms or changes these with
 - **decision 15**: the two new plain-words states on the Orders tab, "Text Could Not Be Read" and "Not Read Into
   Parts".
 - **Verification 2**: whether to deploy row 250 together with this row (one backfill) or separately (two re-reads).
+
+## Deviations
+Written by the developer, 16 Nov 2026.
+
+1. **`LINKED_BLOCK_MAX_LINES` is 6,980.** Decision 3's rule (at or above the longest coram-bounded block, rounded up
+   to a multiple of 10) on the dev data gives 6,980: the longest last linked block of a template reading has 6,971
+   non-blank lines (median 35, p99 747). The cap therefore only stops a block that never ends; a cap of 40 would have
+   cut 9 of the 13 affected orders for a long cause title. The measurements are in row 250's note, "Measurements".
+2. **The check sub-select is fenced, not `LATERAL`.** The raw CNR and case-number mismatches and the common-order test
+   are computed once per row in a sub-select over the current readings with `OFFSET 0` (which the planner never
+   inlines), and the counts and the page read its columns. SQLAlchemy cannot compile a `LATERAL` select without a
+   `FROM` of its own, and the fence gives the same "once per row".
+3. **The full check is complete unless non-retry candidates filled the batch.** "A full check whose candidates filled
+   the batch leaves the check due" counts the claimed orders less the retries, so a batch of failing orders alone does
+   not keep the full check (and its scans) running every 5 minutes; the failing orders left over are retried the next
+   day.
+4. **Gates from the latest finished run.** `run_job` reads the counters of the latest run of the job that is not
+   `running`: a run still going has no counters yet, and reading it would make an overlapping run start a second full
+   check. A failed run still leaves no counters, so the next run starts with no gates, as decision 7 says.
+5. **`full_check_found` is carried forward.** A light run writes the last full check's figure forward under the same
+   key, so `status().full_check.found` reads the latest row only (one indexed row).
+6. **`candidates` keywords.** Beside `full` and `retry`, `candidates` takes `version_gate` (set 4 skipped) and `info`
+   (it fills `set4_short` and `full_found`), which `read_batch` turns into the counters of decision 7.
+7. **Set 3's pages.** Each keyset page is two statements: the page's last reading id (an index walk), then the one
+   hashing statement for the readings up to it, so each statement hashes at most 20,000 texts.
+8. **`waiting`'s set 4 count.** The one pass over the current readings counts set 4 as the readings below
+   `PARSER_VERSION` whose order's document is a court order with `text_status = extracted` and no open failure; it
+   joins `orders` and `documents` but not `document_text`, so the pass reads no text.
+9. **Logging.** A part of the status block left out by its timeout logs one warning line. When several orders share a
+   text that fails, the first order's first failure logs the traceback and the others one line each.
+10. **`aslms orders parse --full` writes no `job_runs` row**, as `parse` without `--backfill` writes none, so it does
+    not move the next 01:30 check.
+11. **Page links in "What the Order Says"** no longer test `documents.view` in the portal either: a reading is served
+    only to a caller who may open the PDF.
+12. **Measurements left to the deploy.** The dev database is at 0037 (row 250's 0038 is not applied there), so the
+    table size, the times of decision 14 and the full check's time with the join to the readings are recorded by the
+    integrator after the backfill (row 250's note, "Measurements"); `schema.md` keeps its size estimate until then.
+13. **Documentation left to the scribe** (decision 18): the decisions log, runbook section 25 and the Software
+    Documentation (Annexure E's "version 2 here", section 6.5, version 1.10).
