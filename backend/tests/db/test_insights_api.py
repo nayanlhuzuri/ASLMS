@@ -189,7 +189,7 @@ def test_title_names_endpoints(api, world):
 
 
 def test_openapi_names(api):
-    spec = api.get("/openapi.json").json()
+    spec = api.app.openapi()  # /openapi.json is 404 outside dev
     for path in (
         "/insights",
         "/insights/scopes",
