@@ -40,7 +40,8 @@ DELEGABLE_ROLES = frozenset(
 )
 # State-wide types (no department of their own) and the types that never act as a department's officer
 NOT_OFFICERS = frozenset({Role.SUPER_ADMIN, Role.STATE_OVERSIGHT, Role.AUDITOR, Role.CENTRAL_OPERATOR})
-RESERVED_FUNCTIONS = frozenset({Permission.ADMIN_TICKETS})
+# design state-insights, decision 14: Insights Groups is the Super Administrator's alone, as admin.tickets
+RESERVED_FUNCTIONS = frozenset({Permission.ADMIN_TICKETS, Permission.ADMIN_INSIGHTS_GROUPS})
 # retired functions (design custody-workflow, decision 22): nobody holds them, the super admin included
 ACTIVE_FUNCTIONS = frozenset(Permission) - RETIRED_PERMISSIONS
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})

@@ -258,6 +258,12 @@ class Permission(enum.StrEnum):
     # closing and reopening a case (design close-case, decision 2; appended so earlier sort orders stay)
     CASES_CLOSE = "cases.close"
     CASES_REOPEN = "cases.reopen"
+    # State Insights (design state-insights, decision 17; appended so earlier sort orders stay)
+    INSIGHTS_STATE = "insights.state"
+    INSIGHTS_DEPARTMENT = "insights.department"
+    ADMIN_INSIGHTS_GROUPS = (
+        "admin.insights_groups"  # reserved: the super admin's Insights Groups, never granted
+    )
 
     @property
     def module(self) -> str:

@@ -909,6 +909,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/insights/case-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Case Types */
+        get: operations["list_case_types_admin_insights_case_types_get"];
+        /**
+         * Put Case Types
+         * @description A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other).
+         */
+        put: operations["put_case_types_admin_insights_case_types_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/insights/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Categories */
+        get: operations["list_categories_admin_insights_categories_get"];
+        /**
+         * Put Categories
+         * @description A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes
+         *     effect at once.
+         */
+        put: operations["put_categories_admin_insights_categories_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/insights/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Groups
+         * @description The groups of one kind in their order, with their categories or case types and case counts.
+         */
+        get: operations["list_groups_admin_insights_groups_get"];
+        put?: never;
+        /**
+         * Create Group
+         * @description A new group (never reserved); 409 `code_taken` / `label_taken`; audited `insights.group_created`.
+         */
+        post: operations["create_group_admin_insights_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/insights/groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Group
+         * @description Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`); audited
+         *     `insights.group_updated`.
+         */
+        patch: operations["patch_group_admin_insights_groups__group_id__patch"];
+        trace?: never;
+    };
     "/admin/keywords": {
         parameters: {
             query?: never;
@@ -2042,6 +2130,101 @@ export interface paths {
         put?: never;
         /** Withdraw */
         post: operations["withdraw_admin_tickets__ref__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/title-names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Title Names */
+        get: operations["list_title_names_admin_title_names_get"];
+        put?: never;
+        /**
+         * Create Title Name
+         * @description Maps a printed department name (normalised by the server) to an office in the caller's subtree; 409
+         *     `phrase_taken`, 400 `bad_phrase`; audited `title_name.create`.
+         */
+        post: operations["create_title_name_admin_title_names_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/title-names/unmapped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unmapped Title Names
+         * @description Phrases read from cause titles and respondent names that no mapping and no automatic match on a department's
+         *     name names, most cases first, counted over the cases the caller may see only (100 a page). Nothing is mapped
+         *     automatically.
+         */
+        get: operations["unmapped_title_names_admin_title_names_unmapped_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/title-names/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Title Name */
+        patch: operations["patch_title_name_admin_title_names__rule_id__patch"];
+        trace?: never;
+    };
+    "/admin/title-names/{rule_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Title Name */
+        post: operations["deactivate_title_name_admin_title_names__rule_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/title-names/{rule_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate Title Name */
+        post: operations["reactivate_title_name_admin_title_names__rule_id__reactivate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4238,6 +4421,110 @@ export interface paths {
          * @description Transfers in (`to` the department) or out (`from` it), newest first.
          */
         get: operations["transfers_inbox_transfers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Overview
+         * @description The headline figures, every chart and the accountability section; each chart counts with every filter except
+         *     its own dimension (decision 22). Writes nothing.
+         */
+        get: operations["overview_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cases
+         * @description 20 cases a page of the filtered selection, with who has each case (decision 26). Writes nothing.
+         */
+        get: operations["cases_insights_cases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export
+         * @description The filtered list as Excel (up to INSIGHTS_XLSX_MAX_ROWS) or PDF (up to INSIGHTS_PDF_MAX_ROWS), only cases of
+         *     the scope the viewer may open; audited `insights.exported` after the file is built.
+         */
+        get: operations["export_insights_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fields
+         * @description The export field registry: the owner's 33 numbered fields in four groups, the defaults marked, then
+         *     Applications Pending.
+         */
+        get: operations["fields_insights_fields_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scopes
+         * @description Whether the State view is open (a State-wide membership holding View State Insights), the departments of the
+         *     switch and the default view.
+         */
+        get: operations["scopes_insights_scopes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8461,6 +8748,7 @@ export interface components {
             documents_text: components["schemas"]["DocumentsTextOut"];
             /** Failures */
             failures: components["schemas"]["FailureKindOut"][];
+            insights?: components["schemas"]["InsightsStatusOut"] | null;
             /** Jobs */
             jobs: components["schemas"]["JobRunOut"][];
             mail: components["schemas"]["MailOutboxOut"];
@@ -9993,6 +10281,527 @@ export interface components {
              * @default false
              */
             whole_department: boolean;
+        };
+        /** InsightCaseTypeChangeIn */
+        InsightCaseTypeChangeIn: {
+            /**
+             * Case Type Id
+             * Format: uuid
+             */
+            case_type_id: string;
+            /** Group */
+            group?: string | null;
+        };
+        /** InsightCaseTypeOut */
+        InsightCaseTypeOut: {
+            /**
+             * Cases
+             * @default 0
+             */
+            cases: number;
+            /** Code */
+            code: number;
+            /** Full Name */
+            full_name?: string | null;
+            /** Group */
+            group: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+        };
+        /** InsightCaseTypesIn */
+        InsightCaseTypesIn: {
+            /** Changes */
+            changes: components["schemas"]["InsightCaseTypeChangeIn"][];
+        };
+        /** InsightCategoriesIn */
+        InsightCategoriesIn: {
+            /** Changes */
+            changes: components["schemas"]["InsightCategoryChangeIn"][];
+        };
+        /** InsightCategoryChangeIn */
+        InsightCategoryChangeIn: {
+            /** Code */
+            code: number;
+            /** Group */
+            group?: string | null;
+        };
+        /** InsightCategoryOut */
+        InsightCategoryOut: {
+            /**
+             * Cases
+             * @default 0
+             */
+            cases: number;
+            /** Code */
+            code: number;
+            /** Group */
+            group?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+        };
+        /** InsightGroupIn */
+        InsightGroupIn: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** InsightGroupOut */
+        InsightGroupOut: {
+            /**
+             * Cases
+             * @default 0
+             */
+            cases: number;
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Reserved */
+            is_reserved: boolean;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Members
+             * @default 0
+             */
+            members: number;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** InsightGroupPatchIn */
+        InsightGroupPatchIn: {
+            /** Description */
+            description?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** InsightsAccountabilityOut */
+        InsightsAccountabilityOut: {
+            /** Action */
+            action: components["schemas"]["InsightsBucketOut"][];
+            /** Compliance */
+            compliance: components["schemas"]["InsightsComplianceOut"][];
+            /** Holders */
+            holders: components["schemas"]["InsightsHolderOut"][];
+            /** Scorecard */
+            scorecard?: components["schemas"]["InsightsScorecardOut"][] | null;
+        };
+        /** InsightsBandOut */
+        InsightsBandOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** InsightsBandsOut */
+        InsightsBandsOut: {
+            /** Claimed */
+            claimed: number;
+            /** Likely */
+            likely: number;
+            /** Named */
+            named: number;
+        };
+        /** InsightsBucketOut */
+        InsightsBucketOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** InsightsCaseItemOut */
+        InsightsCaseItemOut: {
+            /** Applications Pending */
+            applications_pending?: number | null;
+            case: components["schemas"]["InsightsCaseRefOut"];
+            /** Departments Named */
+            departments_named: components["schemas"]["OfficeRefOut"][];
+            /** Disposal Date */
+            disposal_date?: string | null;
+            kind: components["schemas"]["InsightsKindOut"];
+            next_hearing: components["schemas"]["InsightsNextHearingOut"];
+            /** Phrases Unmapped */
+            phrases_unmapped: string[];
+            /** State Basis */
+            state_basis: string[];
+            /** State Case */
+            state_case: boolean;
+            /** Status */
+            status: string;
+            who: components["schemas"]["InsightsWhoOut"];
+        };
+        /** InsightsCaseRefOut */
+        InsightsCaseRefOut: {
+            /** Case No */
+            case_no?: string | null;
+            /** Cnr */
+            cnr?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ref No */
+            ref_no: string;
+        };
+        /** InsightsCasesOut */
+        InsightsCasesOut: {
+            /** Items */
+            items: components["schemas"]["InsightsCaseItemOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Sort */
+            sort: string;
+            /** Total */
+            total: number;
+        };
+        /** InsightsChipOut */
+        InsightsChipOut: {
+            /** Label */
+            label: string;
+            /** Param */
+            param: string;
+            /** Value */
+            value: string;
+        };
+        /** InsightsComplianceOut */
+        InsightsComplianceOut: {
+            /** Code */
+            code: string;
+            /** Due Soon */
+            due_soon: number;
+            /** Name */
+            name: string;
+            /** Overdue */
+            overdue: number;
+        };
+        /**
+         * InsightsCoverageOut
+         * @description Decision 4: what the counts cover; `facts_waiting` cases are counted with empty readings.
+         */
+        InsightsCoverageOut: {
+            /** Court */
+            court: string;
+            /** Facts Built At */
+            facts_built_at?: string | null;
+            /** Facts Waiting */
+            facts_waiting: number;
+            /** Line */
+            line: string;
+            /** Listed Since */
+            listed_since?: string | null;
+        };
+        /**
+         * InsightsDepartmentOut
+         * @description Decision 21: three bands side by side, never added together.
+         */
+        InsightsDepartmentOut: {
+            /** Claimed */
+            claimed: number;
+            /** Code */
+            code: string;
+            /** Likely */
+            likely: number;
+            /** Name */
+            name: string;
+            /** Named */
+            named: number;
+        };
+        /** InsightsFieldOut */
+        InsightsFieldOut: {
+            /** Default */
+            default: boolean;
+            /** Excel Only */
+            excel_only: boolean;
+            /** Group */
+            group: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Number */
+            number?: number | null;
+        };
+        /** InsightsHeadlineOut */
+        InsightsHeadlineOut: {
+            /** Applications Inside */
+            applications_inside: number;
+            /** Applications Main Not Held */
+            applications_main_not_held: number;
+            /** Cases */
+            cases: number;
+            /** Contempt */
+            contempt: number;
+            /** Hearing 7 Days */
+            hearing_7_days: number;
+            /** Not Claimed */
+            not_claimed: number;
+            /** Over 5 Years */
+            over_5_years: number;
+            /** State Cases */
+            state_cases: number;
+        };
+        /** InsightsHolderOut */
+        InsightsHolderOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Overdue */
+            overdue: number;
+        };
+        /** InsightsKindByAgeOut */
+        InsightsKindByAgeOut: {
+            /** Bands */
+            bands: components["schemas"]["InsightsBandOut"][];
+            /** Rows */
+            rows: components["schemas"]["InsightsKindRowOut"][];
+        };
+        /** InsightsKindOut */
+        InsightsKindOut: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+        };
+        /** InsightsKindRowOut */
+        InsightsKindRowOut: {
+            /** By Age */
+            by_age: {
+                [key: string]: number;
+            };
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Total */
+            total: number;
+        };
+        /** InsightsNextHearingOut */
+        InsightsNextHearingOut: {
+            /** Basis */
+            basis?: string | null;
+            /** On */
+            on?: string | null;
+        };
+        /**
+         * InsightsOut
+         * @description `GET /insights`: every chart counts with every filter except its own dimension (decision 22).
+         */
+        InsightsOut: {
+            accountability: components["schemas"]["InsightsAccountabilityOut"];
+            /** Age */
+            age: components["schemas"]["InsightsBucketOut"][];
+            /** Chips */
+            chips: components["schemas"]["InsightsChipOut"][];
+            /** Counsel */
+            counsel: components["schemas"]["InsightsBucketOut"][];
+            coverage: components["schemas"]["InsightsCoverageOut"];
+            department_bands?: components["schemas"]["InsightsBandsOut"] | null;
+            /** Departments */
+            departments?: components["schemas"]["InsightsDepartmentOut"][] | null;
+            /** Filed */
+            filed: components["schemas"]["InsightsBucketOut"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            headline: components["schemas"]["InsightsHeadlineOut"];
+            kind_by_age: components["schemas"]["InsightsKindByAgeOut"];
+            /** Next Hearing */
+            next_hearing: components["schemas"]["InsightsBucketOut"][];
+            /** Outcomes */
+            outcomes: components["schemas"]["InsightsBucketOut"][];
+            /** Posts */
+            posts: components["schemas"]["InsightsBucketOut"][];
+            scope: components["schemas"]["InsightsScopeOut"];
+            /** Subjects */
+            subjects: components["schemas"]["InsightsBucketOut"][];
+            /** Trend */
+            trend: components["schemas"]["InsightsTrendOut"][];
+            /** Units */
+            units?: components["schemas"]["InsightsUnitOut"][] | null;
+            /** Unmapped Named */
+            unmapped_named: number;
+        };
+        /** InsightsRunOut */
+        InsightsRunOut: {
+            /** Counters */
+            counters: {
+                [key: string]: unknown;
+            };
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+        };
+        /** InsightsScopeDefaultOut */
+        InsightsScopeDefaultOut: {
+            /** Department */
+            department?: string | null;
+            /** Scope */
+            scope?: string | null;
+        };
+        /** InsightsScopeOut */
+        InsightsScopeOut: {
+            department?: components["schemas"]["OfficeRefOut"] | null;
+            /** Kind */
+            kind: string;
+        };
+        /**
+         * InsightsScopesOut
+         * @description `GET /insights/scopes`: whether the State view is open, the departments of the switch and the default view.
+         */
+        InsightsScopesOut: {
+            default: components["schemas"]["InsightsScopeDefaultOut"];
+            /** Departments */
+            departments: components["schemas"]["OfficeRefOut"][];
+            /** State */
+            state: boolean;
+        };
+        /** InsightsScorecardOut */
+        InsightsScorecardOut: {
+            /** Claimed */
+            claimed: number;
+            /** Code */
+            code: string;
+            /** Compliance Overdue */
+            compliance_overdue: number;
+            /** Contempt Claimed */
+            contempt_claimed: number;
+            /** Hearing 7 Days */
+            hearing_7_days: number;
+            /** Likely */
+            likely: number;
+            /** Median Days To Claim */
+            median_days_to_claim?: number | null;
+            /** Name */
+            name: string;
+            /** Named Only */
+            named_only: number;
+            /** Overdue Actions */
+            overdue_actions: number;
+        };
+        /**
+         * InsightsStatusOut
+         * @description Decision 29, the data-health block `insights` (counts only).
+         */
+        InsightsStatusOut: {
+            /** Categories Not Grouped */
+            categories_not_grouped: number;
+            /** Facts Built */
+            facts_built: number;
+            last_rebuild?: components["schemas"]["InsightsRunOut"] | null;
+            last_refresh?: components["schemas"]["InsightsRunOut"] | null;
+            /** Live Cases */
+            live_cases: number;
+            /** Oldest Waiting Since */
+            oldest_waiting_since?: string | null;
+            /** Reader Version */
+            reader_version: string;
+            /** State Bases */
+            state_bases: {
+                [key: string]: number;
+            };
+            /** Unmapped Phrase Cases */
+            unmapped_phrase_cases: number;
+            /** Unmapped Phrases */
+            unmapped_phrases: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /** InsightsTrendOut */
+        InsightsTrendOut: {
+            /** Disposed */
+            disposed: number;
+            /** Month */
+            month: string;
+            /** Registered */
+            registered: number;
+        };
+        /** InsightsUnitOut */
+        InsightsUnitOut: {
+            /** Claimed */
+            claimed: number;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * InsightsWhoOut
+         * @description Decision 26: who has the case, with the parts the portal names through `OfficeName`.
+         */
+        InsightsWhoOut: {
+            /** Department Code */
+            department_code?: string | null;
+            /** Designation */
+            designation?: string | null;
+            /** Kind */
+            kind: string;
+            /**
+             * More
+             * @default 0
+             */
+            more: number;
+            /** Office Code */
+            office_code?: string | null;
+            /** Officer Name */
+            officer_name?: string | null;
+            /** Recommended To */
+            recommended_to?: string | null;
+            /** Text */
+            text: string;
         };
         /** InventoryDiffOut */
         InventoryDiffOut: {
@@ -12460,7 +13269,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "next_dates.report_wrong" | "next_dates.correct" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view" | "cases.close" | "cases.reopen";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "next_dates.report_wrong" | "next_dates.correct" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view" | "cases.close" | "cases.reopen" | "insights.state" | "insights.department" | "admin.insights_groups";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];
@@ -13962,6 +14771,50 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** TitleNameIn */
+        TitleNameIn: {
+            /** Office Code */
+            office_code: string;
+            /** Phrase */
+            phrase: string;
+        };
+        /** TitleNameListOut */
+        TitleNameListOut: {
+            /** Items */
+            items: components["schemas"]["TitleNameOut"][];
+            /** Total */
+            total: number;
+        };
+        /** TitleNameOut */
+        TitleNameOut: {
+            /**
+             * Cases
+             * @default 0
+             */
+            cases: number;
+            /** Department Code */
+            department_code?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Insights Refresh Dispatched */
+            insights_refresh_dispatched?: boolean | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Office Code */
+            office_code: string;
+            /** Office Name */
+            office_name: string;
+            /** Phrase */
+            phrase: string;
+        };
+        /** TitleNamePatchIn */
+        TitleNamePatchIn: {
+            /** Office Code */
+            office_code: string;
+        };
         /** TokenCheckStateOut */
         TokenCheckStateOut: {
             /** Allowed */
@@ -14128,6 +14981,22 @@ export interface components {
             matched: number;
             /** Next Cursor */
             next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /** UnmappedTitleNameOut */
+        UnmappedTitleNameOut: {
+            /** Cases */
+            cases: number;
+            /** Example Case No */
+            example_case_no?: string | null;
+            /** Phrase */
+            phrase: string;
+        };
+        /** UnmappedTitleNamePageOut */
+        UnmappedTitleNamePageOut: {
+            /** Items */
+            items: components["schemas"]["UnmappedTitleNameOut"][];
             /** Total */
             total: number;
         };
@@ -17675,6 +18544,476 @@ export interface operations {
             };
         };
     };
+    list_case_types_admin_insights_case_types_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                /** @description a kind-of-case code */
+                group?: string | null;
+                /** @description code (default), name, group, cases or pending */
+                sort?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightCaseTypeOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    put_case_types_admin_insights_case_types_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightCaseTypesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightCaseTypeOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    list_categories_admin_insights_categories_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                /** @description a subject group code or not_grouped */
+                group?: string | null;
+                /** @description code (default), label, group, cases or pending */
+                sort?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightCategoryOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    put_categories_admin_insights_categories_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightCategoriesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightCategoryOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    list_groups_admin_insights_groups_get: {
+        parameters: {
+            query: {
+                /** @description subject or family */
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightGroupOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    create_group_admin_insights_groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightGroupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightGroupOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    patch_group_admin_insights_groups__group_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightGroupPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightGroupOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     list_keywords_admin_keywords_get: {
         parameters: {
             query?: {
@@ -20263,6 +21602,258 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_title_names_admin_title_names_get: {
+        parameters: {
+            query?: {
+                office?: string | null;
+                q?: string | null;
+                /** @description phrase (default), office or cases */
+                sort?: string | null;
+                /** @description true (default), false, or empty for both */
+                active?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleNameListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_title_name_admin_title_names_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleNameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleNameOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unmapped_title_names_admin_title_names_unmapped_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnmappedTitleNamePageOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_title_name_admin_title_names__rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleNamePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleNameOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_title_name_admin_title_names__rule_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleNameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reactivate_title_name_admin_title_names__rule_id__reactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleNameOut"];
                 };
             };
             /** @description Validation Error */
@@ -25448,6 +27039,412 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_insights_get: {
+        parameters: {
+            query?: {
+                /** @description state or department */
+                scope?: string | null;
+                /** @description the scope's department code */
+                department?: string | null;
+                /** @description pending (default), disposed or all */
+                status?: string | null;
+                /** @description true (default) or false */
+                state_only?: string | null;
+                /** @description false (default) or true */
+                include_ia?: string | null;
+                /** @description an active kind-of-case code */
+                kind?: string | null;
+                /** @description an age band key or over_5 */
+                age?: string | null;
+                /** @description a next-hearing band or within_7 */
+                next?: string | null;
+                /** @description a year from 1950, earlier or unknown */
+                filed?: string | null;
+                /** @description a department code */
+                dept?: string | null;
+                /** @description claimed, likely or named (with dept) */
+                band?: string | null;
+                /** @description an office of the scope's department, or none */
+                unit?: string | null;
+                /** @description a post code */
+                post?: string | null;
+                /** @description a subject group code, none or not_grouped */
+                subject?: string | null;
+                /** @description a printed counsel code */
+                counsel?: string | null;
+                /** @description an outcome key */
+                outcome?: string | null;
+                /** @description an action-status key */
+                action?: string | null;
+                /** @description overdue or due_soon */
+                compliance?: string | null;
+                /** @description an office code */
+                holder?: string | null;
+                /** @description registration, next_hearing, latest_order or disposal */
+                date_of?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                from?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    cases_insights_cases_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                /** @description next (default), registered or latest_order */
+                sort?: string | null;
+                /** @description state or department */
+                scope?: string | null;
+                /** @description the scope's department code */
+                department?: string | null;
+                /** @description pending (default), disposed or all */
+                status?: string | null;
+                /** @description true (default) or false */
+                state_only?: string | null;
+                /** @description false (default) or true */
+                include_ia?: string | null;
+                /** @description an active kind-of-case code */
+                kind?: string | null;
+                /** @description an age band key or over_5 */
+                age?: string | null;
+                /** @description a next-hearing band or within_7 */
+                next?: string | null;
+                /** @description a year from 1950, earlier or unknown */
+                filed?: string | null;
+                /** @description a department code */
+                dept?: string | null;
+                /** @description claimed, likely or named (with dept) */
+                band?: string | null;
+                /** @description an office of the scope's department, or none */
+                unit?: string | null;
+                /** @description a post code */
+                post?: string | null;
+                /** @description a subject group code, none or not_grouped */
+                subject?: string | null;
+                /** @description a printed counsel code */
+                counsel?: string | null;
+                /** @description an outcome key */
+                outcome?: string | null;
+                /** @description an action-status key */
+                action?: string | null;
+                /** @description overdue or due_soon */
+                compliance?: string | null;
+                /** @description an office code */
+                holder?: string | null;
+                /** @description registration, next_hearing, latest_order or disposal */
+                date_of?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                from?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsCasesOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    export_insights_export_get: {
+        parameters: {
+            query?: {
+                format?: "xlsx" | "pdf";
+                /** @description comma list of field keys; default the marked set */
+                fields?: string | null;
+                /** @description next (default), registered or latest_order */
+                sort?: string | null;
+                /** @description state or department */
+                scope?: string | null;
+                /** @description the scope's department code */
+                department?: string | null;
+                /** @description pending (default), disposed or all */
+                status?: string | null;
+                /** @description true (default) or false */
+                state_only?: string | null;
+                /** @description false (default) or true */
+                include_ia?: string | null;
+                /** @description an active kind-of-case code */
+                kind?: string | null;
+                /** @description an age band key or over_5 */
+                age?: string | null;
+                /** @description a next-hearing band or within_7 */
+                next?: string | null;
+                /** @description a year from 1950, earlier or unknown */
+                filed?: string | null;
+                /** @description a department code */
+                dept?: string | null;
+                /** @description claimed, likely or named (with dept) */
+                band?: string | null;
+                /** @description an office of the scope's department, or none */
+                unit?: string | null;
+                /** @description a post code */
+                post?: string | null;
+                /** @description a subject group code, none or not_grouped */
+                subject?: string | null;
+                /** @description a printed counsel code */
+                counsel?: string | null;
+                /** @description an outcome key */
+                outcome?: string | null;
+                /** @description an action-status key */
+                action?: string | null;
+                /** @description overdue or due_soon */
+                compliance?: string | null;
+                /** @description an office code */
+                holder?: string | null;
+                /** @description registration, next_hearing, latest_order or disposal */
+                date_of?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                from?: string | null;
+                /** @description inclusive IST date (YYYY-MM-DD) */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filtered case list as an Excel or PDF file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    fields_insights_fields_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsFieldOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    scopes_insights_scopes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsScopesOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };

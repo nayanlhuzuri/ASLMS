@@ -19,7 +19,7 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `api` | built from `backend/` | the HTTP API, as `aslms_app` | none |
 | `worker` | built from `backend/` | the NAPIX load-and-refresh queue (`aslms queue-worker`, slot `main`: every kind), as `aslms_app` | none |
 | `worker2` | built from `backend/` | the second worker slot (`aslms queue-worker --slot second`: every NAPIX kind except Current Status batches, so order PDFs and short calls keep moving while `worker` waits on Current Status; design `rolling-case-refresh`), as `aslms_app` | none |
-| `scheduler` | built from `backend/` | Celery beat and its jobs, as `aslms_app` | none |
+| `scheduler` | built from `backend/` | Celery beat and its jobs (including the Insights readings, section 26), as `aslms_app` | none |
 | `init` | built from `backend/` | preflight, the migration guard, role passwords, seed; then exits | none |
 | `backup` | built from `backend/` | dumps, the store mirror, retention, the weekly restore check | none |
 | `migrate` | built from `backend/` | profile `ops`: the explicit upgrade (and `aslms ops restore`) | none |
@@ -998,6 +998,48 @@ reading is a defect for a follow-up row, never a data change.
 
 **Roll-back.** A reading is derived data and can be rebuilt; the migration's downgrade drops the table. There is no
 new `.env` key beyond `ORDER_SECTIONS_BATCH`.
+
+## 26. State Insights readings (row 258)
+
+Design `docs/design/state-insights.md`, round 1 (backend), migration 0039: the groupings (`insight_groups`,
+`insight_subject_categories`, `insight_case_type_groups`), the per-case readings (`insight_case_facts`, derived, never
+deleted) and the printed department names (`office_title_names`). The Insights page itself is round 2 (row 259); the
+API answers already (`/insights`, `/insights/cases`, `/insights/export`, `/admin/insights/*`, `/admin/title-names`).
+Nothing here calls NAPIX, SourceTrace or a model; the readings are rules over the stored party names, printed counsel
+codes and the cause-title spans row 250 keeps.
+
+**Jobs** (in the existing `scheduler`, no new service or connection slot; both in the start-up repair):
+- `insights-refresh` every 10 minutes at minute 4 (task `aslms.insights_refresh`, also dispatched after a counsel-code
+  or cause-title-name save): at most `INSIGHTS_REFRESH_BATCH` (default 5,000) cases whose readings are missing or stale,
+  then the department attribution again when a mapping or an office changed. One run at a time (a transaction advisory
+  lock); `job_runs` `insights-refresh`.
+- `insights-rebuild` at 04:45 IST (task `aslms.insights_rebuild`): every live case rebuilt in batches, each its own
+  transaction, then new categories inserted Not Grouped; `job_runs` `insights-rebuild`.
+
+**Settings** (none secret; in `.env.example`): `INSIGHTS_STATEMENT_TIMEOUT_SECONDS` (30; past it the API answers 503
+`insights_timeout`), `INSIGHTS_EXPORT_TIMEOUT_SECONDS` (90), `INSIGHTS_XLSX_MAX_ROWS` (100,000),
+`INSIGHTS_PDF_MAX_ROWS` (2,000), `INSIGHTS_REFRESH_BATCH` (5,000).
+
+**Functions** (seed rows at `init`): `insights.state` (State Oversight by default), `insights.department` (Department
+Head and Department Administrator by default) and `admin.insights_groups` (reserved: the Super Administrator alone,
+never granted). The State view needs a State-wide membership.
+
+**After the merge** (the integrator):
+1. Apply 0039 with the `migrate` step (it inserts the 20 kinds of case, the 15 subject groups, the 235 categories and the
+   case-type lines; no audit row), then `init` (the seed adds the three functions and their type defaults), then
+   `docker compose build`. Every `up` carries the court-data switch.
+2. `docker compose exec api aslms insights refresh --all` once: it prints the counts and the seconds (the design expects
+   under 2 minutes on the dev data). Without it, the 10-minute job catches up 5,000 cases a run.
+3. `docker compose exec api aslms insights status`: every live case has a row, `waiting` 0, the State bases counted,
+   `categories_not_grouped` 0. `aslms insights groups check` lists any category or case type not grouped;
+   `aslms insights groups export` prints the groupings as JSON.
+
+**Data health.** `GET /admin/data-health` carries the block `insights` (live cases, rows built, cases waiting and the
+oldest waiting since, the reader version, the State bases, categories not grouped, unmapped cause-title names, the last
+runs). It is isolated under `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS`; a slow block is left out, never a 500.
+
+**Roll-back.** The readings are derived and re-buildable. The downgrade of 0039 refuses while a cause-title name exists
+or a grouping was edited by a person (restore a backup instead, section 6); otherwise it drops the five tables.
 
 ## Pilot go-live checklist
 

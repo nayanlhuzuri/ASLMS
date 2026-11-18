@@ -3440,6 +3440,7 @@ class DataHealthOut(BaseModel):
     failures: list[FailureKindOut]
     documents_text: DocumentsTextOut
     order_sections: OrderSectionsStatusOut | None = None
+    insights: InsightsStatusOut | None = None
     retention: RetentionOut | None = None
 
 
@@ -5360,3 +5361,346 @@ class AssistantCourtOrderViewOut(BaseModel):
     order: AssistantCourtOrderOut
     case: AssistantCourtCaseOut
     case_visible: bool
+
+
+# ------------------------------------------------------------------------------------------------ State Insights
+# design state-insights (row 258): the scopes, the cross-filtered overview, the case list, the export fields, the
+# groupings administration and the cause-title names
+
+
+class InsightsScopeDefaultOut(BaseModel):
+    scope: str | None = None
+    department: str | None = None
+
+
+class InsightsScopesOut(BaseModel):
+    """`GET /insights/scopes`: whether the State view is open, the departments of the switch and the default view."""
+
+    state: bool
+    departments: list[OfficeRefOut]
+    default: InsightsScopeDefaultOut
+
+
+class InsightsScopeOut(BaseModel):
+    kind: str
+    department: OfficeRefOut | None = None
+
+
+class InsightsCoverageOut(BaseModel):
+    """Decision 4: what the counts cover; `facts_waiting` cases are counted with empty readings."""
+
+    court: str
+    listed_since: date | None = None
+    facts_waiting: int
+    facts_built_at: datetime | None = None
+    line: str
+
+
+class InsightsChipOut(BaseModel):
+    param: str
+    value: str
+    label: str
+
+
+class InsightsHeadlineOut(BaseModel):
+    cases: int
+    state_cases: int
+    contempt: int
+    over_5_years: int
+    hearing_7_days: int
+    not_claimed: int
+    applications_inside: int
+    applications_main_not_held: int
+
+
+class InsightsBucketOut(BaseModel):
+    key: str
+    label: str
+    count: int
+
+
+class InsightsBandOut(BaseModel):
+    key: str
+    label: str
+
+
+class InsightsKindRowOut(BaseModel):
+    key: str
+    label: str
+    total: int
+    by_age: dict[str, int]
+
+
+class InsightsKindByAgeOut(BaseModel):
+    bands: list[InsightsBandOut]
+    rows: list[InsightsKindRowOut]
+
+
+class InsightsDepartmentOut(BaseModel):
+    """Decision 21: three bands side by side, never added together."""
+
+    code: str
+    name: str
+    claimed: int
+    likely: int
+    named: int
+
+
+class InsightsUnitOut(BaseModel):
+    code: str
+    name: str
+    claimed: int
+
+
+class InsightsBandsOut(BaseModel):
+    claimed: int
+    likely: int
+    named: int
+
+
+class InsightsTrendOut(BaseModel):
+    month: str
+    registered: int
+    disposed: int
+
+
+class InsightsComplianceOut(BaseModel):
+    code: str
+    name: str
+    overdue: int
+    due_soon: int
+
+
+class InsightsHolderOut(BaseModel):
+    code: str
+    name: str
+    overdue: int
+
+
+class InsightsScorecardOut(BaseModel):
+    code: str
+    name: str
+    claimed: int
+    likely: int
+    named_only: int
+    contempt_claimed: int
+    hearing_7_days: int
+    overdue_actions: int
+    compliance_overdue: int
+    median_days_to_claim: float | None = None
+
+
+class InsightsAccountabilityOut(BaseModel):
+    action: list[InsightsBucketOut]
+    compliance: list[InsightsComplianceOut]
+    holders: list[InsightsHolderOut]
+    scorecard: list[InsightsScorecardOut] | None = None
+
+
+class InsightsOut(BaseModel):
+    """`GET /insights`: every chart counts with every filter except its own dimension (decision 22)."""
+
+    scope: InsightsScopeOut
+    generated_at: datetime
+    coverage: InsightsCoverageOut
+    chips: list[InsightsChipOut]
+    headline: InsightsHeadlineOut
+    kind_by_age: InsightsKindByAgeOut
+    next_hearing: list[InsightsBucketOut]
+    age: list[InsightsBucketOut]
+    filed: list[InsightsBucketOut]
+    subjects: list[InsightsBucketOut]
+    posts: list[InsightsBucketOut]
+    counsel: list[InsightsBucketOut]
+    outcomes: list[InsightsBucketOut]
+    departments: list[InsightsDepartmentOut] | None = None
+    units: list[InsightsUnitOut] | None = None
+    department_bands: InsightsBandsOut | None = None
+    unmapped_named: int
+    trend: list[InsightsTrendOut]
+    accountability: InsightsAccountabilityOut
+
+
+class InsightsCaseRefOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    case_no: str | None = None
+    cnr: str | None = None
+
+
+class InsightsKindOut(BaseModel):
+    code: str
+    label: str
+
+
+class InsightsWhoOut(BaseModel):
+    """Decision 26: who has the case, with the parts the portal names through `OfficeName`."""
+
+    kind: str
+    text: str
+    officer_name: str | None = None
+    designation: str | None = None
+    office_code: str | None = None
+    department_code: str | None = None
+    recommended_to: str | None = None
+    more: int = 0
+
+
+class InsightsNextHearingOut(BaseModel):
+    on: date | None = None
+    basis: str | None = None
+
+
+class InsightsCaseItemOut(BaseModel):
+    case: InsightsCaseRefOut
+    kind: InsightsKindOut
+    status: str
+    who: InsightsWhoOut
+    next_hearing: InsightsNextHearingOut
+    disposal_date: date | None = None
+    departments_named: list[OfficeRefOut]
+    phrases_unmapped: list[str]
+    applications_pending: int | None = None
+    state_case: bool
+    state_basis: list[str]
+
+
+class InsightsCasesOut(BaseModel):
+    items: list[InsightsCaseItemOut]
+    total: int
+    page: int
+    page_size: int
+    sort: str
+
+
+class InsightsFieldOut(BaseModel):
+    key: str
+    number: int | None = None
+    label: str
+    group: str
+    default: bool
+    excel_only: bool
+
+
+class InsightGroupOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    code: str
+    label: str
+    description: str | None = None
+    sort_order: int
+    is_reserved: bool
+    is_active: bool
+    members: int = 0
+    cases: int = 0
+    pending: int = 0
+
+
+class InsightGroupIn(BaseModel):
+    kind: str = Field(min_length=1, max_length=10)
+    code: str = Field(min_length=2, max_length=40)
+    label: str = Field(min_length=1, max_length=120)
+    sort_order: int | None = None
+    description: str | None = Field(None, max_length=1000)
+
+
+class InsightGroupPatchIn(BaseModel):
+    label: str | None = Field(None, min_length=1, max_length=120)
+    sort_order: int | None = None
+    is_active: bool | None = None
+    description: str | None = Field(None, max_length=1000)
+
+
+class InsightCategoryOut(BaseModel):
+    code: int
+    label: str
+    group: str | None = None
+    cases: int = 0
+    pending: int = 0
+
+
+class InsightCategoryChangeIn(BaseModel):
+    code: int = Field(ge=1, le=99999)
+    group: str | None = Field(None, max_length=40)
+
+
+class InsightCategoriesIn(BaseModel):
+    changes: list[InsightCategoryChangeIn] = Field(max_length=1000)
+
+
+class InsightCaseTypeOut(BaseModel):
+    id: uuid.UUID
+    code: int
+    name: str
+    full_name: str | None = None
+    group: str
+    cases: int = 0
+    pending: int = 0
+
+
+class InsightCaseTypeChangeIn(BaseModel):
+    case_type_id: uuid.UUID
+    group: str | None = Field(None, max_length=40)
+
+
+class InsightCaseTypesIn(BaseModel):
+    changes: list[InsightCaseTypeChangeIn] = Field(max_length=1000)
+
+
+class TitleNameOut(BaseModel):
+    id: uuid.UUID
+    phrase: str
+    office_code: str
+    office_name: str
+    department_code: str | None = None
+    is_active: bool
+    cases: int = 0
+    insights_refresh_dispatched: bool | None = None
+
+
+class TitleNameListOut(BaseModel):
+    items: list[TitleNameOut]
+    total: int
+
+
+class TitleNameIn(BaseModel):
+    office_code: str = Field(min_length=1, max_length=40)
+    phrase: str = Field(min_length=1, max_length=300)
+
+
+class TitleNamePatchIn(BaseModel):
+    office_code: str = Field(min_length=1, max_length=40)
+
+
+class UnmappedTitleNameOut(BaseModel):
+    phrase: str
+    cases: int
+    example_case_no: str | None = None
+
+
+class UnmappedTitleNamePageOut(BaseModel):
+    items: list[UnmappedTitleNameOut]
+    total: int
+
+
+class InsightsRunOut(BaseModel):
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str
+    counters: dict[str, Any]
+
+
+class InsightsStatusOut(BaseModel):
+    """Decision 29, the data-health block `insights` (counts only)."""
+
+    live_cases: int
+    facts_built: int
+    waiting: int
+    oldest_waiting_since: datetime | None = None
+    reader_version: str
+    state_bases: dict[str, int]
+    categories_not_grouped: int
+    unmapped_phrases: int
+    unmapped_phrase_cases: int
+    last_refresh: InsightsRunOut | None = None
+    last_rebuild: InsightsRunOut | None = None

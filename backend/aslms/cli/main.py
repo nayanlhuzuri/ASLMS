@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`, `close-claimed-recommendations`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `assistant` group (`status`, `ask`, `check`, `warm`, `include-internal`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `pdfs-after-details`, `dedupe`, `collect`, `stop`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `orders` group (`parse`, `status`, `show`, `checks`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), the `sessions` group (`sweep`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`, `close-claimed-recommendations`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `assistant` group (`status`, `ask`, `check`, `warm`, `include-internal`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `pdfs-after-details`, `dedupe`, `collect`, `stop`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `orders` group (`parse`, `status`, `show`, `checks`), the `insights` group (`refresh`, `status`, `groups export|check`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), the `sessions` group (`sweep`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from aslms.cli.data_load import data_load_app
 from aslms.cli.db import db_check, db_roles, seed
 from aslms.cli.discovery import discovery_app
 from aslms.cli.documents import documents_app
+from aslms.cli.insights import insights_app
 from aslms.cli.matching import close_claimed_recommendations, codes_app, rescore
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
@@ -80,6 +81,7 @@ app.add_typer(data_load_app, name="data-load")
 app.add_typer(discovery_app, name="discovery")
 app.add_typer(next_dates_app, name="next-dates")
 app.add_typer(orders_app, name="orders")
+app.add_typer(insights_app, name="insights")
 app.add_typer(ops_app, name="ops")
 app.add_typer(sessions_app, name="sessions")
 

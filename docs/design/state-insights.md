@@ -1189,3 +1189,63 @@ question.
    count is shown before it goes live.
 9. **Editing the groupings is the Super Administrator's alone** (a reserved function). Cause-title names are mapped
    by department administrators with Keywords and Name Patterns, as counsel codes are.
+
+## Deviations
+
+Round 1 (row 258, backend), recorded by the developer on 18 Nov 2026. Each is the smallest choice where the note is
+silent; none changes a business rule.
+
+1. **The kinds of case of the 57 case types.** The mock's list is not in the repository, so the mapping in migration 0039
+   and `services/insights_groups.py` (`SEED_CASE_TYPES`) was written from the case types in use on dev: Writ Petition
+   111, 225; Writ Petition (Criminal) 173; Public Interest Litigation 93, 222; Contempt 142, 174, 228, 229; Writ Appeal
+   112; Motor Accident Appeal 133; Civil Appeal 65, 96, 97, 98, 99, 100, 121, 127, 144, 231, 232, 233; Criminal Appeal
+   166, 167, 190, 208, 234; Bail 49, 171, 235; Criminal Petition (Section 482) 170, 209; Revision 102, 168, 216, 217;
+   Review 103; Transfer 177, 204; Arbitration 138, 139; Tax and Customs 148, 151, 213; Election 134; Company 114, 117;
+   Testamentary and Succession 123, 124, 214; Interlocutory Application 218, 220, 221; Other 59, 159, 211. The Super
+   Administrator can move any of them on the Insights Groups screen.
+2. **Categories for every court with `ref_code = 'GHC'`.** The four establishments share the code, so the 235 categories
+   are inserted for each (every dev case is held under GAHC01); a fact row's category is looked up by the case's own
+   court.
+3. **The `<X> DEPARTMENT` form** (decision 8) also starts after `;`, `:`, a party number (`2:`), `AND ANR` / `AND ORS` and
+   a previous DEPARTMENT, so a numbered list of respondents gives one phrase per department, not one long phrase.
+4. **A deactivated group** (decision 14 is silent): its categories read as Not Grouped and its case types as Other at
+   query time, until they are moved; no refusal and no new error code.
+5. **The re-derivation** (decision 12) runs in Python over the stored arrays (no text is read), writing only the rows
+   that change, so the rules are written once; it re-derives the government codes and the `counsel` basis too, because
+   an exact mapping is one of the `counsel` tests.
+6. **The `title` basis.** The stored `title` basis means the cause title names the Government of Assam or the State of
+   Assam; "a department mapped in ASLMS" is read live from `named_title_department_ids` (which also holds departments
+   named among the respondents), so a mapping change counts at once without re-reading text. The words show "Cause
+   Title" for either.
+7. **When the attribution is dirty:** a fingerprint of the content of `counsel_codes`, `office_title_names` and `offices`
+   stored in the run's counters (the matching engine's `rules_fingerprint` pattern, by content so a change in the same
+   transaction is seen).
+8. **The dirty rule for a cause-list entry** uses `causelist_entries.created_at` (an entry has no resolution time).
+   `built_at` is the transaction's time, so a change committed while a batch is read is never older than its row.
+9. **Clickable buckets with no value:** `filed=unknown` (Year Not Known) and `unit=none` (Not Yet Assigned to a Unit) are
+   accepted, so every bar of those charts sets a filter.
+10. **Who has it:** an open closure is checked before custody at an office, because a closed case always rests at the
+    owning department's office (decision 26's rule 3 would otherwise never apply).
+11. **Applications Pending** counts the pending IA cases of a main case without applying the viewer's visibility to the
+    IA itself: it is a count about a case the viewer may open, and IAs are rarely claimed on their own.
+12. **Pending** means pending or unknown, the rule of the Claimed tab and the Pending Cases report.
+13. **An office change** does not dispatch `insights-refresh` at once (the offices router commits after its response);
+    the 10-minute job picks it up through the fingerprint. Counsel-code and cause-title-name saves dispatch it.
+14. **`unmapped_named`** counts the cases of the selection whose readings hold phrases but name no department in ASLMS.
+15. **API additions** (read-only, additive): `coverage.line` (the coverage sentence of decision 4); `who.kind` values
+    `officer`, `closed`, `office`, `claimed`, `recommended`, `not_claimed`, `none`; 400 bodies carry `param` (or `field`
+    for `bad_field`); case-type items carry `full_name`; title-name writes return `insights_refresh_dispatched`.
+16. **The export:** XlsxWriter's `constant_memory` temporary files live in a private temporary directory removed after
+    the build; the PDF is laid out page by page on `report_export`'s page, margins, CSS and footer (at most 60 rows tried
+    a page), so 2,000 rows take time in proportion to the rows.
+17. **The data-health block** runs in a savepoint under `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS`, as the readings of
+    row 250 do; a slow block is left out, never a 500.
+18. **The shared hearing-band fixture** (`backend/tests/fixtures/insights/hearing_bands.json`) is read by the backend
+    test now; the portal's `hearingDate` test reads it in round 2.
+19. **Median Days to Claim** reads every primary claim of the last 365 days (active or since transferred).
+20. **Migration 0039** was written once, applied only to a scratch database and the test databases, then regenerated
+    before any commit to create the `created_by` / `updated_by` keys inline (the autogenerated `use_alter` left them
+    out); the repository's guard refuses edits to an existing migration file, so the unapplied file was replaced whole.
+21. **The seed on an older schema:** `insights_groups.seed` does nothing (with a note in the seed report) when
+    `insight_groups` does not exist yet, so `aslms seed` and the migration tests that seed an older revision keep
+    working; on a migrated database it inserts what is missing.

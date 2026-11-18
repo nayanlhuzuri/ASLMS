@@ -1,0 +1,14 @@
+[
+  {"days": null, "status": "pending", "band": "none", "portal": "none"},
+  {"days": -3, "status": "pending", "band": "passed", "portal": "passed"},
+  {"days": 0, "status": "pending", "band": "today", "portal": "today"},
+  {"days": 1, "status": "pending", "band": "tomorrow", "portal": "tomorrow"},
+  {"days": 2, "status": "pending", "band": "days_2_7", "portal": "week"},
+  {"days": 7, "status": "pending", "band": "days_2_7", "portal": "week"},
+  {"days": 8, "status": "pending", "band": "days_8_30", "portal": "later"},
+  {"days": 30, "status": "pending", "band": "days_8_30", "portal": "later"},
+  {"days": 31, "status": "pending", "band": "later", "portal": "later"},
+  {"days": 5, "status": "disposed", "band": "disposed", "portal": "disposed"},
+  {"days": null, "status": "disposed", "band": "disposed", "portal": "disposed"},
+  {"days": 0, "status": "unknown", "band": "today", "portal": "today"}
+]

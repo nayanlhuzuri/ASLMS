@@ -68,10 +68,11 @@ def test_seed_builds_the_full_matrix(session):
     seed_all(session)
     n = session.scalar(sa.select(sa.func.count()).select_from(RolePermission))
     # next-date-direct: two functions; close-case: cases.close and cases.reopen
-    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 57
-    assert session.scalar(sa.text("select count(*) from ref_permission")) == 57
+    # state-insights: insights.state, insights.department, admin.insights_groups
+    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 60
+    assert session.scalar(sa.text("select count(*) from ref_permission")) == 60
     # custody-workflow decision 22: the two request functions are retired; 51 stay active (alerts-visibility-roles)
-    assert session.scalar(sa.text("select count(*) from ref_permission where is_active")) == 55
+    assert session.scalar(sa.text("select count(*) from ref_permission where is_active")) == 58
     assert session.scalar(sa.text("select count(*) from ref_role")) == 10
     m = access.matrix(session)
     assert m["dept_admin"]["users.create"] and not m["dept_officer"]["users.create"]

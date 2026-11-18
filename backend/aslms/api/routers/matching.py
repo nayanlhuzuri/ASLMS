@@ -1,5 +1,6 @@
 """`/admin/scoring-settings`, `/admin/counsel-codes`, `/admin/keywords`, `/admin/name-patterns`,
-`/admin/watchlist` and `/admin/matching/cases/{ref}/scores`: the matching rules and the scoring settings
+`/admin/watchlist`, `/admin/title-names` (design `state-insights`, decision 9) and `/admin/matching/cases/{ref}/scores`:
+the matching rules and the scoring settings
 (design `recommend-and-claim`, decisions 13, 14, 19, 21). Reads are filtered to the caller's office subtree
 on the server (generic State codes are readable by every holder of `admin.counsel_codes`); every write goes
 through `services/matching_rules.py` or `services/scoring_settings.py`, which enforce scope, the
@@ -113,6 +114,8 @@ def _saved(session: Session, request: Request) -> bool:
     """A mapping saved (design list-search, decision 41): commits it, then starts the rescore as the scoring-settings
     save does. Never called for a refused save."""
     session.commit()
+    # design state-insights, decision 12: a counsel-code mapping also changes the Insights attribution
+    dispatch_insights_refresh(request.app.state.settings)
     return dispatch_rescore(request.app.state.settings)
 
 
@@ -868,3 +871,203 @@ def case_scores(
             )
         )
     return out
+
+
+# ------------------------------------------------------------------------------------------------ cause-title names
+# design state-insights, decision 9 and "API": printed department names mapped to an office, with `admin.keywords` in
+# the office subtree (the super admin everywhere). A save commits, then dispatches `insights-refresh`.
+
+INSIGHTS_TASK = "aslms.insights_refresh"
+
+
+def dispatch_insights_refresh(settings: Settings) -> bool:
+    """Dispatches `aslms.insights_refresh` after a mapping save (design state-insights, decision 12); False when no
+    broker is configured or the dispatch fails (the 10-minute beat picks the change up). Never raises."""
+    if not settings.redis_url:
+        return False
+    try:
+        from aslms.jobs.celery_app import app as celery_app
+
+        celery_app.send_task(INSIGHTS_TASK, retry=False)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not dispatch %s: %s", INSIGHTS_TASK, exc)
+        return False
+
+
+def _title_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, matching_rules.PhraseTaken):
+        return HTTPException(status.HTTP_409_CONFLICT, detail(exc.code, str(exc)))
+    if isinstance(exc, matching_rules.BadPhrase):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail(exc.code, str(exc)))
+    if isinstance(exc, ListSearchError | ListSortError):
+        return list_error(exc)
+    return _http(exc)
+
+
+def _title_out(session: Session, row, **extra) -> schemas.TitleNameOut:
+    office = session.get(Office, row.office_id)
+    dept = access.department_of(session, office) if office is not None else None
+    counts = matching_rules._phrase_case_counts(session, [row.phrase])
+    return schemas.TitleNameOut(
+        id=row.id,
+        phrase=row.phrase,
+        office_code=office.code if office else "?",
+        office_name=office.name if office else "?",
+        department_code=dept.code if dept is not None else None,
+        is_active=row.is_active,
+        cases=counts.get(row.phrase, 0),
+        **extra,
+    )
+
+
+def _load_title_name(session: Session, caller: User, rule_id: uuid.UUID):
+    from aslms.domain.insights import OfficeTitleName
+
+    row = session.get(OfficeTitleName, rule_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such name")
+    office = session.get(Office, row.office_id)
+    if office is None or not access.in_scope(session, caller, office):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such name")
+    return row
+
+
+def _title_saved(session: Session, request: Request) -> bool:
+    session.commit()
+    return dispatch_insights_refresh(request.app.state.settings)
+
+
+@router.get(
+    "/title-names/unmapped",
+    response_model=schemas.UnmappedTitleNamePageOut,
+    responses={400: {"model": schemas.ErrorOut}},
+)
+def unmapped_title_names(
+    q: str | None = None,
+    page: int = Query(1, ge=1, le=10_000),
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.UnmappedTitleNamePageOut:
+    """Phrases read from cause titles and respondent names that no mapping and no automatic match on a department's
+    name names, most cases first, counted over the cases the caller may see only (100 a page). Nothing is mapped
+    automatically."""
+    try:
+        items, total = matching_rules.unmapped_title_names(session, caller, q=q, page=page)
+    except (ListSearchError, Forbidden) as exc:
+        raise _title_http(exc) from exc
+    return schemas.UnmappedTitleNamePageOut(
+        items=[schemas.UnmappedTitleNameOut(**i) for i in items], total=total
+    )
+
+
+@router.get(
+    "/title-names",
+    response_model=schemas.TitleNameListOut,
+    responses={400: {"model": schemas.ErrorOut}},
+)
+def list_title_names(
+    office: str | None = None,
+    q: str | None = None,
+    sort: str | None = Query(None, description="phrase (default), office or cases"),
+    active: bool | None = Query(True, description="true (default), false, or empty for both"),
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.TitleNameListOut:
+    try:
+        items = matching_rules.list_title_names(
+            session, caller, office=_optional_office(session, office), q=q, sort=sort, active=active
+        )
+    except (ListSearchError, ListSortError, Forbidden) as exc:
+        raise _title_http(exc) from exc
+    return schemas.TitleNameListOut(items=[schemas.TitleNameOut(**i) for i in items], total=len(items))
+
+
+@router.post(
+    "/title-names",
+    response_model=schemas.TitleNameOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": schemas.ErrorOut}, 409: {"model": schemas.ErrorOut}},
+)
+def create_title_name(
+    body: schemas.TitleNameIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.TitleNameOut:
+    """Maps a printed department name (normalised by the server) to an office in the caller's subtree; 409
+    `phrase_taken`, 400 `bad_phrase`; audited `title_name.create`."""
+    try:
+        row = matching_rules.create_title_name(
+            session,
+            actor_of(request, caller, session),
+            caller,
+            office=_office_by_code(session, body.office_code),
+            phrase=body.phrase,
+        )
+        session.flush()
+    except (Forbidden, RuleError, IntegrityError) as exc:
+        raise _title_http(exc) from exc
+    dispatched = _title_saved(session, request)
+    return _title_out(session, row, insights_refresh_dispatched=dispatched)
+
+
+@router.patch(
+    "/title-names/{rule_id}",
+    response_model=schemas.TitleNameOut,
+    responses={400: {"model": schemas.ErrorOut}, 409: {"model": schemas.ErrorOut}},
+)
+def patch_title_name(
+    rule_id: uuid.UUID,
+    body: schemas.TitleNamePatchIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.TitleNameOut:
+    row = _load_title_name(session, caller, rule_id)
+    try:
+        row = matching_rules.update_title_name(
+            session,
+            actor_of(request, caller, session),
+            caller,
+            row,
+            office=_office_by_code(session, body.office_code),
+        )
+        session.flush()
+    except (Forbidden, RuleError, IntegrityError) as exc:
+        raise _title_http(exc) from exc
+    dispatched = _title_saved(session, request)
+    return _title_out(session, row, insights_refresh_dispatched=dispatched)
+
+
+@router.post("/title-names/{rule_id}/deactivate", response_model=schemas.TitleNameOut)
+def deactivate_title_name(
+    rule_id: uuid.UUID,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.TitleNameOut:
+    return _set_title_active(rule_id, False, request, session, caller)
+
+
+@router.post("/title-names/{rule_id}/reactivate", response_model=schemas.TitleNameOut)
+def reactivate_title_name(
+    rule_id: uuid.UUID,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
+) -> schemas.TitleNameOut:
+    return _set_title_active(rule_id, True, request, session, caller)
+
+
+def _set_title_active(rule_id, enabled, request, session, caller) -> schemas.TitleNameOut:
+    row = _load_title_name(session, caller, rule_id)
+    try:
+        row = matching_rules.set_title_name_active(
+            session, actor_of(request, caller, session), caller, row, enabled
+        )
+        session.flush()
+    except (Forbidden, RuleError) as exc:
+        raise _title_http(exc) from exc
+    dispatched = _title_saved(session, request)
+    return _title_out(session, row, insights_refresh_dispatched=dispatched)

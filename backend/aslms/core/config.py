@@ -230,6 +230,16 @@ class Settings(BaseSettings):
     # runs out of time is left out and named (design order-sections-review-advisories, decision 12)
     order_sections_status_timeout_seconds: int = Field(10, ge=1, le=60)
 
+    # --- State Insights (design state-insights, decisions 12, 25, 27 and 30) ---------------------------------------
+    # the overview and case-list statement timeout (503 `insights_timeout` past it) and the export's
+    insights_statement_timeout_seconds: int = Field(30, ge=1, le=300)
+    insights_export_timeout_seconds: int = Field(90, ge=1, le=900)
+    # the export caps: Excel rows (the About sheet says "First N of M" above it) and PDF rows (the owner's 2,000)
+    insights_xlsx_max_rows: int = Field(100_000, ge=1, le=1_000_000)
+    insights_pdf_max_rows: int = Field(2_000, ge=1, le=20_000)
+    # cases whose readings are rebuilt per run of the 10-minute `insights-refresh` beat, oldest first
+    insights_refresh_batch: int = Field(5_000, ge=1, le=50_000)
+
     # --- court data freshness (design court-data-freshness, decisions 3, 8, 14 and 19) ------------------
     # disposed cases: a dossier refresh every EVERY_DAYS for DAYS after disposal, at most DAILY_MAX a night (0 = off)
     disposed_refresh_days: int = Field(365, ge=90, le=730)

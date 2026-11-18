@@ -9,6 +9,7 @@ from aslms.domain import (  # noqa: F401
     courts,
     documents,
     events,
+    insights,
     ops,
     org,
     ownership,

@@ -11208,6 +11208,16 @@
             "title": "Failures",
             "type": "array"
           },
+          "insights": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InsightsStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "jobs": {
             "items": {
               "$ref": "#/components/schemas/JobRunOut"
@@ -15945,6 +15955,1512 @@
           "pool_with_hearing_7d"
         ],
         "title": "InboxCountsOut",
+        "type": "object"
+      },
+      "InsightCaseTypeChangeIn": {
+        "properties": {
+          "case_type_id": {
+            "format": "uuid",
+            "title": "Case Type Id",
+            "type": "string"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          }
+        },
+        "required": [
+          "case_type_id"
+        ],
+        "title": "InsightCaseTypeChangeIn",
+        "type": "object"
+      },
+      "InsightCaseTypeOut": {
+        "properties": {
+          "cases": {
+            "default": 0,
+            "title": "Cases",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "group"
+        ],
+        "title": "InsightCaseTypeOut",
+        "type": "object"
+      },
+      "InsightCaseTypesIn": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/InsightCaseTypeChangeIn"
+            },
+            "maxItems": 1000,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "InsightCaseTypesIn",
+        "type": "object"
+      },
+      "InsightCategoriesIn": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/InsightCategoryChangeIn"
+            },
+            "maxItems": 1000,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "InsightCategoriesIn",
+        "type": "object"
+      },
+      "InsightCategoryChangeIn": {
+        "properties": {
+          "code": {
+            "maximum": 99999.0,
+            "minimum": 1.0,
+            "title": "Code",
+            "type": "integer"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "InsightCategoryChangeIn",
+        "type": "object"
+      },
+      "InsightCategoryOut": {
+        "properties": {
+          "cases": {
+            "default": 0,
+            "title": "Cases",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "InsightCategoryOut",
+        "type": "object"
+      },
+      "InsightGroupIn": {
+        "properties": {
+          "code": {
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "kind": {
+            "maxLength": 10,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "required": [
+          "kind",
+          "code",
+          "label"
+        ],
+        "title": "InsightGroupIn",
+        "type": "object"
+      },
+      "InsightGroupOut": {
+        "properties": {
+          "cases": {
+            "default": 0,
+            "title": "Cases",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_reserved": {
+            "title": "Is Reserved",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "members": {
+            "default": 0,
+            "title": "Members",
+            "type": "integer"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "code",
+          "label",
+          "sort_order",
+          "is_reserved",
+          "is_active"
+        ],
+        "title": "InsightGroupOut",
+        "type": "object"
+      },
+      "InsightGroupPatchIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "InsightGroupPatchIn",
+        "type": "object"
+      },
+      "InsightsAccountabilityOut": {
+        "properties": {
+          "action": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Action",
+            "type": "array"
+          },
+          "compliance": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsComplianceOut"
+            },
+            "title": "Compliance",
+            "type": "array"
+          },
+          "holders": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsHolderOut"
+            },
+            "title": "Holders",
+            "type": "array"
+          },
+          "scorecard": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InsightsScorecardOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorecard"
+          }
+        },
+        "required": [
+          "action",
+          "compliance",
+          "holders"
+        ],
+        "title": "InsightsAccountabilityOut",
+        "type": "object"
+      },
+      "InsightsBandOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "InsightsBandOut",
+        "type": "object"
+      },
+      "InsightsBandsOut": {
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "named": {
+            "title": "Named",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "claimed",
+          "likely",
+          "named"
+        ],
+        "title": "InsightsBandsOut",
+        "type": "object"
+      },
+      "InsightsBucketOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "title": "InsightsBucketOut",
+        "type": "object"
+      },
+      "InsightsCaseItemOut": {
+        "properties": {
+          "applications_pending": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Pending"
+          },
+          "case": {
+            "$ref": "#/components/schemas/InsightsCaseRefOut"
+          },
+          "departments_named": {
+            "items": {
+              "$ref": "#/components/schemas/OfficeRefOut"
+            },
+            "title": "Departments Named",
+            "type": "array"
+          },
+          "disposal_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposal Date"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InsightsKindOut"
+          },
+          "next_hearing": {
+            "$ref": "#/components/schemas/InsightsNextHearingOut"
+          },
+          "phrases_unmapped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases Unmapped",
+            "type": "array"
+          },
+          "state_basis": {
+            "items": {
+              "type": "string"
+            },
+            "title": "State Basis",
+            "type": "array"
+          },
+          "state_case": {
+            "title": "State Case",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "who": {
+            "$ref": "#/components/schemas/InsightsWhoOut"
+          }
+        },
+        "required": [
+          "case",
+          "kind",
+          "status",
+          "who",
+          "next_hearing",
+          "departments_named",
+          "phrases_unmapped",
+          "state_case",
+          "state_basis"
+        ],
+        "title": "InsightsCaseItemOut",
+        "type": "object"
+      },
+      "InsightsCaseRefOut": {
+        "properties": {
+          "case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_no": {
+            "title": "Ref No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no"
+        ],
+        "title": "InsightsCaseRefOut",
+        "type": "object"
+      },
+      "InsightsCasesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsCaseItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "sort": {
+            "title": "Sort",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "sort"
+        ],
+        "title": "InsightsCasesOut",
+        "type": "object"
+      },
+      "InsightsChipOut": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "param": {
+            "title": "Param",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "param",
+          "value",
+          "label"
+        ],
+        "title": "InsightsChipOut",
+        "type": "object"
+      },
+      "InsightsComplianceOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "due_soon": {
+            "title": "Due Soon",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "overdue",
+          "due_soon"
+        ],
+        "title": "InsightsComplianceOut",
+        "type": "object"
+      },
+      "InsightsCoverageOut": {
+        "description": "Decision 4: what the counts cover; `facts_waiting` cases are counted with empty readings.",
+        "properties": {
+          "court": {
+            "title": "Court",
+            "type": "string"
+          },
+          "facts_built_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facts Built At"
+          },
+          "facts_waiting": {
+            "title": "Facts Waiting",
+            "type": "integer"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "listed_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Since"
+          }
+        },
+        "required": [
+          "court",
+          "facts_waiting",
+          "line"
+        ],
+        "title": "InsightsCoverageOut",
+        "type": "object"
+      },
+      "InsightsDepartmentOut": {
+        "description": "Decision 21: three bands side by side, never added together.",
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "named": {
+            "title": "Named",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "claimed",
+          "likely",
+          "named"
+        ],
+        "title": "InsightsDepartmentOut",
+        "type": "object"
+      },
+      "InsightsFieldOut": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "boolean"
+          },
+          "excel_only": {
+            "title": "Excel Only",
+            "type": "boolean"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "group",
+          "default",
+          "excel_only"
+        ],
+        "title": "InsightsFieldOut",
+        "type": "object"
+      },
+      "InsightsHeadlineOut": {
+        "properties": {
+          "applications_inside": {
+            "title": "Applications Inside",
+            "type": "integer"
+          },
+          "applications_main_not_held": {
+            "title": "Applications Main Not Held",
+            "type": "integer"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "contempt": {
+            "title": "Contempt",
+            "type": "integer"
+          },
+          "hearing_7_days": {
+            "title": "Hearing 7 Days",
+            "type": "integer"
+          },
+          "not_claimed": {
+            "title": "Not Claimed",
+            "type": "integer"
+          },
+          "over_5_years": {
+            "title": "Over 5 Years",
+            "type": "integer"
+          },
+          "state_cases": {
+            "title": "State Cases",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "state_cases",
+          "contempt",
+          "over_5_years",
+          "hearing_7_days",
+          "not_claimed",
+          "applications_inside",
+          "applications_main_not_held"
+        ],
+        "title": "InsightsHeadlineOut",
+        "type": "object"
+      },
+      "InsightsHolderOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "overdue"
+        ],
+        "title": "InsightsHolderOut",
+        "type": "object"
+      },
+      "InsightsKindByAgeOut": {
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBandOut"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsKindRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bands",
+          "rows"
+        ],
+        "title": "InsightsKindByAgeOut",
+        "type": "object"
+      },
+      "InsightsKindOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "InsightsKindOut",
+        "type": "object"
+      },
+      "InsightsKindRowOut": {
+        "properties": {
+          "by_age": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Age",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "total",
+          "by_age"
+        ],
+        "title": "InsightsKindRowOut",
+        "type": "object"
+      },
+      "InsightsNextHearingOut": {
+        "properties": {
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          }
+        },
+        "title": "InsightsNextHearingOut",
+        "type": "object"
+      },
+      "InsightsOut": {
+        "description": "`GET /insights`: every chart counts with every filter except its own dimension (decision 22).",
+        "properties": {
+          "accountability": {
+            "$ref": "#/components/schemas/InsightsAccountabilityOut"
+          },
+          "age": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Age",
+            "type": "array"
+          },
+          "chips": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsChipOut"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
+          "counsel": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Counsel",
+            "type": "array"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/InsightsCoverageOut"
+          },
+          "department_bands": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InsightsBandsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departments": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InsightsDepartmentOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departments"
+          },
+          "filed": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Filed",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "headline": {
+            "$ref": "#/components/schemas/InsightsHeadlineOut"
+          },
+          "kind_by_age": {
+            "$ref": "#/components/schemas/InsightsKindByAgeOut"
+          },
+          "next_hearing": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Next Hearing",
+            "type": "array"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/InsightsScopeOut"
+          },
+          "subjects": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsBucketOut"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/InsightsTrendOut"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "units": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InsightsUnitOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
+          },
+          "unmapped_named": {
+            "title": "Unmapped Named",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "generated_at",
+          "coverage",
+          "chips",
+          "headline",
+          "kind_by_age",
+          "next_hearing",
+          "age",
+          "filed",
+          "subjects",
+          "posts",
+          "counsel",
+          "outcomes",
+          "unmapped_named",
+          "trend",
+          "accountability"
+        ],
+        "title": "InsightsOut",
+        "type": "object"
+      },
+      "InsightsRunOut": {
+        "properties": {
+          "counters": {
+            "additionalProperties": true,
+            "title": "Counters",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "started_at",
+          "status",
+          "counters"
+        ],
+        "title": "InsightsRunOut",
+        "type": "object"
+      },
+      "InsightsScopeDefaultOut": {
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          }
+        },
+        "title": "InsightsScopeDefaultOut",
+        "type": "object"
+      },
+      "InsightsScopeOut": {
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficeRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "InsightsScopeOut",
+        "type": "object"
+      },
+      "InsightsScopesOut": {
+        "description": "`GET /insights/scopes`: whether the State view is open, the departments of the switch and the default view.",
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/InsightsScopeDefaultOut"
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/OfficeRefOut"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "state": {
+            "title": "State",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "departments",
+          "default"
+        ],
+        "title": "InsightsScopesOut",
+        "type": "object"
+      },
+      "InsightsScorecardOut": {
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "compliance_overdue": {
+            "title": "Compliance Overdue",
+            "type": "integer"
+          },
+          "contempt_claimed": {
+            "title": "Contempt Claimed",
+            "type": "integer"
+          },
+          "hearing_7_days": {
+            "title": "Hearing 7 Days",
+            "type": "integer"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "median_days_to_claim": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Days To Claim"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "named_only": {
+            "title": "Named Only",
+            "type": "integer"
+          },
+          "overdue_actions": {
+            "title": "Overdue Actions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "claimed",
+          "likely",
+          "named_only",
+          "contempt_claimed",
+          "hearing_7_days",
+          "overdue_actions",
+          "compliance_overdue"
+        ],
+        "title": "InsightsScorecardOut",
+        "type": "object"
+      },
+      "InsightsStatusOut": {
+        "description": "Decision 29, the data-health block `insights` (counts only).",
+        "properties": {
+          "categories_not_grouped": {
+            "title": "Categories Not Grouped",
+            "type": "integer"
+          },
+          "facts_built": {
+            "title": "Facts Built",
+            "type": "integer"
+          },
+          "last_rebuild": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InsightsRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_refresh": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InsightsRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live_cases": {
+            "title": "Live Cases",
+            "type": "integer"
+          },
+          "oldest_waiting_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Waiting Since"
+          },
+          "reader_version": {
+            "title": "Reader Version",
+            "type": "string"
+          },
+          "state_bases": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "State Bases",
+            "type": "object"
+          },
+          "unmapped_phrase_cases": {
+            "title": "Unmapped Phrase Cases",
+            "type": "integer"
+          },
+          "unmapped_phrases": {
+            "title": "Unmapped Phrases",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_cases",
+          "facts_built",
+          "waiting",
+          "reader_version",
+          "state_bases",
+          "categories_not_grouped",
+          "unmapped_phrases",
+          "unmapped_phrase_cases"
+        ],
+        "title": "InsightsStatusOut",
+        "type": "object"
+      },
+      "InsightsTrendOut": {
+        "properties": {
+          "disposed": {
+            "title": "Disposed",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "registered": {
+            "title": "Registered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "registered",
+          "disposed"
+        ],
+        "title": "InsightsTrendOut",
+        "type": "object"
+      },
+      "InsightsUnitOut": {
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "claimed"
+        ],
+        "title": "InsightsUnitOut",
+        "type": "object"
+      },
+      "InsightsWhoOut": {
+        "description": "Decision 26: who has the case, with the parts the portal names through `OfficeName`.",
+        "properties": {
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Code"
+          },
+          "designation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Designation"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "more": {
+            "default": 0,
+            "title": "More",
+            "type": "integer"
+          },
+          "office_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Code"
+          },
+          "officer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Officer Name"
+          },
+          "recommended_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended To"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "InsightsWhoOut",
         "type": "object"
       },
       "InventoryDiffOut": {
@@ -23409,7 +24925,10 @@
           "assistant.use",
           "audit.view",
           "cases.close",
-          "cases.reopen"
+          "cases.reopen",
+          "insights.state",
+          "insights.department",
+          "admin.insights_groups"
         ],
         "title": "Permission",
         "type": "string"
@@ -28035,6 +29554,125 @@
         "title": "TimelineOut",
         "type": "object"
       },
+      "TitleNameIn": {
+        "properties": {
+          "office_code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Office Code",
+            "type": "string"
+          },
+          "phrase": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Phrase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "office_code",
+          "phrase"
+        ],
+        "title": "TitleNameIn",
+        "type": "object"
+      },
+      "TitleNameListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TitleNameOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "TitleNameListOut",
+        "type": "object"
+      },
+      "TitleNameOut": {
+        "properties": {
+          "cases": {
+            "default": 0,
+            "title": "Cases",
+            "type": "integer"
+          },
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "insights_refresh_dispatched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Insights Refresh Dispatched"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "office_code": {
+            "title": "Office Code",
+            "type": "string"
+          },
+          "office_name": {
+            "title": "Office Name",
+            "type": "string"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "phrase",
+          "office_code",
+          "office_name",
+          "is_active"
+        ],
+        "title": "TitleNameOut",
+        "type": "object"
+      },
+      "TitleNamePatchIn": {
+        "properties": {
+          "office_code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Office Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "office_code"
+        ],
+        "title": "TitleNamePatchIn",
+        "type": "object"
+      },
       "TokenCheckStateOut": {
         "properties": {
           "allowed": {
@@ -28577,6 +30215,56 @@
           "next_cursor"
         ],
         "title": "UnmappedCodePageOut",
+        "type": "object"
+      },
+      "UnmappedTitleNameOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "example_case_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Example Case No"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phrase",
+          "cases"
+        ],
+        "title": "UnmappedTitleNameOut",
+        "type": "object"
+      },
+      "UnmappedTitleNamePageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UnmappedTitleNameOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "UnmappedTitleNamePageOut",
         "type": "object"
       },
       "UnmatchedRowOut": {
@@ -34153,6 +35841,710 @@
         ]
       }
     },
+    "/admin/insights/case-types": {
+      "get": {
+        "operationId": "list_case_types_admin_insights_case_types_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "a kind-of-case code",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a kind-of-case code",
+              "title": "Group"
+            }
+          },
+          {
+            "description": "code (default), name, group, cases or pending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "code (default), name, group, cases or pending",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightCaseTypeOut"
+                  },
+                  "title": "Response List Case Types Admin Insights Case Types Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Case Types",
+        "tags": [
+          "insights"
+        ]
+      },
+      "put": {
+        "description": "A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other).",
+        "operationId": "put_case_types_admin_insights_case_types_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightCaseTypesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightCaseTypeOut"
+                  },
+                  "title": "Response Put Case Types Admin Insights Case Types Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Case Types",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/admin/insights/categories": {
+      "get": {
+        "operationId": "list_categories_admin_insights_categories_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "a subject group code or not_grouped",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a subject group code or not_grouped",
+              "title": "Group"
+            }
+          },
+          {
+            "description": "code (default), label, group, cases or pending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "code (default), label, group, cases or pending",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightCategoryOut"
+                  },
+                  "title": "Response List Categories Admin Insights Categories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Categories",
+        "tags": [
+          "insights"
+        ]
+      },
+      "put": {
+        "description": "A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes\neffect at once.",
+        "operationId": "put_categories_admin_insights_categories_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightCategoriesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightCategoryOut"
+                  },
+                  "title": "Response Put Categories Admin Insights Categories Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Categories",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/admin/insights/groups": {
+      "get": {
+        "description": "The groups of one kind in their order, with their categories or case types and case counts.",
+        "operationId": "list_groups_admin_insights_groups_get",
+        "parameters": [
+          {
+            "description": "subject or family",
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "description": "subject or family",
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightGroupOut"
+                  },
+                  "title": "Response List Groups Admin Insights Groups Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Groups",
+        "tags": [
+          "insights"
+        ]
+      },
+      "post": {
+        "description": "A new group (never reserved); 409 `code_taken` / `label_taken`; audited `insights.group_created`.",
+        "operationId": "create_group_admin_insights_groups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightGroupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightGroupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Group",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/admin/insights/groups/{group_id}": {
+      "patch": {
+        "description": "Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`); audited\n`insights.group_updated`.",
+        "operationId": "patch_group_admin_insights_groups__group_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightGroupPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightGroupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Group",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/admin/keywords": {
       "get": {
         "operationId": "list_keywords_admin_keywords_get",
@@ -38263,6 +40655,439 @@
         "summary": "Withdraw",
         "tags": [
           "tickets"
+        ]
+      }
+    },
+    "/admin/title-names": {
+      "get": {
+        "operationId": "list_title_names_admin_title_names_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "office",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "phrase (default), office or cases",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "phrase (default), office or cases",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "true (default), false, or empty for both",
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "description": "true (default), false, or empty for both",
+              "title": "Active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleNameListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Title Names",
+        "tags": [
+          "matching"
+        ]
+      },
+      "post": {
+        "description": "Maps a printed department name (normalised by the server) to an office in the caller's subtree; 409\n`phrase_taken`, 400 `bad_phrase`; audited `title_name.create`.",
+        "operationId": "create_title_name_admin_title_names_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleNameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleNameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Title Name",
+        "tags": [
+          "matching"
+        ]
+      }
+    },
+    "/admin/title-names/unmapped": {
+      "get": {
+        "description": "Phrases read from cause titles and respondent names that no mapping and no automatic match on a department's\nname names, most cases first, counted over the cases the caller may see only (100 a page). Nothing is mapped\nautomatically.",
+        "operationId": "unmapped_title_names_admin_title_names_unmapped_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmappedTitleNamePageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Unmapped Title Names",
+        "tags": [
+          "matching"
+        ]
+      }
+    },
+    "/admin/title-names/{rule_id}": {
+      "patch": {
+        "operationId": "patch_title_name_admin_title_names__rule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleNamePatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleNameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Title Name",
+        "tags": [
+          "matching"
+        ]
+      }
+    },
+    "/admin/title-names/{rule_id}/deactivate": {
+      "post": {
+        "operationId": "deactivate_title_name_admin_title_names__rule_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleNameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Deactivate Title Name",
+        "tags": [
+          "matching"
+        ]
+      }
+    },
+    "/admin/title-names/{rule_id}/reactivate": {
+      "post": {
+        "operationId": "reactivate_title_name_admin_title_names__rule_id__reactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleNameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reactivate Title Name",
+        "tags": [
+          "matching"
         ]
       }
     },
@@ -49206,6 +52031,1596 @@
         "summary": "Transfers",
         "tags": [
           "inbox"
+        ]
+      }
+    },
+    "/insights": {
+      "get": {
+        "description": "The headline figures, every chart and the accountability section; each chart counts with every filter except\nits own dimension (decision 22). Writes nothing.",
+        "operationId": "overview_insights_get",
+        "parameters": [
+          {
+            "description": "state or department",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "state or department",
+              "title": "Scope"
+            }
+          },
+          {
+            "description": "the scope's department code",
+            "in": "query",
+            "name": "department",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "the scope's department code",
+              "title": "Department"
+            }
+          },
+          {
+            "description": "pending (default), disposed or all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending (default), disposed or all",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "true (default) or false",
+            "in": "query",
+            "name": "state_only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true (default) or false",
+              "title": "State Only"
+            }
+          },
+          {
+            "description": "false (default) or true",
+            "in": "query",
+            "name": "include_ia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "false (default) or true",
+              "title": "Include Ia"
+            }
+          },
+          {
+            "description": "an active kind-of-case code",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an active kind-of-case code",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "an age band key or over_5",
+            "in": "query",
+            "name": "age",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an age band key or over_5",
+              "title": "Age"
+            }
+          },
+          {
+            "description": "a next-hearing band or within_7",
+            "in": "query",
+            "name": "next",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a next-hearing band or within_7",
+              "title": "Next"
+            }
+          },
+          {
+            "description": "a year from 1950, earlier or unknown",
+            "in": "query",
+            "name": "filed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a year from 1950, earlier or unknown",
+              "title": "Filed"
+            }
+          },
+          {
+            "description": "a department code",
+            "in": "query",
+            "name": "dept",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a department code",
+              "title": "Dept"
+            }
+          },
+          {
+            "description": "claimed, likely or named (with dept)",
+            "in": "query",
+            "name": "band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "claimed, likely or named (with dept)",
+              "title": "Band"
+            }
+          },
+          {
+            "description": "an office of the scope's department, or none",
+            "in": "query",
+            "name": "unit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office of the scope's department, or none",
+              "title": "Unit"
+            }
+          },
+          {
+            "description": "a post code",
+            "in": "query",
+            "name": "post",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a post code",
+              "title": "Post"
+            }
+          },
+          {
+            "description": "a subject group code, none or not_grouped",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a subject group code, none or not_grouped",
+              "title": "Subject"
+            }
+          },
+          {
+            "description": "a printed counsel code",
+            "in": "query",
+            "name": "counsel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a printed counsel code",
+              "title": "Counsel"
+            }
+          },
+          {
+            "description": "an outcome key",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an outcome key",
+              "title": "Outcome"
+            }
+          },
+          {
+            "description": "an action-status key",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an action-status key",
+              "title": "Action"
+            }
+          },
+          {
+            "description": "overdue or due_soon",
+            "in": "query",
+            "name": "compliance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "overdue or due_soon",
+              "title": "Compliance"
+            }
+          },
+          {
+            "description": "an office code",
+            "in": "query",
+            "name": "holder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office code",
+              "title": "Holder"
+            }
+          },
+          {
+            "description": "registration, next_hearing, latest_order or disposal",
+            "in": "query",
+            "name": "date_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "registration, next_hearing, latest_order or disposal",
+              "title": "Date Of"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Overview",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/insights/cases": {
+      "get": {
+        "description": "20 cases a page of the filtered selection, with who has each case (decision 26). Writes nothing.",
+        "operationId": "cases_insights_cases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "next (default), registered or latest_order",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "next (default), registered or latest_order",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "state or department",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "state or department",
+              "title": "Scope"
+            }
+          },
+          {
+            "description": "the scope's department code",
+            "in": "query",
+            "name": "department",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "the scope's department code",
+              "title": "Department"
+            }
+          },
+          {
+            "description": "pending (default), disposed or all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending (default), disposed or all",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "true (default) or false",
+            "in": "query",
+            "name": "state_only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true (default) or false",
+              "title": "State Only"
+            }
+          },
+          {
+            "description": "false (default) or true",
+            "in": "query",
+            "name": "include_ia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "false (default) or true",
+              "title": "Include Ia"
+            }
+          },
+          {
+            "description": "an active kind-of-case code",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an active kind-of-case code",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "an age band key or over_5",
+            "in": "query",
+            "name": "age",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an age band key or over_5",
+              "title": "Age"
+            }
+          },
+          {
+            "description": "a next-hearing band or within_7",
+            "in": "query",
+            "name": "next",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a next-hearing band or within_7",
+              "title": "Next"
+            }
+          },
+          {
+            "description": "a year from 1950, earlier or unknown",
+            "in": "query",
+            "name": "filed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a year from 1950, earlier or unknown",
+              "title": "Filed"
+            }
+          },
+          {
+            "description": "a department code",
+            "in": "query",
+            "name": "dept",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a department code",
+              "title": "Dept"
+            }
+          },
+          {
+            "description": "claimed, likely or named (with dept)",
+            "in": "query",
+            "name": "band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "claimed, likely or named (with dept)",
+              "title": "Band"
+            }
+          },
+          {
+            "description": "an office of the scope's department, or none",
+            "in": "query",
+            "name": "unit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office of the scope's department, or none",
+              "title": "Unit"
+            }
+          },
+          {
+            "description": "a post code",
+            "in": "query",
+            "name": "post",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a post code",
+              "title": "Post"
+            }
+          },
+          {
+            "description": "a subject group code, none or not_grouped",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a subject group code, none or not_grouped",
+              "title": "Subject"
+            }
+          },
+          {
+            "description": "a printed counsel code",
+            "in": "query",
+            "name": "counsel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a printed counsel code",
+              "title": "Counsel"
+            }
+          },
+          {
+            "description": "an outcome key",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an outcome key",
+              "title": "Outcome"
+            }
+          },
+          {
+            "description": "an action-status key",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an action-status key",
+              "title": "Action"
+            }
+          },
+          {
+            "description": "overdue or due_soon",
+            "in": "query",
+            "name": "compliance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "overdue or due_soon",
+              "title": "Compliance"
+            }
+          },
+          {
+            "description": "an office code",
+            "in": "query",
+            "name": "holder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office code",
+              "title": "Holder"
+            }
+          },
+          {
+            "description": "registration, next_hearing, latest_order or disposal",
+            "in": "query",
+            "name": "date_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "registration, next_hearing, latest_order or disposal",
+              "title": "Date Of"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsCasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cases",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/insights/export": {
+      "get": {
+        "description": "The filtered list as Excel (up to INSIGHTS_XLSX_MAX_ROWS) or PDF (up to INSIGHTS_PDF_MAX_ROWS), only cases of\nthe scope the viewer may open; audited `insights.exported` after the file is built.",
+        "operationId": "export_insights_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "xlsx",
+              "enum": [
+                "xlsx",
+                "pdf"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "comma list of field keys; default the marked set",
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "comma list of field keys; default the marked set",
+              "title": "Fields"
+            }
+          },
+          {
+            "description": "next (default), registered or latest_order",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "next (default), registered or latest_order",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "state or department",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "state or department",
+              "title": "Scope"
+            }
+          },
+          {
+            "description": "the scope's department code",
+            "in": "query",
+            "name": "department",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "the scope's department code",
+              "title": "Department"
+            }
+          },
+          {
+            "description": "pending (default), disposed or all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending (default), disposed or all",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "true (default) or false",
+            "in": "query",
+            "name": "state_only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true (default) or false",
+              "title": "State Only"
+            }
+          },
+          {
+            "description": "false (default) or true",
+            "in": "query",
+            "name": "include_ia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "false (default) or true",
+              "title": "Include Ia"
+            }
+          },
+          {
+            "description": "an active kind-of-case code",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an active kind-of-case code",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "an age band key or over_5",
+            "in": "query",
+            "name": "age",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an age band key or over_5",
+              "title": "Age"
+            }
+          },
+          {
+            "description": "a next-hearing band or within_7",
+            "in": "query",
+            "name": "next",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a next-hearing band or within_7",
+              "title": "Next"
+            }
+          },
+          {
+            "description": "a year from 1950, earlier or unknown",
+            "in": "query",
+            "name": "filed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a year from 1950, earlier or unknown",
+              "title": "Filed"
+            }
+          },
+          {
+            "description": "a department code",
+            "in": "query",
+            "name": "dept",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a department code",
+              "title": "Dept"
+            }
+          },
+          {
+            "description": "claimed, likely or named (with dept)",
+            "in": "query",
+            "name": "band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "claimed, likely or named (with dept)",
+              "title": "Band"
+            }
+          },
+          {
+            "description": "an office of the scope's department, or none",
+            "in": "query",
+            "name": "unit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office of the scope's department, or none",
+              "title": "Unit"
+            }
+          },
+          {
+            "description": "a post code",
+            "in": "query",
+            "name": "post",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a post code",
+              "title": "Post"
+            }
+          },
+          {
+            "description": "a subject group code, none or not_grouped",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a subject group code, none or not_grouped",
+              "title": "Subject"
+            }
+          },
+          {
+            "description": "a printed counsel code",
+            "in": "query",
+            "name": "counsel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "a printed counsel code",
+              "title": "Counsel"
+            }
+          },
+          {
+            "description": "an outcome key",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an outcome key",
+              "title": "Outcome"
+            }
+          },
+          {
+            "description": "an action-status key",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an action-status key",
+              "title": "Action"
+            }
+          },
+          {
+            "description": "overdue or due_soon",
+            "in": "query",
+            "name": "compliance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "overdue or due_soon",
+              "title": "Compliance"
+            }
+          },
+          {
+            "description": "an office code",
+            "in": "query",
+            "name": "holder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "an office code",
+              "title": "Holder"
+            }
+          },
+          {
+            "description": "registration, next_hearing, latest_order or disposal",
+            "in": "query",
+            "name": "date_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "registration, next_hearing, latest_order or disposal",
+              "title": "Date Of"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "inclusive IST date (YYYY-MM-DD)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "inclusive IST date (YYYY-MM-DD)",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "The filtered case list as an Excel or PDF file."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/insights/fields": {
+      "get": {
+        "description": "The export field registry: the owner's 33 numbered fields in four groups, the defaults marked, then\nApplications Pending.",
+        "operationId": "fields_insights_fields_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightsFieldOut"
+                  },
+                  "title": "Response Fields Insights Fields Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fields",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/insights/scopes": {
+      "get": {
+        "description": "Whether the State view is open (a State-wide membership holding View State Insights), the departments of the\nswitch and the default view.",
+        "operationId": "scopes_insights_scopes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsScopesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Scopes",
+        "tags": [
+          "insights"
         ]
       }
     },

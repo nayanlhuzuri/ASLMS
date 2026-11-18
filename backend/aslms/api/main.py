@@ -23,6 +23,7 @@ from aslms.api.routers import data_load as data_load_router
 from aslms.api.routers import discovery as discovery_router
 from aslms.api.routers import documents as documents_router
 from aslms.api.routers import inbox as inbox_router
+from aslms.api.routers import insights as insights_router
 from aslms.api.routers import matching as matching_router
 from aslms.api.routers import napix_admin as napix_admin_router
 from aslms.api.routers import next_dates as next_dates_router
@@ -109,6 +110,7 @@ def create_app(settings: Settings | None = None, session_factory=None, apart_ses
     app.include_router(workflow_router.router)
     app.include_router(sourcetrace_router.router)
     app.include_router(dashboard_router.router)
+    app.include_router(insights_router.router)
     app.include_router(reports_router.router)
     app.include_router(audit_router.router)
     app.include_router(napix_admin_router.router)

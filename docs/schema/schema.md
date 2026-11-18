@@ -18,6 +18,8 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   `custody.case_id` and `document_text.document_id` are 1:1 primary keys; `ref_*` tables are keyed by `code`.
 - **Table classes.** Every table is `reference` (`ref_*`), `master`, `transaction` or `derived`, declared as
   `__table_class__` on the model and written as `COMMENT ON TABLE … 'class=…'` (`\dt+` shows it).
+  Derived tables re-buildable from other tables include `case_office_scores`, `order_sections` and
+  `insight_case_facts` (design `state-insights`, migration 0039).
 - **Reference numbers.** Records people quote carry `ref_no varchar(40) NOT NULL UNIQUE`:
   `ASLMS/<OFFICE or COURT>/<TYPE>/<YYYY>/<NNNNNN>` (`ASLMS/GHC/CASE/2026/001842`, `ASLMS/EDU/NOTE/2026/000042`).
   `CASE` is allocated on the case's court code (`courts.ref_code`) however the case is created; other types are
@@ -44,6 +46,10 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   where accountability matters; `created_by` / `updated_by` (FK `users`, SET NULL, NULL for system writes) on
   masters and on transactions users write that carry no snapshot.
   Report exports write one `audit_log` row (`report.exported`) (design `reports-dashboards`).
+  Insights exports write one `audit_log` row (`insights.exported`, entity `insights`, no id); the Insights groupings
+  and cause-title names write `insights.group_created`, `insights.group_updated`, `insights.category_grouped`,
+  `insights.case_type_grouped` and `title_name.create`, `title_name.update`, `title_name.deactivate`,
+  `title_name.reactivate` (design `state-insights`). Opening Insights writes nothing.
 - **No deletion.** Every foreign key to a legal-record table is `ON DELETE RESTRICT`. CASCADE remains only on
   `otp_codes`, `refresh_tokens`, `user_notification_preferences`, `notifications`, `digests`, `case_office_scores`,
   `causelist_reconciliations`, `document_text`, `sourcetrace_ingestions`, `assistant_messages`,
@@ -53,6 +59,11 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   **Deviation from DB_STANDARD §6 / §9 (owner's rule of 7 Oct 2026):** `aslms_app` may DELETE from
   `case_note_drafts` and `case_note_draft_documents`, which hold unfinished drafts, not legal records (design
   `custody-workflow`, decisions 12–13).
+  **Deviation from DB_STANDARD §2 / §6 (design `state-insights`, decision 13):** the derived arrays
+  `insight_case_facts.named_title_department_ids` and `named_counsel_department_ids` hold Department-tier office
+  ids with no foreign key (PostgreSQL has none on array elements). Offices are never deleted, the builder writes only
+  Department-tier ids, and a database test checks every stored id against `offices`. The fact rows are updated in
+  place and never deleted, so no child table (which would need DELETE) is used.
 - **Append-only** (trigger `aslms_forbid_change`): `events`, `audit_log`, `case_notes`, `custody_history`,
   `case_stages`, `admin_ticket_documents`, `membership_documents` (the last two added by `user-memberships`),
   `case_note_attachments` (added by `custody-workflow`, migration 0009).
@@ -446,6 +457,87 @@ As built by `assistant-ollama-work` (migration 0037, 14 Nov 2026; revises 0036, 
 Merge migration `0033_merge_session_timeout` (row 169, 28 Oct 2026): `down_revision = ("0031", "0032")`, no schema change in either direction. It joins row 169's `0031_session_timeout` (revises 0030; `user_sessions` and `refresh_tokens.session_id` above) and row 188's 0032 into one head, because 0032 was applied to the dev database first and an applied or existing migration is never edited. The head is 0033; the dev database was migrated 0032 → 0031 → 0033 on 28 Oct 2026.
 
 As built by `case-workspace-admin` (migration 0025, 25 Oct 2026; revises 0024): no table, column, type or grant changes; a reference-data migration only. `ref_note_kind.label` for `file_noting` changes from "File noting" to "Office note", and `ref_event_type.timeline_label` for `custody_moved` from "Custody moved" to "Case moved", each only while it still holds the seeded text; the downgrade reverses each under the mirror condition. No `audit_log` row (the 0016 precedent). `aslms seed` carries the same labels for fresh databases.
+
+### State Insights (design `state-insights`, row 258, migration 0039)
+
+Five tables for the Insights page under Oversight: the groupings Insights counts by, the derived per-case readings
+and the printed department names mapped to offices. Grants on all five: ALL to `aslms_owner`; SELECT to
+`aslms_readonly`; SELECT, INSERT and UPDATE to `aslms_app` (no DELETE). Each has its `COMMENT ON TABLE … 'class=…'`
+and the `set_updated_at` trigger.
+
+> **`insight_groups`** (master). The subject groups and the kinds of case used by Insights. Columns: id (uuid v7 PK);
+> kind (varchar 10 NOT NULL: `subject` / `family`); code (varchar 40 NOT NULL); label (varchar 120 NOT NULL);
+> description (text NULL); sort_order (integer NOT NULL default 0); is_reserved (boolean NOT NULL default false);
+> is_active (boolean NOT NULL default true); deactivated_at (timestamptz NULL); created_at, updated_at; created_by,
+> updated_by (→ users SET NULL). Checks and keys: `ck_insight_groups_kind` (`kind IN ('subject', 'family')`);
+> `ck_insight_groups_code` (`code ~ '^[a-z][a-z0-9_]{1,39}$'`); `ck_insight_groups_active`
+> (`is_active = (deactivated_at IS NULL)`); `ck_insight_groups_reserved` (`NOT is_reserved OR is_active`); unique
+> `uq_insight_groups_kind_code` (kind, code); unique index `uq_insight_groups_kind_label` (kind, lower(label));
+> unique `uq_insight_groups_id_kind` (id, kind), the target of the composite FKs below. Triggers: BEFORE UPDATE
+> `insight_groups_fixed` (function `aslms_insight_group_fixed`) refuses a change of `kind`, `code` or `is_reserved`;
+> and `set_updated_at`. Reserved rows: `family`/`contempt`, `family`/`ia`, `family`/`other` and `subject`/`contempt`.
+> Never deleted. Written only by `services/insights_groups.py`, every change audited.
+
+> **`insight_subject_categories`** (master). The court's subject categories and their group. Columns: id (uuid v7
+> PK); court_id (→ courts RESTRICT NOT NULL); category_code (integer NOT NULL; the five-digit code the court prints
+> before the label); label (varchar 300 NOT NULL; the court's label as last seen, without the code and the trailing
+> number); group_id (uuid NULL) and group_kind (varchar 10 NOT NULL default `subject`), together → insight_groups
+> (id, kind) RESTRICT, NULL = Not Grouped; first_seen_at, last_seen_at (timestamptz NOT NULL default now());
+> created_at, updated_at; created_by, updated_by (→ users SET NULL). Checks and keys:
+> `ck_insight_subject_categories_code` (`category_code BETWEEN 1 AND 99999`); `ck_insight_subject_categories_kind`
+> (`group_kind = 'subject'`); unique (court_id, category_code); index `ix_insight_subject_categories_group_id`. The
+> migration and the seed insert the 235 categories of `docs/design/state-insights-subject-groups.md` for the
+> Gauhati High Court; the fact job inserts a category it meets for the first time with no group; the label and
+> `last_seen_at` follow the court. Never deleted.
+
+> **`insight_case_type_groups`** (master). The kind of case of each case type. Columns: id (uuid v7 PK);
+> case_type_id (→ case_types RESTRICT NOT NULL, UNIQUE); group_id (uuid NOT NULL) and group_kind (varchar 10 NOT NULL
+> default `family`), together → insight_groups (id, kind) RESTRICT; created_at, updated_at; created_by, updated_by
+> (→ users SET NULL). CHECK `ck_insight_case_type_groups_kind` (`group_kind = 'family'`); index on group_id. A case
+> type without a row is of kind `other`. The migration and the seed map the 57 case types in use by court and
+> `case_type_code`; the court master sync never writes this table. Never deleted.
+
+> **`insight_case_facts`** (derived). The per-case readings Insights counts, rebuilt by `services/insights_facts.py`
+> (jobs `insights-refresh` and `insights-rebuild`, `aslms insights refresh`); re-buildable at any time. Columns:
+> case_id (uuid PK → cases RESTRICT); category_code (integer NULL; parsed from `cases.category`);
+> subject_category_code (integer NULL; the original writ's category for a linked contempt case, else category_code);
+> main_case_id (→ cases RESTRICT NULL; an IA's resolved `main_matter`); state_basis (varchar(10)[] NOT NULL default
+> `{}`); title_phrases (varchar(200)[] NOT NULL default `{}`; the department phrases read, normalised);
+> named_title_department_ids (uuid[] NOT NULL default `{}`) and named_counsel_department_ids (uuid[] NOT NULL default
+> `{}`): Department-tier office ids, without FK (deviation, Conventions); posts (varchar(40)[] NOT NULL default `{}`);
+> counsel_codes (varchar(120)[] NOT NULL default `{}`; every normalised printed code of current lists and current
+> advocates); government_codes (varchar(120)[] NOT NULL default `{}`; those passing the `counsel` test);
+> original_writ_text (varchar 60 NULL); original_writ_case_id (→ cases RESTRICT NULL); latest_order_on (date NULL);
+> orders_count (integer NOT NULL default 0); title_order_id (→ orders RESTRICT NULL; the order whose cause title was
+> read); reader_version (varchar 20 NOT NULL); built_at (timestamptz NOT NULL); created_at, updated_at. Checks:
+> `ck_insight_case_facts_basis` (`state_basis <@ ARRAY['party','officer','counsel','title','writ']::varchar[]`;
+> `claimed` is evaluated live, never stored); `ck_insight_case_facts_writ` (`original_writ_case_id IS NULL OR
+> original_writ_text IS NOT NULL`); `ck_insight_case_facts_orders` (`orders_count >= 0`). Indexes:
+> `ix_insight_case_facts_built_at` (built_at); partial `ix_insight_case_facts_main_case_id` (main_case_id) WHERE
+> main_case_id IS NOT NULL; partial `ix_insight_case_facts_original_writ` (original_writ_case_id) WHERE NOT NULL;
+> partial `ix_insight_case_facts_title_order_id` (title_order_id) WHERE NOT NULL. One row per case, updated in place,
+> never deleted; a merged case keeps its row and readers join live cases only. Post codes are checked by the service
+> (the list is code). No audit row is written for it (derived data, as the matching engine).
+
+> **`office_title_names`** (master). Printed department names in cause titles and respondent names, mapped to an
+> office. Columns: id (uuid v7 PK); office_id (→ offices RESTRICT NOT NULL); phrase (varchar 200 NOT NULL UNIQUE;
+> the normalised phrase); is_active (boolean NOT NULL default true); deactivated_at (timestamptz NULL); created_at,
+> updated_at; created_by, updated_by (→ users SET NULL). Checks and keys: `ck_office_title_names_phrase`
+> (`phrase ~ '^[A-Z0-9][A-Z0-9 ()&.,/-]{2,199}$'`); `ck_office_title_names_active`
+> (`is_active = (deactivated_at IS NULL)`); index `ix_office_title_names_office_id`. Managed with `admin.keywords` in
+> the office subtree (the super admin everywhere); every create, update, deactivate and reactivate is audited
+> (`title_name.*`) with a `config_changed` event. A phrase equal to a Department-tier office's name core matches it
+> without a row. Never deleted.
+
+Reference data in migration 0039 (hard-coded, `ON CONFLICT DO NOTHING`, no `audit_log` row, as 0016): the 20 kinds of
+case and 15 subject groups; the 235 categories for each court with `ref_code = 'GHC'` (the Gauhati High Court's
+establishments); the case-type mappings for those courts' `case_types` rows by `case_type_code`. The seed
+carries the same lists from `services/insights_groups.py` and a unit test holds the two equal. The downgrade refuses
+(a restore is needed, runbook section 6) while any `office_title_names` row exists or any row of the three grouping
+tables has a `created_by` or `updated_by`; otherwise it drops the five tables, the trigger and its function.
+`job_runs.job` gains `insights-refresh` and `insights-rebuild` (free text). `ref_permission` gains `insights.state`,
+`insights.department` and `admin.insights_groups` (seed only; `admin.insights_groups` is reserved, held by the super
+admin alone).
 
 Still deferred: district-court rows in `courts` and the NAPIX DC integration (Phase 3; no DC API specification in
 the repository yet); PostgreSQL schemas per bounded context (DB_STANDARD §9, revisited with Phase 3).

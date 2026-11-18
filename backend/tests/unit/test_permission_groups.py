@@ -17,8 +17,8 @@ EXPECTED_SIZES = {
     "Case Work": 10,  # close-case: cases.close, cases.reopen
     "Documents": 3,
     "Alerts": 4,  # next-date-direct, decision 19
-    "Reports": 4,
-    "Administration": 11,
+    "Reports": 6,  # state-insights: insights.state, insights.department
+    "Administration": 12,  # state-insights: admin.insights_groups (reserved)
 }
 
 
@@ -26,7 +26,8 @@ def test_every_active_function_is_in_exactly_one_group():
     counts = Counter(p for _, _, members in PERMISSION_GROUPS for p in members)
     assert set(counts) == set(ACTIVE_FUNCTIONS)
     assert all(n == 1 for n in counts.values()), [p for p, n in counts.items() if n > 1]
-    assert len(ACTIVE_FUNCTIONS) == 55  # next-date-direct: + 2; close-case: + cases.close, cases.reopen
+    # next-date-direct: + 2; close-case: + cases.close, cases.reopen; state-insights: + 3
+    assert len(ACTIVE_FUNCTIONS) == 58
 
 
 def test_no_retired_or_unknown_code_in_a_group():

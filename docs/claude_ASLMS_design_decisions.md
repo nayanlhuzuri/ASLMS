@@ -4108,3 +4108,46 @@ migration, no new table, column or index. Tests and review passed on the branch;
 - Verification 4: 146 `whole` readings with linked cases, 34 of whose last block reaches the body's last 10%; four read
   by hand end at their advocates line, the body after them being a line or two. A block that takes in an `ORDER Date :`
   line printed before the coram is added to row 266.
+
+## State Insights, round 1: readings, groupings, service, export and API (2026-11-18)
+
+Row 258 `state-insights` (branch `feature/state-insights`, in review), round 1 of the approved design
+`docs/design/state-insights.md` (backend only; the page is row 259, the cause-title signal row 260).
+
+**What was built.**
+- Migration 0039: five tables, `insight_groups`, `insight_subject_categories`, `insight_case_type_groups`
+  (groupings, master), `insight_case_facts` (derived, one row per case, never deleted) and `office_title_names`
+  (printed department names mapped to offices). Grants without DELETE; the 20 kinds of case, 15 subject groups, 235
+  categories and 57 case-type lines come in as reference data with no audit row. The downgrade refuses after a person's
+  edit.
+- Rule readers in `services/insights_rules.py` (State cases, department phrases from the cause title, posts, the
+  original writ of a contempt case, categories, outcomes, age and hearing bands; `READER_VERSION` 1) and the per-case
+  readings in `services/insights_facts.py`, from stored party names, printed counsel codes and the cause-title spans of
+  row 250. No AI, no NAPIX, SourceTrace or model call.
+- Jobs in the existing scheduler: `insights-refresh` every 10 minutes (batch `INSIGHTS_REFRESH_BATCH`) and
+  `insights-rebuild` at 04:45 IST.
+- `services/insights_scope.py`, `insights_filters.py`, `insights.py`: State and department scopes ANDed with
+  visibility in SQL, cross-filtered counts, filter chips, the case list with who has each case. `insights_export.py`:
+  Excel and PDF of the filtered list, audited `insights.exported`.
+- Functions `insights.state`, `insights.department` and the reserved `admin.insights_groups`; endpoints `/insights`,
+  `/insights/cases`, `/insights/fields`, `/insights/export`, `/admin/insights/*`, `/admin/title-names`; the
+  `insights` block on data-health; `aslms insights refresh|status|groups`; five `INSIGHTS_*` settings.
+
+**Decisions and reasons.**
+- The department bands (Claimed, Likely, Named in the cause title or by counsel code) are read live from the stored
+  arrays, so a mapping change counts at once without re-reading text; they are never added together.
+- Cause-title names are mapped under `admin.keywords` like counsel codes; the groupings are editable by the Super
+  Administrator alone.
+- The dirty rule for attribution is a content fingerprint of `counsel_codes`, `office_title_names` and `offices`.
+
+**Deviations** (full list, 21 items, in the design note's Deviations section). Chief ones: the two department-id
+arrays on `insight_case_facts` have no foreign key (PostgreSQL has none on array elements), recorded in
+`DB_STANDARD.md` and `schema.md`, with a test checking every stored id against `offices`; the case-type mapping was
+written from the types in use on dev because the mock's list is not in the repository; categories are inserted for
+every court with `ref_code = 'GHC'`; migration 0039 was regenerated whole before any commit to create the audit keys
+inline.
+
+**Left for later.** Row 259 the Insights page, export dialog, Insights Groups screen and Names in Cause Titles list;
+row 260 the `named_title` recommendation signal (own migration, engine version 3, dry-run count first). After the
+merge: apply 0039 with `migrate`, `init`, `docker compose build`, `aslms insights refresh --all` once, then
+`aslms insights status` (runbook section 26).

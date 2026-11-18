@@ -35,7 +35,7 @@ from aslms.domain.reference import (
     Role,
     Stage,
 )
-from aslms.services import scoring_settings
+from aslms.services import insights_groups, scoring_settings
 from aslms.services.access_seed import PERMISSION_LABELS, seed_matrix, seed_super_admin
 
 
@@ -489,4 +489,6 @@ def seed_all(session: Session) -> SeedReport:
     seed_matrix(session, report)
     seed_super_admin(session, report, root)
     scoring_settings.seed_default(session, report)
+    # design state-insights, decisions 14 to 16: the groupings (the same lists as migration 0039)
+    insights_groups.seed(session, report)
     return report

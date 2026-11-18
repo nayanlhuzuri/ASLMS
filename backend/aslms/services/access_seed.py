@@ -127,6 +127,15 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.REPORTS_DEPARTMENT: ("Department Reports", "Run and download the department's reports."),
     P.REPORTS_STATE: ("State Reports", "Run and download reports across all departments."),
     P.DASHBOARD_STATE: ("State Dashboard", "See the State-wide dashboard."),
+    # design state-insights, decision 17
+    P.INSIGHTS_STATE: (
+        "View State Insights",
+        "See the Insights page for the whole State: charts, the case list and exports.",
+    ),
+    P.INSIGHTS_DEPARTMENT: (
+        "View Department Insights",
+        "See the Insights page for your own department and its units.",
+    ),
     P.AUDIT_VIEW: ("Read the Audit Log", "Search who did what, and when."),
     P.ADMIN_COUNSEL_CODES: ("Counsel Codes", "Link standing-counsel codes to departments."),
     P.ADMIN_KEYWORDS: ("Keywords and Name Patterns", "Words and names that point a case to a department."),
@@ -160,6 +169,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_TICKETS: (
         "Decide Admin Tickets",
         "Decide the requests that need the Super Administrator (reserved to the Super Administrator).",
+    ),
+    P.ADMIN_INSIGHTS_GROUPS: (
+        "Insights Groups",
+        "Group the court's subject categories and case types for Insights.",
     ),
 }
 
@@ -223,7 +236,18 @@ PERMISSION_GROUPS: tuple[tuple[str, str, tuple[P, ...]], ...] = (
         "Alerts",
         (P.ALERTS_ACKNOWLEDGE, P.NEXT_DATES_REVIEW, P.NEXT_DATES_REPORT_WRONG, P.NEXT_DATES_CORRECT),
     ),
-    ("reports", "Reports", (P.REPORTS_DEPARTMENT, P.REPORTS_STATE, P.DASHBOARD_STATE, P.AUDIT_VIEW)),
+    (
+        "reports",
+        "Reports",
+        (
+            P.REPORTS_DEPARTMENT,
+            P.REPORTS_STATE,
+            P.DASHBOARD_STATE,
+            P.INSIGHTS_STATE,  # design state-insights, decision 17
+            P.INSIGHTS_DEPARTMENT,
+            P.AUDIT_VIEW,
+        ),
+    ),
     (
         "administration",
         "Administration",
@@ -239,6 +263,7 @@ PERMISSION_GROUPS: tuple[tuple[str, str, tuple[P, ...]], ...] = (
             P.ADMIN_DATA_LOAD,
             P.ADMIN_SERVICE_HEALTH,
             P.ADMIN_TICKETS,
+            P.ADMIN_INSIGHTS_GROUPS,  # design state-insights, decision 14 (reserved)
         ),
     ),
 )
@@ -291,8 +316,16 @@ _DEPT_ADMIN = {
 }
 
 DEFAULT_MATRIX: dict[Role, set[P]] = {
+    # design state-insights, decision 17: View State Insights for State Oversight
     Role.STATE_OVERSIGHT: _READ_CASES
-    | {P.CASES_VIEW_ALL, P.DASHBOARD_STATE, P.REPORTS_STATE, P.REPORTS_DEPARTMENT, P.USERS_VIEW},
+    | {
+        P.CASES_VIEW_ALL,
+        P.DASHBOARD_STATE,
+        P.REPORTS_STATE,
+        P.REPORTS_DEPARTMENT,
+        P.USERS_VIEW,
+        P.INSIGHTS_STATE,
+    },
     # design alerts-visibility-roles, decision 17: the head recalls cases like the department admin
     # design close-case, decision 2: Close Cases for the head and the officer, Reopen Cases for the head and the admin
     Role.DEPT_HEAD: _CASE_WORK
@@ -304,11 +337,12 @@ DEFAULT_MATRIX: dict[Role, set[P]] = {
         P.CUSTODY_RECALL,
         P.CASES_CLOSE,
         P.CASES_REOPEN,
+        P.INSIGHTS_DEPARTMENT,  # design state-insights, decision 17
     },
     Role.DEPT_ADMIN: _CASE_WORK
     | _OWNERSHIP
     | _DEPT_ADMIN
-    | {P.CUSTODY_RECALL, P.CUSTODY_TRACK, P.CASES_REOPEN},
+    | {P.CUSTODY_RECALL, P.CUSTODY_TRACK, P.CASES_REOPEN, P.INSIGHTS_DEPARTMENT},
     Role.DEPT_OFFICER: _CASE_WORK | {P.CASES_CLOSE},
     Role.DIRECTORATE_USER: _CASE_WORK - {P.CASES_SEARCH_COURT},
     Role.REFERRAL_REVIEWER: _READ_CASES | {P.NOTES_ADD, P.STAGES_SET, P.ALERTS_ACKNOWLEDGE},

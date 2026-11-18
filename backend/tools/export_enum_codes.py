@@ -5,7 +5,8 @@ decision 15): sorted keys, 2-space indent, a trailing newline, the same conventi
   its values in declaration order; a name defined in two modules is written `<module>.<Name>`;
 - `audit_actions`: the registry `aslms.domain.audit_actions.AUDIT_ACTIONS` (decision 22);
 - `case_detail_fields`: the keys of the case overview's blocks (`services/case_detail.py`, decision 18), with the keys
-  the portal adds from `court` and `bench`.
+  the portal adds from `court` and `bench`;
+- `insights_filters`: the fixed values of the Insights filters and sorts (design `state-insights`, decision 24).
 
 The portal's `enumLabels.test.ts`, `auditNames.test.ts` and `caseFields.test.ts` read it. Run from anywhere:
 `backend/.venv/Scripts/python backend/tools/export_enum_codes.py`. No database or secret is needed."""
@@ -59,6 +60,26 @@ def _case_detail_fields() -> dict[str, list[str]]:
     }
 
 
+def _insights_filters() -> dict[str, list[str]]:
+    """The fixed values of the Insights filters (design `state-insights`, decision 24); group codes, departments,
+    offices and counsel codes come from the API."""
+    from aslms.services import insights, insights_filters, insights_rules
+    from aslms.services.reporting_common import AGE_KEYS
+
+    return {
+        "status": list(insights_filters.STATUSES),
+        "age": [*AGE_KEYS, "over_5"],
+        "next": list(insights_filters.NEXT_VALUES),
+        "band": list(insights_filters.BANDS),
+        "post": list(insights_rules.POST_CODES),
+        "outcome": list(insights_rules.OUTCOME_KEYS),
+        "action": list(insights_filters.ACTIONS),
+        "compliance": list(insights_filters.COMPLIANCE),
+        "date_of": list(insights_filters.DATE_OF),
+        "sort": list(insights.SORTS),
+    }
+
+
 def enum_codes_text() -> str:
     if str(BACKEND) not in sys.path:
         sys.path.insert(0, str(BACKEND))
@@ -68,6 +89,7 @@ def enum_codes_text() -> str:
         "audit_actions": list(AUDIT_ACTIONS),
         "case_detail_fields": _case_detail_fields(),
         "enums": _domain_enums(),
+        "insights_filters": _insights_filters(),
     }
     return json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 

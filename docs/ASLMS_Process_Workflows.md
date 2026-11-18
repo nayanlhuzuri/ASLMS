@@ -912,6 +912,8 @@ window, every Next Hearing column and the dashboard's hearing lists.
 
 - **State oversight** reads every case, the State dashboard (one row per department, the unclaimed count, hearings,
   overdue actions) and State reports. They cannot claim or change anything.
+  They also hold View State Insights (row 258): the cross-filtering analysis of the State's cases, worked out as
+  the note "State Insights: how the numbers are worked out" at the end of section 4 describes.
 - **The Auditor** reads every case and the **audit log**: who did what and when, with before-and-after values and
   links from each case, person and record. Reading the audit log is not itself audited.
 
@@ -1112,6 +1114,38 @@ the text, so a statement can always be traced to the court's own words.
 
 The worked example is Annexure E of the Software Documentation. Rows 251 to 253 add the meaning search, similar cases,
 summaries and precedent notes.
+
+#### State Insights: how the numbers are worked out (row 258)
+
+The Insights page (under Oversight, beside Reports and Audit Log; the screen arrives in row 259) answers "what is the
+state of our litigation, and where are the problems". Every figure is counted by the server from the court data ASLMS
+holds and the work recorded in ASLMS; nothing is guessed by an AI.
+
+- **Which cases are State cases.** The court does not say, so ASLMS works it out and labels it "worked out". A case is
+  a State case when at least one of these holds: a party is the State of Assam or the Government of Assam; a respondent
+  is named with a government service tag (IAS, IPS, ACS and the like); a printed counsel code is a government code (a
+  State code, a code mapped to a department, or a GA, PP or AG form for Assam); the cause title of its latest order
+  names the Government of Assam or a department ASLMS knows; it is a contempt case whose original writ is held and is
+  itself a State case; or a department has claimed it. An unmapped standing counsel code alone does not count, because
+  standing counsel also appear for Union bodies and universities.
+- **Interlocutory applications** are counted inside their main case ("Applications Pending: 2"), not as cases of their
+  own, unless "Include Interlocutory Applications" is switched on.
+- **Departments in three bands, never added together.** For each department: Claimed (it said the case is its own);
+  Recommended, Not Claimed (an open recommendation); Named in the Cause Title or by Counsel Code (neither claimed nor
+  recommended). A case is in at most one band for a department, and the bands are shown side by side, never as a total.
+- **The readings by rule.** From the cause title of the latest order (the part row 250 locates) and the respondent names,
+  ASLMS reads the department phrases ("FINANCE DEPARTMENT" gives FINANCE), the posts named (Principal Secretary,
+  Deputy Commissioner and the like) and, for contempt cases, the original writ number. A phrase equal to a department's
+  own name points to it at once; any other printed form is mapped once by a department administrator on Department
+  Mapping (Names in Cause Titles). A writ is linked only when ASLMS holds that case; nothing is invented.
+- **Subject groups and kinds of case** come from the court's own categories and case types, placed in groups the Super
+  Administrator can change (Insights Groups). A category the court adds later shows as "Not Grouped" until placed.
+- **Who sees what.** View State Insights (State Oversight) shows the whole State; View Department Insights (Department
+  Head and Department Administrator) shows one department's three bands, within what that person may open. Other
+  departments' recommendations are never named in a department's view. Exports to Excel and PDF are audited and hold
+  only cases the viewer may open, never notes, file remarks or documents.
+- **Freshness.** The readings are refreshed every 10 minutes for changed cases and rebuilt every night at 04:45; who has
+  a case, its status and its next hearing are read live at every click.
 
 ---
 

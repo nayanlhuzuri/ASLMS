@@ -60,6 +60,11 @@
     "document.upload_rejected",
     "document.uploaded",
     "document.visibility_changed",
+    "insights.case_type_grouped",
+    "insights.category_grouped",
+    "insights.exported",
+    "insights.group_created",
+    "insights.group_updated",
     "keyword.create",
     "keyword.deactivate",
     "keyword.reactivate",
@@ -131,6 +136,10 @@
     "ticket.opened",
     "ticket.rejected",
     "ticket.withdrawn",
+    "title_name.create",
+    "title_name.deactivate",
+    "title_name.reactivate",
+    "title_name.update",
     "transfer.accept",
     "transfer.decline",
     "transfer.request",
@@ -686,7 +695,10 @@
       "assistant.use",
       "audit.view",
       "cases.close",
-      "cases.reopen"
+      "cases.reopen",
+      "insights.state",
+      "insights.department",
+      "admin.insights_groups"
     ],
     "PermissionEffect": [
       "grant",
@@ -845,6 +857,92 @@
       "done",
       "failed",
       "skipped"
+    ]
+  },
+  "insights_filters": {
+    "action": [
+      "overdue",
+      "due_soon",
+      "due_later",
+      "no_due_date",
+      "with_officer",
+      "not_sent",
+      "closed",
+      "not_claimed"
+    ],
+    "age": [
+      "age_lt_1",
+      "age_1_3",
+      "age_3_5",
+      "age_5_10",
+      "age_10_20",
+      "age_20_30",
+      "age_gt_30",
+      "age_unknown",
+      "over_5"
+    ],
+    "band": [
+      "claimed",
+      "likely",
+      "named"
+    ],
+    "compliance": [
+      "overdue",
+      "due_soon"
+    ],
+    "date_of": [
+      "registration",
+      "next_hearing",
+      "latest_order",
+      "disposal"
+    ],
+    "next": [
+      "today",
+      "tomorrow",
+      "days_2_7",
+      "days_8_30",
+      "later",
+      "passed",
+      "none",
+      "disposed",
+      "within_7"
+    ],
+    "outcome": [
+      "withdrawn",
+      "infructuous",
+      "dismissed_default",
+      "dismissed",
+      "rejected",
+      "allowed",
+      "disposed_of",
+      "closed",
+      "other"
+    ],
+    "post": [
+      "addl_chief_secretary",
+      "principal_secretary",
+      "commissioner_secretary",
+      "secretary",
+      "dgp",
+      "director",
+      "deputy_commissioner",
+      "superintendent_police",
+      "chief_engineer",
+      "executive_engineer",
+      "inspector_schools",
+      "deeo",
+      "circle_officer",
+      "chief_executive"
+    ],
+    "sort": [
+      "next",
+      "registered",
+      "latest_order"
+    ],
+    "status": [
+      "pending",
+      "disposed",
+      "all"
     ]
   }
 }

@@ -1,6 +1,7 @@
 """Rule administration for the matching engine (design `recommend-and-claim`, decisions 13, 14, 21):
 counsel codes (`admin.counsel_codes`), keywords and name patterns (`admin.keywords`), the watchlist
-(`admin.watchlist`).
+(`admin.watchlist`), and the printed department names of cause titles (`office_title_names`, `admin.keywords`; design
+`state-insights`, decision 9).
 
 - A non-super-admin acts only on rules whose office is in their subtree. Generic State codes are mapped to the
   root `GOA`, so only the super admin creates them.
@@ -778,3 +779,221 @@ def set_watch_active(
     )
     _rescore_watch(session, row)
     return row
+
+
+# ------------------------------------------------------------------------------------------------ cause-title names
+# design state-insights, decision 9: a printed department phrase mapped to an office (`office_title_names`), managed
+# like counsel codes with `admin.keywords` in the office subtree (the super admin everywhere). A save makes the
+# Insights attribution dirty (the fingerprint of `insights_facts`); the router dispatches `insights-refresh`.
+
+
+class BadPhrase(RuleError):
+    """A phrase that does not normalise to 3 to 200 letters, digits and ( ) & . , / - (HTTP 400 `bad_phrase`)."""
+
+    code = "bad_phrase"
+
+
+class PhraseTaken(DuplicateRule):
+    """The phrase is already mapped and active (HTTP 409 `phrase_taken`)."""
+
+    code = "phrase_taken"
+
+
+TITLE_NAME_SORTS = {"phrase": "asc", "office": "asc", "cases": "desc"}
+UNMAPPED_TITLE_PAGE = 100
+
+
+def title_name_summary(session: Session, row) -> dict:
+    return {
+        "phrase": row.phrase,
+        "office_code": _office_code(session, row.office_id),
+        "is_active": row.is_active,
+    }
+
+
+def _title_phrase(phrase: str | None) -> str:
+    from aslms.services import insights_rules
+
+    norm = insights_rules.normalise_phrase(phrase)
+    if not insights_rules.valid_phrase(norm):
+        raise BadPhrase("a name is 3 to 200 letters, digits, spaces and ( ) & . , / -")
+    return norm
+
+
+def create_title_name(session: Session, actor: Actor, actor_user: User, *, office: Office, phrase: str):
+    """A new mapping (normalised by the server); re-adding a deactivated phrase reactivates it on the new office.
+    Audited `title_name.create` / `title_name.reactivate` with a `config_changed` event."""
+    from aslms.domain.insights import OfficeTitleName
+
+    access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
+    office = _active_office(office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
+    if office.parent_id is None:
+        raise RuleError("a cause-title name belongs to a department or one of its offices")
+    norm = _title_phrase(phrase)
+    row = session.scalar(select(OfficeTitleName).where(OfficeTitleName.phrase == norm))
+    if row is not None:
+        if row.is_active:
+            raise PhraseTaken(f"{norm} is already mapped to {_office_code(session, row.office_id)}")
+        old_office = session.get(Office, row.office_id)
+        if old_office is not None and not access.in_scope(
+            session, actor_user, old_office, permission=Permission.ADMIN_KEYWORDS
+        ):
+            raise PhraseTaken(f"{norm} belongs to another office")
+        before = title_name_summary(session, row)
+        _set_active(row, True)
+        row.office_id = office.id
+        row.updated_by = actor.user_id
+        _record(session, actor, "title_name", row, "reactivate", before, title_name_summary(session, row))
+        return row
+    row = OfficeTitleName(
+        office_id=office.id, phrase=norm, created_by=actor.user_id, updated_by=actor.user_id
+    )
+    session.add(row)
+    _record(session, actor, "title_name", row, "create", None, title_name_summary(session, row))
+    return row
+
+
+def update_title_name(session: Session, actor: Actor, actor_user: User, row, *, office: Office):
+    """Moves a mapping to another office; both offices in the caller's subtree. Nothing changed writes nothing."""
+    access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
+    _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_KEYWORDS)
+    if office.id == row.office_id:
+        return row
+    office = _active_office(office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
+    if office.parent_id is None:
+        raise RuleError("a cause-title name belongs to a department or one of its offices")
+    before = title_name_summary(session, row)
+    row.office_id = office.id
+    row.updated_by = actor.user_id
+    _record(session, actor, "title_name", row, "update", before, title_name_summary(session, row))
+    return row
+
+
+def set_title_name_active(session: Session, actor: Actor, actor_user: User, row, enabled: bool):
+    access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
+    office = session.get(Office, row.office_id)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
+    if row.is_active == enabled:
+        raise RuleError(f"the name is already {'active' if enabled else 'inactive'}")
+    if enabled:
+        _active_office(office)
+    before = title_name_summary(session, row)
+    _set_active(row, enabled)
+    row.updated_by = actor.user_id
+    action = "reactivate" if enabled else "deactivate"
+    _record(session, actor, "title_name", row, action, before, title_name_summary(session, row))
+    return row
+
+
+def _phrase_case_counts(session: Session, phrases: list[str]) -> dict[str, int]:
+    from sqlalchemy import text as sql_text
+
+    if not phrases:
+        return {}
+    return {
+        p: int(n)
+        for p, n in session.execute(
+            sql_text(
+                "SELECT p, count(DISTINCT f.case_id) FROM insight_case_facts f JOIN cases c ON c.id = f.case_id "
+                "CROSS JOIN LATERAL unnest(f.title_phrases) AS p "
+                "WHERE c.merged_into_case_id IS NULL AND p = ANY(CAST(:phrases AS varchar[])) GROUP BY p"
+            ),
+            {"phrases": phrases},
+        ).all()
+    }
+
+
+def list_title_names(
+    session: Session,
+    actor_user: User,
+    *,
+    office: Office | None = None,
+    q: str | None = None,
+    sort: str | None = None,
+    active: bool | None = True,
+) -> list[dict]:
+    """The mappings whose office is in the caller's subtree (all for the super admin), with the cases naming each
+    phrase; `q` over the phrase and the office (list-search), `sort` `phrase`, `office` or `cases` (400 `bad_sort`),
+    `active` true (default), false or None (both)."""
+    from aslms.domain.insights import OfficeTitleName
+    from aslms.services import list_sort
+
+    access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
+    lq = list_search.parse(q)
+    picked = list_sort.parse_keys(TITLE_NAME_SORTS, sort, None)
+    stmt = select(OfficeTitleName, Office).join(Office, Office.id == OfficeTitleName.office_id)
+    if not access.is_super_admin(actor_user):
+        roots = _scope_roots(session, actor_user, Permission.ADMIN_KEYWORDS)
+        if not roots:
+            return []
+        stmt = stmt.where(or_(*[or_(Office.id == r.id, Office.path.like(r.path + "/%")) for r in roots]))
+    if office is not None:
+        stmt = stmt.where(or_(Office.id == office.id, Office.path.like(office.path + "/%")))
+    if active is not None:
+        stmt = stmt.where(OfficeTitleName.is_active.is_(bool(active)))
+    rows = session.execute(stmt).all()
+    counts = _phrase_case_counts(session, [r.phrase for r, _ in rows])
+    departments: dict[uuid.UUID, Office | None] = {}
+    items = []
+    for row, o in rows:
+        if not list_search.matches(lq, [row.phrase, o.code, o.name]):
+            continue
+        if o.id not in departments:
+            departments[o.id] = access.department_of(session, o)
+        dept = departments[o.id]
+        items.append(
+            {
+                "id": row.id,
+                "phrase": row.phrase,
+                "office_code": o.code,
+                "office_name": o.name,
+                "department_code": dept.code if dept is not None else None,
+                "is_active": row.is_active,
+                "cases": counts.get(row.phrase, 0),
+            }
+        )
+    key, direction = picked or ("phrase", "asc")
+    sort_key = {"phrase": "phrase", "office": "office_name", "cases": "cases"}[key]
+    items.sort(
+        key=lambda i: (i[sort_key].lower() if isinstance(i[sort_key], str) else i[sort_key], i["phrase"])
+    )
+    if direction == "desc":
+        items.reverse()
+    return items
+
+
+def unmapped_title_names(
+    session: Session, actor_user: User, *, q: str | None = None, page: int = 1
+) -> tuple[list[dict], int]:
+    """Decision 9: the phrases read from cause titles and respondent names that no active mapping and no automatic
+    match on a department's name names, most cases first, counted over the cases the caller may see only, each with an
+    example case number. 100 a page."""
+    from sqlalchemy import text as sql_text
+
+    from aslms.domain.insights import InsightCaseFact
+    from aslms.services import insights_facts, visibility
+
+    access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
+    lq = list_search.parse(q)
+    maps = insights_facts.load_maps(session)
+    visible = visibility.visible_case_condition(session, actor_user)
+    phrase = func.unnest(InsightCaseFact.title_phrases).table_valued("p").render_derived(name="tp")
+    rows = session.execute(
+        select(phrase.c.p, func.count(func.distinct(Case.id)), func.min(Case.case_no_text))
+        .select_from(Case)
+        .join(InsightCaseFact, InsightCaseFact.case_id == Case.id)
+        .join(phrase, sql_text("true"))
+        .where(Case.merged_into_case_id.is_(None), visible)
+        .group_by(phrase.c.p)
+    ).all()
+    items = [
+        {"phrase": p, "cases": int(n), "example_case_no": example}
+        for p, n, example in rows
+        if maps.is_unmapped(p) and list_search.matches(lq, [p])
+    ]
+    items.sort(key=lambda i: (-i["cases"], i["phrase"]))
+    page = max(1, int(page or 1))
+    start = (page - 1) * UNMAPPED_TITLE_PAGE
+    return items[start : start + UNMAPPED_TITLE_PAGE], len(items)

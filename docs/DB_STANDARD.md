@@ -31,7 +31,7 @@ decision closed with the owner, 29 Sep).
 | **Reference** (`ref_*`) | new in this milestone (§7) | `aslms seed` (upsert on `code`); administrators edit labels only |
 | **Master** | `offices`, `users`, `courts`, `benches`, `case_types`, `counsel_codes`, `office_name_patterns`, `office_keywords`, `office_watchlist`, `user_notification_preferences`; new: `designations`, `states`, `districts`, `acts`, `advocates` | administration screens (organisation masters) or the `master_sync` job (court masters) |
 | **Transaction** | `cases`, `case_parties`, `case_advocates`, `case_hearings`, `case_acts`, `case_links`, `causelists`, `causelist_entries`, `causelist_reconciliations`, `recommendations`, `case_ownership`, `ownership_transfers`, `documents`, `document_text`, `orders`, `next_dates`, `alerts`, `requests`, `request_messages`, `case_stages`, `case_notes`, `case_note_attachments`, `custody`, `assistant_conversations`, `assistant_messages`; new: `case_applications`, `case_lower_courts`, `case_objections` | users, the daily cycle, the scoring engine |
-| **Derived / log** | `events`, `audit_log`, `custody_history`, `case_snapshots`, `case_office_scores`, `notifications`, `digests`, `otp_codes`, `refresh_tokens`, `job_runs`, `napix_call_log`, `source_failures`, `master_sync_runs`, `sourcetrace_ingestions`, `order_sections` | system only; logs are INSERT-only, derived rows are regenerable |
+| **Derived / log** | `events`, `audit_log`, `custody_history`, `case_snapshots`, `case_office_scores`, `notifications`, `digests`, `otp_codes`, `refresh_tokens`, `job_runs`, `napix_call_log`, `source_failures`, `master_sync_runs`, `sourcetrace_ingestions`, `order_sections`, `insight_case_facts` | system only; logs are INSERT-only, derived rows are regenerable |
 
 Rules that follow from the class:
 1. A transaction never stores a master value as free text once a master exists (`users.designation` →
@@ -63,6 +63,11 @@ server default — replacing `gen_random_uuid()` in `db/base.py::uuid_pk()` — 
 application needs the id before flush. Business identifiers (CNR, `est_code`, `code`, email) are UNIQUE
 columns, never keys. `custody.case_id` and `document_text.document_id` stay as 1:1 primary keys (they are
 the parent's id, not a new identity). Lookup tables use `code` as their key (§7).
+
+Derived arrays of office ids carry no foreign key: PostgreSQL has none on array elements. The one case is
+`insight_case_facts.named_title_department_ids` and `named_counsel_department_ids` (design `state-insights`,
+decision 13): offices are never deleted (every FK to `offices` is RESTRICT; offices are deactivated), the builder
+writes only Department-tier office ids, and a database test checks every stored id against `offices`.
 
 ## 3. Reference numbers (`ref_no`)
 

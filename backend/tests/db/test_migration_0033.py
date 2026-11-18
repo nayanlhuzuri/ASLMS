@@ -26,13 +26,14 @@ def _tables(conn) -> dict:
 
 def test_single_head_is_the_merge(db_url):
     script = ScriptDirectory.from_config(alembic_config(db_url))
-    # 0034 (next-date-direct), 0035 (close-case), 0036 (offices-import), 0037 (assistant-ollama-work) and 0038
-    # (order-sections) follow the merge: still one head
-    assert script.get_heads() == ["0038"] and script.get_revision("0034").down_revision == "0033"
+    # 0034 (next-date-direct), 0035 (close-case), 0036 (offices-import), 0037 (assistant-ollama-work), 0038
+    # (order-sections) and 0039 (state-insights) follow the merge: still one head
+    assert script.get_heads() == ["0039"] and script.get_revision("0034").down_revision == "0033"
     assert script.get_revision("0035").down_revision == "0034"
     assert script.get_revision("0036").down_revision == "0035"
     assert script.get_revision("0037").down_revision == "0036"
     assert script.get_revision("0038").down_revision == "0037"
+    assert script.get_revision("0039").down_revision == "0038"
     assert set(script.get_revision("0033").down_revision) == {"0031", "0032"}
 
 

@@ -30,7 +30,10 @@ scheduler start `aslms.lists_catchup` queues the missing days from today − `CA
 (`job_runs` `lists-catchup` when it queued a day, decision 5); neither calls NAPIX. Design rolling-case-refresh:
 `nightly-refresh` (22:00 IST) queues the hearing follow-ups, then every case not disposed whose last full record is 7
 days old, claimed cases first (`job_runs` `nightly-refresh`); `weekly-sweep` (Sunday 02:00) queues only the cases never
-fully fetched and the order PDFs the court had not published; neither calls NAPIX.
+fully fetched and the order PDFs the court had not published; neither calls NAPIX. Design state-insights:
+`insights-refresh` (every 10 minutes at minute 4, also dispatched after a counsel-code or cause-title-name save)
+rebuilds the readings of dirty cases and the department attribution, one run at a time; `insights-rebuild` (04:45 IST)
+rebuilds every row; both write `job_runs` and never call NAPIX, SourceTrace or a model.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -96,6 +99,9 @@ app.conf.update(
         "next-dates-read": {"task": "aslms.next_dates_read", "schedule": crontab(minute="2-59/5")},
         # court orders read into their parts by rules (design order-sections, decision 23); no NAPIX call
         "order-sections": {"task": "aslms.order_sections_read", "schedule": crontab(minute="3-59/5")},
+        # the readings of State Insights by rules (design state-insights, decisions 12 and 30); no NAPIX call
+        "insights-refresh": {"task": "aslms.insights_refresh", "schedule": crontab(minute="4-59/10")},
+        "insights-rebuild": {"task": "aslms.insights_rebuild", "schedule": crontab(hour=4, minute=45)},
         "alerts-scan-events": {"task": "aslms.alerts_scan_events", "schedule": crontab(minute="*/5")},
         "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
@@ -296,6 +302,28 @@ def order_sections_read() -> dict:
     SourceTrace or model call; no `fetch_queue` row."""
     with session_scope() as s:
         return order_sections.run_job(s, cfg=settings)
+
+
+@app.task(name="aslms.insights_refresh")
+def insights_refresh() -> dict | None:
+    """The readings of State Insights (design state-insights, decision 12): at most INSIGHTS_REFRESH_BATCH dirty cases,
+    then the department attribution again when a mapping or an office changed; one run at a time (None when another
+    holds the lock); one `job_runs` row `insights-refresh`. Also dispatched after a counsel-code or cause-title-name
+    save. No NAPIX, SourceTrace or model call; no audit row."""
+    from aslms.services import insights_facts
+
+    with session_scope() as s:
+        report = insights_facts.refresh_if_free(s, batch=settings.insights_refresh_batch)
+    return report.as_dict() if report is not None else None
+
+
+@app.task(name="aslms.insights_rebuild")
+def insights_rebuild() -> dict:
+    """04:45 IST: every fact row rebuilt in batches of INSIGHTS_REFRESH_BATCH, each its own transaction, then the
+    categories discovered; one `job_runs` row `insights-rebuild` (design state-insights, decision 12)."""
+    from aslms.services import insights_facts
+
+    return insights_facts.rebuild(get_sessionmaker(), batch=settings.insights_refresh_batch).as_dict()
 
 
 @app.task(name="aslms.extract_document_text")

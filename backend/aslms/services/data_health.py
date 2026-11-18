@@ -541,8 +541,26 @@ def snapshot(
             timeout_s=settings.order_sections_status_timeout_seconds,
             restore_s=settings.report_statement_timeout_seconds,
         ),
+        # design state-insights, decision 29: the readings of Insights, isolated in the same way
+        "insights": insights_block(session, settings),
         "retention": retention(session, settings, now),
     }
+
+
+def insights_block(session: Session, settings: Settings) -> dict[str, Any] | None:
+    """Decision 29 of `state-insights`: `insights_facts.status` in a savepoint under the readings' status timeout; None
+    when it runs out of time (the rest of the screen still answers)."""
+    from aslms.services import insights_facts
+    from aslms.services.reporting_common import isolated
+
+    value, _late = isolated(
+        session,
+        settings.order_sections_status_timeout_seconds,
+        settings.report_statement_timeout_seconds,
+        lambda: insights_facts.status(session),
+        part="insights readings",
+    )
+    return value
 
 
 # ------------------------------------------------------------------------------------------------ detail lists
