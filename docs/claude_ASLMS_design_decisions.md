@@ -4151,3 +4151,11 @@ inline.
 row 260 the `named_title` recommendation signal (own migration, engine version 3, dry-run count first). After the
 merge: apply 0039 with `migrate`, `init`, `docker compose build`, `aslms insights refresh --all` once, then
 `aslms insights status` (runbook section 26).
+
+## Design approvals (18 Nov 2026)
+- `state-insights-review-advisories` (row 267) approved by the owner on 18 Nov 2026, as written: the dirty test's
+  `built_at` as a watermark before the oldest open application transaction (`INSIGHTS_DIRTY_LOOKBACK_MINUTES`, default
+  60); the rebuild re-reading the fingerprint per batch and re-deriving once at the end; `dept` and `band` refused
+  outside the State scope (400 `bad_filter`); phrases folded so every listed phrase can be mapped (`READER_VERSION`
+  "2"); seeded case-type lines placed by the refresh jobs; group writes answering their real line, `sort_order` 0 to
+  10000 (400 `bad_sort_order`); `filed` comparing the year. No migration. Built before row 259.

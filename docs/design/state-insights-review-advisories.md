@@ -2,10 +2,10 @@
 
 ```
 slug: state-insights-review-advisories
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-18
-approved_by:
+approved_by: owner on 2026-11-18
 ```
 
 ## Context
