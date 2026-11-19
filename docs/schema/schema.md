@@ -494,8 +494,10 @@ and the `set_updated_at` trigger.
 > case_type_id (→ case_types RESTRICT NOT NULL, UNIQUE); group_id (uuid NOT NULL) and group_kind (varchar 10 NOT NULL
 > default `family`), together → insight_groups (id, kind) RESTRICT; created_at, updated_at; created_by, updated_by
 > (→ users SET NULL). CHECK `ck_insight_case_type_groups_kind` (`group_kind = 'family'`); index on group_id. A case
-> type without a row is of kind `other`. The migration and the seed map the 57 case types in use by court and
-> `case_type_code`; the court master sync never writes this table. Never deleted.
+> type without a row is of kind `other`. The migration, the seed and the `insights-refresh` and `insights-rebuild`
+> jobs place the seed line of each of the 57 seeded case types (by court and `case_type_code`) that has none; a placed
+> line is reference data (no audit row), and an existing line is never changed by them. The court master sync never
+> writes this table. A line's `updated_at` makes its cases' readings dirty. Never deleted.
 
 > **`insight_case_facts`** (derived). The per-case readings Insights counts, rebuilt by `services/insights_facts.py`
 > (jobs `insights-refresh` and `insights-rebuild`, `aslms insights refresh`); re-buildable at any time. Columns:
@@ -509,7 +511,11 @@ and the `set_updated_at` trigger.
 > advocates); government_codes (varchar(120)[] NOT NULL default `{}`; those passing the `counsel` test);
 > original_writ_text (varchar 60 NULL); original_writ_case_id (→ cases RESTRICT NULL); latest_order_on (date NULL);
 > orders_count (integer NOT NULL default 0); title_order_id (→ orders RESTRICT NULL; the order whose cause title was
-> read); reader_version (varchar 20 NOT NULL); built_at (timestamptz NOT NULL); created_at, updated_at. Checks:
+> read); reader_version (varchar 20 NOT NULL); built_at (timestamptz NOT NULL; the build's watermark: every change
+> committed before it is reflected in the row. It is the build transaction's start, or 1 µs before the start of the
+> oldest open transaction of the application role at that moment when that is earlier, never more than
+> `INSIGHTS_DIRTY_LOOKBACK_MINUTES` earlier; the dirty test compares the change times of the case, its orders, their
+> readings, its cause-list entries and its case type's line with it); created_at, updated_at. Checks:
 > `ck_insight_case_facts_basis` (`state_basis <@ ARRAY['party','officer','counsel','title','writ']::varchar[]`;
 > `claimed` is evaluated live, never stored); `ck_insight_case_facts_writ` (`original_writ_case_id IS NULL OR
 > original_writ_text IS NOT NULL`); `ck_insight_case_facts_orders` (`orders_count >= 0`). Indexes:

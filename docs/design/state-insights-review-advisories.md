@@ -392,3 +392,40 @@ The integrator, after the merge, with 0039 applied (row 258's deploy) and the ap
 
 ## Open questions
 None.
+
+## Deviations
+Written by the developer, 18 Nov 2026.
+
+1. **The rebuild's end step** re-derives when any batch was written with maps of a fingerprint other than the final
+   one, and always records the final fingerprint. This includes decision 2's rule (the final fingerprint differs from
+   the first batch's) and also covers a mapping changed and changed back during one rebuild, where the middle batches
+   would otherwise keep maps nobody re-derives.
+2. **`watermark(session, lookback_minutes=None)`** takes an optional lookback, fractions of a minute allowed, passed to
+   SQL in seconds, so the lookback test waits about one second instead of a minute. The setting itself stays whole
+   minutes (0 to 1,440).
+3. **The open-transaction test** runs its second connection under `SET LOCAL ROLE aslms_app`, as `test_app_role.py`
+   does, and the build on the suite's owner login, which sees every session's `xact_start`. Signing in as
+   `aslms_app` would need its password, which the suite never sets (it is shared by the cluster's databases). In
+   deployment the writers and the build are all `aslms_app` logins, which see each other.
+4. **The open-transaction test builds the case for the first time while the writer is open.** A case that is clean
+   when the writer starts is not rebuilt by that refresh, so it would pass under the old rule too. Checked: the four
+   cases fail with `INSIGHTS_DIRTY_LOOKBACK_MINUTES=0` (the old behaviour) and pass with the default.
+5. **The export is `GET /insights/export`** (the API table says `POST`); the `dept` refusal applies to it through the
+   shared `parse`.
+6. **`set_categories` reads a category's rows in id order**, so the label of its answer is the one `list_categories`
+   shows.
+7. **`place_seed_case_types`** leaves out a type whose seed group is not held (only on a database whose groups were
+   never seeded) and inserts with `ON CONFLICT (case_type_id) DO NOTHING`, so a Super Administrator's save at the same
+   moment wins. `insights_groups.seed_case_types_missing` lists the lines with their seed group for `groups check`.
+8. **`_sort_order`** also refuses a boolean or a string (`bad_sort_order`), not only numbers outside 0 to 10,000.
+9. **Two existing tests pinned to reader version 1** now expect version 2: `test_data_health_block` reads "2", and
+   `test_reader_version_change_marks_all_dirty` patches the version to "3".
+10. **Tests added beyond the list:** `test_group_line_counts_like_the_list`, `test_rebuild_counts_case_type_lines`, and
+    the API halves of the scope and sort-order tests (`test_dept_filter_refused_outside_state_scope_api`,
+    `test_sort_order_bounds_api`).
+11. **`frontend/openapi.json` and `src/lib/api/schema.d.ts`** are regenerated for the changed descriptions (`dept`,
+    `filed` and the group and case-type writes). Only description text changed; `npm run typecheck` passes.
+12. **`test_title_names.py::test_phrase_normalised_and_unique`** no longer expects `FINANCE; DROP TABLE` to be refused:
+    under decision 4 the `;` folds to a space and the phrase is stored as `FINANCE DROP TABLE`. The test now refuses
+    `;;` and `'A'` (empty and too short after folding) and asserts the stored forms `FINANCE DROP TABLE` and
+    `P.W.D.S DEPARTMENT`.

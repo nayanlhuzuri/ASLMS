@@ -16,13 +16,16 @@ fact row; a change of version makes every row dirty (decision 12), so a change t
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
 
 from aslms.core.clock import today_ist
 from aslms.services.matching import ANNOTATION_RE, normalise_counsel_code
 from aslms.services.reporting_common import AGE_BANDS, AGE_UNKNOWN, age_band
 
-READER_VERSION = "1"
+# "2": the phrase normal form keeps only the characters a cause-title mapping accepts (design
+# state-insights-review-advisories, decision 4)
+READER_VERSION = "2"
 
 # ------------------------------------------------------------------------------------------------ text
 
@@ -99,7 +102,16 @@ SUFFIX_FORM_START_RE = re.compile(
 SECTION_MARK_RE = re.compile(r"\(\s*[A-Z]\s*\)")
 STOP_WORDS = frozenset({"THE", "SAID", "CONCERNED", "STATE", "GOVERNMENT", "SAME"})
 PHRASE_MIN, PHRASE_MAX = 3, 80
-PHRASE_RE = re.compile(r"^[A-Z0-9][A-Z0-9 ()&.,/-]{2,199}$")
+# the characters a cause-title mapping accepts, shared by `PHRASE_RE` and `ck_office_title_names_phrase` (`&` never
+# reaches a normalised phrase: `clean` reads it as AND)
+PHRASE_ALLOWED = "A-Z0-9 ()&.,/-"
+PHRASE_RE = re.compile(rf"^[A-Z0-9][{PHRASE_ALLOWED}]{{2,199}}$")
+# decision 4 of state-insights-review-advisories: the folds of the normal form
+DASHES = dict.fromkeys(map(ord, "‐‑‒–—―−"), "-")
+QUOTES = dict.fromkeys(map(ord, "'`´‘’‚‛“”„‟\""), None)
+BRACKETS = {ord("["): "(", ord("{"): "(", ord("]"): ")", ord("}"): ")"}
+REFUSED_RE = re.compile(r"[^A-Z0-9 ().,/-]")
+LEADING_RE = re.compile(r"^[^A-Z0-9]+")
 
 
 def respondent_side(title_text: str | None) -> str:
@@ -109,15 +121,30 @@ def respondent_side(title_text: str | None) -> str:
     return s[m.end() :].strip() if m else ""
 
 
+def fold_phrase_characters(s: str) -> str:
+    """Decision 4 of state-insights-review-advisories, steps 1 to 5: accents dropped (NFKD without combining marks),
+    typographic dashes as `-`, apostrophes and quotation marks removed with no space (`P.W.D.'S` gives `P.W.D.S`),
+    `[` `{` as `(` and `]` `}` as `)`, every other character outside `A-Z 0-9 space ( ) . , / -` a space."""
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.translate(DASHES).translate(QUOTES).translate(BRACKETS).upper()
+    return REFUSED_RE.sub(" ", s)
+
+
 def normalise_phrase(text: str | None) -> str:
-    """Decision 8's normal form: cleaned, a leading THE dropped, single-letter section marks such as `(B)` dropped,
-    edge punctuation stripped, whitespace collapsed."""
-    s = clean(text)
-    s = SECTION_MARK_RE.sub(" ", s)
-    s = " ".join(s.split()).strip(" ,.;:-/")
-    while s.startswith("THE "):
-        s = s[4:].strip()
-    return s.strip(" ,.;:-/")
+    """Decision 8's normal form: cleaned, only the characters a mapping accepts (`fold_phrase_characters`), a leading
+    THE dropped, single-letter section marks such as `(B)` dropped, edge punctuation stripped, whitespace collapsed,
+    and nothing before the first letter or digit. Idempotent; a phrase that already passes `PHRASE_RE` is unchanged."""
+    s = fold_phrase_characters(clean(text))
+    while True:  # to a fixed point, so a second pass never changes the result
+        before = s
+        s = SECTION_MARK_RE.sub(" ", s)
+        s = " ".join(s.split()).strip(" ,.;:-/")
+        while s.startswith("THE "):
+            s = s[4:].strip()
+        s = LEADING_RE.sub("", s).strip(" ,.;:-/")
+        if s == before:
+            return s
 
 
 def _keep(phrase: str) -> bool:
@@ -125,6 +152,7 @@ def _keep(phrase: str) -> bool:
         PHRASE_MIN <= len(phrase) <= PHRASE_MAX
         and phrase not in STOP_WORDS
         and bool(re.search(r"[A-Z]", phrase))
+        and valid_phrase(phrase)
     )
 
 

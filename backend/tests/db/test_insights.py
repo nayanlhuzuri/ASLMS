@@ -499,3 +499,70 @@ def test_refresh_then_counts_follow_a_new_claim(world):
         edu = next(d for d in out["departments"] if d["code"] == "EDU")
         assert (edu["claimed"], edu["named"]) == (2, 0)
         s.rollback()
+
+
+# ------------------------------------------------------------------------------------------------ review advisories
+# design state-insights-review-advisories: `dept` and `band` in the State scope only (decision 3) and `filed` comparing
+# the year itself (decision 7)
+
+
+def test_dept_filter_refused_outside_state_scope(world):
+    with world.Session() as s:
+        _world(s, world)
+        today = today_ist()
+        dept_scope = sc.resolve(s, world.user(s, "edu_admin"), "department", "EDU")
+        for params in ({"dept": "HEALTH"}, {"dept": "HEALTH", "band": "likely"}, {"dept": "EDU"}):
+            with pytest.raises(F.InsightFilterError) as exc:
+                F.parse(s, dept_scope, today=today, **params)
+            assert exc.value.code == "bad_filter" and exc.value.param == "dept", params
+            assert str(exc.value) == "dept is for the State's Insights"
+        with pytest.raises(F.InsightFilterError) as exc:  # band alone is still refused on band
+            F.parse(s, dept_scope, today=today, band="likely")
+        assert exc.value.param == "band"
+        # a State-wide holder's department view shows By Unit, not By Department: refused too
+        wide = sc.resolve(s, world.user(s, "oversight"), "department", "EDU")
+        with pytest.raises(F.InsightFilterError) as exc:
+            F.parse(s, wide, today=today, dept="EDU")
+        assert exc.value.param == "dept"
+        # the State scope keeps the filter and its counts
+        out, _, _ = _view(s, world.user(s, "root"), dept="EDU", band="likely")
+        assert out["headline"]["cases"] == 1
+        out, _, _ = _view(s, world.user(s, "root"), dept="EDU")
+        assert out["headline"]["cases"] == 3  # claimed, likely and named
+        s.rollback()
+
+
+def test_filed_year_older_than_chart_matches(world):
+    with world.Session() as s:
+        today = today_ist()
+        old = today.year - 10
+        registered = ins.case(s, respondents=STATE, registration_date=date(old, 3, 1))
+        filed_only = ins.case(s, respondents=STATE)
+        filed_only.filing_date = date(old, 7, 1)
+        undated = ins.case(s, respondents=STATE)
+        undated.filing_date = None
+        recent = ins.case(s, respondents=STATE, registration_date=today)
+        nine = ins.case(s, respondents=STATE, registration_date=date(today.year - 9, 1, 1))
+        s.flush()
+        ins.build(s, registered, filed_only, undated, recent, nine)
+        root = world.user(s, "root")
+        out, scope, f = _view(s, root, filed=str(old))
+        assert out["headline"]["cases"] == 2
+        page = insights.case_page(s, root, f, scope)
+        assert page["total"] == 2
+        assert {i["case"]["id"] for i in page["items"]} == {registered.id, filed_only.id}
+        assert [c["label"] for c in out["chips"]] == [f"Filed: {old}"]
+        assert {r["key"] for r in out["filed"]} >= {"earlier", "unknown"}  # the chart keeps its 8 years
+        assert str(old) not in {r["key"] for r in out["filed"]}
+        out, _, _ = _view(s, root, filed="earlier")
+        assert out["headline"]["cases"] == 3  # the whole bucket: the two of `old` and the one of 9 years ago
+        out, _, _ = _view(s, root, filed="unknown")
+        assert out["headline"]["cases"] == 1
+        out, _, _ = _view(s, root, filed=str(today.year))
+        assert out["headline"]["cases"] == 1
+        for bad in ("1949", str(today.year + 1), "20x1"):
+            with pytest.raises(F.InsightFilterError) as exc:
+                F.parse(s, scope, today=today, filed=bad)
+            assert exc.value.param == "filed"
+            assert str(exc.value) == f"filed is a year from 1950 to {today.year}, earlier or unknown"
+        s.rollback()

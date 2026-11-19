@@ -168,3 +168,45 @@ def test_change_takes_effect_without_rebuild(world):
         insights_groups.update_group(s, actor, root, g, is_active=False)
         assert subjects()["not_grouped"] == 1  # a deactivated group's categories read as Not Grouped
         s.rollback()
+
+
+def test_sort_order_bounds(world):
+    """Design state-insights-review-advisories, decision 6: a whole number from 0 to 10,000, refused with 400
+    `bad_sort_order` (never a 500 from the integer column); the automatic order stops at 10,000."""
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        for value in (-1, 10_001, 2**40, True, "5"):
+            with pytest.raises(GroupsError) as exc:
+                insights_groups.create_group(
+                    s, actor, root, kind="subject", code="forest", label="Forest", sort_order=value
+                )
+            assert exc.value.code == "bad_sort_order" and exc.value.http_status == 400, value
+        low = insights_groups.create_group(
+            s, actor, root, kind="subject", code="low", label="Low", sort_order=0
+        )
+        top = insights_groups.create_group(
+            s, actor, root, kind="subject", code="top", label="Top", sort_order=insights_groups.SORT_ORDER_MAX
+        )
+        assert (low.sort_order, top.sort_order) == (0, 10_000)
+        auto = insights_groups.create_group(s, actor, root, kind="subject", code="auto", label="Auto")
+        assert auto.sort_order == 10_000  # max + 10, capped
+        for value in (-1, 10_001, 2**40):
+            with pytest.raises(GroupsError) as exc:
+                insights_groups.update_group(s, actor, root, low, sort_order=value)
+            assert exc.value.code == "bad_sort_order"
+        assert low.sort_order == 0
+        insights_groups.update_group(s, actor, root, low, sort_order=10_000)
+        assert low.sort_order == 10_000
+        s.rollback()
+
+
+def test_group_line_counts_like_the_list(world):
+    with world.Session() as s:
+        cases = [ins.case(s, respondents=STATE) for _ in range(2)]
+        ins.build(s, *cases)
+        root = world.user(s, "root")
+        g = insights_groups.group_by_code(s, "subject", "service_state")
+        line = insights_groups.group_line(s, g)
+        assert line == next(i for i in insights_groups.list_groups(s, root, "subject") if i["id"] == g.id)
+        assert line["cases"] == 2 and line["pending"] == 2 and line["members"] > 0
+        s.rollback()

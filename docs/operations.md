@@ -1018,7 +1018,9 @@ codes and the cause-title spans row 250 keeps.
 
 **Settings** (none secret; in `.env.example`): `INSIGHTS_STATEMENT_TIMEOUT_SECONDS` (30; past it the API answers 503
 `insights_timeout`), `INSIGHTS_EXPORT_TIMEOUT_SECONDS` (90), `INSIGHTS_XLSX_MAX_ROWS` (100,000),
-`INSIGHTS_PDF_MAX_ROWS` (2,000), `INSIGHTS_REFRESH_BATCH` (5,000).
+`INSIGHTS_PDF_MAX_ROWS` (2,000), `INSIGHTS_REFRESH_BATCH` (5,000), `INSIGHTS_DIRTY_LOOKBACK_MINUTES` (60, 0 to 1,440:
+how far a reading's watermark may fall behind its build while another transaction of the application is open; row 267).
+Row 267 raises the reader version to 2, so the first build after it re-reads every case (no migration).
 
 **Functions** (seed rows at `init`): `insights.state` (State Oversight by default), `insights.department` (Department
 Head and Department Administrator by default) and `admin.insights_groups` (reserved: the Super Administrator alone,

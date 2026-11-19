@@ -1222,6 +1222,8 @@ silent; none changes a business rule.
    transaction is seen).
 8. **The dirty rule for a cause-list entry** uses `causelist_entries.created_at` (an entry has no resolution time).
    `built_at` is the transaction's time, so a change committed while a batch is read is never older than its row.
+   *Replaced (18 Nov 2026) by decision 1 of `docs/design/state-insights-review-advisories.md`: the second sentence was
+   wrong; `built_at` is now the build's watermark.*
 9. **Clickable buckets with no value:** `filed=unknown` (Year Not Known) and `unit=none` (Not Yet Assigned to a Unit) are
    accepted, so every bar of those charts sets a filter.
 10. **Who has it:** an open closure is checked before custody at an office, because a closed case always rests at the

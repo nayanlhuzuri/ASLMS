@@ -222,3 +222,52 @@ def test_age_keys_reuse_njdg():
 
 def test_clean_reads_ampersand_and_page_marks():
     assert R.clean("Home & Political  Page No.# 3/9 Department") == "HOME AND POLITICAL DEPARTMENT"
+
+
+# ------------------------------------------------------------------------------------------------ review advisories
+# design state-insights-review-advisories, decision 4: the phrase normal form gives only what a mapping accepts
+
+FOLDS = [
+    ("P.W.D.'S", "P.W.D.S"),
+    ("P.W.D.\u2019S", "P.W.D.S"),
+    ("\u201cPUBLIC WORKS\u201d", "PUBLIC WORKS"),
+    ('"PUBLIC WORKS"', "PUBLIC WORKS"),
+    ("HOME [POLICE]", "HOME (POLICE)"),
+    ("HOME {POLICE}", "HOME (POLICE)"),
+    ("REVENUE: LAND", "REVENUE LAND"),
+    ("REVENUE; LAND", "REVENUE LAND"),
+    ("\u00c9DUCATION", "EDUCATION"),
+    ("PUBLIC\u2013WORKS", "PUBLIC-WORKS"),
+    ("PUBLIC\u2014WORKS", "PUBLIC-WORKS"),
+    ("\u0985\u09b8\u09ae FINANCE", "FINANCE"),
+    ("(THE FINANCE", "FINANCE"),
+]
+
+
+@pytest.mark.parametrize(("text", "expected"), FOLDS)
+def test_normalise_phrase_folds_refused_characters(text, expected):
+    assert R.normalise_phrase(text) == expected
+
+
+def test_every_kept_phrase_passes_the_title_name_check():
+    texts = [t for t, _ in REAL_TITLES] + [f"THE SECRETARY, {t} DEPARTMENT" for t, _ in FOLDS]
+    texts += ["THE SECRETARY, P.W.D.'S DEPARTMENT", "THE DIRECTOR, \u2018SOCIAL WELFARE\u2019 DEPTT."]
+    seen = []
+    for text in texts:
+        for phrase in R.department_phrases(text):
+            assert R.PHRASE_RE.match(phrase), (text, phrase)
+            seen.append(phrase)
+    assert "P.W.D.S" in seen and "SOCIAL WELFARE" in seen
+
+
+def test_normalise_phrase_idempotent_and_unchanged_on_valid():
+    samples = [t for t, _ in FOLDS] + [t for t, _ in REAL_TITLES] + ["((A) B)", "(A(B)) FINANCE", "- / THE X"]
+    for x in samples:
+        once = R.normalise_phrase(x)
+        assert R.normalise_phrase(once) == once, x
+    for valid in ("P.W.D. (ROADS)", "HOME AND POLITICAL", "R/S-1, E.T.C", "PUBLIC WORKS (ROADS)", "FINANCE"):
+        assert R.valid_phrase(valid) and R.normalise_phrase(valid) == valid
+
+
+def test_reader_version_is_2():
+    assert R.READER_VERSION == "2"

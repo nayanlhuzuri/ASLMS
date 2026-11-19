@@ -4159,3 +4159,35 @@ merge: apply 0039 with `migrate`, `init`, `docker compose build`, `aslms insight
   outside the State scope (400 `bad_filter`); phrases folded so every listed phrase can be mapped (`READER_VERSION`
   "2"); seeded case-type lines placed by the refresh jobs; group writes answering their real line, `sort_order` 0 to
   10000 (400 `bad_sort_order`); `filed` comparing the year. No migration. Built before row 259.
+
+## State Insights review advisories, row 267 (2026-11-18)
+
+Row 267 `state-insights-review-advisories` (branch `feature/state-insights-review-advisories`, in review), the seven
+reviewer advisories of row 258, design `docs/design/state-insights-review-advisories.md` (approved by the owner
+18 Nov 2026). Backend only; no migration; built before row 259 `state-insights-portal`.
+
+**What was built.**
+- Dirty test: `insight_case_facts.built_at` is now a watermark: the build's start, or 1 microsecond before the start of
+  the oldest open transaction of the application role when that is earlier, never more than
+  `INSIGHTS_DIRTY_LOOKBACK_MINUTES` (default 60, 0 to 1,440) earlier. The dirty test also compares the case type's line.
+- `rebuild` re-reads the attribution fingerprint and the maps for each batch and re-derives at the end when any batch
+  used another fingerprint than the final one.
+- `dept` and `band` are refused outside the State scope with 400 `bad_filter` (also on `/insights/export`).
+- `normalise_phrase` folds characters the phrase check refuses, so every listed phrase can be mapped.
+- `place_seed_case_types` in the refresh and rebuild jobs places the seed line of each seeded case type that has none;
+  `aslms insights groups check` lists missing lines. Existing lines are never changed by it.
+- Group write endpoints answer their real case counts; `sort_order` is 0 to 10,000 else 400 `bad_sort_order`.
+- `filed` compares the year; only the chart years plus `earlier` and `unknown` are accepted.
+- `READER_VERSION` is "2", so the first build after deploy reads every case again (free if deployed with row 258).
+
+**Decisions and reasons.** The watermark in place of a margin, so a long open transaction is covered exactly and a
+bound keeps a stuck session from forcing reads forever. Seed case-type lines are reference data with no audit row.
+
+**Deviations** (12 items in the design note's Deviations section). Chief ones: the rebuild's end step also covers a
+mapping changed and changed back during one rebuild; the export stays `GET /insights/export`; the open-transaction
+test runs on a scratch database under `SET LOCAL ROLE aslms_app`; `test_phrase_normalised_and_unique` now expects
+`FINANCE DROP TABLE` where it expected a refusal; two tests pinned to reader version 1 now expect 2; `openapi.json`
+and `schema.d.ts` regenerated for description text only.
+
+**Left for later.** Rows 259 (the Insights page) and 260 (the cause-title signal). Deploy: with row 258's steps, or
+after them recreate the app services; no `migrate` step for this row.

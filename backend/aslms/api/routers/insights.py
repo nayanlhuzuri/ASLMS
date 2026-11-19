@@ -78,8 +78,8 @@ def filter_params(
     kind: str | None = Query(None, description="an active kind-of-case code"),
     age: str | None = Query(None, description="an age band key or over_5"),
     next_: str | None = Query(None, alias="next", description="a next-hearing band or within_7"),
-    filed: str | None = Query(None, description="a year from 1950, earlier or unknown"),
-    dept: str | None = Query(None, description="a department code"),
+    filed: str | None = Query(None, description="a year from 1950 to this year, earlier or unknown"),
+    dept: str | None = Query(None, description="a department code (State scope only)"),
     band: str | None = Query(None, description="claimed, likely or named (with dept)"),
     unit: str | None = Query(None, description="an office of the scope's department, or none"),
     post: str | None = Query(None, description="a post code"),
@@ -246,7 +246,8 @@ def export(
 
 
 def _group_out(session: Session, row: InsightGroup) -> dict:
-    return {"id": row.id, **insights_groups.group_summary(row), "members": 0, "cases": 0, "pending": 0}
+    """The group's line as `GET /admin/insights/groups` shows it, with its real counts."""
+    return insights_groups.group_line(session, row)
 
 
 @router.get("/admin/insights/groups", response_model=list[schemas.InsightGroupOut], responses=ERRORS)
@@ -274,7 +275,8 @@ def create_group(
     session: Session = Depends(get_session),
     user: User = Depends(groups_admin),
 ) -> dict:
-    """A new group (never reserved); 409 `code_taken` / `label_taken`; audited `insights.group_created`."""
+    """A new group (never reserved); 409 `code_taken` / `label_taken`, 400 `bad_sort_order` outside 0 to 10,000;
+    audited `insights.group_created`. Answers the group's line with its counts."""
     try:
         row = insights_groups.create_group(
             session,
@@ -303,8 +305,8 @@ def patch_group(
     session: Session = Depends(get_session),
     user: User = Depends(groups_admin),
 ) -> dict:
-    """Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`); audited
-    `insights.group_updated`."""
+    """Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`), 400
+    `bad_sort_order` outside 0 to 10,000; audited `insights.group_updated`. Answers the group's line with its counts."""
     row = session.get(InsightGroup, group_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail("not_found", "no such group"))
@@ -342,7 +344,7 @@ def put_categories(
     user: User = Depends(groups_admin),
 ) -> list[dict]:
     """A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes
-    effect at once."""
+    effect at once. Answers each changed line with its cases and pending."""
     try:
         return insights_groups.set_categories(
             session, actor_of(request, user, session), user, [(c.code, c.group) for c in body.changes]
@@ -376,11 +378,11 @@ def put_case_types(
     session: Session = Depends(get_session),
     user: User = Depends(groups_admin),
 ) -> list[dict]:
-    """A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other)."""
+    """A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other). Answers each
+    changed line with its full name, cases and pending."""
     try:
-        changed = insights_groups.set_case_types(
+        return insights_groups.set_case_types(
             session, actor_of(request, user, session), user, [(c.case_type_id, c.group) for c in body.changes]
         )
     except (Forbidden, GroupsError) as exc:
         raise _http(exc) from exc
-    return [{**c, "full_name": None, "cases": 0, "pending": 0} for c in changed]

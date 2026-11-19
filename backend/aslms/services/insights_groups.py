@@ -9,7 +9,12 @@ kinds of case (`insight_case_type_groups`).
 - **When:** at once; the mapping is joined at query time, so no rebuild is needed.
 - **The seed** (`seed`) carries the same lists as migration 0039 (`SEED_*`; `tests/unit/test_insights_seed_lists.py`
   holds the two equal) and inserts only what is missing. The draft subject groups are those of
-  `docs/design/state-insights-subject-groups.md`; the kinds of case those of decision 16."""
+  `docs/design/state-insights-subject-groups.md`; the kinds of case those of decision 16.
+- **The seed case-type lines** (`place_seed_case_types`, design `state-insights-review-advisories`, decision 5) are
+  also placed by the `insights-refresh` and `insights-rebuild` jobs, so a case type the court masters sync creates
+  after `init` takes its seed line without a person; an existing line is never changed.
+- **The write answers** (decision 6) are the lines the lists show, with their real counts (`group_line`, the lines of
+  `set_categories` and `set_case_types`); `sort_order` is a whole number from 0 to `SORT_ORDER_MAX`."""
 
 from __future__ import annotations
 
@@ -18,8 +23,9 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
@@ -569,7 +575,8 @@ SEED_CASE_TYPES: tuple[tuple[int, str], ...] = (
 
 class GroupsError(ValueError):
     """A refused groupings change: `code` is machine-readable (`code_taken`, `label_taken`, `reserved_group`,
-    `bad_group`, `bad_code`, `bad_label`, `bad_kind`, `not_found`), `http_status` 400, 404 or 409."""
+    `bad_group`, `bad_code`, `bad_label`, `bad_kind`, `bad_sort_order`, `not_found`), `http_status` 400, 404 or
+    409."""
 
     def __init__(self, code: str, message: str, http_status: int = 400) -> None:
         super().__init__(message)
@@ -580,6 +587,7 @@ class GroupsError(ValueError):
 CODE_RE = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
 LABEL_MAX = 120
 DESCRIPTION_MAX = 1000
+SORT_ORDER_MAX = 10_000
 CATEGORY_SORTS = {"code": "asc", "label": "asc", "group": "asc", "cases": "desc", "pending": "desc"}
 CASE_TYPE_SORTS = {"code": "asc", "name": "asc", "group": "asc", "cases": "desc", "pending": "desc"}
 NOT_GROUPED = "not_grouped"
@@ -610,6 +618,14 @@ def group_summary(row: InsightGroup) -> dict[str, Any]:
         "is_reserved": row.is_reserved,
         "is_active": row.is_active,
     }
+
+
+def _sort_order(value: Any) -> int:
+    """Decision 6 of state-insights-review-advisories: a whole number from 0 to `SORT_ORDER_MAX` (400
+    `bad_sort_order`), so a value past the integer range is refused here and never reaches PostgreSQL."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= SORT_ORDER_MAX:
+        raise GroupsError("bad_sort_order", f"sort_order is a whole number from 0 to {SORT_ORDER_MAX}")
+    return int(value)
 
 
 def _label(label: str | None) -> str:
@@ -677,11 +693,8 @@ def _case_counts_by_type(session: Session) -> dict[uuid.UUID, tuple[int, int]]:
     return {t: (int(n), int(p)) for t, n, p in rows}
 
 
-def list_groups(session: Session, user: User | Member, kind: str) -> list[dict[str, Any]]:
-    """`GET /admin/insights/groups?kind=`: the groups of one kind in their order, each with the number of categories
-    or case types it holds and its live cases and pending cases (inactive groups included, marked)."""
-    require_groups_admin(session, user)
-    kind = _kind(kind)
+def _group_counts(session: Session, kind: str) -> tuple[dict[uuid.UUID, int], dict[uuid.UUID, list[int]]]:
+    """(members, [cases, pending]) by group id for one kind: the counting of the list and of every group write."""
     members = _member_counts(session, kind)
     cases: dict[uuid.UUID, list[int]] = {}
     if kind == "subject":
@@ -704,21 +717,35 @@ def list_groups(session: Session, user: User | Member, kind: str) -> list[dict[s
             acc = cases.setdefault(gid, [0, 0])
             acc[0] += n
             acc[1] += p
+    return members, cases
+
+
+def _line(
+    g: InsightGroup, members: dict[uuid.UUID, int], cases: dict[uuid.UUID, list[int]]
+) -> dict[str, Any]:
+    n, p = cases.get(g.id, [0, 0])
+    return {"id": g.id, **group_summary(g), "members": members.get(g.id, 0), "cases": n, "pending": p}
+
+
+def group_line(session: Session, row: InsightGroup) -> dict[str, Any]:
+    """One group's item of `GET /admin/insights/groups`, counted as the list counts it (decision 6 of
+    state-insights-review-advisories): the answer of `POST` and `PATCH`."""
+    members, cases = _group_counts(session, row.kind)
+    return _line(row, members, cases)
+
+
+def list_groups(session: Session, user: User | Member, kind: str) -> list[dict[str, Any]]:
+    """`GET /admin/insights/groups?kind=`: the groups of one kind in their order, each with the number of categories
+    or case types it holds and its live cases and pending cases (inactive groups included, marked)."""
+    require_groups_admin(session, user)
+    kind = _kind(kind)
+    members, cases = _group_counts(session, kind)
     rows = session.scalars(
         select(InsightGroup)
         .where(InsightGroup.kind == kind)
         .order_by(InsightGroup.sort_order, InsightGroup.code)
     ).all()
-    return [
-        {
-            "id": g.id,
-            **group_summary(g),
-            "members": members.get(g.id, 0),
-            "cases": cases.get(g.id, [0, 0])[0],
-            "pending": cases.get(g.id, [0, 0])[1],
-        }
-        for g in rows
-    ]
+    return [_line(g, members, cases) for g in rows]
 
 
 def create_group(
@@ -746,17 +773,15 @@ def create_group(
     if _label_taken(session, kind, label):
         raise GroupsError("label_taken", f"the label {label!r} is taken", 409)
     if sort_order is None:
-        sort_order = (
-            int(
-                session.scalar(
-                    select(func.coalesce(func.max(InsightGroup.sort_order), 0)).where(
-                        InsightGroup.kind == kind
-                    )
-                )
-                or 0
+        highest = int(
+            session.scalar(
+                select(func.coalesce(func.max(InsightGroup.sort_order), 0)).where(InsightGroup.kind == kind)
             )
-            + 10
+            or 0
         )
+        sort_order = min(highest + 10, SORT_ORDER_MAX)
+    else:
+        sort_order = _sort_order(sort_order)
     row = InsightGroup(
         kind=kind,
         code=code,
@@ -798,7 +823,7 @@ def update_group(
             if _label_taken(session, row.kind, new_label, but=row.id):
                 raise GroupsError("label_taken", f"the label {new_label!r} is taken", 409)
             row.label = new_label
-    if sort_order is not UNSET and sort_order is not None and int(sort_order) != row.sort_order:
+    if sort_order is not UNSET and sort_order is not None and _sort_order(sort_order) != row.sort_order:
         row.sort_order = int(sort_order)
     if description is not UNSET:
         text_ = (description or "").strip()[:DESCRIPTION_MAX] or None
@@ -836,7 +861,8 @@ def set_categories(
 ) -> list[dict[str, Any]]:
     """A batch Save of categories (decision 14): each `(code, group code or None for Not Grouped)` applies to every
     court's row of that category; one `insights.category_grouped` audit row per changed line, none for an unchanged
-    one. Takes effect at once (the grouping is joined at query time)."""
+    one. Takes effect at once (the grouping is joined at query time). Returns each changed code's line as
+    `list_categories` shows it, with its live cases and pending."""
     require_groups_admin(session, user)
     changed: list[dict[str, Any]] = []
     groups = {
@@ -844,7 +870,9 @@ def set_categories(
     }
     for code, group_code in changes:
         rows = session.scalars(
-            select(InsightSubjectCategory).where(InsightSubjectCategory.category_code == int(code))
+            select(InsightSubjectCategory)
+            .where(InsightSubjectCategory.category_code == int(code))
+            .order_by(InsightSubjectCategory.id)
         ).all()
         if not rows:
             raise GroupsError("not_found", f"no category {code}", 404)
@@ -868,6 +896,10 @@ def set_categories(
             after={"code": int(code), "group": after},
         )
         changed.append({"code": int(code), "label": rows[0].label, "group": after})
+    if changed:
+        counts = _case_counts_by_category(session)
+        for line in changed:
+            line["cases"], line["pending"] = counts.get(line["code"], (0, 0))
     return changed
 
 
@@ -875,7 +907,8 @@ def set_case_types(
     session: Session, actor: Actor, user: User | Member, changes: list[tuple[uuid.UUID, str | None]]
 ) -> list[dict[str, Any]]:
     """A batch Save of case types: each `(case_type_id, family group code; None = other)`; one
-    `insights.case_type_grouped` audit row per changed line."""
+    `insights.case_type_grouped` audit row per changed line. Returns each changed type's line as `list_case_types`
+    shows it, with its live cases and pending."""
     require_groups_admin(session, user)
     changed: list[dict[str, Any]] = []
     for type_id, group_code in changes:
@@ -911,9 +944,14 @@ def set_case_types(
                 "id": ct.id,
                 "code": ct.case_type_code,
                 "name": ct.short_name or ct.type_name,
+                "full_name": ct.full_name or ct.type_name,
                 "group": target.code,
             }
         )
+    if changed:
+        counts = _case_counts_by_type(session)
+        for line in changed:
+            line["cases"], line["pending"] = counts.get(line["id"], (0, 0))
     return changed
 
 
@@ -1064,15 +1102,57 @@ def seed(session: Session, report) -> None:
                 )
             )
             report.add("insight_subject_categories")
-        types = {
-            ct.case_type_code: ct
-            for ct in session.scalars(select(CaseType).where(CaseType.court_id == court.id)).all()
-        }
-        mapped = set(session.scalars(select(InsightCaseTypeGroup.case_type_id)).all())
-        for type_code, group in SEED_CASE_TYPES:
-            ct = types.get(type_code)
-            if ct is None or ct.id in mapped:
-                continue
-            session.add(InsightCaseTypeGroup(case_type_id=ct.id, group_id=have[("family", group)].id))
-            report.add("insight_case_type_groups")
     session.flush()
+    placed = place_seed_case_types(session)
+    if placed:
+        report.add("insight_case_type_groups", placed)
+
+
+def _seed_case_types_missing(session: Session) -> list[tuple[CaseType, InsightGroup]]:
+    """The `case_types` rows of the courts with `ref_code = 'GHC'` whose code is in `SEED_CASE_TYPES` and which have
+    no `insight_case_type_groups` row, each with the family group of its seed line (a type whose group is not held is
+    left out)."""
+    seeded = dict(SEED_CASE_TYPES)
+    groups = {g.code: g for g in session.scalars(select(InsightGroup).where(InsightGroup.kind == "family"))}
+    courts = select(Court.id).where(Court.ref_code == COURT_REF_CODE)
+    rows = session.scalars(
+        select(CaseType)
+        .where(
+            CaseType.court_id.in_(courts),
+            CaseType.case_type_code.in_(list(seeded)),
+            ~exists().where(InsightCaseTypeGroup.case_type_id == CaseType.id),
+        )
+        .order_by(CaseType.case_type_code, CaseType.id)
+    ).all()
+    return [(ct, groups[seeded[ct.case_type_code]]) for ct in rows if seeded[ct.case_type_code] in groups]
+
+
+def count_seed_case_types_missing(session: Session) -> int:
+    """How many seed case-type lines `place_seed_case_types` would place now (the dry run and `groups check`)."""
+    return len(_seed_case_types_missing(session))
+
+
+def seed_case_types_missing(session: Session) -> list[tuple[int, str, str]]:
+    """(case_type_code, name, seed group code) of every line `place_seed_case_types` would place (`groups check`)."""
+    return [
+        (ct.case_type_code, ct.short_name or ct.type_name, g.code)
+        for ct, g in _seed_case_types_missing(session)
+    ]
+
+
+def place_seed_case_types(session: Session) -> int:
+    """Decision 5 of state-insights-review-advisories: the seed line of every seeded case type of the Gauhati High
+    Court that has none, so a type the court masters sync created after `init` is no longer read as Other. It never
+    changes an existing line (a Super Administrator's choice, even Other, is always a row). Reference data, the same
+    lines the migration and the seed write: no audit row. Returns the number placed."""
+    missing = _seed_case_types_missing(session)
+    if not missing:
+        return 0
+    placed = session.scalars(
+        pg_insert(InsightCaseTypeGroup)
+        .values([{"case_type_id": ct.id, "group_id": g.id} for ct, g in missing])
+        .on_conflict_do_nothing(index_elements=["case_type_id"])
+        .returning(InsightCaseTypeGroup.id)
+    ).all()
+    session.flush()
+    return len(placed)

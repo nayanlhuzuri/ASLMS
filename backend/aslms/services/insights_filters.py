@@ -180,8 +180,9 @@ def _group_codes(session: Session, kind: str) -> dict[str, str]:
 
 def parse(session: Session, scope: Scope, *, today: date, **params: Any) -> InsightFilters:
     """Decision 24: validates every parameter (400 `bad_filter` naming it, 400 `bad_dates` for From after To) and
-    returns the normalised filters. `dept` must be a department, `band` needs `dept`, `unit` an office of the scope's
-    department (department scope only), `holder` an office."""
+    returns the normalised filters. `dept` must be a department and is for the State scope only (decision 3 of
+    state-insights-review-advisories: other departments' recommendations stay theirs), `band` needs `dept`, `unit` an
+    office of the scope's department (department scope only), `holder` an office."""
     get = params.get
     status = _one_of("status", get("status"), STATUSES) or "pending"
     kind = _one_of("kind", get("kind"), set(_group_codes(session, "family")))
@@ -192,13 +193,19 @@ def parse(session: Session, scope: Scope, *, today: date, **params: Any) -> Insi
         filed = str(filed).strip()
         if filed not in ("earlier", "unknown"):
             if not filed.isdigit() or not (MIN_YEAR <= int(filed) <= today.year):
-                raise InsightFilterError("bad_filter", "filed", f"filed is a year from {MIN_YEAR} or earlier")
+                raise InsightFilterError(
+                    "bad_filter",
+                    "filed",
+                    f"filed is a year from {MIN_YEAR} to {today.year}, earlier or unknown",
+                )
     else:
         filed = None
     dept = get("dept") or None
     band = _one_of("band", get("band"), BANDS)
     if band is not None and dept is None:
         raise InsightFilterError("bad_filter", "band", "band needs dept")
+    if dept is not None and not scope.is_state:
+        raise InsightFilterError("bad_filter", "dept", "dept is for the State's Insights")
     if dept is not None:
         office = find_office(session, str(dept).strip())
         if office is None or not access.is_department(office):
@@ -306,6 +313,7 @@ class Expr:
     over_5: Any
     next_band: Any
     within_7: Any
+    year: Any
     filed: Any
     subject: Any
     action: Any
@@ -394,6 +402,7 @@ def expressions(today: date, soon_days: int) -> Expr:
         over_5=over_5,
         next_band=next_band,
         within_7=within_7,
+        year=year,
         filed=filed,
         subject=subject,
         action=action,
@@ -485,7 +494,14 @@ def conditions(
     if f.next:
         c["next"] = e.within_7 if f.next == "within_7" else e.next_band == f.next
     if f.filed:
-        c["filed"] = e.filed == f.filed
+        # decision 7 of state-insights-review-advisories: a year compares the year itself, so a year older than the
+        # chart's 8 still matches; `earlier` is the chart's bucket and `unknown` no date
+        if f.filed == "unknown":
+            c["filed"] = e.year.is_(None)
+        elif f.filed == "earlier":
+            c["filed"] = e.year <= e.today.year - FILED_YEARS
+        else:
+            c["filed"] = e.year == int(f.filed)
     if f.dept:
         office = find_office(session, f.dept)
         bands = band_conditions(office)

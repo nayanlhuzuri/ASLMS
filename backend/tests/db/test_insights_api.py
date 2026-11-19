@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 
 from aslms.api.main import create_app
 from aslms.core.config import Settings
+from aslms.domain.cases import CaseStatus
 from aslms.domain.insights import InsightGroup
+from aslms.services import insights_facts
 from tests.db import insights_support as ins
 from tests.db.report_support import claim
 from tests.db.workflow_support import login
@@ -227,7 +229,7 @@ def test_data_health_block(api, world):
     assert r.status_code == 200
     block = r.json()["insights"]
     assert block["live_cases"] == 2 and block["facts_built"] == 2 and block["waiting"] == 0
-    assert block["reader_version"] == "1" and block["unmapped_phrases"] == 1
+    assert block["reader_version"] == "2" and block["unmapped_phrases"] == 1
     assert set(block["state_bases"]) == {"party", "officer", "counsel", "title", "writ"}
 
 
@@ -240,3 +242,129 @@ def test_timeout_answers_503(api, world, monkeypatch):
     monkeypatch.setattr(insights, "overview", slow)
     r = api.get("/insights", headers=login(api, "root"))
     assert r.status_code == 503 and r.json()["detail"]["code"] == "insights_timeout"
+
+
+# ------------------------------------------------------------------------------------------------ review advisories
+# design state-insights-review-advisories: the `dept` refusal end to end (decision 3), the group writes' answers and
+# the sort-order bound (decision 6), and a listed phrase that can be mapped as it stands (decision 4)
+
+
+def test_dept_filter_refused_outside_state_scope_api(api, world):
+    _data(world)
+    admin = login(api, "edu_admin")
+    for path in ("/insights", "/insights/cases", "/insights/export"):
+        for query in ("dept=HEALTH", "dept=HEALTH&band=likely"):
+            r = api.get(f"{path}?scope=department&department=EDU&{query}", headers=admin)
+            assert r.status_code == 400, (path, query)
+            assert r.json()["detail"]["code"] == "bad_filter" and r.json()["detail"]["param"] == "dept"
+    over = login(api, "oversight")  # a State-wide holder's department view
+    r = api.get("/insights?scope=department&department=EDU&dept=EDU", headers=over)
+    assert r.status_code == 400 and r.json()["detail"]["param"] == "dept"
+    root = login(api, "root")
+    before = api.get("/insights?scope=state&dept=EDU", headers=root)
+    assert before.status_code == 200 and before.json()["headline"]["cases"] == 1
+    assert api.get("/insights?scope=state&dept=EDU&band=claimed", headers=root).status_code == 200
+
+
+def test_group_writes_answer_real_counts(api, world):
+    with world.Session() as s:
+        cases = [ins.case(s, respondents=STATE) for _ in range(3)]
+        cases[2].status = CaseStatus.DISPOSED
+        ins.build(s, *cases)
+        s.commit()
+    root = login(api, "root")
+    r = api.post(
+        "/admin/insights/groups",
+        json={"kind": "family", "code": "writs_all", "label": "All Writs"},
+        headers=root,
+    )
+    assert r.status_code == 201
+    created = r.json()
+    listed = {g["id"]: g for g in api.get("/admin/insights/groups?kind=family", headers=root).json()}
+    assert created == listed[created["id"]] and created["cases"] == 0
+    types = api.get("/admin/insights/case-types?q=WP", headers=root).json()
+    wp = next(t for t in types if t["code"] == 111)
+    r = api.put(
+        "/admin/insights/case-types",
+        json={"changes": [{"case_type_id": wp["id"], "group": "writs_all"}]},
+        headers=root,
+    )
+    assert r.status_code == 200
+    line = r.json()[0]
+    assert line["cases"] == 3 and line["pending"] == 2 and line["full_name"] == "Writ Petition"
+    assert line == next(
+        t for t in api.get("/admin/insights/case-types", headers=root).json() if t["id"] == wp["id"]
+    )
+    r = api.patch(f"/admin/insights/groups/{created['id']}", json={"label": "Every Writ"}, headers=root)
+    assert r.status_code == 200
+    patched = r.json()
+    listed = {g["id"]: g for g in api.get("/admin/insights/groups?kind=family", headers=root).json()}
+    assert patched == listed[created["id"]] and (
+        patched["members"],
+        patched["cases"],
+        patched["pending"],
+    ) == (
+        1,
+        3,
+        2,
+    )
+    r = api.put(
+        "/admin/insights/categories", json={"changes": [{"code": 10023, "group": "education"}]}, headers=root
+    )
+    assert r.status_code == 200
+    cat = r.json()[0]
+    assert (cat["cases"], cat["pending"]) == (3, 2)
+    assert cat == next(
+        c for c in api.get("/admin/insights/categories", headers=root).json() if c["code"] == 10023
+    )
+
+
+def test_sort_order_bounds_api(api, world):
+    with world.Session() as s:
+        ins.case_types(s)
+        s.commit()
+    root = login(api, "root")
+    for value in (-1, 10_001, 2**40, 99_999_999_999):
+        r = api.post(
+            "/admin/insights/groups",
+            json={"kind": "subject", "code": "forest", "label": "Forest", "sort_order": value},
+            headers=root,
+        )
+        assert r.status_code == 400 and r.json()["detail"]["code"] == "bad_sort_order", value
+    r = api.post(
+        "/admin/insights/groups",
+        json={"kind": "subject", "code": "forest", "label": "Forest", "sort_order": 10_000},
+        headers=root,
+    )
+    assert r.status_code == 201 and r.json()["sort_order"] == 10_000
+    gid = r.json()["id"]
+    r = api.patch(f"/admin/insights/groups/{gid}", json={"sort_order": 99_999_999_999}, headers=root)
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "bad_sort_order"
+    assert (
+        api.patch(f"/admin/insights/groups/{gid}", json={"sort_order": 0}, headers=root).json()["sort_order"]
+        == 0
+    )
+
+
+def test_listed_phrase_can_be_mapped(api, world):
+    with world.Session() as s:
+        a = ins.case(s, respondents=("THE CHIEF ENGINEER, P.W.D.'S DEPARTMENT",))
+        b = ins.case(s, respondents=("THE CHIEF ENGINEER, P.W.D.’S DEPARTMENT",))
+        insights_facts.refresh(s)
+        s.commit()
+    admin = login(api, "root")
+    items = api.get("/admin/title-names/unmapped", headers=admin).json()["items"]
+    listed = [i for i in items if i["phrase"].startswith("P.W.D")]
+    assert [i["phrase"] for i in listed] == ["P.W.D.S"] and listed[0]["cases"] == 2
+    r = api.post(
+        "/admin/title-names", json={"office_code": "HEALTH", "phrase": listed[0]["phrase"]}, headers=admin
+    )
+    assert r.status_code == 201 and r.json()["phrase"] == "P.W.D.S"
+    with world.Session() as s:
+        insights_facts.refresh(s)
+        s.commit()
+        health = world.office(s, "HEALTH").id
+        assert ins.fact(s, a).named_title_department_ids == [health]
+        assert ins.fact(s, b).named_title_department_ids == [health]
+    items = api.get("/admin/title-names/unmapped", headers=admin).json()["items"]
+    assert not [i for i in items if i["phrase"].startswith("P.W.D")]

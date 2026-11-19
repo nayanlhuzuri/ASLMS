@@ -239,6 +239,9 @@ class Settings(BaseSettings):
     insights_pdf_max_rows: int = Field(2_000, ge=1, le=20_000)
     # cases whose readings are rebuilt per run of the 10-minute `insights-refresh` beat, oldest first
     insights_refresh_batch: int = Field(5_000, ge=1, le=50_000)
+    # how far a fact row's watermark may fall behind its build's start for a transaction still open at the build
+    # (design state-insights-review-advisories, decision 1); 0 = the build's own start
+    insights_dirty_lookback_minutes: int = Field(60, ge=0, le=1440)
 
     # --- court data freshness (design court-data-freshness, decisions 3, 8, 14 and 19) ------------------
     # disposed cases: a dossier refresh every EVERY_DAYS for DAYS after disposal, at most DAILY_MAX a night (0 = off)

@@ -35965,7 +35965,7 @@
         ]
       },
       "put": {
-        "description": "A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other).",
+        "description": "A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other). Answers each\nchanged line with its full name, cases and pending.",
         "operationId": "put_case_types_admin_insights_case_types_put",
         "requestBody": {
           "content": {
@@ -36178,7 +36178,7 @@
         ]
       },
       "put": {
-        "description": "A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes\neffect at once.",
+        "description": "A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes\neffect at once. Answers each changed line with its cases and pending.",
         "operationId": "put_categories_admin_insights_categories_put",
         "requestBody": {
           "content": {
@@ -36351,7 +36351,7 @@
         ]
       },
       "post": {
-        "description": "A new group (never reserved); 409 `code_taken` / `label_taken`; audited `insights.group_created`.",
+        "description": "A new group (never reserved); 409 `code_taken` / `label_taken`, 400 `bad_sort_order` outside 0 to 10,000;\naudited `insights.group_created`. Answers the group's line with its counts.",
         "operationId": "create_group_admin_insights_groups_post",
         "requestBody": {
           "content": {
@@ -36438,7 +36438,7 @@
     },
     "/admin/insights/groups/{group_id}": {
       "patch": {
-        "description": "Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`); audited\n`insights.group_updated`.",
+        "description": "Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`), 400\n`bad_sort_order` outside 0 to 10,000; audited `insights.group_updated`. Answers the group's line with its counts.",
         "operationId": "patch_group_admin_insights_groups__group_id__patch",
         "parameters": [
           {
@@ -52184,7 +52184,7 @@
             }
           },
           {
-            "description": "a year from 1950, earlier or unknown",
+            "description": "a year from 1950 to this year, earlier or unknown",
             "in": "query",
             "name": "filed",
             "required": false,
@@ -52197,12 +52197,12 @@
                   "type": "null"
                 }
               ],
-              "description": "a year from 1950, earlier or unknown",
+              "description": "a year from 1950 to this year, earlier or unknown",
               "title": "Filed"
             }
           },
           {
-            "description": "a department code",
+            "description": "a department code (State scope only)",
             "in": "query",
             "name": "dept",
             "required": false,
@@ -52215,7 +52215,7 @@
                   "type": "null"
                 }
               ],
-              "description": "a department code",
+              "description": "a department code (State scope only)",
               "title": "Dept"
             }
           },
@@ -52679,7 +52679,7 @@
             }
           },
           {
-            "description": "a year from 1950, earlier or unknown",
+            "description": "a year from 1950 to this year, earlier or unknown",
             "in": "query",
             "name": "filed",
             "required": false,
@@ -52692,12 +52692,12 @@
                   "type": "null"
                 }
               ],
-              "description": "a year from 1950, earlier or unknown",
+              "description": "a year from 1950 to this year, earlier or unknown",
               "title": "Filed"
             }
           },
           {
-            "description": "a department code",
+            "description": "a department code (State scope only)",
             "in": "query",
             "name": "dept",
             "required": false,
@@ -52710,7 +52710,7 @@
                   "type": "null"
                 }
               ],
-              "description": "a department code",
+              "description": "a department code (State scope only)",
               "title": "Dept"
             }
           },
@@ -53194,7 +53194,7 @@
             }
           },
           {
-            "description": "a year from 1950, earlier or unknown",
+            "description": "a year from 1950 to this year, earlier or unknown",
             "in": "query",
             "name": "filed",
             "required": false,
@@ -53207,12 +53207,12 @@
                   "type": "null"
                 }
               ],
-              "description": "a year from 1950, earlier or unknown",
+              "description": "a year from 1950 to this year, earlier or unknown",
               "title": "Filed"
             }
           },
           {
-            "description": "a department code",
+            "description": "a department code (State scope only)",
             "in": "query",
             "name": "dept",
             "required": false,
@@ -53225,7 +53225,7 @@
                   "type": "null"
                 }
               ],
-              "description": "a department code",
+              "description": "a department code (State scope only)",
               "title": "Dept"
             }
           },

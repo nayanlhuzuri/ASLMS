@@ -920,7 +920,8 @@ export interface paths {
         get: operations["list_case_types_admin_insights_case_types_get"];
         /**
          * Put Case Types
-         * @description A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other).
+         * @description A batch Save: one `insights.case_type_grouped` audit row per changed line (`group` null = Other). Answers each
+         *     changed line with its full name, cases and pending.
          */
         put: operations["put_case_types_admin_insights_case_types_put"];
         post?: never;
@@ -942,7 +943,7 @@ export interface paths {
         /**
          * Put Categories
          * @description A batch Save: one `insights.category_grouped` audit row per changed line (`group` null = Not Grouped); takes
-         *     effect at once.
+         *     effect at once. Answers each changed line with its cases and pending.
          */
         put: operations["put_categories_admin_insights_categories_put"];
         post?: never;
@@ -967,7 +968,8 @@ export interface paths {
         put?: never;
         /**
          * Create Group
-         * @description A new group (never reserved); 409 `code_taken` / `label_taken`; audited `insights.group_created`.
+         * @description A new group (never reserved); 409 `code_taken` / `label_taken`, 400 `bad_sort_order` outside 0 to 10,000;
+         *     audited `insights.group_created`. Answers the group's line with its counts.
          */
         post: operations["create_group_admin_insights_groups_post"];
         delete?: never;
@@ -991,8 +993,8 @@ export interface paths {
         head?: never;
         /**
          * Patch Group
-         * @description Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`); audited
-         *     `insights.group_updated`.
+         * @description Rename, reorder or (de)activate; a reserved group cannot be deactivated (409 `reserved_group`), 400
+         *     `bad_sort_order` outside 0 to 10,000; audited `insights.group_updated`. Answers the group's line with its counts.
          */
         patch: operations["patch_group_admin_insights_groups__group_id__patch"];
         trace?: never;
@@ -27062,9 +27064,9 @@ export interface operations {
                 age?: string | null;
                 /** @description a next-hearing band or within_7 */
                 next?: string | null;
-                /** @description a year from 1950, earlier or unknown */
+                /** @description a year from 1950 to this year, earlier or unknown */
                 filed?: string | null;
-                /** @description a department code */
+                /** @description a department code (State scope only) */
                 dept?: string | null;
                 /** @description claimed, likely or named (with dept) */
                 band?: string | null;
@@ -27166,9 +27168,9 @@ export interface operations {
                 age?: string | null;
                 /** @description a next-hearing band or within_7 */
                 next?: string | null;
-                /** @description a year from 1950, earlier or unknown */
+                /** @description a year from 1950 to this year, earlier or unknown */
                 filed?: string | null;
-                /** @description a department code */
+                /** @description a department code (State scope only) */
                 dept?: string | null;
                 /** @description claimed, likely or named (with dept) */
                 band?: string | null;
@@ -27272,9 +27274,9 @@ export interface operations {
                 age?: string | null;
                 /** @description a next-hearing band or within_7 */
                 next?: string | null;
-                /** @description a year from 1950, earlier or unknown */
+                /** @description a year from 1950 to this year, earlier or unknown */
                 filed?: string | null;
-                /** @description a department code */
+                /** @description a department code (State scope only) */
                 dept?: string | null;
                 /** @description claimed, likely or named (with dept) */
                 band?: string | null;

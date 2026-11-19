@@ -28,10 +28,11 @@ def test_crud_audited_with_event(world):
         matching_rules.create_title_name(
             s, actor, root, office=world.office(s, "EDU"), phrase="Secondary Education"
         )
+        # created_at is the transaction's now() and equal for all four rows; the UUID v7 id is monotonic in-process
         actions = [
             a.action
             for a in s.scalars(
-                sa.select(AuditLog).where(AuditLog.entity_type == "title_name").order_by(AuditLog.created_at)
+                sa.select(AuditLog).where(AuditLog.entity_type == "title_name").order_by(AuditLog.id)
             )
         ]
         assert actions == [
@@ -84,10 +85,20 @@ def test_phrase_normalised_and_unique(world):
                 s, actor, root, office=world.office(s, "EDU"), phrase="HEALTH AND FAMILY WELFARE"
             )
         assert exc.value.code == "phrase_taken"
-        for bad in ("AB", "", "FINANCE; DROP TABLE"):
+        for bad in ("AB", "", ";;", "'A'"):
             with pytest.raises(BadPhrase) as exc:
                 matching_rules.create_title_name(s, actor, root, office=world.office(s, "EDU"), phrase=bad)
             assert exc.value.code == "bad_phrase"
+        # decision 4 of state-insights-review-advisories: a refused character folds to a space (or, for a quote,
+        # to nothing), so the phrase stored is the one the reader lists
+        row = matching_rules.create_title_name(
+            s, actor, root, office=world.office(s, "EDU"), phrase="Finance; Drop Table"
+        )
+        assert row.phrase == "FINANCE DROP TABLE"
+        row = matching_rules.create_title_name(
+            s, actor, root, office=world.office(s, "EDU"), phrase="P.W.D.'S DEPARTMENT"
+        )
+        assert row.phrase == "P.W.D.S DEPARTMENT"
         s.rollback()
 
 

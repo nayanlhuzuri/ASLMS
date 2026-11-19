@@ -18,9 +18,17 @@ by the 10-minute job `insights-refresh`, the 04:45 IST job `insights-rebuild` an
 - **Never deleted** (decision 13): one row per case, updated in place; a merged case keeps its row and readers join
   live cases only. The department ids are Department-tier office ids, without FK (DB_STANDARD §2).
 
+- **The watermark** (design `state-insights-review-advisories`, decision 1): `built_at` is the time before which every
+  committed change is in the row, the build's start or 1 µs before the oldest transaction then open in this database
+  (`watermark`), never more than `INSIGHTS_DIRTY_LOOKBACK_MINUTES` earlier; so a change committed by a transaction
+  that was open while the build read is dirty on the next run.
+- **The seed case-type lines** a case type lacks are placed first by both jobs (`insights_groups.place_seed_case_types`,
+  decision 5), and a line's change makes its cases dirty. The rebuild reloads its maps when the attribution
+  fingerprint moves between batches and re-derives at the end when it moved at all (decision 2).
+
 It writes no audit row (derived data, as the matching engine) and one `job_runs` row per run, with the counters
-`checked`, `built`, `new_categories`, `rederived`, `unmapped_phrases` and `seconds`. It never reads a note, a draft, a
-custody remark or a document description, and never calls NAPIX, SourceTrace or a model."""
+`checked`, `built`, `new_categories`, `rederived`, `unmapped_phrases`, `case_type_lines` and `seconds`. It never reads
+a note, a draft, a custody remark or a document description, and never calls NAPIX, SourceTrace or a model."""
 
 from __future__ import annotations
 
@@ -47,7 +55,7 @@ from aslms.domain.insights import (
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office
 from aslms.domain.ownership import CounselCode
-from aslms.services import access
+from aslms.services import access, insights_groups
 from aslms.services import insights_rules as R
 from aslms.services.matching import normalise_counsel_code
 from aslms.services.visibility import NORMALISED_CODE_SQL
@@ -57,11 +65,44 @@ JOB_REBUILD = "insights-rebuild"
 JOBS = (JOB_REFRESH, JOB_REBUILD)
 READ_CHUNK = 500  # the cause-title spans are read in Python batches of this size (Services)
 WRIT_HEAD_CHARS = 3000  # decision 10: the first characters of the earliest order's body
-COUNTERS = ("checked", "built", "new_categories", "rederived", "unmapped_phrases", "seconds")
+COUNTERS = (
+    "checked",
+    "built",
+    "new_categories",
+    "rederived",
+    "unmapped_phrases",
+    "case_type_lines",
+    "seconds",
+)
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+# decision 1 of state-insights-review-advisories: the oldest transaction open in this database other than this one
+# (the application role sees `xact_start` of its own sessions only; other roles' show NULL and are ignored), 1 µs
+# before it so the dirty test's `>` stays strict, never later than this transaction's start nor more than the
+# lookback earlier
+WATERMARK_SQL = """
+    SELECT greatest(
+        now() - make_interval(secs => :lookback_seconds),
+        least(now(), (SELECT min(a.xact_start) FROM pg_stat_activity a
+                      WHERE a.datname = current_database() AND a.backend_type = 'client backend'
+                        AND a.pid <> pg_backend_pid() AND a.xact_start IS NOT NULL)
+                     - interval '1 microsecond'))
+"""
+
+
+def watermark(session: Session, lookback_minutes: float | None = None) -> datetime:
+    """The build's watermark (decision 1): every change committed before it is reflected in rows built now. Read
+    after `pg_stat_clear_snapshot()`, so the activity view is current and not this transaction's cached copy."""
+    if lookback_minutes is None:
+        from aslms.core.config import get_settings
+
+        lookback_minutes = get_settings().insights_dirty_lookback_minutes
+    session.execute(text("SELECT pg_stat_clear_snapshot()"))
+    return session.scalar(text(WATERMARK_SQL), {"lookback_seconds": float(lookback_minutes) * 60})
 
 
 # ------------------------------------------------------------------------------------------------ the maps
@@ -212,6 +253,8 @@ DIRTY_SQL = """
         OR EXISTS (SELECT 1 FROM orders o JOIN order_sections os ON os.order_id = o.id
                    WHERE o.case_id = c.id AND os.created_at > f.built_at)
         OR EXISTS (SELECT 1 FROM causelist_entries e WHERE e.case_id = c.id AND e.created_at > f.built_at)
+        OR EXISTS (SELECT 1 FROM insight_case_type_groups ctg
+                   WHERE ctg.case_type_id = c.case_type_id AND ctg.updated_at > f.built_at)
     )
 """
 
@@ -514,11 +557,15 @@ def build(
 ) -> dict[str, int]:
     """Rebuilds the fact rows of `case_ids` (live or merged alike; readers join live cases): the set-based reads, the
     rules in Python, the writ resolution, `INSERT … ON CONFLICT (case_id) DO UPDATE`, then the `writ` basis as a
-    second pass (the writ's own row is read after its own build)."""
+    second pass (the writ's own row is read after its own build). `built_at` is the watermark, taken before any case
+    data is read (decision 1 of state-insights-review-advisories); a given `now` (tests) stands for all three times."""
     if not case_ids:
         return {"built": 0, "new_categories": 0}
-    # the transaction's own time: a change committed while the batch is read is never older than the row
-    now = now or session.scalar(select(func.now()))
+    if now is None:
+        built_at = watermark(session)
+        now = session.scalar(select(func.now()))
+    else:
+        built_at = now
     maps = maps or load_maps(session)
     today = today_ist(now)
     inputs = gather(session, case_ids)
@@ -527,7 +574,7 @@ def build(
     new_categories = _discover(session, rows, now)
     # written in key order, so two writers never take the same rows in opposite orders
     rows.sort(key=lambda r: r["case_id"])
-    values = [{k: v for k, v in r.items() if not k.startswith("_")} | {"built_at": now} for r in rows]
+    values = [{k: v for k, v in r.items() if not k.startswith("_")} | {"built_at": built_at} for r in rows]
     for i in range(0, len(values), 1000):
         part = values[i : i + 1000]
         stmt = pg_insert(InsightCaseFact).values(part)
@@ -656,6 +703,7 @@ class RunReport:
     new_categories: int = 0
     rederived: int = 0
     unmapped_phrases: int = 0
+    case_type_lines: int = 0
     seconds: float = 0.0
     attribution_fingerprint: str | None = None
     dry_run: bool = False
@@ -680,18 +728,21 @@ def _job(session: Session, job: str) -> JobRun:
 def refresh(
     session: Session, *, batch: int = 5000, dry_run: bool = False, now: datetime | None = None
 ) -> RunReport:
-    """The 10-minute job: at most `batch` dirty cases rebuilt, then the attribution derived again when a mapping or an
-    office changed. One transaction (the caller commits); one `job_runs` row `insights-refresh`. `dry_run` counts what
-    would be built and writes nothing."""
+    """The 10-minute job: the seed case-type lines a case type lacks placed first (decision 5 of
+    state-insights-review-advisories), at most `batch` dirty cases rebuilt, then the attribution derived again when a
+    mapping or an office changed. One transaction (the caller commits); one `job_runs` row `insights-refresh`.
+    `dry_run` counts what would be placed and built and writes nothing."""
     started = time.monotonic()
     report = RunReport(dry_run=dry_run)
     if dry_run:
+        report.case_type_lines = insights_groups.count_seed_case_types_missing(session)
         report.checked, _ = dirty_count(session)
         report.rederived = 1 if attribution_dirty(session) else 0
         report.seconds = time.monotonic() - started
         return report
     run = _job(session, JOB_REFRESH)
     try:
+        report.case_type_lines = insights_groups.place_seed_case_types(session)
         fingerprint = attribution_fingerprint(session)
         maps = load_maps(session)
         ids = dirty_case_ids(session, batch)
@@ -733,8 +784,15 @@ def rebuild(
     job: str = JOB_REBUILD,
     echo: Callable[[str], Any] | None = None,
 ) -> RunReport:
-    """`insights-rebuild` (04:45 IST) and `aslms insights refresh --all`: every live case rebuilt in batches of
-    `batch`, each its own transaction, then the categories discovered and one `job_runs` row with the counters."""
+    """`insights-rebuild` (04:45 IST) and `aslms insights refresh --all`: the seed case-type lines a case type lacks
+    placed first, every live case rebuilt in batches of `batch`, each its own transaction under `REFRESH_LOCK`, then
+    the categories discovered and one `job_runs` row with the counters.
+
+    Decision 2 of state-insights-review-advisories: each batch reads the attribution fingerprint under the lock and
+    reloads the maps when it moved (the fingerprint always before the maps), so no batch is written with maps older
+    than a fingerprint some refresh has recorded; the end step, under the lock, re-derives every row with maps loaded
+    after the final fingerprint when any batch used maps of another fingerprint, so the fingerprint recorded is true of
+    every row written."""
     started = time.monotonic()
     report = RunReport()
     with session_factory() as s:
@@ -743,8 +801,12 @@ def rebuild(
     status, error = JobStatus.FAILED, None
     try:
         with session_factory() as s:
-            fingerprint = attribution_fingerprint(s)
-            maps = load_maps(s)
+            s.execute(select(func.pg_advisory_xact_lock(REFRESH_LOCK)))
+            report.case_type_lines = insights_groups.place_seed_case_types(s)
+            s.commit()
+        maps: Maps | None = None
+        maps_fingerprint: str | None = None
+        used: set[str] = set()
         last: uuid.UUID | None = None
         while True:
             with session_factory() as s:
@@ -758,6 +820,10 @@ def rebuild(
                 ids = list(s.scalars(stmt).all())
                 if not ids:
                     break
+                current = attribution_fingerprint(s)
+                if maps is None or current != maps_fingerprint:
+                    maps, maps_fingerprint = load_maps(s), current
+                used.add(current)
                 out = build(s, ids, maps=maps)
                 s.commit()
             report.checked += len(ids)
@@ -767,10 +833,15 @@ def rebuild(
             if echo is not None:
                 echo(f"built {report.built}")
         with session_factory() as s:
+            s.execute(select(func.pg_advisory_xact_lock(REFRESH_LOCK)))
+            final = attribution_fingerprint(s)
+            end_maps = maps if final == maps_fingerprint and maps is not None else load_maps(s)
+            if used - {final}:
+                report.rederived += rederive_departments(s, end_maps)
             report.new_categories += discover_categories(s)
-            report.unmapped_phrases = len(unmapped_phrases(s, maps))
+            report.unmapped_phrases = len(unmapped_phrases(s, end_maps))
             s.commit()
-        report.attribution_fingerprint = fingerprint
+        report.attribution_fingerprint = final
         status = JobStatus.SUCCEEDED
     except Exception as exc:
         error = f"{exc.__class__.__name__}: {exc}"[:2000]
