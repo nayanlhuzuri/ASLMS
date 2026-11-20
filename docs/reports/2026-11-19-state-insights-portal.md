@@ -30,3 +30,9 @@ Rows 269 and 270 (scribe) and row 271 (the advisories above). The review advisor
 
 ## Push
 See the integrator's return: main and the tag pushed fast-forward only.
+
+## Deploy
+Deployed 20 Nov 2026 at 15:36 IST from `main` at b3d9f01 after CI was green: `docker compose build web`, then `up -d
+--no-deps --force-recreate web` with the court-data switch; running `BUILD_ID` `UDrdlu5wJ0ZKNL-prBmUR` equals the image's,
+`/signin` 307, `/insights` signed out 307, `/api/health` 200; the switch on in `api`, `worker` and `worker2`. The owner's
+browser check is row 270.

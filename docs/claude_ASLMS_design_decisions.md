@@ -4227,3 +4227,14 @@ loading state is covered by the kit's `Loading`; the frontend suite reads a back
 **Left for later.** Row 260 (the cause-title signal, round 3); row 269 (`next` security release after 16.4.3, found by
 `npm audit`, not from Recharts); row 270 (owner's browser check and the notes above). Deploy: frontend only; rebuild
 `web` from a clean worktree of `main` and recreate the app services with `--no-deps --force-recreate`.
+
+## Deploys (19 to 20 Nov 2026): rows 258, 267 and 259
+- Rows 258 and 267 together from `main` at 8d57f8e: 0039 applied with the `migrate` step after the `pre-migrate` backup
+  (02:53 to 03:24 IST), seed +3 functions and +27 role grants; `aslms insights refresh --all` built 84,668 cases in
+  132.8 s (reader version 2, 4,369 unmapped phrases across 20,375 cases). The web image was built from a clean worktree
+  of `main` while the row 259 cycle held the checkout.
+- The portal stayed down until 07:43: after the reboot Windows (WinNAT) reserved TCP 2979 to 3078, so port 3000 could
+  not be bound. The dev machine's dynamic TCP range starts at 1024 (Windows default 49152); the owner restarted winnat,
+  and setting the range back to 49152 is the owner's choice. A Windows desktop matter only; the data-centre host is Linux.
+- Row 259 deployed 20 Nov 2026 at 15:36 from `main` at b3d9f01 (frontend only, `web` rebuilt and recreated with the
+  court-data switch, the running build ID equal to the image's). Follow-ups: rows 268, 269, 270 and 271.
