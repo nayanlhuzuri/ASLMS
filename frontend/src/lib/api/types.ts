@@ -271,3 +271,25 @@ export type AssistantInternal = S["AssistantInternalOut"];
 // design assistant-ollama-work: My Work
 export type AssistantWork = S["AssistantWorkOut"];
 export type AssistantWorkQuestion = S["AssistantWorkQuestionOut"];
+
+// State Insights (design state-insights, round 2 `state-insights-portal`)
+export type InsightsScopes = S["InsightsScopesOut"];
+export type InsightsOverview = S["InsightsOut"];
+export type InsightsBucket = S["InsightsBucketOut"];
+export type InsightsChip = S["InsightsChipOut"];
+export type InsightsDepartment = S["InsightsDepartmentOut"];
+export type InsightsUnit = S["InsightsUnitOut"];
+export type InsightsTrend = S["InsightsTrendOut"];
+export type InsightsCompliance = S["InsightsComplianceOut"];
+export type InsightsHolder = S["InsightsHolderOut"];
+export type InsightsScorecard = S["InsightsScorecardOut"];
+export type InsightsCases = S["InsightsCasesOut"];
+export type InsightsCaseItem = S["InsightsCaseItemOut"];
+export type InsightsField = S["InsightsFieldOut"];
+export type InsightGroup = S["InsightGroupOut"];
+export type InsightCategory = S["InsightCategoryOut"];
+export type InsightCaseType = S["InsightCaseTypeOut"];
+export type TitleName = S["TitleNameOut"];
+export type TitleNameList = S["TitleNameListOut"];
+export type UnmappedTitleName = S["UnmappedTitleNameOut"];
+export type UnmappedTitleNamePage = S["UnmappedTitleNamePageOut"];

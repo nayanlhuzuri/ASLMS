@@ -80,6 +80,9 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "mapping.ruleNoun": "a noun read after a number in a count",
   "mapping.caseNoun": "a noun read after a number in a count",
   "mapping.nameNoun": "a noun read after a number in a count",
+  // design state-insights, decision 26: the words before an office name in who has the case ("Claimed by Education")
+  "insights.who.claimedBy": "the start of a sentence that ends with an office name",
+  "insights.who.recommendedTo": "the start of a sentence that ends with an office name",
   "mapping.codesDefault": "an order name, a column then its direction words, read after Order:",
   "discovery.namesDefault": "an order name, a column then its direction words, read after Order:",
   // design data-collection-redesign: reasons read inside an estimate sentence ("no date, the court connection is off")

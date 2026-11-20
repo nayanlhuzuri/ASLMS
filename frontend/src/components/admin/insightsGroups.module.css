@@ -1,0 +1,33 @@
+/* Insights Groups (design state-insights, decision 34): the Settings template's group, laid out as the mapping lists. */
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2) var(--s3);
+}
+
+.addRow > * {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.addRow > button {
+  flex: none;
+  margin-top: var(--label-offset);
+}
+
+.saveLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s3);
+}

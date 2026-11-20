@@ -1251,3 +1251,62 @@ silent; none changes a business rule.
 21. **The seed on an older schema:** `insights_groups.seed` does nothing (with a note in the seed report) when
     `insight_groups` does not exist yet, so `aslms seed` and the migration tests that seed an older revision keep
     working; on a migrated database it inserts what is missing.
+
+Round 2 (row 259, `state-insights-portal`, the portal), recorded by the developer on 19 Nov 2026. Section J is the
+round's design (there is no separate `state-insights-portal.md`; backlog row 259 points here). Each is the smallest
+choice where the note is silent; none changes a business rule.
+
+22. **Wording under the portal's guards.** "Who Is Holding Files" reads **Who Is Holding Cases** (the wording guard
+    refuses "file" in the custody sense); "View as Table" reads **View As Table** and "Compliance With Court Directions"
+    reads **Compliance with Court Directions** (the portal's Title Case rule); the Names in Cause Titles columns are
+    **Printed Name** and **Name Read**.
+23. **The date bar** is its own small form (Date Of, From, To, Apply Dates, and the five quick choices as buttons)
+    rather than the case lists' `DateRangeField`, whose preset select has no Date Of; From and To are applied together,
+    and From after To is refused in the bar before any request.
+24. **The view switch** is one select (Whole State, then each department `GET /insights/scopes` names), shown only with
+    two or more choices; choosing a view drops `unit`, and choosing a department view drops `dept` and `band`, which
+    the server refuses outside the State scope (row 267, decision 3).
+25. **Clicks the note leaves open.** The Disposed bar of Next Hearing (shown with All) sets `next=disposed`; a point of
+    "Is the Backlog Growing?" sets Date Of Registration for its month, and View As Table offers Registered and Disposed
+    for every month; a Compliance bar sets `compliance`, and in the State scope also that department as owner (`dept`
+    with band Claimed); the department view's three band totals are words, not filters; a scorecard department sets
+    `dept` (any band); the Cases figure sets nothing (shown, not pressable); State Cases toggles `state_only`.
+26. **Accessibility.** The `role="img"` with the chart's summary is a wrapper around each Recharts chart, which keeps its
+    `accessibilityLayer`; the selected bar is orange and its axis label starts with a tick (✓); the table rows carry
+    "Show only …" and "Remove the filter …" buttons.
+27. **The export dialog's limit** is the default 2,000 (`INSIGHTS_PDF_MAX_ROWS` is not sent to the portal); the PDF itself
+    prints the server's true "First N of M" line. Applications Pending is a ticked, disabled check while
+    interlocutory applications are inside their main case (the server adds it; it cannot be chosen). The ✓ defaults
+    come from the registry's `default`.
+28. **Names in Cause Titles.** Include Deactivated reads `active=false` as a second request (the API reads one state at a
+    time); Map in Unmapped Names puts the phrase in the add form, where the office is chosen (no picker per row); the
+    panel loads 100 at a time with Show 100 More.
+29. **Bundle.** Recharts and its dependencies (118 KB gzipped) are one lazy chunk loaded only by `/insights`; no other
+    route's first load holds any of it (checked in `.next/diagnostics/route-bundle-stats.json`). `/insights` loads
+    251.8 KB gzipped first, 10.1 KB above `/reports` on `main`, plus the chart chunk: about 128 KB above the shell,
+    inside the 200 KB. Every existing route's first load grew by 3.39 to 3.42 KB gzipped, all of it the round's new
+    strings in `messages.ts`, which every route carries (`T` is one object and the guards read it there); none of it is
+    chart code. Keeping the 1 KB would mean a second message catalogue outside `messages.ts`, against portal-shell
+    decision 17.
+30. **`npm audit --omit=dev`** reports one moderate advisory on `next` 16.4.3 (GHSA-mfr8-8qww-v76h and
+    GHSA-vc7v-qv4w-wrv8, published after row 205; the fix is `next` 16.4.6 or later), not from Recharts: Recharts 3.10.1,
+    `react-is` 19.3.0 and their dependencies add none. The upgrade is left to its own row, as row 205 was.
+31. **The screen check** has the states of the Tests list except loading: the check waits for the network to go quiet
+    before measuring, so a request that never answers cannot be photographed (the loading lines are the kit's
+    `Loading`). It adds Kinds of Case on Insights Groups and Map filling the Names in Cause Titles form.
+32. **The shared hearing-band fixture** is read by the portal's `hearingDate` test from
+    `backend/tests/fixtures/insights/hearing_bands.json`, so the frontend suite needs the whole repository, as CI
+    checks it out.
+33. **Tester's screen-check findings (row 259).** (a) The chart cards' Show All and View As Table were drawn on two
+    lines (`split-group` at every width): the kit `Card` gains an optional `wrapHead`, used only by `ChartCard`, under
+    which the head wraps and its actions never do, so the pair moves under the title as one row when both do not fit.
+    (b) At 375 px the page overflowed to about 500 px: the View select took the width of its longest department name
+    and stretched the page's grid track, and the scorecard's department-name buttons (one line, as every kit button)
+    ran past the card. `.page` and `.section` now have one `minmax(0, 1fr)` track, the View select fills its 280 px
+    box, and the scorecard shows the department name as text with its own Show Only / Remove Filter row button, as
+    View As Table does (the earlier name-as-button would need a taller button than the kit's 30 px). (c) The View As
+    Table state's locator matched every enclosing `section`; it now takes the innermost. The layout signature is
+    regenerated for these rules. The screen check of the nine Insights routes and states shows 0 findings at 375, 768,
+    1024 and 1280 px (run locally against `next dev` with the uicheck fixtures; the integrator's private-network run
+    with images from this branch confirms). The tester's third point, the `next` advisory of deviation 30, waits for
+    the owner's acceptance or its own row; nothing on this branch changes for it.

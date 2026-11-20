@@ -1217,6 +1217,77 @@ const STATES: State[] = [
       await expect(card.locator("[data-band]")).toHaveCount(0);
     },
   },
+  // design state-insights, round 2 (decisions 31 to 35): the Insights page, its export dialog and View As Table, the
+  // department view, an empty selection, Insights Groups and Names in Cause Titles (no loading state: the check waits
+  // for the network to go quiet, so a request that never answers cannot be photographed)
+  {
+    name: "/insights (State, default)",
+    path: "/insights",
+    open: async (page) => {
+      await page.getByRole("button", { name: /Contempt Cases/ }).waitFor();
+      await page.getByRole("heading", { name: "What Kind of Cases, and How Old" }).waitFor();
+      await page.getByRole("table", { name: "Cases in This Selection" }).waitFor();
+    },
+  },
+  {
+    name: "/insights?kind=contempt&next=within_7 (two chips)",
+    path: "/insights?kind=contempt&next=within_7",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Remove filter Kind: Contempt" }).waitFor();
+      await page.getByRole("button", { name: "Remove filter Next Hearing: In the Next 7 Days" }).waitFor();
+      await expect(page.getByRole("button", { name: /Contempt Cases/ })).toHaveAttribute("aria-pressed", "true");
+    },
+  },
+  {
+    name: "/insights (department view)",
+    path: "/insights?scope=department&department=EDU",
+    open: async (page) => {
+      await page.getByRole("heading", { name: "By Unit" }).waitFor();
+      await expect(page.getByRole("heading", { name: "Department Scorecard" })).toHaveCount(0);
+    },
+  },
+  {
+    name: "/insights (empty selection)",
+    path: "/insights?counsel=NOTHING",
+    open: async (page) => {
+      await page.getByText("No case matches this selection.").first().waitFor();
+    },
+  },
+  {
+    name: "/insights (export dialog)",
+    path: "/insights",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Export PDF" }).click();
+      const dialog = page.getByRole("dialog", { name: "Export the Case List" });
+      await dialog.getByText(/The PDF holds the first 2,000 of 18,830 cases/).waitFor();
+    },
+  },
+  {
+    name: "/insights (View As Table)",
+    path: "/insights",
+    open: async (page) => {
+      // the innermost section holding the heading is the card (the page's sections hold every card)
+      const card = page.locator("section", { has: page.getByRole("heading", { name: "By Department", exact: true }) }).last();
+      await card.getByRole("button", { name: "View As Table" }).click();
+      await card.getByRole("table", { name: "By Department" }).waitFor();
+    },
+  },
+  {
+    name: "/admin/insights-groups?tab=family (Kinds of Case)",
+    path: "/admin/insights-groups?tab=family",
+    open: async (page) => {
+      await page.getByRole("combobox", { name: "Group for MC" }).waitFor();
+    },
+  },
+  {
+    name: "/admin/mapping/title-names (Map fills the form)",
+    path: "/admin/mapping/title-names",
+    open: async (page) => {
+      const panel = page.getByRole("complementary", { name: "Unmapped Names" });
+      await panel.getByRole("button", { name: "Map FINANCE (TAXATION)" }).click();
+      await expect(page.getByRole("form", { name: "Add a Name" }).getByRole("textbox", { name: "Printed Name" })).toHaveValue("FINANCE (TAXATION)");
+    },
+  },
 ];
 
 test.describe("interaction states", () => {

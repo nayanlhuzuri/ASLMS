@@ -28,6 +28,17 @@
   gap: var(--s2);
 }
 
+/* Card wrapHead: the head wraps, the actions never do, so a pair of buttons moves under the title as one row */
+.cardHeadWrap {
+  flex-wrap: wrap;
+  row-gap: var(--s2);
+}
+
+.cardHeadWrap .cardActions {
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
 /* HeadLink (design portal-ui-kit-fixes, decision 20): one look for every "see all" link in a card head */
 .headLink {
   font-size: var(--t-sm);

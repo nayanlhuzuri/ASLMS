@@ -40,6 +40,17 @@ import type {
 } from "@/lib/api/types";
 
 import { SAMPLE, STRESS, synth, synthFor } from "./synth";
+import {
+  insightCaseTypes,
+  insightCategories,
+  insightGroups,
+  insightsCases,
+  insightsFields,
+  insightsOverview,
+  insightsScopes,
+  titleNames,
+  unmappedTitleNames,
+} from "./insights";
 
 type S = components["schemas"];
 
@@ -1720,6 +1731,16 @@ function officeNames(): S["OfficeNamesOut"] {
 /** Overrides by API path (exact) or pattern. */
 const OVERRIDES: [RegExp, Override][] = [
   [/^\/me$/, () => me()],
+  // design state-insights, round 2: the Insights page, the export fields, Insights Groups and Names in Cause Titles
+  [/^\/insights\/scopes$/, () => insightsScopes()],
+  [/^\/insights$/, (url) => insightsOverview(url)],
+  [/^\/insights\/cases$/, (url) => insightsCases(url, SAMPLE.caseRef, istDayPlus)],
+  [/^\/insights\/fields$/, () => insightsFields()],
+  [/^\/admin\/insights\/groups$/, (url) => insightGroups(url)],
+  [/^\/admin\/insights\/categories$/, () => insightCategories()],
+  [/^\/admin\/insights\/case-types$/, () => insightCaseTypes()],
+  [/^\/admin\/title-names$/, (url) => titleNames(url)],
+  [/^\/admin\/title-names\/unmapped$/, () => unmappedTitleNames()],
   [/^\/reference\/offices$/, () => officeNames()],
   // design assistant-ollama, decision 14: the Assistant screens in the local model's state, the model ready
   [

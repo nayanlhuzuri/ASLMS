@@ -43,7 +43,8 @@ describe("department mapping navigation", () => {
     for (const fn of ["admin.counsel_codes", "admin.keywords", "admin.watchlist", "admin.scoring"] as const) {
       expect(ADMIN_FUNCTIONS).toContain(fn);
     }
-    expect(ADMIN_FUNCTIONS).toEqual([...PEOPLE_ADMIN_FUNCTIONS, ...MAPPING_FUNCTIONS]);
+    // design state-insights, decision 34: Insights Groups is the Super Administrator's own group of Administration
+    expect(ADMIN_FUNCTIONS).toEqual([...PEOPLE_ADMIN_FUNCTIONS, ...MAPPING_FUNCTIONS, "admin.insights_groups"]);
   });
 
   it("Designations keeps exactly the people and offices functions", () => {
@@ -62,7 +63,7 @@ describe("department mapping navigation", () => {
 
   it("each mapping function alone opens its tabs (Scoring by the API's read rule)", () => {
     expect(keys(mappingTabsFor(only("admin.counsel_codes")))).toEqual(["codes", "scoring"]);
-    expect(keys(mappingTabsFor(only("admin.keywords")))).toEqual(["keywords", "discovery", "scoring"]);
+    expect(keys(mappingTabsFor(only("admin.keywords")))).toEqual(["keywords", "discovery", "title-names", "scoring"]);
     expect(keys(mappingTabsFor(only("admin.watchlist")))).toEqual(["watchlist"]);
     expect(keys(mappingTabsFor(only("admin.scoring")))).toEqual(["scoring"]);
     expect(mappingTabsFor(only("users.view"))).toEqual([]);
@@ -545,5 +546,28 @@ describe("the one-level menu (design portal-ui-polish-2, decisions 14 and 15)", 
     expect(activeChild(admin, { pathname: "/admin/offices/EDU" })).toBe("offices");
     expect(onPath(admin, { pathname: "/admin/offices/EDU" })).toBe(true);
     expect(onPath(admin, { pathname: "/inbox" })).toBe(false);
+  });
+});
+
+describe("the Insights entry (design state-insights, decisions 32, 34 and 35)", () => {
+  const groupOf = (me: { functions: Permission[] }) =>
+    navFor(me)
+      .filter((e) => e.group === "oversight")
+      .map((e) => e.key);
+
+  it("is the first Oversight entry and shows with either Insights function", () => {
+    expect(groupOf({ functions: ["insights.state", "reports.state", "audit.view"] })[0]).toBe("insights");
+    expect(groupOf({ functions: ["insights.department"] })).toEqual(["insights"]);
+    expect(groupOf({ functions: ["reports.state"] })).not.toContain("insights");
+    expect(NAV.find((e) => e.key === "insights")!.href).toBe("/insights");
+  });
+
+  it("Insights Groups is in Administration for its reserved function alone; Names in Cause Titles with Keywords", () => {
+    expect(keys(adminTabsFor(only("admin.insights_groups")))).toEqual(["insights-groups"]);
+    expect(keys(adminTabsFor(only("admin.keywords")))).not.toContain("insights-groups");
+    expect(MAPPING_TABS.find((t) => t.key === "title-names")!.functions).toEqual(["admin.keywords"]);
+    expect(crumbLabel("/insights")).toBe("Insights");
+    expect(crumbLabel("/admin/insights-groups")).toBe("Insights Groups");
+    expect(crumbLabel("/admin/mapping/title-names")).toBe("Names in Cause Titles");
   });
 });

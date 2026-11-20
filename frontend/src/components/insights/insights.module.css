@@ -1,0 +1,243 @@
+/* State Insights (design state-insights, decision 32): one column at 375 and 768 px, two at 1024 px, two or three at
+   1280 px, by the width the page actually has (a container), so the sidebar is counted. */
+
+.page {
+  display: grid;
+  /* one track no child can widen: a long department name in the View select or a table cell never pushes the page
+     past a phone's width (row 259 tester finding) */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  min-width: 0;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s3) var(--s5);
+}
+
+.view {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 280px;
+}
+
+/* a select is as wide as its longest choice unless told otherwise; the full name stays in the list */
+.view select {
+  width: 100%;
+  min-width: 0;
+}
+
+.dates {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.dates legend {
+  padding: 0 var(--s1);
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.dateFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+/* the button sits on the boxes' line, so the error under To never moves its neighbours */
+.dateFields > button {
+  margin-top: var(--label-offset);
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.notes {
+  display: grid;
+  gap: var(--s1);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.notes p {
+  margin: 0;
+}
+
+.headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.figure {
+  display: grid;
+  gap: var(--s1);
+  width: 100%;
+  height: 100%;
+  padding: var(--s3) var(--s4);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    box-shadow var(--med) var(--ease),
+    border-color var(--med) var(--ease);
+}
+
+.figure:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.figure[aria-pressed="true"] {
+  border-color: var(--mark);
+  background: var(--mark-soft);
+}
+
+.figure:disabled {
+  cursor: default;
+}
+
+.figureLabel {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.figure[aria-pressed="true"] .figureLabel {
+  color: var(--mark-text);
+}
+
+.figureValue {
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--heading);
+}
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.section > h2 {
+  margin: 0;
+}
+
+.grid {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.gridInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+}
+
+@container (min-width: 680px) {
+  .gridInner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1100px) {
+  .gridInner {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.cell {
+  min-width: 0;
+}
+
+.bandLine {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  font-size: var(--t-sm);
+}
+
+.listHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.listTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.sub {
+  display: block;
+  margin-top: var(--s1);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.fieldGroups {
+  display: grid;
+  gap: var(--s4);
+}
+
+.fieldGroup {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.fieldGroup legend {
+  padding: 0;
+  margin-bottom: var(--s2);
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.fieldList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--s2) var(--s4);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+}

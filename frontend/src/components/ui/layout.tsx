@@ -30,6 +30,7 @@ export function Card({
   children,
   flush,
   id,
+  wrapHead,
 }: {
   title?: ReactNode;
   actions?: ReactNode;
@@ -38,11 +39,16 @@ export function Card({
   flush?: boolean;
   /** An anchor for in-page links (the Jump To list of the user-type page). */
   id?: string;
+  /**
+   * The actions are one group that is never split: when the title and the actions do not fit one line, the actions
+   * move under the title together (the Insights chart cards, row 259), instead of wrapping one button per line.
+   */
+  wrapHead?: boolean;
 }) {
   return (
     <section className={s.card} id={id}>
       {title || actions ? (
-        <div className={s.cardHead}>
+        <div className={cx(s.cardHead, wrapHead && s.cardHeadWrap)}>
           {title ? <h3>{title}</h3> : <span />}
           {actions ? <div className={s.cardActions}>{actions}</div> : null}
         </div>

@@ -1115,9 +1115,9 @@ the text, so a statement can always be traced to the court's own words.
 The worked example is Annexure E of the Software Documentation. Rows 251 to 253 add the meaning search, similar cases,
 summaries and precedent notes.
 
-#### State Insights: how the numbers are worked out (row 258)
+#### State Insights: how the numbers are worked out (rows 258 and 259)
 
-The Insights page (under Oversight, beside Reports and Audit Log; the screen arrives in row 259) answers "what is the
+The Insights page (first under Oversight, before Reports and Audit Log; the screen is row 259) answers "what is the
 state of our litigation, and where are the problems". Every figure is counted by the server from the court data ASLMS
 holds and the work recorded in ASLMS; nothing is guessed by an AI.
 
@@ -1146,6 +1146,13 @@ holds and the work recorded in ASLMS; nothing is guessed by an AI.
   only cases the viewer may open, never notes, file remarks or documents.
 - **Freshness.** The readings are refreshed every 10 minutes for changed cases and rebuilt every night at 04:45; who has
   a case, its status and its next hearing are read live at every click.
+- **Using the page (row 259).** Every bar, figure and table row is a filter: a click narrows every other count and the
+  case list, a second click removes it, and each filter shows as a chip with Clear All. The status switch (Pending,
+  Disposed, All), State Cases Only, Include Interlocutory Applications and the dates (Date Of with From and To, or a
+  quick choice such as Next 7 Days) sit on top. Every chart has View As Table, the same numbers with a filter button on
+  each row. The whole selection is kept in the page address, so a link can be sent to a colleague, who sees the counts
+  of their own view. Export Excel and Export PDF open a dialog with the owner's 33 fields in four groups (the choice is
+  remembered in the browser); a PDF holds at most 2,000 cases, the Excel file every case up to 100,000.
 
 ---
 

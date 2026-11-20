@@ -2,7 +2,12 @@
  * The band of a next hearing date (design next-hearing-highlight, decisions 2, 3, 5 and 6): whole IST days, the
  * browser's zone playing no part. Replaces the tests of the earlier 48-hour badge (format.ts) and countdown (cases.ts).
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
+
+import { addDays, istDay } from "./format";
 
 import {
   aroundSentence,
@@ -196,5 +201,18 @@ describe("the one next hearing in words", () => {
       nb("The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026. The court's record is used."),
     );
     expect(differsSentence(around)).toBeNull();
+  });
+});
+
+describe("the hearing bands shared with the backend (design state-insights, round 1 deviation 18)", () => {
+  // the Python twin `insights_rules.hearing_band` reads the same fixture; the portal's bands have no 8-to-30 split
+  const fixture = JSON.parse(
+    readFileSync(join(process.cwd(), "..", "backend", "tests", "fixtures", "insights", "hearing_bands.json"), "utf-8"),
+  ) as { days: number | null; status: string; band: string; portal: string }[];
+
+  it.each(fixture)("$days days, $status: $portal", ({ days, status, portal }) => {
+    const now = new Date("2026-11-19T06:30:00Z");
+    const date = days === null ? null : addDays(istDay(now), days);
+    expect(hearingBand(date, { status, now }).band).toBe(portal);
   });
 });

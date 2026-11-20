@@ -1,0 +1,32 @@
+/* The Insights chart kit (design state-insights, decision 31). Colours reach the SVG from the tokens through
+   `useChartTokens`; this sheet only lays the cards out. */
+
+.body {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.coverage {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.chart {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chart :global(.recharts-legend-item-text) {
+  color: var(--text-2);
+}
+
+.chart :global(.recharts-default-tooltip) {
+  border-radius: var(--r-md);
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text);
+  font-size: var(--t-sm);
+}

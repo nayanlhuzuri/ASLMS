@@ -277,7 +277,7 @@ describe("department mapping tab", () => {
   });
 
   it("Scoring shows for admin.keywords without admin.scoring", async () => {
-    expect(await mappingTabs(["admin.keywords"])).toEqual(["Keywords and Name Patterns", "Court Search", "Scoring"]);
+    expect(await mappingTabs(["admin.keywords"])).toEqual(["Keywords and Name Patterns", "Court Search", "Names in Cause Titles", "Scoring"]);
   });
 
   it("every tab for the super admin's functions", async () => {
@@ -286,6 +286,7 @@ describe("department mapping tab", () => {
       "Keywords and Name Patterns",
       "Court Search",
       "Watchlist",
+      "Names in Cause Titles",
       "Scoring",
     ]);
   });

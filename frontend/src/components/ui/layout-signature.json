@@ -128,6 +128,13 @@
     ".ticketCell > h2 { margin: 0 }",
     ".ticketRef { font-size: var(--t-sm); overflow-wrap: anywhere }"
   ],
+  "components/admin/insightsGroups.module.css": [
+    ".badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2) }",
+    ".addRow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s2) var(--s3) }",
+    ".addRow > * { min-width: 0; flex: 1 1 200px }",
+    ".addRow > button { flex: none; margin-top: var(--label-offset) }",
+    ".saveLine { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s3) }"
+  ],
   "components/admin/mapping/mapping.module.css": [
     ".weight { display: inline-flex; align-items: baseline; gap: var(--s1); white-space: nowrap }",
     ".source { font-size: var(--t-xs) }",
@@ -719,6 +726,42 @@
     ".assignRow > * { flex: 1 1 220px }",
     ".switchRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) }"
   ],
+  "components/insights/insights.module.css": [
+    ".page { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s5); min-width: 0 }",
+    ".controls { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s3) var(--s5) }",
+    ".view { min-width: 0; max-width: 100%; flex: 0 1 280px }",
+    ".view select { width: 100%; min-width: 0 }",
+    ".dates { display: grid; gap: var(--s3); margin: 0; padding: var(--s4); border: 1px solid <c>; border-radius: var(--r-lg); background: <c>; min-width: 0 }",
+    ".dates legend { padding: 0 var(--s1); font-weight: 600 }",
+    ".dateFields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: var(--s3); align-items: start }",
+    ".dateFields > button { margin-top: var(--label-offset) }",
+    ".quick { display: flex; flex-wrap: wrap; gap: var(--s2) }",
+    ".notes { display: grid; gap: var(--s1); margin: 0; font-size: var(--t-sm) }",
+    ".notes p { margin: 0 }",
+    ".headline { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); gap: var(--s3); margin: 0; padding: 0; list-style: none }",
+    ".figure { display: grid; gap: var(--s1); width: 100%; height: 100%; padding: var(--s3) var(--s4); text-align: left; background: <c>; border: 1px solid <c>; border-radius: var(--r-lg); font: inherit; cursor: pointer; transition: box-shadow var(--med) var(--ease), border-color var(--med) var(--ease) }",
+    ".figure[aria-pressed=\"true\"] { background: <c> }",
+    ".figure:disabled { cursor: default }",
+    ".figureLabel { font-size: var(--t-sm); font-weight: 500 }",
+    ".figureValue { font-size: var(--t-2xl); font-weight: 600; font-variant-numeric: tabular-nums }",
+    ".section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); min-width: 0 }",
+    ".section > h2 { margin: 0 }",
+    ".grid { container-type: inline-size; min-width: 0 }",
+    ".gridInner { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4) }",
+    "@container (min-width: 680px) » .gridInner { grid-template-columns: repeat(2, minmax(0, 1fr)) }",
+    "@container (min-width: 1100px) » .gridInner { grid-template-columns: repeat(3, minmax(0, 1fr)) }",
+    ".wide { grid-column: 1 / -1; min-width: 0 }",
+    ".cell { min-width: 0 }",
+    ".bandLine { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); font-size: var(--t-sm) }",
+    ".listHead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s3) }",
+    ".listTools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3) }",
+    ".sub { display: block; margin-top: var(--s1); font-size: var(--t-xs) }",
+    ".fieldGroups { display: grid; gap: var(--s4) }",
+    ".fieldGroup { display: grid; gap: var(--s2); margin: 0; padding: 0; border: 0; min-width: 0 }",
+    ".fieldGroup legend { padding: 0; margin-bottom: var(--s2); font-weight: 600 }",
+    ".fieldList { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--s2) var(--s4) }",
+    ".footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s3); width: 100% }"
+  ],
   "components/nextdates/nextdates.module.css": [
     ".suggested { display: flex; flex-direction: column; gap: var(--s1) }",
     ".date { font-weight: 600 }",
@@ -1159,11 +1202,19 @@
     ".differs { display: inline-flex; align-items: center; padding: 0 var(--s2); border: 1px solid <c>; border-radius: var(--r-sm); background: <c>; font-size: var(--t-sm); font-weight: 600; line-height: 1.35; white-space: nowrap }",
     ".line { font-size: var(--t-sm); overflow-wrap: anywhere }"
   ],
+  "components/ui/insightCharts.module.css": [
+    ".body { display: grid; gap: var(--s3); min-width: 0 }",
+    ".coverage { margin: 0; font-size: var(--t-xs) }",
+    ".chart { width: 100%; min-width: 0; overflow: hidden }",
+    ".chart :global(.recharts-default-tooltip) { border-radius: var(--r-md); background: <c> !important; font-size: var(--t-sm) }"
+  ],
   "components/ui/layout.module.css": [
     ".card { background: <c>; border: 1px solid <c>; border-radius: var(--r-lg) }",
     ".cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s4) var(--s5); border-bottom: 1px solid <c> }",
     ".cardHead h3 { margin: 0; font-size: var(--t-lg); font-weight: 600 }",
     ".cardActions { display: flex; flex-wrap: wrap; gap: var(--s2) }",
+    ".cardHeadWrap { flex-wrap: wrap; row-gap: var(--s2) }",
+    ".cardHeadWrap .cardActions { flex-wrap: nowrap; margin-left: auto }",
     ".headLink { font-size: var(--t-sm); font-weight: 500; white-space: nowrap }",
     ".cardBody { padding: var(--s4) var(--s5) }",
     ".flush { padding: 0 }",

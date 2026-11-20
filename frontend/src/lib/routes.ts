@@ -96,8 +96,11 @@ export const MAPPING_FUNCTIONS: readonly Permission[] = [
   "admin.scoring",
 ];
 
-/** The Administration entry of the sidebar: any people, offices or mapping function. */
-export const ADMIN_FUNCTIONS: readonly Permission[] = [...PEOPLE_ADMIN_FUNCTIONS, ...MAPPING_FUNCTIONS];
+/** The Administration entry of the sidebar: any people, offices or mapping function, or Insights Groups. */
+export const ADMIN_FUNCTIONS: readonly Permission[] = [...PEOPLE_ADMIN_FUNCTIONS, ...MAPPING_FUNCTIONS, "admin.insights_groups"];
+
+/** The Insights entry (design state-insights, decision 32): either Insights function; the API decides the scope. */
+export const INSIGHTS_FUNCTIONS: readonly Permission[] = ["insights.state", "insights.department"];
 
 /** Reading the data-collection screens (design data-load-console, decision 17); every action has its own function. */
 export const DATA_READERS: readonly Permission[] = [
@@ -129,6 +132,8 @@ export const ADMIN_TABS: readonly AdminTab[] = [
   { key: "designations", label: T.tabs.admin.designations, href: "/admin/designations", functions: PEOPLE_ADMIN_FUNCTIONS },
   { key: "mapping", label: T.tabs.admin.mapping, href: "/admin/mapping", functions: MAPPING_FUNCTIONS },
   { key: "tickets", label: T.tabs.admin.tickets, href: "/admin/tickets", functions: ["users.propose_head", "admin.tickets"] },
+  // design state-insights, decision 34: the Super Administrator's reserved function alone
+  { key: "insights-groups", label: T.tabs.admin.insightsGroups, href: "/admin/insights-groups", functions: ["admin.insights_groups"] },
 ];
 
 /**
@@ -141,6 +146,8 @@ export const MAPPING_TABS: readonly AdminTab[] = [
   // design department-discovery, decision 13 (b): the department's names searched at the court and what they found
   { key: "discovery", label: T.tabs.mapping.discovery, href: "/admin/mapping/discovery", functions: ["admin.keywords"] },
   { key: "watchlist", label: T.tabs.mapping.watchlist, href: "/admin/mapping/watchlist", functions: ["admin.watchlist"] },
+  // design state-insights, decision 35: the fourth list, mapped with Keywords and Name Patterns' function
+  { key: "title-names", label: T.tabs.mapping.titleNames, href: "/admin/mapping/title-names", functions: ["admin.keywords"] },
   {
     key: "scoring",
     label: T.tabs.mapping.scoring,
@@ -288,6 +295,8 @@ export const NAV: readonly NavEntry[] = [
     built: true,
     show: showsAssistant,
   },
+  // design state-insights, decision 32: Insights first under Oversight, with either Insights function
+  { key: "insights", label: T.nav.insights, href: "/insights", group: "oversight", functions: INSIGHTS_FUNCTIONS, built: true },
   // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
   {
     key: "reports",
