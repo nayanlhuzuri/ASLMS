@@ -10,6 +10,15 @@ writes `case_ownership`: a case belongs to a department only after the departmen
   form gives a `counsel_code_partial` signal at the global partial weight (a possible match alone). The smaller part
   set must hold a part outside the generic stop-list; an exact match wins, and a department with an exact signal
   loses its partial ones.
+- Named in the cause title (design `state-insights`, round 3, decisions 36 to 40): each active department in the
+  case's `insight_case_facts.named_title_department_ids` (the cause title or the respondent party names, read by
+  `services/insights_facts.py`) gives one `named_in_title` signal at the global cause-title weight (a possible match
+  alone), carrying the phrase, its source (`cause_title` with the order date, or `party`) and a reason sentence. The
+  engine reads no order text: the departments come from the fact row, the phrase is the first stored phrase the current
+  title-name maps give to that department (a department no stored phrase names any longer is left out until the
+  readings are derived again), and the source is `party` when the phrase is among the current respondent names'
+  phrases, else `cause_title` when the row names the order it read. The Insights jobs rescore every case whose
+  attribution changed (`insights_facts.rescore_changed`).
 - Score per department: the strongest weight within each signal kind, combined by noisy OR
   (`1 - prod(1 - w_kind)`), rounded to 3 decimals. Weights and band thresholds come from the current
   `scoring_settings` version; a rule's own `weight` overrides its kind's setting.
@@ -46,6 +55,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from aslms.core.clock import today_ist
 from aslms.domain.cases import Case, CaseAdvocate, CaseLink, CaseParty, FirstSeenSource
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
+from aslms.domain.documents import Order
+from aslms.domain.insights import InsightCaseFact
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office
 from aslms.domain.ownership import (
@@ -72,7 +83,7 @@ from aslms.services.cases import emit_event, normalise_name
 
 log = structlog.get_logger(__name__)
 
-ENGINE_VERSION = "2"  # design partial-code-match, decision 17
+ENGINE_VERSION = "3"  # design state-insights, decision 38 (2: partial-code-match, decision 17)
 CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
 MATCHING_ACTOR = Actor.system("matching")
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
@@ -226,6 +237,15 @@ def partial_reason(dept_code: str, printed: str, relation: str, where: str, ref:
     return f"Code {printed} {place} has the same parts as {dept_code}"
 
 
+def named_reason(phrase: str, source: str, order_date: Any) -> str:
+    """The sentence shown in Case Claim for a `named_in_title` signal (design state-insights, decision 36)."""
+    if source == "cause_title":
+        day = _list_date_text(order_date) if order_date is not None else None
+        where = f"the cause title of the order of {day}" if day else "the cause title of an order"
+        return f"Department named in {where}: {phrase}"
+    return f"Department named among the respondents: {phrase}"
+
+
 def _word_regex(term: str) -> re.Pattern[str]:
     return re.compile(r"(?<![A-Z0-9])" + re.escape(term) + r"(?![A-Z0-9])")
 
@@ -262,6 +282,8 @@ class RuleSet:
     patterns: list[Rule] = field(default_factory=list)
     watch: dict[str, list[Rule]] = field(default_factory=dict)
     departments: dict[uuid.UUID, str] = field(default_factory=dict)  # active Department-tier offices
+    # design state-insights, decision 36: the cause-title name maps (`insights_facts.Maps`); None reads no signal
+    title_maps: Any = None
     # design partial-code-match, decisions 5 and 9: filled on first use from `codes` and `generic_codes`
     generic_parts: frozenset[str] = frozenset()
     partial_index: dict[str, list[Rule]] = field(default_factory=dict)
@@ -312,6 +334,14 @@ class RuleSet:
         self._partial_cache[printed] = out
         return out
 
+    def title_department(self, phrase: str) -> uuid.UUID | None:
+        """The department a stored cause-title phrase names under the current maps (explicit mapping, else the
+        automatic match on a department's name core: `insights_facts.Maps`), or None."""
+        if self.title_maps is None:
+            return None
+        found = self.title_maps.phrase_departments([phrase])
+        return found[0] if found else None
+
     @classmethod
     def load(cls, session: Session) -> RuleSet:
         settings = ss.current(session)
@@ -335,7 +365,9 @@ class RuleSet:
                 return None
             return office, dept
 
-        rs = cls(settings=settings, departments=departments)
+        from aslms.services import insights_facts  # imports this module
+
+        rs = cls(settings=settings, departments=departments, title_maps=insights_facts.load_maps(session))
         w = settings.weights
 
         def make(row, kind: str, txt: str, **extra) -> Rule | None:
@@ -412,6 +444,13 @@ class CaseEvidence:
     advocate_codes: list[tuple[str, dict]] = field(default_factory=list)  # (normalised code, {side})
     names: list[tuple[str, str, dict]] = field(default_factory=list)  # (normalised name, where, ref)
     linked: list[LinkedCase] = field(default_factory=list)
+    # design state-insights, decision 36: the fact row's readings (no order text is read here)
+    title_department_ids: list[uuid.UUID] = field(default_factory=list)
+    title_phrases: list[str] = field(default_factory=list)
+    title_order_id: uuid.UUID | None = None
+    title_order_date: date | None = None
+    # the phrases of the current respondent names (only to name the source)
+    respondent_phrases: frozenset[str] = frozenset()
 
     @classmethod
     def gather(cls, session: Session, case: Case) -> CaseEvidence:
@@ -447,11 +486,14 @@ class CaseEvidence:
             n = normalise_counsel_code(code)
             if n:
                 ev.advocate_codes.append((n, {"side": getattr(side, "value", side)}))
+        respondents: list[str] = []
         for role, party_no, name in session.execute(
             select(CaseParty.role, CaseParty.party_no, CaseParty.name)
             .where(CaseParty.case_id == case.id, CaseParty.is_current.is_(True))
             .order_by(CaseParty.role, CaseParty.party_no)
         ).all():
+            if getattr(role, "value", role) == "respondent" and name:
+                respondents.append(name)
             ev.names.append(
                 (
                     normalise_term(name),
@@ -464,7 +506,35 @@ class CaseEvidence:
             if t and t.strip():
                 ev.names.append((normalise_term(t), "case_summary", {"field": fld}))
         ev.linked = _linked_cases(session, case)
+        _gather_title(session, case, ev, respondents)
         return ev
+
+
+def _gather_title(session: Session, case: Case, ev: CaseEvidence, respondents: list[str]) -> None:
+    """Design state-insights, decision 36: the departments, phrases and titled order of the case's fact row, and the
+    phrases of its current respondent names (only to say where a phrase was read)."""
+    from aslms.services import insights_rules
+
+    row = session.execute(
+        select(
+            InsightCaseFact.named_title_department_ids,
+            InsightCaseFact.title_phrases,
+            InsightCaseFact.title_order_id,
+            Order.order_date,
+        )
+        .outerjoin(Order, Order.id == InsightCaseFact.title_order_id)
+        .where(InsightCaseFact.case_id == case.id)
+    ).first()
+    if row is None or not row.named_title_department_ids:
+        return
+    ev.title_department_ids = list(row.named_title_department_ids)
+    ev.title_phrases = list(row.title_phrases or [])
+    ev.title_order_id = row.title_order_id
+    ev.title_order_date = row.order_date
+    phrases: set[str] = set()
+    for name in respondents:
+        phrases.update(insights_rules.department_phrases(name))
+    ev.respondent_phrases = frozenset(phrases)
 
 
 def linked_case_ids(session: Session, case: Case) -> set[uuid.UUID]:
@@ -662,6 +732,7 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
     if evidence.cnr:
         for rule in rules.watch.get(evidence.cnr, []):
             add(rule, evidence.cnr, "watchlist", None)
+    hits.extend(_named_hits(rules, evidence, seen))
 
     by_dept: dict[uuid.UUID, list[_Hit]] = defaultdict(list)
     for h in hits:
@@ -682,6 +753,45 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
         if strongest.office_depth > 1:
             signals.append({"kind": "suggested_unit", "office_code": strongest.office_code})
         out[dept_id] = ScoredOffice(dept_id, dept_hits[0].department_code, score, signals)
+    return out
+
+
+def _named_hits(rules: RuleSet, evidence: CaseEvidence, seen: set[tuple]) -> list[_Hit]:
+    """Design state-insights, decisions 36 and 37: one `named_in_title` hit per active department of the fact row
+    that a stored phrase still names, at the global cause-title weight (never a rule's override)."""
+    out: list[_Hit] = []
+    if not evidence.title_department_ids:
+        return out
+    w_named = round(rules.settings.weights.get("named_in_title", ss.DEFAULTS.weights["named_in_title"]), 3)
+    for dept_id in evidence.title_department_ids:
+        code = rules.departments.get(dept_id)
+        if code is None or ("named_in_title", dept_id) in seen:
+            continue
+        phrase = next((p for p in evidence.title_phrases if rules.title_department(p) == dept_id), None)
+        if phrase is None:
+            continue
+        seen.add(("named_in_title", dept_id))
+        if evidence.title_order_id is not None and phrase not in evidence.respondent_phrases:
+            source = "cause_title"
+            order_date = evidence.title_order_date.isoformat() if evidence.title_order_date else None
+            ref: dict[str, Any] = {"order_id": str(evidence.title_order_id), "order_date": order_date}
+        else:
+            source, order_date, ref = "party", None, {"role": "respondent"}
+        signal: dict[str, Any] = {
+            "kind": "named_in_title",
+            "rule_id": None,
+            "rule_office_code": code,
+            "weight": w_named,
+            "matched": phrase,
+            "phrase": phrase,
+            "source": source,
+            "where": "insight_case_facts",
+            "ref": ref,
+            "reason": named_reason(phrase, source, evidence.title_order_date),
+        }
+        if source == "cause_title":
+            signal["order_date"] = order_date
+        out.append(_Hit(dept_id, code, "named_in_title", w_named, code, 1, signal))
     return out
 
 
@@ -1122,6 +1232,160 @@ def rescore_case(
     session: Session, case: Case, *, origin: RecommendationOrigin = RecommendationOrigin.RESCORE
 ):
     return score_cases(session, [case.id], origin=origin)
+
+
+# ------------------------------------------------------------------------------------------------ dry run
+
+
+@dataclass
+class DryRunReport:
+    """What a rescore would change, written nowhere (design state-insights, decision 40: the owner sees the possible
+    matches the cause-title signal adds before it goes live). Counts engine recommendations only."""
+
+    cases: int = 0
+    claimed_cases: int = 0  # cases that have had a primary owner: no new engine row, no band change
+    new: dict[str, int] = field(default_factory=dict)  # band -> new engine rows
+    new_by_kind: dict[str, dict[str, int]] = field(default_factory=dict)  # band -> signal kind -> new rows
+    # band -> new rows that would sit below that band without the signal
+    new_only_with_named: dict[str, int] = field(default_factory=dict)
+    band_changed: dict[str, int] = field(default_factory=dict)  # "medium->high" -> open engine rows
+    band_changed_by_named: int = 0  # of those, the changes the cause-title signal alone makes
+    expired: int = 0
+    failed: int = 0
+    settings_version: int | None = None
+    engine_version: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "cases": self.cases,
+            "claimed_cases": self.claimed_cases,
+            "new": dict(sorted(self.new.items())),
+            "new_by_kind": {b: dict(sorted(k.items())) for b, k in sorted(self.new_by_kind.items())},
+            "new_only_with_named": dict(sorted(self.new_only_with_named.items())),
+            "band_changed": dict(sorted(self.band_changed.items())),
+            "band_changed_by_named": self.band_changed_by_named,
+            "expired": self.expired,
+            "failed": self.failed,
+            "settings_version": self.settings_version,
+            "engine_version": self.engine_version,
+        }
+
+
+def _bump(d: dict[str, int], key: str) -> None:
+    d[key] = d.get(key, 0) + 1
+
+
+def _band_without_named(so: ScoredOffice, settings: ss.Settings) -> ScoreBand | None:
+    best: dict[str, float] = {}
+    for sig in so.signals:
+        kind = sig.get("kind")
+        if kind in (None, "suggested_unit", "named_in_title"):
+            continue
+        best[kind] = max(best.get(kind, 0.0), float(sig.get("weight") or 0.0))
+    return band_of(combine(best), settings) if best else None
+
+
+def dry_run_case(session: Session, case: Case, rules: RuleSet, report: DryRunReport) -> None:
+    """`apply_scores`'s decisions for one case, read-only: the new engine rows by band and signal kind, the open
+    engine rows whose band would change and those that would expire. Takes no lock and writes nothing."""
+    if case.merged_into_case_id is not None:
+        return
+    report.cases += 1
+    settings = rules.settings
+    scores = score_case(rules, CaseEvidence.gather(session, case))
+    recs = list(session.scalars(select(Recommendation).where(Recommendation.case_id == case.id)).all())
+    ever_owners = set(
+        session.scalars(select(CaseOwnership.office_id).where(CaseOwnership.case_id == case.id)).all()
+    )
+    claimed = bool(
+        session.scalar(
+            select(
+                exists().where(CaseOwnership.case_id == case.id, CaseOwnership.role == OwnershipRole.PRIMARY)
+            )
+        )
+    )
+    if claimed:
+        report.claimed_cases += 1
+    blocked = {r.office_id for r in recs if r.status in NEVER_AGAIN} | ever_owners
+    active = {r.office_id: r for r in recs if r.status == RecommendationStatus.RECOMMENDED}
+    for office_id, so in scores.items():
+        band = band_of(so.score, settings)
+        if band is None or claimed:
+            continue
+        rec = active.get(office_id)
+        if rec is not None:
+            if rec.origin == RecommendationOrigin.SUGGESTION:
+                continue
+            old = ScoreBand(rec.band)
+            if old != band:
+                _bump(report.band_changed, f"{old.value}->{band.value}")
+                if _band_without_named(so, settings) == old:
+                    report.band_changed_by_named += 1
+            continue
+        if office_id in blocked:
+            continue
+        _bump(report.new, band.value)
+        kinds = sorted({str(sig.get("kind")) for sig in so.signals if sig.get("kind") != "suggested_unit"})
+        by_kind = report.new_by_kind.setdefault(band.value, {})
+        for kind in kinds:
+            _bump(by_kind, kind)
+        if "named_in_title" in kinds and _band_without_named(so, settings) != band:
+            _bump(report.new_only_with_named, band.value)
+    for office_id, rec in active.items():
+        if rec.origin == RecommendationOrigin.SUGGESTION:
+            continue
+        so = scores.get(office_id)
+        if so is None or band_of(so.score, settings) is None:
+            report.expired += 1
+
+
+def dry_run_all(
+    session_factory: sessionmaker[Session],
+    *,
+    batch: int = 500,
+    case_ids: list[uuid.UUID] | None = None,
+    echo: Callable[[str], Any] | None = None,
+) -> DryRunReport:
+    """`aslms rescore --all --dry-run`: every non-merged case (or `case_ids`) through `dry_run_case`, in batches, each
+    session rolled back. No `job_runs` row, no score, recommendation, event or audit row."""
+    report = DryRunReport()
+    with session_factory() as s:
+        rules = RuleSet.load(s)
+        s.rollback()
+    report.settings_version = rules.settings.version
+    report.engine_version = engine_version(rules.settings)
+    last_id: uuid.UUID | None = None
+    wanted = sorted(dict.fromkeys(case_ids)) if case_ids is not None else None
+    offset = 0
+    while True:
+        with session_factory() as s:
+            if wanted is not None:
+                ids = wanted[offset : offset + batch]
+                offset += batch
+            else:
+                stmt = (
+                    select(Case.id).where(Case.merged_into_case_id.is_(None)).order_by(Case.id).limit(batch)
+                )
+                if last_id is not None:
+                    stmt = stmt.where(Case.id > last_id)
+                ids = list(s.scalars(stmt).all())
+            if not ids:
+                break
+            for cid in ids:
+                case = s.get(Case, cid)
+                if case is None:
+                    continue
+                try:
+                    dry_run_case(s, case, rules, report)
+                except Exception as exc:  # noqa: BLE001 — one case never stops the count
+                    report.failed += 1
+                    log.warning("matching.dry_run_failed", case_ref=case.ref_no, error=exc.__class__.__name__)
+                    s.rollback()
+            s.rollback()
+            last_id = ids[-1]
+        if echo is not None:
+            echo(f"checked {report.cases}")
+    return report
 
 
 # ------------------------------------------------------------------------------------------------ unmapped codes

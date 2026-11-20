@@ -21,6 +21,8 @@ import {
   block,
   caseDetail,
   membership,
+  NAMED_REASON,
+  namedRec,
   ownershipView,
   PARTIAL_REASON,
   partialRec,
@@ -256,6 +258,16 @@ describe("the details modal", () => {
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     const why = await within(dialog).findByRole("complementary", { name: "Why This Is Suggested" });
     expect(within(why).getByText(PARTIAL_REASON)).toBeInTheDocument();
+    expect(within(why).getByText("0.600")).toBeInTheDocument();
+    expect(within(why).getByRole("meter", { name: "Match Strength" })).toHaveAttribute("aria-valuenow", "0.6");
+  });
+
+  it("a department named in the cause title lists its reason with 0.600 (design state-insights, decision 36)", async () => {
+    browserApi(routes(caseRoutes(ownershipView(actions(), { recommendations: [namedRec(1)] }))));
+    renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    const why = await within(dialog).findByRole("complementary", { name: "Why This Is Suggested" });
+    expect(within(why).getByText(NAMED_REASON)).toBeInTheDocument();
     expect(within(why).getByText("0.600")).toBeInTheDocument();
     expect(within(why).getByRole("meter", { name: "Match Strength" })).toHaveAttribute("aria-valuenow", "0.6");
   });

@@ -53,14 +53,14 @@ def _rows(engine, *, only_new: bool = False) -> list[tuple]:
 
 
 def _seed(engine) -> None:
-    """Today's seed. On a database below 0027 (no `weight_counsel_code_partial`, design partial-code-match) its
-    scoring-settings step is left out, and below 0028 (no `courts.ref_code`, design case-ref-court-prefix) its courts
-    step: neither is what these tests are about."""
+    """Today's seed. On a database below 0040 (no `weight_named_in_title`, design state-insights; below 0027 no
+    `weight_counsel_code_partial` either) its scoring-settings step is left out, and below 0028 (no `courts.ref_code`,
+    design case-ref-court-prefix) its courts step: neither is what these tests are about."""
     with engine.connect() as conn:
         has_partial, has_ref_code = conn.execute(
             sa.text(
                 "select exists (select 1 from information_schema.columns where table_name = 'scoring_settings' "
-                "and column_name = 'weight_counsel_code_partial'), "
+                "and column_name = 'weight_named_in_title'), "
                 "exists (select 1 from information_schema.columns where table_name = 'courts' "
                 "and column_name = 'ref_code')"
             )

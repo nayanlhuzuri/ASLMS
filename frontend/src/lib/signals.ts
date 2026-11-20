@@ -3,6 +3,8 @@
  * as the matching engine stores them: `Code: SC, EDU`, `Keyword: …`, `Name: …`, `Linked: WP(C)/2417/2026`,
  * `Watchlist`, `Suggested unit: …`. An unknown kind shows its own name and match. A partial counsel code (design
  * partial-code-match, decision 13) shows the server's `reason`, or `Partial code: <matched> in <printed>` without one.
+ * A department named in the cause title (design state-insights, decision 36) shows the server's `reason`, or
+ * `Named in cause title: <phrase>` without one.
  */
 import { labelFor } from "./displayLabels";
 
@@ -18,6 +20,7 @@ function text(value: unknown): string {
 const LABELS: Record<string, string> = {
   counsel_code: "Code",
   counsel_code_partial: "Partial code",
+  named_in_title: "Named in cause title",
   keyword: "Keyword",
   name_pattern: "Name",
   linked_case: "Linked",
@@ -35,6 +38,12 @@ export function signalText(signal: Signal): string {
     const matched = text(signal.matched);
     const printed = text(signal.printed);
     return matched && printed ? `${label}: ${matched} in ${printed}` : matched ? `${label}: ${matched}` : label;
+  }
+  if (kind === "named_in_title") {
+    const reason = text(signal.reason);
+    if (reason) return reason;
+    const phrase = text(signal.phrase) || text(signal.matched);
+    return phrase ? `${label}: ${phrase}` : label;
   }
   const matched =
     kind === "suggested_unit"

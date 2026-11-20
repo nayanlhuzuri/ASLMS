@@ -485,7 +485,7 @@ def test_rebuild_reloads_maps_between_batches(world, monkeypatch):
             _map_tea(world, "HEALTH")
 
     # the end step's re-derivation is switched off, so the later rows can only name HEALTH through the reload
-    monkeypatch.setattr(insights_facts, "rederive_departments", lambda s, maps=None: 0)
+    monkeypatch.setattr(insights_facts, "rederive_departments", lambda s, maps=None, named_changed=None: 0)
     insights_facts.rebuild(world.Session, batch=1, echo=echo)
     with world.Session() as s:
         health = world.office(s, "HEALTH").id

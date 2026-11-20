@@ -115,7 +115,7 @@ function watch(extra: Partial<Watch> = {}): Watch {
 function settings(version: number, extra: Partial<ScoringSettings> = {}): ScoringSettings {
   return {
     version,
-    weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 },
+    weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, named_in_title: 0.6 },
     thresholds: { strong: 0.85, possible: 0.5 },
     reason: version === 0 ? null : "initial",
     valid_from: version === 0 ? null : "2026-10-01T05:00:00Z",
@@ -701,7 +701,7 @@ describe("scoring (decisions 40 and 43)", () => {
     expect(screen.getByRole("img", { name: /No Recommendation 50%, Possible Match 35%, Strong 15%/ })).toBeInTheDocument();
   });
 
-  it("Save Changes asks for the reason and sends all eight values with the loaded version", async () => {
+  it("Save Changes asks for the reason and sends all nine values with the loaded version", async () => {
     const api = scorer({ "PUT /admin/scoring-settings": { ...settings(4), changed: true, rescore_dispatched: true, applies_within_minutes: 15 } });
     renderWithClient(<Scoring />);
     const keywordInput = await screen.findByRole("spinbutton", { name: "Keyword" });
@@ -718,20 +718,20 @@ describe("scoring (decisions 40 and 43)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText(/Saved as version 4\. Recommendations are rescored within 15 minutes; rescoring has started/)).toBeInTheDocument();
     expect(calls(api, "PUT", "/admin/scoring-settings")[0]!.body).toEqual({
-      weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.45 },
+      weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.45, named_in_title: 0.6 },
       thresholds: { strong: 0.85, possible: 0.5 },
       reason: "keywords were too weak",
       expected_version: 3,
     });
   });
 
-  it("shows six weights with the partial counsel code, and checks its band before saving", async () => {
+  it("shows seven weights with the partial counsel code, and checks its band before saving", async () => {
     const api = scorer();
     renderWithClient(<Scoring />);
     const partial = await screen.findByRole("spinbutton", { name: "Partial Counsel Code" });
     expect(partial).toHaveValue(0.6);
     expect(screen.getByRole("slider", { name: "Partial Counsel Code, slider" })).toBeInTheDocument();
-    expect(screen.getAllByRole("slider")).toHaveLength(6);
+    expect(screen.getAllByRole("slider")).toHaveLength(7);
     expect(screen.getByText(/Stays in the possible band and below the counsel code weight/)).toBeInTheDocument();
     await userEvent.clear(partial);
     await userEvent.type(partial, "0.9");
@@ -750,13 +750,42 @@ describe("scoring (decisions 40 and 43)", () => {
   });
 
   it("the history shows a dash for a version written before the partial weight existed", async () => {
-    const v1 = settings(1, { valid_to: "2026-10-05T05:00:00Z", weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 } });
+    const v1 = settings(1, { valid_to: "2026-10-05T05:00:00Z", weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, named_in_title: 0.6 } });
     const v2 = settings(2, { reason: "Partial counsel-code match added (design partial-code-match), partial weight 0.600" });
     scorer({ "GET /admin/scoring-settings": v2, "GET /admin/scoring-settings/history": { items: [v2, v1], total: 2 } });
     renderWithClient(<Scoring />);
     const history = await screen.findByRole("table", { name: "History (2)" });
     const rows = within(history).getAllByRole("row");
     expect(within(history).getByRole("columnheader", { name: "Partial Counsel Code" })).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("—", { selector: ".mono" })).toBeInTheDocument();
+    expect(within(rows[1]!).getAllByText("(changed)")).toHaveLength(1);
+  });
+
+  it("shows the cause-title weight and keeps it inside the possible band before saving (design state-insights, decision 37)", async () => {
+    const api = scorer();
+    renderWithClient(<Scoring />);
+    const named = await screen.findByRole("spinbutton", { name: "Named in Cause Title" });
+    expect(named).toHaveValue(0.6);
+    expect(screen.getByRole("slider", { name: "Named in Cause Title, slider" })).toBeInTheDocument();
+    expect(screen.getByText(/named in the cause title of the case's latest order or among the respondents/)).toBeInTheDocument();
+    for (const bad of ["0.45", "0.85"]) {
+      await userEvent.clear(named);
+      await userEvent.type(named, bad);
+      await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+      expect(await screen.findByText("The cause title weight must be at least Possible and below Strong.")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+    expect(calls(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
+  });
+
+  it("the history shows a dash for a version written before the cause-title weight existed", async () => {
+    const v1 = settings(1, { valid_to: "2026-10-05T05:00:00Z", weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 } });
+    const v2 = settings(2, { reason: "Named in the cause title added (design state-insights, round 3), cause title weight 0.600" });
+    scorer({ "GET /admin/scoring-settings": v2, "GET /admin/scoring-settings/history": { items: [v2, v1], total: 2 } });
+    renderWithClient(<Scoring />);
+    const history = await screen.findByRole("table", { name: "History (2)" });
+    const rows = within(history).getAllByRole("row");
+    expect(within(history).getByRole("columnheader", { name: "Named in Cause Title" })).toBeInTheDocument();
     expect(within(rows[2]!).getByText("—", { selector: ".mono" })).toBeInTheDocument();
     expect(within(rows[1]!).getAllByText("(changed)")).toHaveLength(1);
   });

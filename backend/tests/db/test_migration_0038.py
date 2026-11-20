@@ -26,16 +26,20 @@ def _state(conn) -> dict:
 
 
 def _fill(engine) -> None:
-    """The seed, one order with a stored PDF and one reading of it (through the reader)."""
+    """The seed, one order with a stored PDF and one reading of it (through the reader). At 0038 the seed's
+    scoring-settings step is left out (no `weight_named_in_title` before 0040, design state-insights): it is not what
+    this test is about."""
+    from unittest.mock import patch
+
     from sqlalchemy.orm import Session
 
-    from aslms.services import order_sections
+    from aslms.services import order_sections, scoring_settings
     from aslms.services.seed import seed_all
     from tests.db import next_dates_support as h
     from tests.db import order_sections_support as o
     from tests.db.world import make_case
 
-    with Session(engine) as s:
+    with Session(engine) as s, patch.object(scoring_settings, "seed_default", lambda s, report: None):
         seed_all(s)
         case = make_case(s)
         h.order_with_text(s, case, o.order_text(cnr=case.cnr, case_no=case.case_no_text))

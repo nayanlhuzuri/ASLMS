@@ -133,6 +133,32 @@ export function partialRec(n: number, extra: Partial<Recommendation> = {}): Reco
   });
 }
 
+/** A possible match from the cause title alone (design state-insights, decision 36): the server's reason, 0.600. */
+export const NAMED_REASON = "Department named in the cause title of the order of 12 Oct 2026: EDUCATION";
+
+export function namedRec(n: number, extra: Partial<Recommendation> = {}): Recommendation {
+  return rec(n, {
+    score: 0.6,
+    band: "medium",
+    signals: [
+      {
+        kind: "named_in_title",
+        rule_id: null,
+        rule_office_code: "EDU",
+        weight: 0.6,
+        matched: "EDUCATION",
+        phrase: "EDUCATION",
+        source: "cause_title",
+        order_date: "2026-10-12",
+        where: "insight_case_facts",
+        ref: { order_id: "o-1", order_date: "2026-10-12" },
+        reason: NAMED_REASON,
+      },
+    ],
+    ...extra,
+  });
+}
+
 export function poolItem(n: number, extra: Partial<PoolCase> = {}): PoolCase {
   return { case: summary(n), best_score: 0.42, best_office_code: "FIN", dismissed_by: ["HEALTH"], ...extra };
 }

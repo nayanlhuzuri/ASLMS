@@ -37,8 +37,17 @@ export function officeDepth(office: { path: string }): number {
   return office.path.split("/").length - 1;
 }
 
-// design partial-code-match, decision 10: the partial counsel-code weight follows the counsel-code weight
-export const WEIGHT_KINDS = ["counsel_code", "counsel_code_partial", "name_pattern", "watchlist", "linked_case", "keyword"] as const;
+// design partial-code-match, decision 10: the partial counsel-code weight follows the counsel-code weight; design
+// state-insights, decision 38: the cause-title weight comes last
+export const WEIGHT_KINDS = [
+  "counsel_code",
+  "counsel_code_partial",
+  "name_pattern",
+  "watchlist",
+  "linked_case",
+  "keyword",
+  "named_in_title",
+] as const;
 export type WeightKind = (typeof WEIGHT_KINDS)[number];
 export const THRESHOLDS = ["strong", "possible"] as const;
 export type Threshold = (typeof THRESHOLDS)[number];
@@ -53,7 +62,8 @@ export interface ScoringValues {
 /**
  * The browser-side checks of the scoring form (decision 8): each value in (0, 1] and 0 < possible < strong ≤ 1; the
  * partial counsel-code weight at or above Possible, below Strong and below the counsel-code weight (design
- * partial-code-match, decision 12), so a partial match alone is always a possible match.
+ * partial-code-match, decision 12), so a partial match alone is always a possible match; the cause-title weight at or
+ * above Possible and below Strong (design state-insights, decision 37), so a naming alone is always a possible match.
  */
 export function scoringErrors(values: Record<ScoringField, number | string>): Partial<Record<ScoringField, string>> {
   const out: Partial<Record<ScoringField, string>> = {};
@@ -71,6 +81,10 @@ export function scoringErrors(values: Record<ScoringField, number | string>): Pa
   }
   if (!out.counsel_code_partial && !out.counsel_code && !(partial < num("counsel_code"))) {
     out.counsel_code_partial = "The partial code weight must be below the counsel code weight.";
+  }
+  const named = num("named_in_title");
+  if (!out.named_in_title && !out.strong && !out.possible && !(possible <= named && named < strong)) {
+    out.named_in_title = "The cause title weight must be at least Possible and below Strong.";
   }
   return out;
 }

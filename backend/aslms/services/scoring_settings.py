@@ -1,7 +1,9 @@
-"""Scoring settings (design `recommend-and-claim`, decision 21): the six signal-kind weights and the two band
+"""Scoring settings (design `recommend-and-claim`, decision 21): the seven signal-kind weights and the two band
 thresholds of the matching engine, edited by the super admin (function `admin.scoring`). The partial counsel-code
 weight (design `partial-code-match`, decisions 10 to 12) is kept inside the possible band and below the counsel-code
-weight; versions written before migration 0027 have no partial weight (NULL) and read without the key.
+weight; versions written before migration 0027 have no partial weight (NULL) and read without the key. The cause-title
+weight (design `state-insights`, decisions 37 and 38) is kept inside the possible band too; versions written before
+migration 0040 have none and read without the key.
 
 `scoring_settings` is a versioned master table: each save inserts a new version (`is_current = true`) and
 closes the previous one (`is_current = false`, `valid_to`); values are never updated in place and rows are
@@ -22,7 +24,15 @@ from aslms.domain.reference import EventType, Permission
 from aslms.services import access
 from aslms.services.audit import Actor, write_audit
 
-KINDS = ("counsel_code", "counsel_code_partial", "name_pattern", "watchlist", "linked_case", "keyword")
+KINDS = (
+    "counsel_code",
+    "counsel_code_partial",
+    "name_pattern",
+    "watchlist",
+    "linked_case",
+    "keyword",
+    "named_in_title",
+)
 DEFAULT_REASON = "Plan §4.2 defaults"
 
 
@@ -51,6 +61,7 @@ DEFAULTS = Settings(
         "watchlist": 0.750,
         "linked_case": 0.700,
         "keyword": 0.400,
+        "named_in_title": 0.600,
     },
     threshold_strong=0.850,
     threshold_possible=0.500,
@@ -127,6 +138,12 @@ def validate(
         )
     if not (partial < _f(weights["counsel_code"])):
         raise SettingsError("the partial code weight must be below the counsel code weight")
+    # design state-insights, decision 37: a cause-title naming alone is always a possible match
+    named = _f(weights["named_in_title"])
+    if not (_f(threshold_possible) <= named < _f(threshold_strong)):
+        raise SettingsError(
+            "the cause title weight must be at least the possible threshold and below the strong threshold"
+        )
     if not (reason or "").strip():
         raise SettingsError("a reason is required")
 

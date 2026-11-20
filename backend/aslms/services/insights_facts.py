@@ -26,9 +26,15 @@ by the 10-minute job `insights-refresh`, the 04:45 IST job `insights-rebuild` an
   decision 5), and a line's change makes its cases dirty. The rebuild reloads its maps when the attribution
   fingerprint moves between batches and re-derives at the end when it moved at all (decision 2).
 
+- **The cause-title signal** (design `state-insights`, round 3, decision 36): the matching engine reads
+  `named_title_department_ids`, so every case whose departments named (or, while it names any, its titled order or
+  phrases) changed in a build or a re-derivation is listed (`named_changed`) and rescored after the run commits
+  (`rescore_changed`, by the callers: the two jobs and `aslms insights refresh`).
+
 It writes no audit row (derived data, as the matching engine) and one `job_runs` row per run, with the counters
-`checked`, `built`, `new_categories`, `rederived`, `unmapped_phrases`, `case_type_lines` and `seconds`. It never reads
-a note, a draft, a custody remark or a document description, and never calls NAPIX, SourceTrace or a model."""
+`checked`, `built`, `new_categories`, `rederived`, `unmapped_phrases`, `case_type_lines`, `named_changed` and
+`seconds`. It never reads a note, a draft, a custody remark or a document description, and never calls NAPIX,
+SourceTrace or a model."""
 
 from __future__ import annotations
 
@@ -72,8 +78,10 @@ COUNTERS = (
     "rederived",
     "unmapped_phrases",
     "case_type_lines",
+    "named_changed",
     "seconds",
 )
+RESCORE_BATCH = 500  # cases per transaction when the changed cases are rescored
 
 
 def _now() -> datetime:
@@ -554,13 +562,13 @@ WRIT_BASIS_SQL = """
 
 def build(
     session: Session, case_ids: list[uuid.UUID], *, maps: Maps | None = None, now: datetime | None = None
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """Rebuilds the fact rows of `case_ids` (live or merged alike; readers join live cases): the set-based reads, the
     rules in Python, the writ resolution, `INSERT … ON CONFLICT (case_id) DO UPDATE`, then the `writ` basis as a
     second pass (the writ's own row is read after its own build). `built_at` is the watermark, taken before any case
     data is read (decision 1 of state-insights-review-advisories); a given `now` (tests) stands for all three times."""
     if not case_ids:
-        return {"built": 0, "new_categories": 0}
+        return {"built": 0, "new_categories": 0, "named_changed": []}
     if now is None:
         built_at = watermark(session)
         now = session.scalar(select(func.now()))
@@ -574,6 +582,7 @@ def build(
     new_categories = _discover(session, rows, now)
     # written in key order, so two writers never take the same rows in opposite orders
     rows.sort(key=lambda r: r["case_id"])
+    changed = _named_changed(session, rows)
     values = [{k: v for k, v in r.items() if not k.startswith("_")} | {"built_at": built_at} for r in rows]
     for i in range(0, len(values), 1000):
         part = values[i : i + 1000]
@@ -582,13 +591,68 @@ def build(
         session.execute(stmt.on_conflict_do_update(index_elements=["case_id"], set_=update))
     session.execute(text(WRIT_BASIS_SQL), {"ids": [r["case_id"] for r in rows]})
     session.flush()
-    return {"built": len(rows), "new_categories": new_categories}
+    return {"built": len(rows), "new_categories": new_categories, "named_changed": changed}
 
 
-def rederive_departments(session: Session, maps: Maps | None = None) -> int:
+NAMED_OLD_SQL = """
+    SELECT case_id, named_title_department_ids, title_order_id, title_phrases
+    FROM insight_case_facts WHERE case_id = ANY(:ids)
+"""
+
+
+def _named_changed(session: Session, rows: list[dict[str, Any]]) -> list[uuid.UUID]:
+    """The cases of `rows` whose cause-title signal would change (design state-insights, decision 36): the departments
+    named differ from the stored row's (no row reads as none), or, while it names any, the titled order or the phrases
+    differ (the reason sentence names them)."""
+    if not rows:
+        return []
+    old = {
+        r.case_id: r
+        for r in session.execute(text(NAMED_OLD_SQL), {"ids": [r["case_id"] for r in rows]}).all()
+    }
+    out: list[uuid.UUID] = []
+    for row in rows:
+        new_ids = list(row["named_title_department_ids"])
+        prev = old.get(row["case_id"])
+        if prev is None:
+            if new_ids:
+                out.append(row["case_id"])
+            continue
+        if new_ids != list(prev.named_title_department_ids or []) or (
+            new_ids
+            and (
+                row["title_order_id"] != prev.title_order_id
+                or list(row["title_phrases"]) != list(prev.title_phrases or [])
+            )
+        ):
+            out.append(row["case_id"])
+    return out
+
+
+def rescore_changed(session_factory: sessionmaker[Session], case_ids: list[uuid.UUID], *, batch: int = 0):
+    """Design state-insights, decision 36: the matching engine run again on the cases whose cause-title readings
+    changed, `RESCORE_BATCH` cases per transaction, after the Insights run committed. Never raises for one case (the
+    engine records it in `source_failures`); returns the engine's `ScoreReport`."""
+    from aslms.domain.ownership import RecommendationOrigin
+    from aslms.services import matching
+
+    size = batch or RESCORE_BATCH
+    total = matching.ScoreReport()
+    ids = sorted(dict.fromkeys(case_ids))
+    for i in range(0, len(ids), size):
+        with session_factory() as s:
+            total.add(matching.score_cases(s, ids[i : i + size], origin=RecommendationOrigin.RESCORE))
+            s.commit()
+    return total
+
+
+def rederive_departments(
+    session: Session, maps: Maps | None = None, named_changed: list[uuid.UUID] | None = None
+) -> int:
     """Decision 12: after a mapping or office change, the department ids, the government codes and the `counsel` basis
     of every row are derived again from the stored phrases and codes; no text is read. Only changed rows are written
-    (Deviation 5: in Python over the stored arrays rather than one SQL statement, so the rules are written once)."""
+    (Deviation 5: in Python over the stored arrays rather than one SQL statement, so the rules are written once).
+    `named_changed` collects the cases whose departments named changed (the cause-title signal, decision 36)."""
     maps = maps or load_maps(session)
     changed = 0
     batch: list[dict[str, Any]] = []
@@ -617,6 +681,8 @@ def rederive_departments(session: Session, maps: Maps | None = None) -> int:
         )
         if same:
             continue
+        if named_changed is not None and t_new != list(t_ids or []):
+            named_changed.append(case_id)
         batch.append(
             {
                 "cid": case_id,
@@ -705,8 +771,11 @@ class RunReport:
     unmapped_phrases: int = 0
     case_type_lines: int = 0
     seconds: float = 0.0
+    named_changed: int = 0
     attribution_fingerprint: str | None = None
     dry_run: bool = False
+    # the cases to rescore after the run commits (design state-insights, decision 36); not a counter
+    named_changed_ids: list[uuid.UUID] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {k: getattr(self, k) for k in COUNTERS}
@@ -749,8 +818,11 @@ def refresh(
         report.checked = len(ids)
         out = build(session, ids, maps=maps, now=now)
         report.built, report.new_categories = out["built"], out["new_categories"]
+        changed: list[uuid.UUID] = list(out["named_changed"])
         if fingerprint != _last_fingerprint(session):
-            report.rederived = rederive_departments(session, maps)
+            report.rederived = rederive_departments(session, maps, named_changed=changed)
+        report.named_changed_ids = list(dict.fromkeys(changed))
+        report.named_changed = len(report.named_changed_ids)
         report.unmapped_phrases = len(unmapped_phrases(session, maps))
         report.attribution_fingerprint = fingerprint
         report.seconds = time.monotonic() - started
@@ -786,7 +858,8 @@ def rebuild(
 ) -> RunReport:
     """`insights-rebuild` (04:45 IST) and `aslms insights refresh --all`: the seed case-type lines a case type lacks
     placed first, every live case rebuilt in batches of `batch`, each its own transaction under `REFRESH_LOCK`, then
-    the categories discovered and one `job_runs` row with the counters.
+    the categories discovered and one `job_runs` row with the counters. Then the cases whose cause-title readings
+    changed are rescored by the matching engine (`rescore_changed`, decision 36 of `state-insights`).
 
     Decision 2 of state-insights-review-advisories: each batch reads the attribution fingerprint under the lock and
     reloads the maps when it moved (the fingerprint always before the maps), so no batch is written with maps older
@@ -807,6 +880,7 @@ def rebuild(
         maps: Maps | None = None
         maps_fingerprint: str | None = None
         used: set[str] = set()
+        changed: list[uuid.UUID] = []
         last: uuid.UUID | None = None
         while True:
             with session_factory() as s:
@@ -826,6 +900,7 @@ def rebuild(
                 used.add(current)
                 out = build(s, ids, maps=maps)
                 s.commit()
+            changed.extend(out["named_changed"])
             report.checked += len(ids)
             report.built += out["built"]
             report.new_categories += out["new_categories"]
@@ -837,11 +912,13 @@ def rebuild(
             final = attribution_fingerprint(s)
             end_maps = maps if final == maps_fingerprint and maps is not None else load_maps(s)
             if used - {final}:
-                report.rederived += rederive_departments(s, end_maps)
+                report.rederived += rederive_departments(s, end_maps, named_changed=changed)
             report.new_categories += discover_categories(s)
             report.unmapped_phrases = len(unmapped_phrases(s, end_maps))
             s.commit()
         report.attribution_fingerprint = final
+        report.named_changed_ids = list(dict.fromkeys(changed))
+        report.named_changed = len(report.named_changed_ids)
         status = JobStatus.SUCCEEDED
     except Exception as exc:
         error = f"{exc.__class__.__name__}: {exc}"[:2000]
@@ -853,6 +930,8 @@ def rebuild(
             run.status, run.error, run.finished_at = status, error, _now()
             run.counters = report.as_dict()
             s.commit()
+    if report.named_changed_ids:
+        rescore_changed(session_factory, report.named_changed_ids)
     return report
 
 

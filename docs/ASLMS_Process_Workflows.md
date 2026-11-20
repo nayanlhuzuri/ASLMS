@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5); and, on branch `feature/order-sections` (row 250), the reading of every court order into its parts by rules and What the Order Says (4.9); and, on branch `feature/order-sections-review-advisories` (row 264), the daily full check, the version 2 rules and the reasons an order has no reading (4.9) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5); and, on branch `feature/order-sections` (row 250), the reading of every court order into its parts by rules and What the Order Says (4.9); and, on branch `feature/order-sections-review-advisories` (row 264), the daily full check, the version 2 rules and the reasons an order has no reading (4.9); and, on branch `feature/cause-title-signal` (row 260), the seventh scoring weight for a department named in the cause title (4.1) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -598,6 +598,7 @@ looks for these signals:
 | A linked case the department owns | connected matter | 0.70 |
 | Keyword in a party name | "school" | 0.40 |
 | **Partial counsel code** (the sixth weight) | A printed code that no mapping names exactly but that contains, is contained in, or has the same parts as a department's code, for example "SC, SEBA, Secondary Education and Madrassa Board, Assam" against "SC, SEBA" | 0.600 |
+| **Named in the cause title** (the seventh weight) | The department named in the cause title of the case's latest order or among the respondents, for example "The Commissioner and Secretary to the Govt. of Assam, Finance Department" | 0.600 |
 
 The signals combine, so several weak signals together make a stronger match. For example, a name pattern plus a
 keyword gives 0.88.
@@ -611,13 +612,24 @@ only ever a **possible match**: it raises no alert, nothing is assigned, and the
 Claim's "Why this is suggested" box shows the reason; the unmapped-codes panel of Department Mapping lists a code that
 **Partly matches** an existing mapping.
 
+**Named in the cause title** (row 260, owner's decision 8 of State Insights). The engine does not read order text
+itself: it uses the departments that the Insights readings (by rules, no AI) found in the cause title of the case's
+latest order or in the respondent names, each matched on the department's own name or on a printed name mapped in
+Department Mapping → Names in Cause Titles. Each named department gets one signal, with a reason such as "Department
+named in the cause title of the order of 12 Oct 2026: FINANCE" or "Department named among the respondents: REVENUE
+AND DISASTER MANAGEMENT". The weight is kept inside the possible-match band, so a naming alone is a **possible
+match**; with a keyword it gives 0.76, with a partial code 0.84 (still possible), and with a name pattern or an exact
+code it reaches the strong band, because two independent signals agree. A cause title often names several
+departments, so the department still decides by claiming; nothing is assigned. When a reading changes (a new order,
+a new mapping of a printed name), the Insights job rescores that case.
+
 | Score | Result |
 |---|---|
 | 0.85 or more | **Strong recommendation.** An alert goes to the department's claimers. |
 | 0.50 to 0.85 | **Possible match.** It appears in the list, with no alert. |
 | below 0.50 | No recommendation |
 
-> ⚙️ **You can change this:** the six weights and the two thresholds (Settings → Department mapping → Scoring, super
+> ⚙️ **You can change this:** the seven weights and the two thresholds (Settings → Department mapping → Scoring, super
 > admin, with a reason and full history). The department's counsel codes, keywords, name patterns and watchlist
 > (Department mapping, department admin).
 

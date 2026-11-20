@@ -4238,3 +4238,47 @@ loading state is covered by the kit's `Loading`; the frontend suite reads a back
   and setting the range back to 49152 is the owner's choice. A Windows desktop matter only; the data-centre host is Linux.
 - Row 259 deployed 20 Nov 2026 at 15:36 from `main` at b3d9f01 (frontend only, `web` rebuilt and recreated with the
   court-data switch, the running build ID equal to the image's). Follow-ups: rows 268, 269, 270 and 271.
+
+## The cause-title recommendation signal, row 260 (2026-11-20)
+Round 3 of 3 of `docs/design/state-insights.md` (section K and decisions 36 to 40; deviations 34 to 43 recorded there).
+Branch `feature/cause-title-signal`, in review.
+
+**What was built.**
+- Migration 0040 (`0040_cause_title_signal.py`, hand-completed on 0027's pattern): `scoring_settings.weight_named_in_title`
+  numeric(4,3) NULL with CHECKs `ck_scoring_settings_named` and `ck_scoring_settings_named_current`; closes the current
+  settings version and inserts the next with 0.600 (the thresholds' midpoint when 0.600 is outside the band), the other
+  values copied, one `scoring_settings.update` audit row (actor `migration 0040`) and one `config_changed` event. No new
+  table, grant or seed change. Downgrade drops the column and checks, keeps the inserted version, audits itself.
+- The matching engine's seventh signal `named_in_title` (`services/matching.py`, engine version 3): a department the
+  Insights readings name in the latest order's cause title or among the respondents gets one signal at the cause-title
+  weight, with the phrase, its source (`cause_title` or `party`) and a reason. `where` = `insight_case_facts`.
+  Never gives a Suggested Unit; never assigns a case; every claim guard unchanged.
+- `insights-refresh`, `insights-rebuild` and `aslms insights refresh` rescore the cases whose named departments changed
+  (counter `named_changed`, `insights_facts.rescore_changed`, 500 cases a transaction, `rescored` in the result).
+- `aslms rescore --all --dry-run` (or `--case REF --dry-run`): read-only count of new rows by band and signal kind,
+  `new_only_with_named`, band changes and expiries.
+- API: `named_in_title` required in `PUT /admin/scoring-settings` (422 without it; 400 outside the possible band), named
+  among the weights on `GET`. Portal: Named in Cause Title as the seventh weight on the Scoring tab, the band rule checked
+  before save, a dash in the history for older versions; Case Claim shows the server's reason.
+- Documents changed: `docs/operations.md` (section 27), `docs/ASLMS_Process_Workflows.md`, Software Documentation
+  (`build.js`, regenerated). The Hosting Guide, `.env.example` and `docs/team/README.md` needed no change (no setting,
+  service or deploy-topology change; one new CLI flag documented in the runbook).
+
+**Decisions and reasons.**
+- The weight is kept inside the possible band (at or above the possible threshold, below the strong one), so a naming
+  alone is always a possible match and the setting cannot switch the signal off (decision 37 of the owner's design).
+- The engine reads no order text: it runs `department_phrases` over the party names it already reads; a stored phrase the
+  current maps no longer give to the department yields no signal, so a stale row never stands for a deactivated mapping.
+- `office_title_names` is not in the rule fingerprint (it would rescore every case on each save and could run before the
+  re-derivation); the Insights jobs rescore changed cases instead.
+- The new settings version makes the 15-minute `rescore-dirty` job rescore every case, so the owner's dry-run count is
+  taken right after `migrate`, with the scheduler and workers still stopped (decision 40).
+- Tests inserting a current settings row by SQL carry the new weight (CHECK constraints are reported in name order).
+
+**Deviations.** None from the plan; design deviations 34 to 43 are choices where the note was silent. There is no
+separate `cause-title-signal.md`: row 260 points to the Insights note.
+
+**Left for later.** Row 272: the dry run and the owner's go-ahead at deploy, the browser check, the post-rescore checks.
+Deploy: late-night window, `pre-migrate` backup, 0040 with the `migrate` step, dry run, then `docker compose build` and
+services back with the court-data switch (runbook section 27).
+

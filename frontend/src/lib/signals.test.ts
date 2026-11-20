@@ -22,6 +22,14 @@ describe("signal chips", () => {
     expect(signalText({ kind: "counsel_code_partial" })).toBe("Partial code");
   });
 
+  it("a department named in the cause title shows the server's reason, or its phrase without one", () => {
+    const reason = "Department named in the cause title of the order of 12 Oct 2026: FINANCE";
+    expect(signalText({ kind: "named_in_title", matched: "FINANCE", phrase: "FINANCE", source: "cause_title", reason, weight: 0.6 })).toBe(reason);
+    expect(signalText({ kind: "named_in_title", phrase: "REVENUE" })).toBe("Named in cause title: REVENUE");
+    expect(signalText({ kind: "named_in_title", matched: "REVENUE" })).toBe("Named in cause title: REVENUE");
+    expect(signalText({ kind: "named_in_title" })).toBe("Named in cause title");
+  });
+
   it("an unknown kind shows its name and match, never raw JSON", () => {
     expect(signalText({ kind: "new_kind", matched: "x", ref: { a: 1 } })).toBe("New Kind: x");
     expect(signalText({})).toBe("Signal");

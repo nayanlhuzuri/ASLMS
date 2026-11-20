@@ -19,6 +19,7 @@ from tests.db.world import make_case
 WEIGHTS = {
     "counsel_code": 0.95,
     "counsel_code_partial": 0.6,
+    "named_in_title": 0.6,
     "name_pattern": 0.8,
     "watchlist": 0.75,
     "linked_case": 0.7,
@@ -48,7 +49,7 @@ def test_scoring_settings_partial_weight(api, world, monkeypatch):  # noqa: F811
     root = login(api, "root")
     r = api.get("/admin/scoring-settings", headers=root)
     assert r.status_code == 200 and r.json()["weights"]["counsel_code_partial"] == 0.6
-    assert r.json()["engine_version"] == "2.1"
+    assert r.json()["engine_version"] == "3.1"
     without = _body()
     del without["weights"]["counsel_code_partial"]
     assert api.put("/admin/scoring-settings", json=without, headers=root).status_code == 422
@@ -74,6 +75,62 @@ def test_scoring_settings_partial_weight(api, world, monkeypatch):  # noqa: F811
     items = api.get("/admin/scoring-settings/history", headers=root).json()["items"]
     assert items[0]["weights"]["counsel_code_partial"] == 0.65
     assert "counsel_code_partial" not in items[1]["weights"]
+
+
+def test_scoring_settings_named_weight(api, world, monkeypatch):  # noqa: F811
+    """Design state-insights, decisions 37 and 38 (deviation 41): `named_in_title` is required (422 without it), kept
+    inside the possible band (400 naming the cause title weight), saved as a new version and left out of the history
+    for versions written before migration 0040."""
+    from aslms.api.routers import matching as matching_router
+
+    monkeypatch.setattr(matching_router, "dispatch_rescore", lambda settings: False)
+    root = login(api, "root")
+    assert api.get("/admin/scoring-settings", headers=root).json()["weights"]["named_in_title"] == 0.6
+    without = _body()
+    del without["weights"]["named_in_title"]
+    assert api.put("/admin/scoring-settings", json=without, headers=root).status_code == 422
+    for bad in (
+        _body(weights={"named_in_title": 0.45}),
+        _body(weights={"named_in_title": 0.85}),
+        _body(
+            weights={"named_in_title": 0.9, "counsel_code_partial": 0.92},
+            thresholds={"strong": 0.94, "possible": 0.91},
+        ),
+    ):
+        r = api.put("/admin/scoring-settings", json=bad, headers=root)
+        assert r.status_code == 400 and "cause title weight" in r.text, r.text
+    assert _versions(world) == 1
+    admin = login(api, "edu_admin")
+    assert api.put("/admin/scoring-settings", json=_body(), headers=admin).status_code == 403
+    r = api.put("/admin/scoring-settings", json=_body(weights={"named_in_title": 0.55}), headers=root)
+    assert r.status_code == 200, r.text
+    assert r.json()["version"] == 2 and r.json()["weights"]["named_in_title"] == 0.55
+    with world.Session() as s:  # version 1 as a pre-0040 database holds it
+        s.execute(sa.text("UPDATE scoring_settings SET weight_named_in_title = NULL WHERE version = 1"))
+        s.commit()
+    items = api.get("/admin/scoring-settings/history", headers=root).json()["items"]
+    assert items[0]["weights"]["named_in_title"] == 0.55
+    assert "named_in_title" not in items[1]["weights"]
+
+
+def test_recommended_carries_the_named_reason_and_stays_scoped(api, world):  # noqa: F811
+    """Design state-insights, decisions 36 and 39: the cause-title signal reaches `GET /inbox/recommended` with its
+    reason for the named department only; another department sees nothing."""
+    from tests.db import insights_support as ins
+
+    with world.Session() as s:
+        case = ins.case(s, respondents=("THE SECRETARY, EDUCATION DEPARTMENT",))
+        ins.build(s, case)
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.RESCORE)
+        s.commit()
+    r = api.get("/inbox/recommended", headers=login(api, "edu_admin"))
+    assert r.status_code == 200, r.text
+    (item,) = r.json()["items"]
+    assert item["band"] == "medium" and item["score"] == 0.6
+    (signal,) = item["signals"]
+    assert signal["kind"] == "named_in_title" and signal["source"] == "party"
+    assert signal["reason"] == "Department named among the respondents: EDUCATION"
+    assert api.get("/inbox/recommended", headers=login(api, "health_admin")).json()["total"] == 0
 
 
 def test_unmapped_partial_matches_scoped(api, world):  # noqa: F811

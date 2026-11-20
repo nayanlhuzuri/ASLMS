@@ -27521,6 +27521,12 @@
             "title": "Name Pattern",
             "type": "number"
           },
+          "named_in_title": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Named In Title",
+            "type": "number"
+          },
           "watchlist": {
             "exclusiveMinimum": 0.0,
             "maximum": 1.0,
@@ -27534,7 +27540,8 @@
           "watchlist",
           "linked_case",
           "keyword",
-          "counsel_code_partial"
+          "counsel_code_partial",
+          "named_in_title"
         ],
         "title": "ScoringWeightsIn",
         "type": "object"

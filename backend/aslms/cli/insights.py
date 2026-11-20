@@ -4,7 +4,8 @@
   dirty cases, then the department attribution when a mapping or an office changed); with `--all`, every live case
   rebuilt in batches, each its own transaction (`job_runs` `insights-refresh`). Both place first the seed case-type
   lines a case type lacks (`case_type_lines`). `--dry-run` counts the cases waiting and the lines that would be
-  placed, and writes nothing.
+  placed, and writes nothing. After a run, the cases whose cause-title readings changed are rescored by the matching
+  engine (design `state-insights`, decision 36).
 - `status`: the data-health block (counts only).
 - `groups export`: the groupings as JSON (group codes and labels, category codes and case-type codes; no case text);
   `groups check`: the categories and case types not grouped (codes and labels of the court's masters only) and the
@@ -63,7 +64,11 @@ def refresh(
     if report is None:
         rprint("[yellow]another refresh is running; nothing done[/yellow]")
         raise typer.Exit(1)
-    rprint(report.as_dict())
+    out = report.as_dict()
+    # design state-insights, decision 36: the cause-title signal follows the readings
+    if report.named_changed_ids:
+        out["rescored"] = insights_facts.rescore_changed(get_sessionmaker(), report.named_changed_ids).cases
+    rprint(out)
 
 
 @insights_app.command("status")

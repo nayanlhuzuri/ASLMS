@@ -1467,6 +1467,7 @@ export const T = {
     fields: {
       counsel_code: "Counsel Code",
       counsel_code_partial: "Partial Counsel Code",
+      named_in_title: "Named in Cause Title",
       name_pattern: "Name Pattern",
       watchlist: "Watchlist",
       linked_case: "Linked Case",
@@ -1488,6 +1489,8 @@ export const T = {
       watchlist: "A case the department has asked to follow.",
       linked_case: "A case linked to one the department already holds.",
       keyword: "Words in the party names, such as a department or a designation.",
+      named_in_title:
+        "A department named in the cause title of the case's latest order or among the respondents, read by the Insights rules. Stays in the possible band.",
     } as Record<string, string>,
     sliderAria: (name: string) => `${name}, slider`,
     bandsTitle: "Bands",

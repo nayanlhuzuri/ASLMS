@@ -14121,6 +14121,8 @@ export interface components {
             linked_case: number;
             /** Name Pattern */
             name_pattern: number;
+            /** Named In Title */
+            named_in_title: number;
             /** Watchlist */
             watchlist: number;
         };

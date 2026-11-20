@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "./api/client";
 import { changedFields, given, isCnr, isRootOffice, officeRequired, scoringErrors, weightBody } from "./mapping";
 
-const VALID = { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, strong: 0.85, possible: 0.5 };
+const VALID = { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, named_in_title: 0.6, strong: 0.85, possible: 0.5 };
 
 describe("isCnr", () => {
   it("accepts four letters and twelve digits after trim and upper case", () => {
@@ -69,13 +69,23 @@ describe("scoringErrors", () => {
     expect(scoringErrors({ ...VALID, counsel_code_partial: 0.9, strong: 0.99 }).counsel_code_partial).toBe(below);
     expect(scoringErrors({ ...VALID, counsel_code_partial: "" }).counsel_code_partial).toBe("Enter a number greater than 0 and at most 1.");
   });
+
+  it("keeps the cause-title weight inside the possible band (design state-insights, decision 37)", () => {
+    const band = "The cause title weight must be at least Possible and below Strong.";
+    expect(scoringErrors({ ...VALID, named_in_title: 0.5 })).toEqual({});
+    expect(scoringErrors({ ...VALID, named_in_title: 0.84 })).toEqual({});
+    expect(scoringErrors({ ...VALID, named_in_title: 0.45 }).named_in_title).toBe(band);
+    expect(scoringErrors({ ...VALID, named_in_title: 0.85 }).named_in_title).toBe(band);
+    expect(scoringErrors({ ...VALID, possible: 0.65, counsel_code_partial: 0.7 }).named_in_title).toBe(band);
+    expect(scoringErrors({ ...VALID, named_in_title: "" }).named_in_title).toBe("Enter a number greater than 0 and at most 1.");
+  });
 });
 
 describe("changedFields", () => {
   const v = (weights: Partial<typeof VALID>) => {
     const all = { ...VALID, ...weights };
     return {
-      weights: { counsel_code: all.counsel_code, counsel_code_partial: all.counsel_code_partial, name_pattern: all.name_pattern, watchlist: all.watchlist, linked_case: all.linked_case, keyword: all.keyword },
+      weights: { counsel_code: all.counsel_code, counsel_code_partial: all.counsel_code_partial, name_pattern: all.name_pattern, watchlist: all.watchlist, linked_case: all.linked_case, keyword: all.keyword, named_in_title: all.named_in_title },
       thresholds: { strong: all.strong, possible: all.possible },
     };
   };

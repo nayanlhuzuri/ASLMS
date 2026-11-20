@@ -431,6 +431,8 @@ class ScoringWeightsIn(BaseModel):
     keyword: float = Field(gt=0, le=1)
     # design partial-code-match, decisions 10 to 12: required; the service keeps it inside the possible band
     counsel_code_partial: float = Field(gt=0, le=1)
+    # design state-insights, decisions 37 and 38: required; the service keeps it inside the possible band
+    named_in_title: float = Field(gt=0, le=1)
 
 
 class ScoringThresholdsIn(BaseModel):

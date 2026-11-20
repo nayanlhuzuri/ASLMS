@@ -1,5 +1,6 @@
-"""`aslms rescore [--all | --case REF]` and `aslms codes unmapped [--limit N]` (design recommend-and-claim,
-decisions 4 and 19): the matching engine by hand, and the report of counsel codes seen in cause lists and
+"""`aslms rescore [--all | --case REF] [--dry-run]` and `aslms codes unmapped [--limit N]` (design recommend-and-claim,
+decisions 4 and 19): the matching engine by hand (`--dry-run` counts the new engine rows by band and signal kind and
+writes nothing: design state-insights, decision 40), and the report of counsel codes seen in cause lists and
 dossiers that no department has mapped yet. Nothing is mapped automatically. `aslms close-claimed-recommendations
 [--apply]` (design ownership-refinements, decision 14): the one-off closure of other departments' open
 recommendations on cases claimed before 21 Oct 2026; a dry run unless `--apply`."""
@@ -22,10 +23,28 @@ def rescore(
     all_cases: bool = typer.Option(False, "--all", help="rescore every non-merged case (a job_runs row)"),
     case: str | None = typer.Option(None, "--case", help="one case: id, ref_no (slash or dash form) or CNR"),
     batch: int = typer.Option(500, "--batch", min=1, max=5000),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="count what the rescore would change (new rows by band and signal kind); write nothing",
+    ),
 ) -> None:
     """Run the matching engine: one case with --case, or everything with --all (the dirty check skipped)."""
     if bool(all_cases) == bool(case):
         raise typer.BadParameter("give exactly one of --all or --case REF")
+    if dry_run:
+        ids = None
+        if case:
+            with session_scope() as s:
+                try:
+                    ids = [resolve_case_ref(s, case).id]
+                except CaseNotFound as exc:
+                    raise typer.BadParameter(str(exc)) from exc
+        report = matching.dry_run_all(
+            get_sessionmaker(), batch=batch, case_ids=ids, echo=lambda m: rprint(f"[dim]{m}[/dim]")
+        )
+        rprint(f"rescore dry run (nothing written): {report.as_dict()}")
+        return
     if case:
         with session_scope() as s:
             try:

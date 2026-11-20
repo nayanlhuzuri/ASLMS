@@ -98,7 +98,7 @@ def test_cause_list_scores_and_recommends_idempotently(world):
         assert rec.office_id == world.offices["EDU"].id and rec.band == ScoreBand.HIGH
         assert rec.origin == RecommendationOrigin.CAUSE_LIST and rec.actor_name == "matching"
         score = s.scalar(sa.select(CaseOfficeScore).where(CaseOfficeScore.case_id == rec.case_id))
-        assert float(score.score) == 0.95 and score.engine_version == "2.1"
+        assert float(score.score) == 0.95 and score.engine_version == "3.1"
         assert score.signals[0]["ref"] == {"list_date": "2025-01-06", "sr_no": 1}
         assert len(made_events(s)) == 1
         load_list(s, [entry(1, "ASHC010000012025", "WP(C)/1/2025", codes=["SC,EDU", "GA, ASSAM"])])
@@ -450,7 +450,7 @@ def test_partial_match_writes_medium_recommendation_never_ownership(world):
         assert signal["kind"] == "counsel_code_partial" and signal["relation"] == "contained"
         assert signal["matched"] == "SC, EDU" and signal["printed"] == "SC, EDU, DSE"
         assert signal["reason"] == "Code SC, EDU found inside SC, EDU, DSE on the cause list of 6 Jan 2025"
-        assert score.engine_version == "2.1"
+        assert score.engine_version == "3.1"
         assert s.scalar(sa.select(sa.func.count()).select_from(CaseOwnership)) == 0
         assert s.scalar(sa.select(sa.func.count()).select_from(AuditLog)) == audits
         (made,) = made_events(s)
@@ -527,6 +527,7 @@ def test_rescore_all_applies_partial_after_settings_version(world):
                 weight_linked_case=0.7,
                 weight_keyword=0.4,
                 weight_counsel_code_partial=0.6,
+                weight_named_in_title=0.6,
                 threshold_strong=0.85,
                 threshold_possible=0.5,
                 reason="Partial counsel-code match added (design partial-code-match), partial weight 0.600",
@@ -538,7 +539,7 @@ def test_rescore_all_applies_partial_after_settings_version(world):
     assert report.settings_version == 2 and report.recommended_new == 1
     with world.Session() as s:
         score = s.scalar(sa.select(CaseOfficeScore).where(CaseOfficeScore.case_id == case.id))
-        assert score.engine_version == "2.2" and score.signals[0]["relation"] == "same_parts"
+        assert score.engine_version == "3.2" and score.signals[0]["relation"] == "same_parts"
         run = s.scalars(sa.select(JobRun).where(JobRun.job == "rescore").order_by(JobRun.started_at)).all()[
             -1
         ]

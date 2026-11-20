@@ -317,6 +317,7 @@ def test_partial_index_finds_all_candidates():
                 assert got == [(t, rel) for _, t, rel in sorted(expected)], printed
 
 
-def test_engine_version_two():
-    assert engine_version(ss.DEFAULTS) == "2.0"
-    assert engine_version(ss.Settings(3, dict(ss.DEFAULTS.weights), 0.85, 0.5)) == "2.3"
+def test_engine_version_three():
+    """Design partial-code-match made it 2; design state-insights (decision 38) makes it 3."""
+    assert engine_version(ss.DEFAULTS) == "3.0"
+    assert engine_version(ss.Settings(3, dict(ss.DEFAULTS.weights), 0.85, 0.5)) == "3.3"

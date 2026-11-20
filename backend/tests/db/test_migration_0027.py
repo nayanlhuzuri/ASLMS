@@ -181,7 +181,8 @@ def test_partial_current_check_refuses_a_current_row_without_the_weight(session)
             session.execute(
                 sa.text(
                     "INSERT INTO scoring_settings (version, weight_counsel_code, weight_name_pattern, "
-                    "weight_watchlist, weight_linked_case, weight_keyword, threshold_strong, threshold_possible, "
-                    "reason, is_current) VALUES (5, 0.95, 0.8, 0.75, 0.7, 0.4, 0.85, 0.5, 'x', true)"
+                    "weight_watchlist, weight_linked_case, weight_keyword, weight_named_in_title, threshold_strong, "
+                    "threshold_possible, reason, is_current) VALUES (5, 0.95, 0.8, 0.75, 0.7, 0.4, 0.6, 0.85, 0.5, "
+                    "'x', true)"
                 )
             )
