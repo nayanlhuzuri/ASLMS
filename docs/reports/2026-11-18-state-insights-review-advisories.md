@@ -50,3 +50,4 @@ the branch is identical to `main`, and the migrate step's source check passed.
   re-derived, 4,369 unmapped phrases, 0 case-type lines. `aslms insights status`: `facts_built` = `live_cases` =
   84,668, `waiting` 0, `reader_version` 2; State bases party 53,456, counsel 44,157, title 31,378, officer 1,475, writ
   372; one category not grouped; 4,369 unmapped phrases across 20,375 cases.
+- 07:43 IST, 20 Nov: after the owner restarted winnat, `web` started with the court-data switch; the running `BUILD_ID` equals the image's (`C02TPJAhWFQ5pkmxo-UMP`), `/signin` 307, `/api/health` 200. The portal was down 02:53 to 07:43. Cause: the machine's dynamic TCP range starts at 1024 (Windows default 49152), so WinNAT can reserve blocks over ASLMS's ports at any boot; the owner may set it back to 49152 (dev machine only).
