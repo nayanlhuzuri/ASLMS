@@ -1036,51 +1036,82 @@ never granted). The State view needs a State-wide membership.
    `categories_not_grouped` 0. `aslms insights groups check` lists any category or case type not grouped;
    `aslms insights groups export` prints the groupings as JSON.
 
+**The rescore mark and the drain** (row 273, design `cause-title-signal-review-advisories`, migration 0041). A build
+or a re-derivation that changes the departments a row names (or, while it names any, its titled order, phrases or each
+phrase's department position `title_phrase_department_pos`) sets the row's mark `insight_case_facts.named_changed_at`
+in the same statement. Every matching-engine pass clears the mark of the case it scored. The drain
+(`insights_facts.rescore_marked`, 500 cases a transaction, one drain at a time) scores the cases still marked: the
+`insights-refresh` task runs it after every run, even when another refresh held the lock; `insights-rebuild` runs it at
+its end; `aslms insights refresh` (with or without `--all`) runs it unless `--no-rescore` is given, which prints the
+cases left marked instead. A failed rebuild leaves the marks of its committed batches to the next drain. A case whose
+scoring fails is recorded in `source_failures` (kind `scoring`) and its mark cleared, so it cannot loop.
+
 **Data health.** `GET /admin/data-health` carries the block `insights` (live cases, rows built, cases waiting and the
-oldest waiting since, the reader version, the State bases, categories not grouped, unmapped cause-title names, the last
-runs). It is isolated under `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS`; a slow block is left out, never a 500.
+oldest waiting since, the reader version, the State bases, categories not grouped, unmapped cause-title names,
+`named_rescore_waiting` (the live cases still marked for the drain; back to 0 within one `insights-refresh` run), the
+last runs). It is isolated under `ORDER_SECTIONS_STATUS_TIMEOUT_SECONDS`; a slow block is left out, never a 500.
+`aslms insights status` prints the same counts.
 
 **Roll-back.** The readings are derived and re-buildable. The downgrade of 0039 refuses while a cause-title name exists
 or a grouping was edited by a person (restore a backup instead, section 6); otherwise it drops the five tables.
 
-## 27. The cause-title recommendation signal (row 260)
+## 27. The cause-title recommendation signal (rows 260 and 273)
 
-Design `docs/design/state-insights.md`, round 3 (decisions 36 to 40), migration 0040. The matching engine gains a
-seventh signal, `named_in_title`: each department the Insights readings name in the cause title of the case's latest
-order or among the respondents (`insight_case_facts.named_title_department_ids`) gets one signal at the cause-title
-weight (default 0.600, kept by the service inside the possible band), with the phrase, its source and a reason shown
-in Case Claim. Engine version 3. It never assigns a case; every claim guard stays. No new setting, job, service or
-connection slot; no NAPIX call.
+Design `docs/design/state-insights.md`, round 3 (decisions 36 to 40), migration 0040, and its review advisories (row
+273, design `docs/design/cause-title-signal-review-advisories.md`), migration 0041. The matching engine gains a seventh
+signal, `named_in_title`: each department the Insights readings name in the cause title of the case's latest order or
+among the respondents gets at most one signal at the cause-title weight (default 0.600, kept by the service inside the
+possible band), with the phrase, its source and a reason shown in Case Claim. Engine version 3. It never assigns a
+case; every claim guard stays. No new setting, job, service or connection slot; no NAPIX call.
 
-**What changes in the jobs.** `insights-refresh`, `insights-rebuild` and `aslms insights refresh` list the cases whose
-named departments (or, while it names any, its titled order or phrases) changed (counter `named_changed`) and rescore
-them after the run commits, 500 cases a transaction (`rescored` in the task's result). The 15-minute `rescore-dirty`
-job is unchanged; a cause-title-name save reaches the engine through the Insights refresh it already dispatches.
+**No double counting** (row 273). The engine reads the departments and each phrase's department position from the fact
+row, never a map. A phrase given by a respondent party row that a keyword or name pattern of the same department
+already scored is withheld; a phrase printed only in the cause title counts only when no respondent evidence at all is
+scored for that department. One department's match never withholds another department's signal. The dry run counts
+the withheld pairs as `named_withheld`.
+
+**What changes in the jobs.** `insights-refresh`, `insights-rebuild` and `aslms insights refresh` mark the rows whose
+cause-title input changed (counter `named_changed`), and the drain rescores the marked cases after the run commits
+(section 26; `rescored` in the task's and the CLI's result). The 15-minute `rescore-dirty` job is unchanged; its passes
+clear the marks of the cases they score. A cause-title-name save reaches the engine through the Insights refresh it
+already dispatches.
 
 **`aslms rescore --all --dry-run`** (or `--case REF --dry-run`) runs the engine over every case and writes nothing (no
-score, recommendation, event, audit or `job_runs` row): it prints the new engine rows by band (`new`), by the signal
-kinds they carry (`new_by_kind`), those that reach their band only with the cause-title signal (`new_only_with_named`),
-the open rows whose band would change (`band_changed`, `band_changed_by_named`) and those that would expire.
+score, recommendation, event, audit or `job_runs` row, and no mark cleared): it prints the new engine rows by band
+(`new`), by the signal kinds they carry (`new_by_kind`), those that reach their band only with the cause-title signal
+(`new_only_with_named`), the open rows whose band would change (`band_changed`, `band_changed_by_named`), the signals
+withheld as already scored (`named_withheld`) and the rows that would expire.
 
-**After the merge** (the integrator; decision 40: the owner sees the count before the signal goes live):
-1. Apply 0040 with the `migrate` step (the pre-migrate backup first). It adds `weight_named_in_title`, closes the
-   current settings version and inserts the next with 0.600 and the other values copied, with one
-   `scoring_settings.update` audit row (actor `migration 0040`) and one `config_changed` event. No seed change is needed
-   on a database that already has a version.
-2. With the `scheduler` and the workers still stopped (the new settings version makes `rescore-dirty` rescore every
-   case within 15 minutes of the scheduler starting), run the dry run in a one-off container of the new image:
-   `docker compose run --rm --no-deps api aslms rescore --all --dry-run`. Record `new.medium`,
-   `new_by_kind.medium.named_in_title` and `new_only_with_named` in the design note and show them to the owner.
-3. On the owner's go-ahead, `docker compose build` and bring the services back with the court-data switch; the
-   `rescore-dirty` job rescores every case (or run `docker compose exec api aslms rescore --all` at once). If the owner
-   wants a different weight first, the Super Administrator saves it on Department Mapping → Scoring before step 3.
-4. Afterwards: `SELECT count(*) FROM case_ownership WHERE actor_name = 'matching'` is 0 (the engine writes no
-   ownership), and `SELECT count(*) FROM case_office_scores WHERE engine_version NOT LIKE '3.%'` is 0 once the
-   rescore finished.
+**After the merge** (the integrator, rows 260 and 273 together in one night window; decision 40: the owner sees the
+count before the signal goes live). Every `up` carries the court-data switch.
+0. `docker compose build` from the clean worktree of `main`, before anything else: `migrate` refuses an image built from
+   other code, and the dry run needs the new image.
+1. The `pre-migrate` backup, then the `migrate` step applying 0040 and 0041. 0040 adds `weight_named_in_title`, closes
+   the current settings version and inserts the next with 0.600 and the other values copied, with one
+   `scoring_settings.update` audit row (actor `migration 0040`) and one `config_changed` event. 0041 adds the two
+   columns of `insight_case_facts` (no data step, no rewrite). `alembic current` shows `0041`.
+2. With the `scheduler` and both workers stopped (the new settings version makes `rescore-dirty` rescore every case
+   within 15 minutes of the scheduler starting): `docker compose run --rm --no-deps api aslms insights refresh
+   --no-rescore`. The new attribution version makes it derive every row again (positions filled, no text read) and
+   mark the rows naming a department; nothing is scored. Record `rederived`, `named_changed` and the time taken. Check
+   that `SELECT count(*) FROM insight_case_facts WHERE cardinality(title_phrases) > 0 AND
+   cardinality(title_phrase_department_pos) = 0` is 0 and `SELECT count(*) FROM case_office_scores WHERE
+   engine_version LIKE '3.%'` is 0.
+3. The dry run, in a one-off container of the new image: `docker compose run --rm --no-deps api aslms rescore --all
+   --dry-run`. Record `new.medium`, `new_by_kind.medium.named_in_title`, `new_only_with_named`, `band_changed_by_named`
+   and `named_withheld` in `docs/design/state-insights.md` and show them to the owner.
+4. On the owner's go-ahead, bring the services back with the court-data switch and `--no-deps --force-recreate api
+   worker worker2 scheduler web` (no build at this step). `rescore-dirty` rescores every case (or run `docker compose
+   exec api aslms rescore --all` at once), and the 10-minute refresh drains what the rescore left marked. If the owner
+   wants a different weight first, the Super Administrator saves it on Department Mapping, Scoring, before step 4.
+5. Checks: `SELECT count(*) FROM case_ownership WHERE actor_name = 'matching'` is 0 (the engine writes no ownership);
+   `SELECT count(*) FROM case_office_scores WHERE engine_version NOT LIKE '3.%'` is 0 once the rescore finished;
+   `aslms insights status` shows `named_rescore_waiting` 0 within one `insights-refresh` run after the rescore.
 
 **Roll-back.** The weight cannot switch the signal off: the service keeps it inside the possible band (decision 37).
-To go back, deploy an image of the previous engine (version 2) and downgrade 0040 (it drops the column and its checks,
-keeps the inserted settings version and writes its own audit row); then `aslms rescore --all`.
+To go back, deploy an image of the previous engine (version 2), downgrade 0041 (it drops the two columns, the check and
+the index) before 0040 (it drops the column and its checks, keeps the inserted settings version and writes its own
+audit row); then `aslms rescore --all`.
 
 ## Pilot go-live checklist
 

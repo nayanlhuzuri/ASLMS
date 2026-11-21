@@ -5704,5 +5704,7 @@ class InsightsStatusOut(BaseModel):
     categories_not_grouped: int
     unmapped_phrases: int
     unmapped_phrase_cases: int
+    # design cause-title-signal-review-advisories, decision 12: cases waiting for the drain (back to 0 after a run)
+    named_rescore_waiting: int
     last_refresh: InsightsRunOut | None = None
     last_rebuild: InsightsRunOut | None = None

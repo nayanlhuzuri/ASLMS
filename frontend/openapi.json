@@ -17289,6 +17289,10 @@
             "title": "Live Cases",
             "type": "integer"
           },
+          "named_rescore_waiting": {
+            "title": "Named Rescore Waiting",
+            "type": "integer"
+          },
           "oldest_waiting_since": {
             "anyOf": [
               {
@@ -17333,7 +17337,8 @@
           "state_bases",
           "categories_not_grouped",
           "unmapped_phrases",
-          "unmapped_phrase_cases"
+          "unmapped_phrase_cases",
+          "named_rescore_waiting"
         ],
         "title": "InsightsStatusOut",
         "type": "object"

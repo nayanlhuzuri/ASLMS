@@ -4,8 +4,9 @@
   dirty cases, then the department attribution when a mapping or an office changed); with `--all`, every live case
   rebuilt in batches, each its own transaction (`job_runs` `insights-refresh`). Both place first the seed case-type
   lines a case type lacks (`case_type_lines`). `--dry-run` counts the cases waiting and the lines that would be
-  placed, and writes nothing. After a run, the cases whose cause-title readings changed are rescored by the matching
-  engine (design `state-insights`, decision 36).
+  placed, and writes nothing. After a run, the drain scores every case whose readings carry a rescore mark (design
+  `cause-title-signal-review-advisories`, decision 12), unless `--no-rescore` (decision 13: the deploy, where the full
+  rescore follows the owner's go-ahead), which prints the cases left marked.
 - `status`: the data-health block (counts only).
 - `groups export`: the groupings as JSON (group codes and labels, category codes and case-type codes; no case text);
   `groups check`: the categories and case types not grouped (codes and labels of the court's masters only) and the
@@ -41,6 +42,11 @@ def refresh(
     all_: bool = typer.Option(False, "--all", help="rebuild every live case, batch after batch"),
     dry_run: bool = typer.Option(False, "--dry-run", help="count the cases waiting; write nothing"),
     batch: int | None = typer.Option(None, "--batch", min=1, max=50000, help="cases per batch"),
+    no_rescore: bool = typer.Option(
+        False,
+        "--no-rescore",
+        help="leave the rescore marks for a full rescore or the next insights-refresh run",
+    ),
 ) -> None:
     """Rebuild the readings of the cases waiting (or of every case with --all)."""
     size = batch or get_settings().insights_refresh_batch
@@ -56,19 +62,27 @@ def refresh(
             batch=size,
             job=insights_facts.JOB_REFRESH,
             echo=lambda m: rprint(f"[dim]{m}[/dim]"),
+            rescore=not no_rescore,
         )
         rprint(report.as_dict())
-        return
-    with session_scope() as s:
-        report = insights_facts.refresh_if_free(s, batch=size)
-    if report is None:
-        rprint("[yellow]another refresh is running; nothing done[/yellow]")
-        raise typer.Exit(1)
-    out = report.as_dict()
-    # design state-insights, decision 36: the cause-title signal follows the readings
-    if report.named_changed_ids:
-        out["rescored"] = insights_facts.rescore_changed(get_sessionmaker(), report.named_changed_ids).cases
-    rprint(out)
+    else:
+        with session_scope() as s:
+            report = insights_facts.refresh_if_free(s, batch=size)
+        if report is None:
+            rprint("[yellow]another refresh is running; nothing done[/yellow]")
+            if not no_rescore:  # decision 12: the marks the other run left are still drained
+                rprint({"rescored": insights_facts.rescore_marked(get_sessionmaker()).cases})
+            raise typer.Exit(1)
+        # design cause-title-signal-review-advisories, decision 12: the cause-title signal follows the readings
+        if not no_rescore:
+            report.rescored = insights_facts.rescore_marked(get_sessionmaker()).cases
+        rprint(report.as_dict())
+    if no_rescore:
+        with session_scope() as s:
+            waiting = insights_facts.marked_count(s)
+        rprint(
+            f"marked for rescoring: {waiting}; a full rescore or the next insights-refresh run scores them"
+        )
 
 
 @insights_app.command("status")

@@ -309,18 +309,18 @@ def insights_refresh() -> dict | None:
     """The readings of State Insights (design state-insights, decision 12): at most INSIGHTS_REFRESH_BATCH dirty cases,
     then the department attribution again when a mapping or an office changed; one run at a time (None when another
     holds the lock); one `job_runs` row `insights-refresh`. Also dispatched after a counsel-code or cause-title-name
-    save. No NAPIX, SourceTrace or model call; no audit row. After the commit, the cases whose cause-title readings
-    changed are rescored (design state-insights, decision 36)."""
+    save. No NAPIX, SourceTrace or model call; no audit row. After the commit, and whether or not the refresh ran (a
+    run holding the lock leaves its marks), the drain scores every case whose fact row carries a rescore mark (design
+    cause-title-signal-review-advisories, decision 12); `rescored` is its case count."""
     from aslms.services import insights_facts
 
     with session_scope() as s:
         report = insights_facts.refresh_if_free(s, batch=settings.insights_refresh_batch)
+    rescored = insights_facts.rescore_marked(get_sessionmaker()).cases
     if report is None:
         return None
-    out = report.as_dict()
-    if report.named_changed_ids:
-        out["rescored"] = insights_facts.rescore_changed(get_sessionmaker(), report.named_changed_ids).cases
-    return out
+    report.rescored = rescored
+    return report.as_dict()
 
 
 @app.task(name="aslms.insights_rebuild")

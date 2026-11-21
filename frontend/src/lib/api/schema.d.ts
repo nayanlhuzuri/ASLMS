@@ -10747,6 +10747,8 @@ export interface components {
             last_refresh?: components["schemas"]["InsightsRunOut"] | null;
             /** Live Cases */
             live_cases: number;
+            /** Named Rescore Waiting */
+            named_rescore_waiting: number;
             /** Oldest Waiting Since */
             oldest_waiting_since?: string | null;
             /** Reader Version */

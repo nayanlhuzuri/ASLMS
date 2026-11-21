@@ -23,6 +23,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -139,6 +140,15 @@ class InsightCaseFact(TimestampMixin, Base):
         ),
         CheckConstraint("original_writ_case_id IS NULL OR original_writ_text IS NOT NULL", name="writ"),
         CheckConstraint("orders_count >= 0", name="orders"),
+        # design cause-title-signal-review-advisories, decision 6 (migration 0041)
+        CheckConstraint(
+            "cardinality(title_phrase_department_pos) = 0 OR "
+            "(cardinality(title_phrase_department_pos) = cardinality(title_phrases) "
+            "AND array_position(title_phrase_department_pos, NULL) IS NULL "
+            "AND 0 <= ALL (title_phrase_department_pos) "
+            "AND cardinality(named_title_department_ids) >= ALL (title_phrase_department_pos))",
+            name="phrase_pos",
+        ),
         Index("ix_insight_case_facts_built_at", "built_at"),
         Index(
             "ix_insight_case_facts_main_case_id",
@@ -155,6 +165,11 @@ class InsightCaseFact(TimestampMixin, Base):
             "title_order_id",
             postgresql_where=text("title_order_id IS NOT NULL"),
         ),
+        Index(
+            "ix_insight_case_facts_named_changed_at",
+            "named_changed_at",
+            postgresql_where=text("named_changed_at IS NOT NULL"),
+        ),
     )
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cases.id", ondelete="RESTRICT"), primary_key=True
@@ -168,6 +183,13 @@ class InsightCaseFact(TimestampMixin, Base):
     title_phrases: Mapped[list[str]] = mapped_column(
         ARRAY(String(200)), nullable=False, server_default=text("'{}'")
     )
+    # design cause-title-signal-review-advisories, decision 6: parallel to `title_phrases`, the 1-based position in
+    # `named_title_department_ids` of the department each phrase names, 0 for none; empty on a row not derived since 0041
+    title_phrase_department_pos: Mapped[list[int]] = mapped_column(
+        ARRAY(SmallInteger), nullable=False, server_default=text("'{}'")
+    )
+    # decision 8: the row's cause-title input changed and the engine has not scored the case since
+    named_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # decision 13: Department-tier office ids, no FK (PostgreSQL has none on array elements)
     named_title_department_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, server_default=text("'{}'")

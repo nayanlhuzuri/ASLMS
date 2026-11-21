@@ -233,6 +233,19 @@ def test_data_health_block(api, world):
     assert set(block["state_bases"]) == {"party", "officer", "counsel", "title", "writ"}
 
 
+def test_data_health_insights_block_has_named_rescore_waiting(api, world):
+    """Design cause-title-signal-review-advisories, decision 12: the cases waiting for the drain, a count only."""
+    _data(world)  # the claimed case names EDUCATION: its built row is marked
+    headers = login(api, "root")
+    block = api.get("/admin/data-health", headers=headers).json()["insights"]
+    assert block["named_rescore_waiting"] == 1
+    insights_facts.rescore_marked(world.Session)
+    block = api.get("/admin/data-health", headers=headers).json()["insights"]
+    assert block["named_rescore_waiting"] == 0
+    spec = api.get("/openapi.json").json()["components"]["schemas"]["InsightsStatusOut"]
+    assert "named_rescore_waiting" in spec["required"]
+
+
 def test_timeout_answers_503(api, world, monkeypatch):
     from aslms.services import insights
 

@@ -4284,3 +4284,49 @@ services back with the court-data switch (runbook section 27).
 
 ## Design approvals (21 Nov 2026)
 - 2026-11-21 — cause-title-signal-review-advisories: approved by the owner (docs/design/cause-title-signal-review-advisories.md); a cause-title-only phrase counts only when the department has no scored respondent evidence (the cautious reading)
+
+## The cause-title signal review advisories, row 273 (2026-11-21)
+
+Design `docs/design/cause-title-signal-review-advisories.md` (approved 21 Nov 2026), branch
+`feature/cause-title-signal-review-advisories`, migration 0041. The five reviewer advisories of row 260 fixed before
+row 260 is deployed (owner, 21 Nov 2026); rows 260 and 273 deploy together.
+
+**What was built.**
+- No double counting (`services/matching.py`): while scoring, the engine records for each department every respondent
+  name its keywords or name patterns matched (party rows by position; the respondent summary and a cause-list entry's
+  respondent text stand for party row 1), outside the per-rule de-duplication. A cause-title phrase given by a respondent
+  row is withheld when every such row is already scored for that department; a phrase no current respondent row gives
+  counts only when the department has no scored respondent evidence. Per department, never across departments. The
+  reviewer's example stays 0.80 (possible), not 0.92. `score_case(..., stats)` counts `named_withheld`, shown by the dry
+  run only.
+- The fact row as the engine's only source: `RuleSet.title_maps` and `title_department` removed (and with them the
+  import of `insights_facts` in `RuleSet.load`); new column `insight_case_facts.title_phrase_department_pos` (smallint[],
+  parallel to `title_phrases`) written by the builder and the re-derivation from the stored, clipped phrases through
+  `Maps.phrase_positions`. A change of positions alone (the phrase shown) changes and marks the row.
+- The durable rescore mark `insight_case_facts.named_changed_at`, set with `clock_timestamp()` in the same statement as
+  the row (a pending mark kept by an unrelated rebuild), cleared by every engine pass with an equality test on the value
+  read; the drain `insights_facts.rescore_marked` (500 a transaction, `RESCORE_MARKED_LOCK`, marks up to its start)
+  replaces `rescore_changed` and `RunReport.named_changed_ids`, and clears the marks of cases whose scoring failed (in
+  `source_failures`). The engine takes the case row lock before it reads the evidence.
+- `insights-refresh` drains after every run, even when another refresh held the lock; `rebuild` drains at its end;
+  `aslms insights refresh [--all]` drains unless `--no-rescore`. `ATTRIBUTION_VERSION = "2"` in the attribution
+  fingerprint makes the first refresh after the deploy derive every row once.
+- `GET /admin/data-health` `insights.named_rescore_waiting` (additive, counts only); `aslms insights status` prints it.
+  `openapi.json` and `schema.d.ts` regenerated; no screen change.
+- Migration 0041 (hand-written): two columns, `ck_insight_case_facts_phrase_pos`, partial index
+  `ix_insight_case_facts_named_changed_at`; no data step, no audit row, no grant change.
+- Documents: `docs/schema/schema.md`, runbook sections 26 and 27 (the deploy order: build first, backup and 0040 + 0041,
+  `insights refresh --no-rescore`, the dry run with `named_withheld`, services back on the go-ahead, checks; downgrade
+  0041 before 0040), `docs/ASLMS_Process_Workflows.md` 4.1, `docs/design/state-insights.md` (round 3 deviations 35 to
+  37 marked superseded).
+
+**Decisions and reasons.** As the design note (decisions 1 to 15): the cautious reading for a phrase printed only in
+the cause title; positions rather than a second array of office ids; a marker column rather than queue rows or score
+times; engine version stays 3 (no `3.x` row exists outside tests).
+
+**Deviations.** None from the plan. Design deviations 1 to 8 (the drain's `stop_at` as its cut-off, party row 1 as the
+lowest respondent party number, counters, the task's None, the `--no-rescore` line, what `named_withheld` counts, one
+shared clear statement, a required API field) are written in the note.
+
+**Left for later.** Row 272 (the weight at deploy, the browser checks). Deploy with row 260 in one night window,
+runbook section 27.

@@ -10,15 +10,18 @@ writes `case_ownership`: a case belongs to a department only after the departmen
   form gives a `counsel_code_partial` signal at the global partial weight (a possible match alone). The smaller part
   set must hold a part outside the generic stop-list; an exact match wins, and a department with an exact signal
   loses its partial ones.
-- Named in the cause title (design `state-insights`, round 3, decisions 36 to 40): each active department in the
-  case's `insight_case_facts.named_title_department_ids` (the cause title or the respondent party names, read by
-  `services/insights_facts.py`) gives one `named_in_title` signal at the global cause-title weight (a possible match
-  alone), carrying the phrase, its source (`cause_title` with the order date, or `party`) and a reason sentence. The
-  engine reads no order text: the departments come from the fact row, the phrase is the first stored phrase the current
-  title-name maps give to that department (a department no stored phrase names any longer is left out until the
-  readings are derived again), and the source is `party` when the phrase is among the current respondent names'
-  phrases, else `cause_title` when the row names the order it read. The Insights jobs rescore every case whose
-  attribution changed (`insights_facts.rescore_changed`).
+- Named in the cause title (design `state-insights`, round 3, decisions 36 to 40, and
+  `cause-title-signal-review-advisories`, decisions 1 to 11): each active department in the case's
+  `insight_case_facts.named_title_department_ids` (the cause title or the respondent party names, read by
+  `services/insights_facts.py`) gives at most one `named_in_title` signal at the global cause-title weight (a possible
+  match alone), carrying the phrase, its source (`cause_title` with the order date, or `party`) and a reason sentence.
+  The engine reads no order text and no map: the departments and each phrase's department position come from the fact
+  row. A phrase counts when a current respondent party row not already scored for that department by one of its
+  keywords or name patterns gives it, or, when no current respondent row gives it, only if no respondent evidence at
+  all is scored for the department; otherwise it is withheld (no double counting). The first phrase that counts is
+  shown, with the source `party` when a respondent row gives it, else `cause_title` when the row names its titled
+  order. Each pass takes the case row lock before it reads the evidence and clears the fact row's rescore mark
+  (`named_changed_at`) it read; the Insights jobs drain the marks left (`insights_facts.rescore_marked`).
 - Score per department: the strongest weight within each signal kind, combined by noisy OR
   (`1 - prod(1 - w_kind)`), rounded to 3 decimals. Weights and band thresholds come from the current
   `scoring_settings` version; a rule's own `weight` overrides its kind's setting.
@@ -282,8 +285,6 @@ class RuleSet:
     patterns: list[Rule] = field(default_factory=list)
     watch: dict[str, list[Rule]] = field(default_factory=dict)
     departments: dict[uuid.UUID, str] = field(default_factory=dict)  # active Department-tier offices
-    # design state-insights, decision 36: the cause-title name maps (`insights_facts.Maps`); None reads no signal
-    title_maps: Any = None
     # design partial-code-match, decisions 5 and 9: filled on first use from `codes` and `generic_codes`
     generic_parts: frozenset[str] = frozenset()
     partial_index: dict[str, list[Rule]] = field(default_factory=dict)
@@ -334,14 +335,6 @@ class RuleSet:
         self._partial_cache[printed] = out
         return out
 
-    def title_department(self, phrase: str) -> uuid.UUID | None:
-        """The department a stored cause-title phrase names under the current maps (explicit mapping, else the
-        automatic match on a department's name core: `insights_facts.Maps`), or None."""
-        if self.title_maps is None:
-            return None
-        found = self.title_maps.phrase_departments([phrase])
-        return found[0] if found else None
-
     @classmethod
     def load(cls, session: Session) -> RuleSet:
         settings = ss.current(session)
@@ -365,9 +358,7 @@ class RuleSet:
                 return None
             return office, dept
 
-        from aslms.services import insights_facts  # imports this module
-
-        rs = cls(settings=settings, departments=departments, title_maps=insights_facts.load_maps(session))
+        rs = cls(settings=settings, departments=departments)
         w = settings.weights
 
         def make(row, kind: str, txt: str, **extra) -> Rule | None:
@@ -449,8 +440,18 @@ class CaseEvidence:
     title_phrases: list[str] = field(default_factory=list)
     title_order_id: uuid.UUID | None = None
     title_order_date: date | None = None
-    # the phrases of the current respondent names (only to name the source)
+    # the phrases of the current respondent names (the union of `respondent_rows`)
     respondent_phrases: frozenset[str] = frozenset()
+    # design cause-title-signal-review-advisories, decisions 1, 2 and 6: the position in `names` of each current
+    # respondent party row with its department phrases; the `names` positions of the respondent-side texts (respondent
+    # rows, the cause-list entries' respondent text, `respondent_summary`); the position of party row 1; parallel to
+    # `title_phrases`, the 1-based position in `title_department_ids` of each phrase's department (0: none)
+    respondent_rows: list[tuple[int, frozenset[str]]] = field(default_factory=list)
+    respondent_name_idx: set[int] = field(default_factory=set)
+    first_respondent_idx: int | None = None
+    title_positions: list[int] = field(default_factory=list)
+    # decision 9: the fact row's rescore mark as read, cleared after the scores are written when it is unchanged
+    fact_marker: datetime | None = None
 
     @classmethod
     def gather(cls, session: Session, case: Case) -> CaseEvidence:
@@ -473,8 +474,10 @@ class CaseEvidence:
                 n = normalise_counsel_code(c)
                 if n:
                     ev.entry_codes.append((n, ref))
-            for t in (pet, res):
+            for t, respondent_side in ((pet, False), (res, True)):
                 if t and t.strip():
+                    if respondent_side:
+                        ev.respondent_name_idx.add(len(ev.names))
                     ev.names.append((normalise_term(t), "causelist_entry", ref))
         for side, code in session.execute(
             select(CaseAdvocate.side, CaseAdvocate.counsel_code).where(
@@ -486,14 +489,19 @@ class CaseEvidence:
             n = normalise_counsel_code(code)
             if n:
                 ev.advocate_codes.append((n, {"side": getattr(side, "value", side)}))
-        respondents: list[str] = []
+        respondents: list[tuple[int, str]] = []
         for role, party_no, name in session.execute(
             select(CaseParty.role, CaseParty.party_no, CaseParty.name)
             .where(CaseParty.case_id == case.id, CaseParty.is_current.is_(True))
             .order_by(CaseParty.role, CaseParty.party_no)
         ).all():
-            if getattr(role, "value", role) == "respondent" and name:
-                respondents.append(name)
+            if getattr(role, "value", role) == "respondent":
+                idx = len(ev.names)
+                ev.respondent_name_idx.add(idx)
+                if ev.first_respondent_idx is None:
+                    ev.first_respondent_idx = idx  # party row 1: the lowest current respondent party number
+                if name:
+                    respondents.append((idx, name))
             ev.names.append(
                 (
                     normalise_term(name),
@@ -504,36 +512,47 @@ class CaseEvidence:
         for fld in ("petitioner_summary", "respondent_summary"):
             t = getattr(case, fld)
             if t and t.strip():
+                if fld == "respondent_summary":
+                    ev.respondent_name_idx.add(len(ev.names))
                 ev.names.append((normalise_term(t), "case_summary", {"field": fld}))
         ev.linked = _linked_cases(session, case)
         _gather_title(session, case, ev, respondents)
         return ev
 
 
-def _gather_title(session: Session, case: Case, ev: CaseEvidence, respondents: list[str]) -> None:
-    """Design state-insights, decision 36: the departments, phrases and titled order of the case's fact row, and the
-    phrases of its current respondent names (only to say where a phrase was read)."""
+def _gather_title(session: Session, case: Case, ev: CaseEvidence, respondents: list[tuple[int, str]]) -> None:
+    """Design state-insights, decision 36, and cause-title-signal-review-advisories, decisions 6 and 9: the departments,
+    phrases, phrase positions and titled order of the case's fact row, its rescore mark (read even when the row names
+    no department), and the department phrases of each current respondent party row."""
     from aslms.services import insights_rules
 
     row = session.execute(
         select(
             InsightCaseFact.named_title_department_ids,
             InsightCaseFact.title_phrases,
+            InsightCaseFact.title_phrase_department_pos,
             InsightCaseFact.title_order_id,
+            InsightCaseFact.named_changed_at,
             Order.order_date,
         )
         .outerjoin(Order, Order.id == InsightCaseFact.title_order_id)
         .where(InsightCaseFact.case_id == case.id)
     ).first()
-    if row is None or not row.named_title_department_ids:
+    if row is None:
+        return
+    ev.fact_marker = row.named_changed_at
+    if not row.named_title_department_ids:
         return
     ev.title_department_ids = list(row.named_title_department_ids)
     ev.title_phrases = list(row.title_phrases or [])
+    ev.title_positions = [int(p) for p in (row.title_phrase_department_pos or [])]
     ev.title_order_id = row.title_order_id
     ev.title_order_date = row.order_date
     phrases: set[str] = set()
-    for name in respondents:
-        phrases.update(insights_rules.department_phrases(name))
+    for idx, name in respondents:
+        found = frozenset(insights_rules.department_phrases(name))
+        ev.respondent_rows.append((idx, found))
+        phrases |= found
     ev.respondent_phrases = frozenset(phrases)
 
 
@@ -621,9 +640,13 @@ def _name_matches(rule: Rule, name: str) -> bool:
     return bool(rule.regex and rule.regex.search(name))
 
 
-def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, ScoredOffice]:
+def score_case(
+    rules: RuleSet, evidence: CaseEvidence, stats: dict[str, int] | None = None
+) -> dict[uuid.UUID, ScoredOffice]:
     """Pure: the score and the signals of every department with at least one hit. One signal is kept per
-    (kind, rule, where) — the first in evidence order (the most recent listing first)."""
+    (kind, rule, where) — the first in evidence order (the most recent listing first). `stats`, when given, counts the
+    cause-title signals withheld as already scored (`named_withheld`, design cause-title-signal-review-advisories,
+    decision 4)."""
     hits: list[_Hit] = []
     seen: set[tuple] = set()
 
@@ -691,15 +714,27 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
                 continue
             for prule, relation in rules.partial_matches(code):
                 add_partial(prule, code, relation, where, ref)
-    for name, where, ref in evidence.names:
+    # design cause-title-signal-review-advisories, decision 1: every respondent name a keyword or name pattern of a
+    # department matched, recorded outside the de-duplication (party rows by position; the respondent summary and a
+    # cause-list entry's respondent text stand for party row 1)
+    party_rows = {i for i, _ in evidence.respondent_rows}
+    if evidence.first_respondent_idx is not None:
+        party_rows.add(evidence.first_respondent_idx)
+    scored_rows: dict[uuid.UUID, set[int]] = defaultdict(set)
+    scored_any: set[uuid.UUID] = set()
+    for idx, (name, where, ref) in enumerate(evidence.names):
         if not name:
             continue
-        for rule in rules.keywords:
-            if _name_matches(rule, name):
-                add(rule, rule.text, where, ref)
-        for rule in rules.patterns:
-            if _name_matches(rule, name):
-                add(rule, rule.text, where, ref)
+        for rule in (*rules.keywords, *rules.patterns):
+            if not _name_matches(rule, name):
+                continue
+            add(rule, rule.text, where, ref)
+            if idx in evidence.respondent_name_idx:
+                scored_any.add(rule.department_id)
+                if idx in party_rows:
+                    scored_rows[rule.department_id].add(idx)
+                elif evidence.first_respondent_idx is not None:
+                    scored_rows[rule.department_id].add(evidence.first_respondent_idx)
     w_linked = round(rules.settings.weights["linked_case"], 3)
     for lc in evidence.linked:
         for office_id in sorted(lc.owner_office_ids, key=str):
@@ -732,7 +767,7 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
     if evidence.cnr:
         for rule in rules.watch.get(evidence.cnr, []):
             add(rule, evidence.cnr, "watchlist", None)
-    hits.extend(_named_hits(rules, evidence, seen))
+    hits.extend(_named_hits(rules, evidence, seen, scored_rows, scored_any, stats))
 
     by_dept: dict[uuid.UUID, list[_Hit]] = defaultdict(list)
     for h in hits:
@@ -756,22 +791,59 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
     return out
 
 
-def _named_hits(rules: RuleSet, evidence: CaseEvidence, seen: set[tuple]) -> list[_Hit]:
-    """Design state-insights, decisions 36 and 37: one `named_in_title` hit per active department of the fact row
-    that a stored phrase still names, at the global cause-title weight (never a rule's override)."""
+def _named_hits(
+    rules: RuleSet,
+    evidence: CaseEvidence,
+    seen: set[tuple],
+    scored_rows: dict[uuid.UUID, set[int]] | None = None,
+    scored_any: set[uuid.UUID] | None = None,
+    stats: dict[str, int] | None = None,
+) -> list[_Hit]:
+    """Design state-insights, decisions 36 and 37, and cause-title-signal-review-advisories, decisions 1 to 6: at most
+    one `named_in_title` hit per active department of the fact row, at the global cause-title weight (never a rule's
+    override). The department's phrases are those whose stored position names it, in stored order; the first that
+    counts is shown:
+    - a phrase a current respondent party row gives counts when one such row is not already scored for the department
+      by its keywords or name patterns (`scored_rows`); otherwise it is withheld;
+    - a phrase no current respondent row gives (read from the titled order's cause title, or from a party row no longer
+      current) counts only when no respondent evidence at all is scored for the department (`scored_any`).
+    A department none of whose phrases counts gets no signal and is counted in `stats["named_withheld"]`. A row whose
+    positions do not cover its phrases (not derived since migration 0041) gives no signal."""
     out: list[_Hit] = []
-    if not evidence.title_department_ids:
+    if not evidence.title_department_ids or not evidence.title_phrases:
         return out
+    if len(evidence.title_positions) != len(evidence.title_phrases):
+        return out
+    scored_rows = scored_rows or {}
+    scored_any = scored_any or set()
     w_named = round(rules.settings.weights.get("named_in_title", ss.DEFAULTS.weights["named_in_title"]), 3)
-    for dept_id in evidence.title_department_ids:
+    for position, dept_id in enumerate(evidence.title_department_ids, start=1):
         code = rules.departments.get(dept_id)
         if code is None or ("named_in_title", dept_id) in seen:
             continue
-        phrase = next((p for p in evidence.title_phrases if rules.title_department(p) == dept_id), None)
-        if phrase is None:
+        phrases = [
+            p for p, q in zip(evidence.title_phrases, evidence.title_positions, strict=True) if q == position
+        ]
+        if not phrases:
+            continue
+        done = scored_rows.get(dept_id, set())
+        chosen: str | None = None
+        from_row = False
+        for phrase in phrases:
+            givers = [i for i, found in evidence.respondent_rows if phrase in found]
+            if givers:
+                if any(i not in done for i in givers):
+                    chosen, from_row = phrase, True
+                    break
+            elif dept_id not in scored_any:
+                chosen = phrase
+                break
+        if chosen is None:
+            if stats is not None:
+                stats["named_withheld"] = stats.get("named_withheld", 0) + 1
             continue
         seen.add(("named_in_title", dept_id))
-        if evidence.title_order_id is not None and phrase not in evidence.respondent_phrases:
+        if not from_row and evidence.title_order_id is not None:
             source = "cause_title"
             order_date = evidence.title_order_date.isoformat() if evidence.title_order_date else None
             ref: dict[str, Any] = {"order_id": str(evidence.title_order_id), "order_date": order_date}
@@ -782,12 +854,12 @@ def _named_hits(rules: RuleSet, evidence: CaseEvidence, seen: set[tuple]) -> lis
             "rule_id": None,
             "rule_office_code": code,
             "weight": w_named,
-            "matched": phrase,
-            "phrase": phrase,
+            "matched": chosen,
+            "phrase": chosen,
             "source": source,
             "where": "insight_case_facts",
             "ref": ref,
-            "reason": named_reason(phrase, source, evidence.title_order_date),
+            "reason": named_reason(chosen, source, evidence.title_order_date),
         }
         if source == "cause_title":
             signal["order_date"] = order_date
@@ -810,10 +882,13 @@ class ScoreReport:
     job_run_id: uuid.UUID | None = None
     # the fingerprint of the rules read just before the run loaded them (design list-search-followups, decision 1)
     rules_fingerprint: str | None = None
+    # the cases whose scoring failed (design cause-title-signal-review-advisories, decision 10); not in `as_dict`
+    failed_case_ids: list[uuid.UUID] = field(default_factory=list)
 
     def add(self, other: ScoreReport) -> None:
         for k in ("cases", "scores", "recommended_new", "band_changed", "expired", "failed"):
             setattr(self, k, getattr(self, k) + getattr(other, k))
+        self.failed_case_ids.extend(other.failed_case_ids)
         self.settings_version = other.settings_version or self.settings_version
 
     def as_dict(self) -> dict[str, Any]:
@@ -1027,6 +1102,7 @@ def score_cases(
             report.cases += 1
         except Exception as exc:  # noqa: BLE001 — scoring never fails the pipeline item
             report.failed += 1
+            report.failed_case_ids.append(cid)
             log.warning("matching.case_failed", case_ref=ref, error=exc.__class__.__name__)
             try:
                 with session.begin_nested():
@@ -1039,7 +1115,12 @@ def score_cases(
 def _score_one(
     session: Session, case: Case, rules: RuleSet, origin: RecommendationOrigin, report: ScoreReport
 ):
+    """One case in its own savepoint. The case row lock (`apply_scores`'s, `ownership._lock`'s) is taken before the
+    evidence is read, so two engine passes on one case are serial from the read on and an older result never commits
+    over a newer one; once the scores are written, the fact row's rescore mark is cleared when it still carries the
+    value read (design cause-title-signal-review-advisories, decisions 9 and 11)."""
     with session.begin_nested():
+        session.execute(select(Case.id).where(Case.id == case.id).with_for_update())
         evidence = CaseEvidence.gather(session, case)
         apply_scores(
             session,
@@ -1049,6 +1130,15 @@ def _score_one(
             settings=rules.settings,
             report=report,
         )
+        if evidence.fact_marker is not None:
+            session.execute(text(CLEAR_MARK_SQL), {"id": case.id, "read": evidence.fact_marker})
+
+
+# decision 9 of cause-title-signal-review-advisories: a mark is cleared only while it carries the value read, so a mark
+# written after the read stays (under READ COMMITTED the UPDATE waits for an uncommitted writer and re-checks)
+CLEAR_MARK_SQL = (
+    "UPDATE insight_case_facts SET named_changed_at = NULL WHERE case_id = :id AND named_changed_at = :read"
+)
 
 
 # ------------------------------------------------------------------------------------------------ batch rescore
@@ -1250,6 +1340,9 @@ class DryRunReport:
     new_only_with_named: dict[str, int] = field(default_factory=dict)
     band_changed: dict[str, int] = field(default_factory=dict)  # "medium->high" -> open engine rows
     band_changed_by_named: int = 0  # of those, the changes the cause-title signal alone makes
+    # (case, active department) pairs named by the fact row whose signal was withheld as already scored (design
+    # cause-title-signal-review-advisories, decision 4)
+    named_withheld: int = 0
     expired: int = 0
     failed: int = 0
     settings_version: int | None = None
@@ -1264,6 +1357,7 @@ class DryRunReport:
             "new_only_with_named": dict(sorted(self.new_only_with_named.items())),
             "band_changed": dict(sorted(self.band_changed.items())),
             "band_changed_by_named": self.band_changed_by_named,
+            "named_withheld": self.named_withheld,
             "expired": self.expired,
             "failed": self.failed,
             "settings_version": self.settings_version,
@@ -1292,7 +1386,9 @@ def dry_run_case(session: Session, case: Case, rules: RuleSet, report: DryRunRep
         return
     report.cases += 1
     settings = rules.settings
-    scores = score_case(rules, CaseEvidence.gather(session, case))
+    stats: dict[str, int] = {}
+    scores = score_case(rules, CaseEvidence.gather(session, case), stats)
+    report.named_withheld += stats.get("named_withheld", 0)
     recs = list(session.scalars(select(Recommendation).where(Recommendation.case_id == case.id)).all())
     ever_owners = set(
         session.scalars(select(CaseOwnership.office_id).where(CaseOwnership.case_id == case.id)).all()

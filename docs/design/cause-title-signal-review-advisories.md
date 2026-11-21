@@ -389,3 +389,26 @@ The integrator, on the dev stack, in the night window shared with row 260, follo
 ## Open questions
 None. The owner's ruling of 21 Nov 2026 settles point 1. Decision 2's treatment of a phrase printed only in the cause
 title is the conservative reading of that ruling and is laid out for the owner's approval with this note.
+
+## Deviations
+Choices the developer made where the note is silent (21 Nov 2026); none changes a business rule.
+
+1. **`rescore_marked(..., stop_at=None)`** reads `stop_at` as the drain's cut-off: marks set at or before it are taken,
+   newer ones wait. Its default is the database clock (`clock_timestamp()`) when the drain starts, as decision 10 says.
+   Tests pass a time to check the cut-off.
+2. **Party row 1** is the current respondent party row with the lowest party number (the rows are read in
+   `party_no` order). A summary or cause-list respondent match records that row; when the case has no current
+   respondent row, the match still counts as respondent evidence for the department (decision 2's second rule).
+3. **Counters.** `build` returns `named_changed` as the number of rows it marked (no longer a list), and
+   `rederive_departments(named_changed=...)` takes a small dictionary whose `"marked"` entry it increments. The drain's
+   case count is `RunReport.rescored`, set after the run by the task, the CLI and `rebuild`; it is never stored in the
+   `job_runs` counters (the drain runs after them).
+4. **The refresh task** still returns None when another refresh held the lock (the drain runs first either way).
+   `aslms insights refresh` without `--all` drains and then exits 1 in that case, as before.
+5. **`--no-rescore`** prints the run's counters and then `marked for rescoring: N`, where N is the number of live cases
+   carrying a mark (`insights_facts.marked_count`, the same count as `named_rescore_waiting`).
+6. **`named_withheld`** counts only active Department-tier departments the row names with at least one phrase
+   position; a department without a position (or a row with empty positions) gives no signal and is not counted as
+   withheld.
+7. **The clear statement** (`matching.CLEAR_MARK_SQL`) is one constant shared by `_score_one` and the drain.
+8. **`named_rescore_waiting`** is a required field of `InsightsStatusOut`; `status()` always returns it.
