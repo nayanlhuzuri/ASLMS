@@ -242,7 +242,7 @@ def test_data_health_insights_block_has_named_rescore_waiting(api, world):
     insights_facts.rescore_marked(world.Session)
     block = api.get("/admin/data-health", headers=headers).json()["insights"]
     assert block["named_rescore_waiting"] == 0
-    spec = api.get("/openapi.json").json()["components"]["schemas"]["InsightsStatusOut"]
+    spec = api.app.openapi()["components"]["schemas"]["InsightsStatusOut"]  # /openapi.json is 404 outside dev
     assert "named_rescore_waiting" in spec["required"]
 
 
