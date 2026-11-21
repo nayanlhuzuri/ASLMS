@@ -4282,3 +4282,5 @@ separate `cause-title-signal.md`: row 260 points to the Insights note.
 Deploy: late-night window, `pre-migrate` backup, 0040 with the `migrate` step, dry run, then `docker compose build` and
 services back with the court-data switch (runbook section 27).
 
+## Design approvals (21 Nov 2026)
+- 2026-11-21 — cause-title-signal-review-advisories: approved by the owner (docs/design/cause-title-signal-review-advisories.md); a cause-title-only phrase counts only when the department has no scored respondent evidence (the cautious reading)
