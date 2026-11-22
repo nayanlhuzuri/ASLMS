@@ -1360,3 +1360,10 @@ choice where the note is silent; none changes a business rule.
 43. **Tests that insert a current settings row by SQL** now carry the new weight: PostgreSQL checks CHECK constraints in
     name order, so `ck_scoring_settings_named_current` would otherwise be reported before the constraint those tests
     are about.
+
+### Deploy measurements (rows 260 and 273, 21 to 22 Nov 2026)
+The dry run of decision 39, taken after 0040 and 0041 and `aslms insights refresh --no-rescore` with the scheduler and
+workers stopped (5 min 58 s): cases 84,898; `new.medium` 826; `new_by_kind.medium.named_in_title` 826;
+`new_only_with_named.medium` 826; `band_changed_by_named` 0; `named_withheld` 0; expired 0; failed 0; engine 3.3,
+settings version 3. The owner went ahead with the default weight 0.600 (22 Nov 2026, 13:42); after the rescore 826
+recommendations were open from the deploy, all possible matches, and no engine-written ownership.

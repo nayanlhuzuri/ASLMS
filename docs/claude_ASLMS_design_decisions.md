@@ -4330,3 +4330,13 @@ shared clear statement, a required API field) are written in the note.
 
 **Left for later.** Row 272 (the weight at deploy, the browser checks). Deploy with row 260 in one night window,
 runbook section 27.
+
+## Deploy (21 to 22 Nov 2026): rows 260 and 273, the cause-title signal
+- From `main` at 8b6910d: 0040 and 0041 applied with the `migrate` step after the `pre-migrate` backup of 23:15;
+  `aslms insights refresh --no-rescore` re-derived 22,217 rows and marked 1,282; the dry run counted 826 new possible
+  matches, all only with the cause-title signal, no band change, nothing withheld, nothing failed.
+- The owner went ahead on 22 Nov 2026 at 13:42 with the default weight 0.600. The portal was down 23:14 to 13:43 while
+  the go-ahead was awaited; for a later deploy with an owner gate, start when the owner can answer within the hour.
+- After the rescore: 826 new recommendations, all possible matches; no `case_ownership` row by the engine; every score
+  row on engine 3; `named_rescore_waiting` 0. A test that read `/openapi.json` (404 outside dev) failed CI after the
+  row 273 merge and was fixed on `main` before the deploy (8b6910d).

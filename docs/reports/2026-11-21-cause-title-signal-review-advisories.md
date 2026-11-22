@@ -45,3 +45,30 @@ None added.
 
 `aslms queue-status` did not answer within 120 s from the host (the dev database is not reachable on the host port while WinNAT reserves it),
 so no load status is recorded.
+
+## Deploy
+Rows 260 and 273 deployed together on the night of 21 to 22 Nov 2026 from `main` at 8b6910d (the row 273 merge plus a
+test-only fix: `test_data_health_insights_block_has_named_rescore_waiting` read `/openapi.json`, which is 404 outside dev,
+and failed CI run 44898459019; it now reads `app.openapi()`, CI run 44928741805 green). Runbook section 27:
+- 0: images built from the clean checkout of `main` before the stop.
+- 23:14 IST: `napix_call_log` 638,434 rows, revision 0039; `api`, `worker`, `worker2`, `scheduler`, `web` and `pgbouncer`
+  stopped.
+- 1: `docker compose --profile ops run --rm migrate`: preflight passed (dev, 7 warnings), "the image matches ./backend
+  (migrations up to 0041)", backup `20261121-2315-pre-migrate` written and listed by `pg_restore`, 0039 -> 0040 -> 0041,
+  seed nothing to insert, audit row `system.migrated`. Done at 23:57.
+- 2: `pgbouncer` up alone, then `aslms insights refresh --no-rescore` in a one-off container: `rederived` 22,217,
+  `named_changed` 1,282, 21.2 s, 4,576 unmapped phrases. Checks: rows with phrases but no positions 0; engine-3 score
+  rows 0; latest settings weight `weight_named_in_title` 0.600.
+- 3: `aslms rescore --all --dry-run` (5 min 58 s, nothing written): cases 84,898, claimed 5, `new.medium` 826,
+  `new_by_kind.medium.named_in_title` 826, `new_only_with_named.medium` 826, `band_changed` none,
+  `band_changed_by_named` 0, `named_withheld` 0, expired 0, failed 0, settings version 3, engine 3.3. Shown to the owner.
+- 4: the owner said go on 22 Nov 2026 at 13:42 with the default weight 0.600; services up with the court-data switch and
+  `--no-deps --force-recreate api worker worker2 scheduler web`: each container on its new image, running `BUILD_ID`
+  `n3V3mjCFopAKezD-SSZAJ` equals the image's, `/api/health` 200, `/signin` 307, the switch on in `api`, `worker` and
+  `worker2`, both workers "NAPIX on". The portal was down 23:14 to 13:43 (14.5 h), waiting for the owner's go-ahead.
+- `aslms rescore --all` 13:44 to 13:53: 84,898 cases, 2,968 score rows, 40 new by the CLI itself (the scheduler's
+  `rescore-dirty` and the refresh drain, running alongside, opened the rest), band changed 0, expired 0, failed 0; one
+  `matching.case_deadlock_retried` warning (case ASLMS/GHC/CASE/2026/074110), retried and scored.
+- 5: checks: `case_ownership` rows by `matching` 0; score rows not on engine 3 0 (2,968 on 3); score rows carrying
+  `named_in_title` 1,282; recommendations created since the deploy 826, all `medium`, status `recommended`, equal to
+  the dry run; `named_rescore_waiting` 0, marked rows 0.
