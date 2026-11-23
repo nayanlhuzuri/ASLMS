@@ -2,7 +2,7 @@
 
 ```
 slug: research-index
-status: blocked
+status: awaiting-approval
 author: architect
 date: 2026-11-23
 approved_by: (awaiting the owner)
@@ -66,9 +66,10 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
   search), sources numbered `S1..Sn`, `check_citations` (assistant-ollama decision 8) and `PROMPT_VERSION = 2`.
 - **`services/assistant_sources.py`**: the court-order and court-filing corpora, `case_contexts` and `case_details`
   (court-public facts only).
-- The live setup: `ASSISTANT_MODE=ollama` with `qwen3.5:4b` on the owner's machine. Ollama 0.40.11 holds only that
-  model, loaded with 5.2 GB of GPU memory. An embedding call to it answers "This server does not support
-  embeddings", so an embedding model has to be pulled.
+- The live setup: `ASSISTANT_MODE=ollama` with `qwen3.5:4b` on the owner's machine, loaded with 5.2 GB of GPU memory.
+  An embedding call to it answers "This server does not support embeddings", so an embedding model has to be pulled.
+  Since the model test of 23 Nov 2026, Ollama 0.40.11 holds `qwen3.5:4b` and the chosen `embeddinggemma:300m`; the
+  other three candidates were removed after the test.
 - PostgreSQL `postgres:16.15` (Debian trixie), with extensions `plpgsql` and `btree_gist`. `vector` is not available.
   PGDG's `postgresql-16-pgvector` candidate is `0.8.7-1.pgdg13+2`. Its control file has no `trusted` line, so only a
   superuser can create it. `migrate` connects as the cluster superuser.
@@ -168,52 +169,63 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
 
 ### B. The embedding model
 
-5. **The model is chosen by the owner's test, which has not been run (open question 1).**
-   - Today only `qwen3.5:4b` is on the Ollama server. The four candidates are about 2.7 GB to download:
-     - `bge-m3:567m`: about 1.2 GB, 1,024 dimensions, input up to 8,192 tokens, no prefix;
-     - `nomic-embed-text` (v1.5): about 0.3 GB, 768 dimensions, needs `search_query:` and `search_document:`
-       prefixes;
-     - `embeddinggemma`: about 0.6 GB, 768 dimensions, input up to 2,048 tokens, prompt prefixes;
-     - `qwen3-embedding:0.6b`: about 0.6 GB, 1,024 dimensions, an instruction on queries.
+5. **The model is `embeddinggemma:300m`, chosen by the owner's test (run 23 Nov 2026; results under "The model
+   test").**
+   - The four candidates as pulled into Ollama 0.40.11 (tags, digests and sizes from `/api/tags`):
+     - `bge-m3:567m`: 1.16 GB (F16), 1,024 dimensions, input up to 8,192 tokens, no prefix;
+     - `nomic-embed-text:latest` (v1.5): 0.27 GB (F16), 768 dimensions, input up to 2,048 tokens, needs
+       `search_query:` and `search_document:` prefixes;
+     - `embeddinggemma:latest`, the same digest as `embeddinggemma:300m`: 0.62 GB (BF16), 768 dimensions, input up to
+       2,048 tokens, prompt prefixes;
+     - `qwen3-embedding:0.6b`: 0.64 GB (Q8_0), 1,024 dimensions, input up to 32,768 tokens, an instruction on queries.
 
-     The developer confirms the tags and sizes when pulling. The 4b and 8b sizes of qwen3-embedding are left out:
-     2,560 and 4,096 dimensions, and too large beside the chat model on an 8 GB GPU.
-   - **The test, as it will be run** (read-only on the dev database, no NAPIX call, a script in the scratchpad, not
-     application code):
+     Every tag existed as named. The 4b and 8b sizes of qwen3-embedding were left out: 2,560 and 4,096 dimensions, and
+     too large beside the chat model on an 8 GB GPU.
+   - **The test, as run** (read-only on the dev database, no NAPIX call, a script in the scratchpad, not application
+     code; the details and figures are under "The model test"):
      1. **The orders.** 200 current readings, chosen at random with a fixed seed: 80 substantive interim, 60 final and
-        60 judgments. They are cut by decision 9's chunker. Then 20,000 other chunks of the same mix are drawn as
-        distractors.
+        60 judgments. They are cut by decision 9's chunker. Distractors of the same mix were drawn (3,800 orders,
+        about 22,650 chunks) and then scaled down evenly to one tenth of the orders of each form (150 interim, 115
+        final, 115 judgments; 2,276 chunks), because the measured CPU speeds put the full set at about 16 hours for
+        the four models. Every chunk of the 200 test orders was kept.
      2. **Questions by the chat model.** For each order, one target chunk: the body of an interim order, or a
-        substantive chunk of a final order or judgment chosen at random. `qwen3.5:4b` writes one question an officer
-        might ask that the passage answers, in other words. Any shared run of 4 or more words is regenerated, twice at
-        most, then dropped.
+        substantive chunk of a final order or judgment chosen at random. `qwen3.5:4b` wrote one question an officer
+        might ask that the passage answers, in other words. Any shared run of 4 or more words was regenerated, twice at
+        most, then dropped (199 kept).
      3. **Questions by hand.** 20 questions on common subjects (regularisation, pension, transfer, recovery, land
-        acquisition, contempt compliance). The architect judges the pooled top 5 of every model by reading them.
-     4. **Each candidate** embeds the 21,000 or so chunks on CPU (`options.num_gpu = 0`), so the live chat model is
-        never evicted. It records:
-        - the vector-only recall@10 and MRR@10 of the target chunk;
-        - the same with words and meaning fused (decision 17);
-        - the precision@5 of the hand questions;
-        - chunks per second on CPU;
-        - dimensions and storage.
+        acquisition, contempt compliance, disciplinary action, provincialisation). The architect judged the pooled
+        top 5 of every model by reading them.
+     4. **Each candidate** embedded the test set on CPU (`options.num_gpu = 0`), so the live chat model was never
+        evicted. Recorded: vector-only and fused recall@10 and MRR@10, hand precision@5, chunks per second on CPU,
+        dimensions.
      5. **The rule.** The model with the best fused recall@10 wins. Within 2 points, the faster on CPU wins, because the
         pilot machine is not settled (assistant-ollama, open question 14). A model whose input limit is under
         2,048 tokens is kept only if its recall leads by more than 2 points, because it would need a smaller cap.
-     6. **The judgment context** (decision 8) is tested on the 60 judgments in the same run.
-     7. **The results** are recorded in this note under "The model test", with the model's tag and digest. Data and
-        Settings are then written for that model.
-   - **Provisional:** `bge-m3:567m`. It has 1,024 dimensions, a long input limit and needs no prefix. Data is written
-     for 1,024 dimensions. If nomic-embed-text or embeddinggemma wins, only the index's dimension (768), the cap and
-     the profile change.
+     6. **The judgment context** (decision 8) was tested on the 60 judgments in the same run.
+   - **The result.** `embeddinggemma` had the best fused recall@10 (86.4, against 83.4 for qwen3-embedding, 77.4 for
+     bge-m3 and 64.3 for nomic-embed-text). It leads by 3.0 points, more than the 2-point margin, so the speed tie-break
+     does not apply; it is also the second fastest on CPU (4.07 chunks per second, nomic-embed-text 4.12). Its input
+     limit is 2,048 tokens, not under 2,048, so the input-limit clause does not apply. Its hand precision@5 (46) is
+     level with qwen3-embedding and 3 points below bge-m3 (49); the rule does not use it.
+   - **Pinned as `embeddinggemma:300m`**, the explicit tag of the same digest
+     (`85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1`), so the live key is
+     `embeddinggemma:300m@85462619ee72`. `RESEARCH_EMBED_MODEL=embeddinggemma:300m`.
+   - **What follows from the choice:** 768 dimensions (the index is `halfvec(768)`, Data), an input limit of 2,048
+     tokens and so a cap of 5,120 characters (decision 9), and the profile in decision 6.
    - *Alternative:* choosing from published benchmarks (rejected: the owner asked for a test on our orders).
 
 6. **Ollama only, through `integration/ollama/`, on the same server.**
    - `OllamaClient` gains `embed(model, inputs, *, options, keep_alive, timeout)` (`POST /api/embed`, `truncate:
      false`) and a synchronous twin `embed_sync`. The reply is parsed by `parse_embed` for `embeddings` (one list of
      floats per input), `model` and `prompt_eval_count`.
-     - Field names follow Ollama's published API. The developer confirms them on 0.40.11 (Verification 2).
-     - The errors are the client's existing mapping. A 400 (input too long with `truncate: false`) is
-       `SourceTraceRejected`.
+     - Field names follow Ollama's published API. Confirmed on 0.40.11 by the model test (23 Nov 2026): the request
+       takes `model`, `input` (a list), `truncate`, `options` and `keep_alive`; the reply holds `model`,
+       `embeddings` (one list of floats per input, in input order), `total_duration`, `load_duration` and
+       `prompt_eval_count`. The developer checks them again with the chosen model (Verification 2).
+     - The errors are the client's existing mapping. An input too long with `truncate: false` is
+       `SourceTraceRejected`. On 0.40.11 it answers **400 or 413**, both with the body `{"error": "the input length
+       exceeds the context length"}`: 400 when the input passes `num_ctx`, 413 when it passes `num_batch` (seen in
+       the test). Both are treated as "too long" (decision 9's second split).
    - **Why `truncate: false`:** a text cut short in silence would be indexed under a hash of words the model never
      read. A refused input is split again (decision 9) or recorded as a failure (decision 34).
    - **The address** is `ASSISTANT_OLLAMA_URL`, the same server as the chat model (owner: "served by the same Ollama").
@@ -221,8 +233,12 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
    - **The model** is `RESEARCH_EMBED_MODEL`. `model_name_ok` and the `no_cloud_model` preflight check cover it as they
      cover `ASSISTANT_OLLAMA_MODEL`. Readiness needs the model held locally (`/api/tags` size of at least 100 MB),
      as the chat model's does.
-   - **Options:** `num_ctx` set to the profile's input limit. `RESEARCH_EMBED_ON_CPU=true` adds `num_gpu: 0` for a
-     machine whose GPU cannot hold both models.
+   - **Options:** `num_ctx` **and `num_batch`** both set to the profile's input limit. `RESEARCH_EMBED_ON_CPU=true`
+     adds `num_gpu: 0` for a machine whose GPU cannot hold both models.
+     - *Why `num_batch` too (found by the model test):* Ollama 0.40.11 embeds an input in one batch, so an input
+       longer than `num_batch` (2,048 tokens by default) is refused with 413 even when `num_ctx` allows it. In the
+       test bge-m3 with `num_ctx` 8,192 refused every input above about 2,030 tokens until `num_batch` was raised to
+       8,192. The options are the same on every call, so the model is never reloaded for a different setting.
    - **Keep-alive:** `RESEARCH_EMBED_KEEP_ALIVE`, default `-1`.
    - **Guards extended:**
      - `/api/embed` appears only in `client.py`;
@@ -232,10 +248,15 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
        lock test).
    - **Profiles.** A code table `EMBED_PROFILES` holds, per model family, the document prefix, the query prefix, the
      input limit in tokens and the dimensions. The document prefix is part of the embedded input and of its hash.
+     - The chosen model's profile `embeddinggemma`, as used in the model test: document prefix `title: none | text: `,
+       query prefix `task: search result | query: `, input limit 2,048 tokens, 768 dimensions. These are the model's
+       published prompts; Ollama does not add them, so the client does.
+     - Other families get a profile only when a model change needs one (decision 7); the test's profiles for the
+       three others are recorded under "The model test".
 
 7. **Pinned by name and digest.**
-   - **The model key** is `<full name>@<first 12 hex digits of the digest>`, for example `bge-m3:567m@0123456789ab`.
-     The digest comes from `/api/tags`, read once per run. Every vector stores `model`, `model_digest` and
+   - **The model key** is `<full name>@<first 12 hex digits of the digest>`, for example
+     `embeddinggemma:300m@85462619ee72`. The digest comes from `/api/tags`, read once per run. Every vector stores `model`, `model_digest` and
      `model_key`.
    - **The live key** is read from the server. A question uses only vectors of the live key.
    - **A changed digest** (a re-pull) or a new `RESEARCH_EMBED_MODEL` makes a new live key:
@@ -246,15 +267,20 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
        rebuild --embeddings` retires the old key's vectors (audited).
    - A model of a different dimension also needs a migration that adds its index (decision 15). The runbook says so.
 
-8. **An AI-written context sentence per judgment chunk: decided by the same test, off unless it earns its place.**
+8. **An AI-written context sentence per judgment chunk: tested, not adopted.**
    - The owner left it optional, "decided in the design after a test".
-   - **The test:** on the 60 test judgments, `qwen3.5:4b` writes one sentence per chunk (what the passage is about in
-     the judgment). The judgment questions are scored with and without it.
+   - **The test (run 23 Nov 2026):** on the 60 test judgments, `qwen3.5:4b` wrote one sentence per chunk (what the
+     passage is about in the judgment, given the judgment's first 8,000 characters), 1,013 sentences at about 0.75 s
+     each on the GPU. The judgments' chunks were embedded again by `embeddinggemma` with the sentence as a second line,
+     and the 59 judgment questions were scored with and without it.
    - **The rule:** adopt only if judgment recall@10 rises by 5 points or more.
-   - **The cost if adopted:** about 37,000 chat calls for the 2,510 distinct judgment bodies, about 10 hours of GPU,
-     or several days on CPU. The sentence would be AI text inside the index (searched, never shown, never cited) and
-     would need its own version.
-   - The test result is recorded with decision 5's. If it is adopted, the note is refreshed before approval.
+   - **The result:** judgment recall@10 stayed at 91.5 with and without the sentence (vector-only and fused alike);
+     MRR@10 moved from 0.676 to 0.685 (fused). Not adopted: no context sentence, no AI text in the index, no extra
+     version.
+   - **What it would have cost:** about 37,000 chat calls for the judgment chunks, about 7.8 hours of GPU at the
+     measured speed, or several days on CPU.
+   - *Limit stated:* only the test judgments' own chunks carried the sentence, and recall was already 91.5, so a
+     small gain could hide in the remaining 8.5 points; the rule's 5 points were still reachable and were not reached.
 
 ### C. Chunks
 
@@ -272,7 +298,11 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
        median 656 characters for final orders and 1,273 for judgments.
      - A run never crosses a part boundary.
    - **The cap** is the profile's input limit in tokens × 2.5 characters (a conservative ratio for digits and Indian
-     names), at most 20,000 characters. For bge-m3 that is 20,000; for a 2,048-token model, 5,120.
+     names), at most 20,000 characters. For `embeddinggemma:300m` (2,048 tokens) that is **5,120 characters**.
+     - The model test measured 4.1 to 4.5 characters per token on these orders (4.29 for embeddinggemma), so a
+       5,120-character chunk is about 1,200 tokens and none was refused.
+     - On the dev data a cap of 5,120 instead of the 6,000 of the simulation in Context adds about 700 split pieces,
+       under 0.3% of the chunks (read-only count, 23 Nov 2026).
      - Only a paragraph, or an interim body, above the cap is split. It is split at the last sentence end
        (`order_parse_rules.SENTENCE_END`) before the cap, else at the last space. Each piece is marked `split`.
      - If Ollama still refuses an input as too long, it is split once more at the middle sentence end, then recorded
@@ -382,8 +412,8 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
       `vector`. The column carries no typmod. `dims smallint` and CHECK `vector_dims(embedding) = dims` keep each row
       honest.
     - **The index.** One partial expression index per dimension, created by the migration for the chosen model:
-      `USING hnsw ((embedding::halfvec(1024)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64) WHERE dims =
-      1024 AND retired_at IS NULL`.
+      `USING hnsw ((embedding::halfvec(768)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64) WHERE dims =
+      768 AND retired_at IS NULL` (768 is the dimension of `embeddinggemma:300m`, decision 5).
       - Cosine distance needs no unit length.
       - It is built empty and kept by every insert, so no large `maintenance_work_mem` is needed.
       - A model of another dimension needs a migration adding its index (decision 7).
@@ -405,13 +435,14 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
       because identical texts share one.
     - **Size:**
       - `research_chunks` with text, tsvector and GIN: about 0.9 GB;
-      - `research_embeddings` at halfvec(1024): about 0.9 GB of heap;
-      - the HNSW index: about 1.0 to 1.2 GB.
+      - `research_embeddings` at halfvec(768): about 0.7 GB of heap;
+      - the HNSW index: about 0.8 to 0.9 GB.
 
-      In all about 2.8 to 3.0 GB, inside the owner's 2 to 4 GB. The two new `order_sections` GIN indexes
+      In all about 2.4 to 2.5 GB, inside the owner's 2 to 4 GB. The two new `order_sections` GIN indexes
       (decision 20) are a few tens of MB.
-    - **Backfill time:** the test's CPU rate × 421,000 gives the CPU figure. The GPU figure is measured in
-      Verification 5. The owner's expectation was 2 to 3 hours on a GPU and about a day on CPU.
+    - **Backfill time:** at the test's CPU rate for `embeddinggemma:300m` (4.07 chunks per second, with the chat model
+      loaded on the GPU and answering meanwhile), 421,000 chunks take about 29 hours on CPU. The GPU figure is measured
+      in Verification 5. The owner's expectation was 2 to 3 hours on a GPU and about a day on CPU.
     - **New work:** about 2,000 chunks on a busy day.
 
 ### E. Retrieval
@@ -432,9 +463,19 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
       - A court-order item is (chunk, order).
       - A chunk set held by several orders in scope is expanded to those orders first (decision 18).
       - `match` records `words`, `meaning` or `both`.
+    - **What the model test showed about the words list** (stated plainly; no decision changed):
+      - `websearch_to_tsquery` joins every word of the question with AND, so a question in plain sentences rarely
+        matches a chunk: 11 of the 219 test questions matched any chunk at all, and the words list alone found the
+        target in the top 10 for 1 of the 199 generated questions.
+      - Fused recall@10 was therefore within half a point of meaning-only recall for every model. For natural
+        questions the meaning list carries the search; the words list is there for case numbers, citations and
+        section numbers, which Verification 6 checks.
+      - A looser words list (every word joined with OR) was tried in the same run: it lowered fused recall@10 by 18
+        to 27 points (for embeddinggemma 63.3 instead of 86.4), because RRF gives its many weak matches the same
+        weight as the meaning list. It is not used.
     - *Alternatives:* vector only (rejected: case numbers, citations and section numbers are found by words); a
       weighted sum of raw scores (rejected: ts_rank and cosine distance are not on one scale, which is why RRF is
-      used).
+      used); an OR words list (rejected by the model test, above).
 
 18. **Ranking weights and grouping by order.**
     - **Weights** after fusion, by the order's own reading: procedural × 0.5, judgment or final × 1.2, other
@@ -506,8 +547,10 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
         renewed, deleted at release);
       - the job and the CLI check it before each batch and pause, in 2 s steps, up to 120 s per batch;
       - `RESEARCH_EMBED_BATCH` is 16 on a GPU, and the profile halves it on CPU, so one batch is short.
-    - The chat model is never evicted in the default setup (both fit on the owner's 8 GB GPU: 5.2 GB plus about
-      1.2 GB). Otherwise `RESEARCH_EMBED_ON_CPU=true` keeps the embedding model off the GPU.
+    - The chat model is never evicted in the default setup (both should fit on the owner's 8 GB GPU: 5.2 GB plus
+      `embeddinggemma:300m`'s 0.62 GB of weights and its working memory; the test ran the embedding model on CPU only,
+      so Verification 5 measures the GPU memory and the rate). Otherwise `RESEARCH_EMBED_ON_CPU=true` keeps the
+      embedding model off the GPU.
 
 ### F. Answer checks
 
@@ -631,7 +674,7 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
     - `RESEARCH_INDEX_ENABLED` (default `false`): the master switch for the job, the CLI's embedding and the meaning
       list. With it false, chunks can still be cut by `aslms research-index run --chunks-only`, and nothing calls
       Ollama. Preflight warns when it is true and `ASSISTANT_MODE` is not `ollama`.
-    - `RESEARCH_EMBED_MODEL`: the model test's winner, written after the test.
+    - `RESEARCH_EMBED_MODEL` (`embeddinggemma:300m`, the model test's winner, decision 5).
     - `RESEARCH_EMBED_KEEP_ALIVE` (`-1`), `RESEARCH_EMBED_ON_CPU` (`false`), `RESEARCH_EMBED_BATCH` (16).
     - `RESEARCH_JOB_SECONDS` (60), `RESEARCH_QUERY_EMBED_SECONDS` (5), `RESEARCH_CANDIDATES` (100),
       `RESEARCH_EXACT_MAX` (20,000), `RESEARCH_EF_SEARCH` (100).
@@ -747,7 +790,7 @@ SourceTrace"). Building it locally is a **deviation** from the plan. The owner a
 - **Group 6, two new rows:**
 
 | `research_chunks` (derived) | id (uuid v7 PK), kind (`research_chunk_kind` NOT NULL), body_sha256 (varchar 64 NULL; `order_body`: the readings' `body_sha256`), form (`order_kind` NULL; `order_body`), parser_version (smallint NULL; `order_body`), chunker_version (smallint NOT NULL), seq (smallint NOT NULL; 0-based within the set; 0 for a sheet), first_reading_id (→ order_sections RESTRICT, NULL; `order_body`: the reading the set was cut from), case_id (→ cases RESTRICT, NULL; `case_sheet`), part (varchar 30 NULL; row 250's part name), para_first (smallint NULL), para_last (smallint NULL), txt_start (integer NULL), txt_end (integer NULL; offsets in `body_text`, 0-based, end exclusive), split (boolean NOT NULL default false), context_line (varchar 200 NOT NULL; the embedded context line, decision 10), text (text NOT NULL; `order_body`: exactly `body_text[txt_start:txt_end]` of every reading with the key; `case_sheet`: the sheet), sheet_sha256 (varchar 64 NULL; `case_sheet`: of `text`), embed_sha256 (varchar 64 NOT NULL; SHA-256 of the exact embedding input: profile document prefix, context line, newline, text; the profile is fixed per model key, see `research_embeddings`), chars (integer NOT NULL), search_vector (tsvector, `GENERATED ALWAYS AS (to_tsvector('english', text)) STORED`), retired_at (timestamptz NULL), retire_reason (`research_retire_reason` NULL), created_at, updated_at | CHECK `ck_research_chunks_shape`: `order_body` ⇔ body_sha256, form, parser_version, first_reading_id, part, para_first, para_last, txt_start, txt_end NOT NULL and case_id, sheet_sha256 NULL; `case_sheet` ⇔ case_id and sheet_sha256 NOT NULL and the order columns NULL. CHECK `ck_research_chunks_retired` (`(retired_at IS NULL) = (retire_reason IS NULL)`); CHECK `ck_research_chunks_span` (`txt_start IS NULL OR (0 <= txt_start AND txt_start < txt_end)`). Partial unique `ix_research_chunks_set_current` (body_sha256, form, parser_version, chunker_version, seq) WHERE kind = 'order_body' AND retired_at IS NULL; partial unique `ix_research_chunks_sheet_current` (case_id) WHERE kind = 'case_sheet' AND retired_at IS NULL. Indexes: partial `ix_research_chunks_key` (body_sha256, form, parser_version) WHERE retired_at IS NULL; partial `ix_research_chunks_embed_sha256` (embed_sha256) WHERE retired_at IS NULL; partial GIN `ix_research_chunks_search_vector_gin` (search_vector) WHERE retired_at IS NULL; `ix_research_chunks_first_reading_id`; partial `ix_research_chunks_case_id` (case_id) WHERE case_id IS NOT NULL. Trigger `research_chunks_retire_once` (function `aslms_research_retire_once`, the 0035 pattern): every column except `retired_at`, `retire_reason` and `updated_at` is fixed, and those two change once, from NULL; plus `set_updated_at`. Grants: ALL to `aslms_owner`, SELECT to `aslms_readonly`, SELECT / INSERT / UPDATE to `aslms_app` (no DELETE; not on the §6 cascade list). Comment `class=derived`. Written only by `services/research_index.py` from current `order_sections` readings and court-public case fields (design `research-index`, decisions 2, 9 and 11); re-buildable; never deleted. The chunk set of a key is cut once; every current reading with the same (body_sha256, form, parser_version) shares it; pages and `src` offsets are read from each reading's own `paragraphs` when cited (decision 13). Estimated size about 0.9 GB for about 421,000 current rows. |
-| `research_embeddings` (derived) | id (uuid v7 PK), input_sha256 (varchar 64 NOT NULL; equals `research_chunks.embed_sha256` of every chunk it serves), first_chunk_id (→ research_chunks RESTRICT, NOT NULL), model (varchar 160 NOT NULL; Ollama's full name with tag), model_digest (varchar 80 NOT NULL; as `/api/tags` gives it), model_key (varchar 180 NOT NULL; `<model>@<first 12 hex digits of the digest>`), profile (varchar 40 NOT NULL; the `EMBED_PROFILES` entry, which fixes the prefixes), dims (smallint NOT NULL), embedding (halfvec NOT NULL), retired_at (timestamptz NULL), retire_reason (`research_retire_reason` NULL), created_at, updated_at | CHECK `ck_research_embeddings_dims` (`dims BETWEEN 64 AND 4000 AND vector_dims(embedding) = dims`); CHECK `ck_research_embeddings_retired` (`(retired_at IS NULL) = (retire_reason IS NULL)`). Partial unique `ix_research_embeddings_current` (input_sha256, model_key) WHERE retired_at IS NULL. Indexes: `ix_research_embeddings_first_chunk_id`; partial `ix_research_embeddings_model_key` (model_key) WHERE retired_at IS NULL; HNSW `ix_research_embeddings_hnsw_1024` USING hnsw ((embedding::halfvec(1024)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64) WHERE dims = 1024 AND retired_at IS NULL (the dimension of the model chosen by the test; decision 5). Trigger `research_embeddings_retire_once` (the same function) plus `set_updated_at`. Grants as `research_chunks`. Comment `class=derived`. Written only by `services/research_embed.py` with vectors from the local Ollama model (`integration/ollama/`, `POST /api/embed`, `truncate: false`); never from notes, remarks, internal documents or drafts. Joined to chunks by `input_sha256` = `embed_sha256` with no foreign key (DB_STANDARD §13); `first_chunk_id` keeps the chain. Retired (`chunk_retired`) when no current chunk has its hash, and (`model_changed`) by `aslms research-index rebuild --embeddings`; never deleted. Estimated size about 0.9 GB of heap plus about 1.0 to 1.2 GB of index for about 420,000 vectors at 1,024 dimensions. |
+| `research_embeddings` (derived) | id (uuid v7 PK), input_sha256 (varchar 64 NOT NULL; equals `research_chunks.embed_sha256` of every chunk it serves), first_chunk_id (→ research_chunks RESTRICT, NOT NULL), model (varchar 160 NOT NULL; Ollama's full name with tag, `embeddinggemma:300m` today), model_digest (varchar 80 NOT NULL; as `/api/tags` gives it), model_key (varchar 180 NOT NULL; `<model>@<first 12 hex digits of the digest>`), profile (varchar 40 NOT NULL; the `EMBED_PROFILES` entry, which fixes the prefixes), dims (smallint NOT NULL), embedding (halfvec NOT NULL), retired_at (timestamptz NULL), retire_reason (`research_retire_reason` NULL), created_at, updated_at | CHECK `ck_research_embeddings_dims` (`dims BETWEEN 64 AND 4000 AND vector_dims(embedding) = dims`); CHECK `ck_research_embeddings_retired` (`(retired_at IS NULL) = (retire_reason IS NULL)`). Partial unique `ix_research_embeddings_current` (input_sha256, model_key) WHERE retired_at IS NULL. Indexes: `ix_research_embeddings_first_chunk_id`; partial `ix_research_embeddings_model_key` (model_key) WHERE retired_at IS NULL; HNSW `ix_research_embeddings_hnsw_768` USING hnsw ((embedding::halfvec(768)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64) WHERE dims = 768 AND retired_at IS NULL (768 is the dimension of `embeddinggemma:300m`, the model chosen by the test; decision 5). Trigger `research_embeddings_retire_once` (the same function) plus `set_updated_at`. Grants as `research_chunks`. Comment `class=derived`. Written only by `services/research_embed.py` with vectors from the local Ollama model (`integration/ollama/`, `POST /api/embed`, `truncate: false`); never from notes, remarks, internal documents or drafts. Joined to chunks by `input_sha256` = `embed_sha256` with no foreign key (DB_STANDARD §13); `first_chunk_id` keeps the chain. Retired (`chunk_retired`) when no current chunk has its hash, and (`model_changed`) by `aslms research-index rebuild --embeddings`; never deleted. Estimated size about 0.7 GB of heap plus about 0.8 to 0.9 GB of index for about 420,000 vectors at 768 dimensions. |
 
 ## Services
 
@@ -860,7 +903,8 @@ No `fetch_queue` row and no NAPIX call from any of them.
 - `test_case_sheet_fields_and_caps`: no CNR, `ref_no`, next hearing or advocate; parties capped with "and N more".
 - `test_embed_input_hash_includes_prefix`.
 - `test_parse_embed_errors`.
-- `test_embed_sends_truncate_false_and_num_ctx` (`httpx.MockTransport`).
+- `test_embed_sends_truncate_false_and_num_ctx` (`httpx.MockTransport`): `num_ctx` and `num_batch` both equal the
+  profile's input limit; a 400 and a 413 "input length exceeds the context length" both read as too long.
 - `test_no_cloud_embed_model`.
 - `test_only_listed_modules_import_the_ollama_client`, `test_api_embed_only_in_client`: the existing guards extended.
 - `test_no_vector_or_model_library_in_lock`: no `numpy`, `pgvector` or `sentence-transformers` in `uv.lock`.
@@ -920,8 +964,8 @@ No `fetch_queue` row and no NAPIX call from any of them.
    - `\d+ research_embeddings` shows the HNSW index;
    - `aslms_app` cannot DELETE from either table.
 2. **Ollama's fields.** With the chosen model pulled, one `embed_sync` of two short texts records `embeddings`
-   (2 × dims), `model` and `prompt_eval_count` on Ollama 0.40.11. An over-long input with `truncate: false` answers
-   400.
+   (2 × dims), `model` and `prompt_eval_count` on Ollama 0.40.11 (the names the model test saw). An over-long input
+   with `truncate: false` answers 400 (past `num_ctx`) or 413 (past `num_batch`).
 3. **Chunks only.** `aslms research-index run --chunks-only --backfill` with the switch off. Expected: about 336,000
    order chunks (±2% of the simulation) and 84,898 sheets. `status` shows 0 vectors. Time recorded.
 4. **Words-only safety.** With the switch off, an All Court Orders question answers as before
@@ -944,9 +988,110 @@ No `fetch_queue` row and no NAPIX call from any of them.
    the old ones and writes one audit row.
 
 ## The model test
-To be filled in when the test of decision 5 has been run: the 200 orders' mix and seed, each candidate's tag and digest,
-its fused and vector-only recall@10 and MRR@10, the precision@5 of the 20 hand questions, CPU chunks per second,
-dimensions, the judgment-context result of decision 8, and the model chosen by the rule.
+Run by the architect on 23 Nov 2026, 12:33 to 15:00 IST (about 2 hours 30 minutes), on the owner's machine: Ollama
+0.40.11, Intel Core i7-14650HX (16 cores), 32 GB, RTX 4070 Laptop 8 GB with `qwen3.5:4b` loaded on it throughout.
+Read-only on the dev database, no court call, scripts and extracts in the session scratchpad only (court text never left
+the machine). The only network use was the model downloads.
+
+**The candidates** (from `/api/tags` after the pull; every tag existed as named):
+
+| Tag | Digest (SHA-256) | Size | Dims | Input limit | Cap (decision 9) |
+|---|---|---:|---:|---:|---:|
+| `bge-m3:567m` | `7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab` | 1.16 GB (F16) | 1,024 | 8,192 | 20,000 |
+| `nomic-embed-text:latest` | `0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f` | 0.27 GB (F16) | 768 | 2,048 | 5,120 |
+| `embeddinggemma:latest` (= `:300m`) | `85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1` | 0.62 GB (BF16) | 768 | 2,048 | 5,120 |
+| `qwen3-embedding:0.6b` | `ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d` | 0.64 GB (Q8_0) | 1,024 | 8,192 used (32,768 allowed) | 20,000 |
+
+Prefixes used: bge-m3 none; nomic-embed-text `search_document: ` and `search_query: `; embeddinggemma `title: none |
+text: ` and `task: search result | query: `; qwen3-embedding none on documents and `Instruct: Given a question about
+Gauhati High Court orders, retrieve the order passages that answer it`, a newline and `Query: ` on questions. Every call:
+`truncate: false`, `options: {num_gpu: 0, num_ctx: <limit>, num_batch: <limit>}`, 8 inputs per call. No input was
+refused. The `/api/embed` fields seen are recorded in decision 6.
+
+**The orders, the seed and the mix.**
+- Targets: current readings (`replaced_at IS NULL`), not procedural, body not empty, one reading per distinct
+  (`body_sha256`, `form`), ordered within each form by `md5(id || 'aslms-251-target')`: the first 80 interim, 60 final
+  and 60 judgments.
+- Distractors: the same filter with the targets' bodies left out, ordered by `md5(id || 'aslms-251-distract')`; 1,500
+  interim, 1,150 final and 1,150 judgments drawn (22,651 chunks at the 20,000 cap, the planned "20,000 other chunks of
+  the same mix"). **Used: the first 150, 115 and 115 (2,276 chunks at the 20,000 cap, 2,314 at 5,120).** Reason: the
+  200-chunk speed check gave 1.36 (bge-m3), 4.52 (nomic-embed-text), 3.93 (embeddinggemma) and 0.86 (qwen3-embedding)
+  chunks per second on CPU, so the full set would have taken about 16 hours for the four models; one tenth of each
+  form's distractor orders kept the whole run near the 3 hours allowed. Every chunk of the 200 test orders was kept
+  (1,313 at the 20,000 cap), so the other passages of the same judgment stayed in as the hardest distractors.
+- Chunking: decision 9 as written, with each model's own cap. 3,589 chunks at the 20,000 cap (10 split pieces) and
+  3,673 at 5,120 (114 split pieces). Embedded input: the profile's document prefix, the embedded context line
+  (decision 10), a newline and the text.
+- The target chunk: the body of an interim order, else a chunk chosen by `random.Random("251-<reading id>")` among the
+  order's chunks outside `opening` with at least 400 characters. A retrieved chunk counts as the target when it is
+  from the same reading and its span overlaps the target's span, so the two caps compare fairly.
+- Questions: `qwen3.5:4b`, `think` off, temperature 0.7, seed 251 (plus one per retry), sent one at a time with the
+  live model's own context size so it was never reloaded. 133 were accepted first time, 54 on the second try and 12
+  on the third; 1 (a judgment) was dropped: **199 questions** (80 interim, 60 final, 59 judgments), 204 s of chat.
+- Hand questions: 20 (decision 5). The fused top 5 of every model were pooled (247 passages) and each was judged by
+  reading: it counts when it deals with the question's issue.
+
+**The two lists and the fusion.**
+- Words: the exact query of decision 17(a), run in the dev PostgreSQL 16 inside a read-only transaction:
+  `to_tsvector('english', text) @@ websearch_to_tsquery('english', question)`, ranked by `ts_rank_cd`, top 100. The
+  chunk texts were rebuilt in SQL as `substr(body_text, s + 1, e - s)` from the reading ids and offsets passed in a
+  `VALUES` list; nothing was written and no temporary table was made. This is the same text search configuration,
+  operator and ranking function the index will use, which is why it was preferred to a local BM25.
+- Meaning: cosine similarity of the question's vector to every chunk's vector in the script, top 100
+  (`RESEARCH_CANDIDATES`).
+- Fusion: reciprocal rank fusion with k = 60 (decision 17). Decision 18's weights were not applied: every test order is
+  substantive, and the weights act the same on every model.
+
+**Results** (199 generated questions; hand precision@5 over the 20 hand questions; CPU speed over the whole test set,
+with the 200-chunk check in brackets):
+
+| Model | Fused recall@10 | Fused MRR@10 | Vector recall@10 | Vector MRR@10 | Hand precision@5 | CPU chunks/s | Dims | Bytes per vector (halfvec) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `embeddinggemma` | **86.4** | **0.661** | 86.9 | 0.659 | 46 | 4.07 (3.93) | 768 | 1,536 |
+| `qwen3-embedding:0.6b` | 83.4 | 0.639 | 83.4 | 0.641 | 46 | 1.01 (0.86) | 1,024 | 2,048 |
+| `bge-m3:567m` | 77.4 | 0.595 | 77.4 | 0.598 | 49 | 1.68 (1.36) | 1,024 | 2,048 |
+| `nomic-embed-text` | 64.3 | 0.446 | 64.3 | 0.446 | 35 | 4.12 (4.52) | 768 | 1,536 |
+
+Fused recall@10 by form (interim 80, final 60, judgments 59 questions):
+
+| Model | Interim | Final | Judgment |
+|---|---:|---:|---:|
+| `embeddinggemma` | 80.0 | 90.0 | 91.5 |
+| `qwen3-embedding:0.6b` | 82.5 | 80.0 | 88.1 |
+| `bge-m3:567m` | 68.8 | 81.7 | 84.7 |
+| `nomic-embed-text` | 51.2 | 75.0 | 71.2 |
+
+- The words list alone found the target in the top 10 for 1 of the 199 questions; 11 of all 219 questions matched any
+  chunk (decision 17, "What the model test showed about the words list").
+- With an OR words list (tried, not adopted) fused recall@10 fell to 63.3 (embeddinggemma), 70.4 (qwen3-embedding),
+  59.3 (bge-m3) and 56.3 (nomic-embed-text).
+- Tokens: 4.1 to 4.5 characters per token on these orders (embeddinggemma 4.29), against the 2.5 the cap assumes.
+- Full-run times on CPU: embeddinggemma 902 s, nomic-embed-text 892 s, bge-m3 2,130 s, qwen3-embedding 3,545 s.
+
+**The judgment context (decision 8).** 1,013 sentences by `qwen3.5:4b` (762 s on the GPU); the 60 test judgments'
+1,037 chunks embedded again by embeddinggemma with the sentence (306 s on CPU). Judgment recall@10: 91.5 without, 91.5
+with (vector-only and fused); fused MRR@10 0.676 without, 0.685 with. The rule needs +5 points: **not adopted.**
+
+**The model chosen by the rule: `embeddinggemma:300m`** (digest `85462619ee72…`, the same as `embeddinggemma:latest`).
+Best fused recall@10, 3.0 points ahead of qwen3-embedding, so the 2-point speed tie-break does not apply; its 2,048-token
+limit is not under 2,048. It is also about four times faster on CPU than the two 1,024-dimension models, and its vectors
+are a quarter smaller.
+
+**Limits of the test, stated so nobody reads more into it.**
+- The distractor set was one tenth of the plan, so every recall figure is higher than it would be against the full
+  index of about 336,000 chunks. The rule compares the models with each other, and their order was the same in
+  vector-only and fused results.
+- qwen3-embedding was better on interim orders (82.5 against 80.0) and bge-m3 on the hand questions (49 against 46,
+  that is 3 passages out of 100); the rule decides on fused recall over all 199 questions.
+- The hand judgments are one reader's. Questions written from a passage tend to carry its specifics; the hand
+  questions test general subjects. Four hand questions (pension withheld for a pending case, recovery as arrears of land
+  revenue, a last opportunity to comply, and compensation without acquisition) found little or nothing relevant in so
+  small a sample for any model.
+- CPU speeds were measured with the chat model loaded on the GPU and, for part of the time, writing questions and
+  sentences. The GPU speed and memory of the embedding model are measured in Verification 5.
+
+After the test the three other candidates and the `embeddinggemma:latest` tag were removed with `ollama rm`; Ollama
+holds `embeddinggemma:300m` and `qwen3.5:4b`.
 
 ## Open questions
 
@@ -967,6 +1112,9 @@ dimensions, the judgment-context result of decision 8, and the model chosen by t
    approves the rule now instead of the named model.
 
    **Answered (owner, 23 Nov 2026): (a).** The architect runs the test now and returns the note with the model named.
+   **Done (23 Nov 2026):** the test was run (under "The model test"); the rule chose `embeddinggemma:300m` (768
+   dimensions, 2,048-token input, cap 5,120 characters); decision 8's context sentence was not adopted. The other
+   candidates were removed. No question remains open.
 
 ## Owner's answers (23 Nov 2026)
 - **Open question 1:** option (a), the architect runs the model test now (decision 5) and returns the note for approval
