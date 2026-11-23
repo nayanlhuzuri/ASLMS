@@ -4340,3 +4340,11 @@ runbook section 27.
 - After the rescore: 826 new recommendations, all possible matches; no `case_ownership` row by the engine; every score
   row on engine 3; `named_rescore_waiting` 0. A test that read `/openapi.json` (404 outside dev) failed CI after the
   row 273 merge and was fixed on `main` before the deploy (8b6910d).
+
+## Home page direction (owner, 23 Nov 2026)
+- The owner saw two concept screens made with the design-taste-frontend skill (a front page and a Dashboard, private,
+  sample data) and chose a home page only: the working screens stay on the portal's own kit.
+- Backlog row 274 `home-page`: one public home page replacing the bare sign-in entry, with the sign-in form on the same
+  page, built in the portal's own code and look (not the skill's kit), general wording only (no case numbers, live counts
+  or department names unless the owner decides so in the design), short transitions to the form, to the code step and
+  into the Dashboard with the reduced-motion rule. Built after row 251; frontend only, no migration.
