@@ -2,10 +2,10 @@
 
 ```
 slug: research-index
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-23
-approved_by: (awaiting the owner)
+approved_by: owner on 2026-11-23
 ```
 
 ## Context

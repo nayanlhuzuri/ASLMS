@@ -4348,3 +4348,9 @@ runbook section 27.
   page, built in the portal's own code and look (not the skill's kit), general wording only (no case numbers, live counts
   or department names unless the owner decides so in the design), short transitions to the form, to the code step and
   into the Dashboard with the reduced-motion rule. Built after row 251; frontend only, no migration.
+
+## Design approvals (23 Nov 2026)
+- 2026-11-23 — research-index: approved by the owner (docs/design/research-index.md); the model test chose
+  `embeddinggemma:300m` (fused recall@10 86.4 against 83.4 for the next); the local index (a recorded deviation from the
+  plan's SourceTrace index) and `against_state` by rule confirmed; pgvector 0.8.7 in the project's PostgreSQL image and
+  migration 0042; round 2 added as row 275 `research-index-portal`.
