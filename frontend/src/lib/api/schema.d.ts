@@ -2941,6 +2941,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/messages/{message_id}/sources/{label}/passage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source Passage
+         * @description The passage of a court-order source of the caller's own answer (design research-index, API): the stored text of
+         *     its page with the passage and matched quotes as page-relative offsets, and `text_changed`. 404 for another user's
+         *     message, a source that is not a court order found through the research index, or an order no longer in the
+         *     court-order corpus. Court-public text; not audited.
+         */
+        get: operations["source_passage_assistant_messages__message_id__sources__label__passage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assistant/status": {
         parameters: {
             query?: never;
@@ -5631,6 +5654,8 @@ export interface components {
             case?: string | null;
             /** Conversation Id */
             conversation_id?: string | null;
+            /** @description design research-index: only for my_cases and research */
+            filters?: components["schemas"]["AssistantFiltersIn"] | null;
             /**
              * Include Related
              * @default true
@@ -5663,7 +5688,10 @@ export interface components {
             /** Ref No */
             ref_no: string;
         };
-        /** AssistantChecksOut */
+        /**
+         * AssistantChecksOut
+         * @description Design research-index, decision 29: the sentence checks, counts only (absent on answers before them).
+         */
         AssistantChecksOut: {
             /**
              * Cut Short
@@ -5675,6 +5703,16 @@ export interface components {
              * @default 0
              */
             invalid_markers: number;
+            /** Kept */
+            kept?: number | null;
+            /** Removed */
+            removed?: {
+                [key: string]: number;
+            } | null;
+            /** Sentences */
+            sentences?: number | null;
+            /** Withheld */
+            withheld?: ("first_sentence" | "majority" | "none_cited") | null;
         };
         /**
          * AssistantCitationCaseOut
@@ -5701,6 +5739,10 @@ export interface components {
             /** Available */
             available: boolean;
             case: components["schemas"]["AssistantCitationCaseOut"];
+            /** Chunk Id */
+            chunk_id?: string | null;
+            /** Chunker Version */
+            chunker_version?: number | null;
             /**
              * Cited
              * @default true
@@ -5721,6 +5763,10 @@ export interface components {
             internal: boolean;
             /** Label */
             label?: string | null;
+            /** Match */
+            match?: ("words" | "meaning" | "both") | null;
+            /** Model Key */
+            model_key?: string | null;
             note?: components["schemas"]["AssistantCitedNoteOut"] | null;
             open: components["schemas"]["AssistantOpenOut"] | null;
             /** Order Id */
@@ -5729,15 +5775,43 @@ export interface components {
             order_no?: string | null;
             /** Page */
             page?: number | null;
+            /** Paragraphs */
+            paragraphs?: number[] | null;
+            /** Parser Version */
+            parser_version?: number | null;
             /** Passage */
             passage: string | null;
+            /** Pdf Sha256 */
+            pdf_sha256?: string | null;
+            /** Quotes */
+            quotes?: components["schemas"]["AssistantQuoteOut"][];
+            /** Reading Id */
+            reading_id?: string | null;
             /** Related */
             related: boolean;
+            /**
+             * Same Words In
+             * @description other orders in scope holding the same words
+             */
+            same_words_in?: number | null;
             /**
              * Source Kind
              * @enum {string}
              */
             source_kind: "court_order" | "court_filing" | "case_details" | "note" | "file_movement" | "department_document" | "work_row";
+            /**
+             * Src
+             * @description the passage's offsets in the order's stored text
+             */
+            src?: number[] | null;
+            /**
+             * Text Changed
+             * @description the order's stored text has changed since the answer
+             * @default false
+             */
+            text_changed: boolean;
+            /** Text Sha256 */
+            text_sha256?: string | null;
             /**
              * Unavailable Reason
              * @description set when the source is no longer available to the reader; every field naming it is then null
@@ -5903,6 +5977,46 @@ export interface components {
             message: string;
         };
         /**
+         * AssistantFiltersIn
+         * @description Design research-index, decision 20: court-public filters for My Cases and All Court Orders, applied on the
+         *     server (400 `filters_not_allowed` for another scope, 400 `filters_unavailable` when the research index does not
+         *     serve the question (switch off or preview mode), 400 `bad_filter` for an unknown outcome or act key or `from` after
+         *     `to`). `against_state` is read by rule: allowed or partly allowed with the State as a current respondent, or
+         *     dismissed with the State as a current petitioner.
+         */
+        AssistantFiltersIn: {
+            /** Act */
+            act?: string | null;
+            /** Against State */
+            against_state?: boolean | null;
+            /** Cites */
+            cites?: string | null;
+            /** Forms */
+            forms?: ("judgment" | "final" | "interim")[] | null;
+            /** From */
+            from?: string | null;
+            /** Outcomes */
+            outcomes?: string[] | null;
+            /** Substantive Only */
+            substantive_only?: boolean | null;
+            /** To */
+            to?: string | null;
+        };
+        /** AssistantHighlightOut */
+        AssistantHighlightOut: {
+            /** End */
+            end: number;
+            /** Exact */
+            exact: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "passage" | "quote";
+            /** Start */
+            start: number;
+        };
+        /**
          * AssistantInternalIn
          * @description `POST /assistant/internal-records` (design assistant-ollama, decision 4).
          */
@@ -5982,6 +6096,7 @@ export interface components {
             outcome?: ("answered" | "no_match" | "failed") | null;
             /** Reply To Id */
             reply_to_id?: string | null;
+            retrieval?: components["schemas"]["AssistantRetrievalOut"] | null;
             /**
              * Role
              * @enum {string}
@@ -6017,6 +6132,86 @@ export interface components {
             kind: "document" | "court_order" | "case_tab" | "claim";
         };
         /**
+         * AssistantPassageOut
+         * @description Design research-index, API: the stored text of a cited order's page, with the passage and quotes as offsets
+         *     relative to the page (none when `text_changed`).
+         */
+        AssistantPassageOut: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Highlights */
+            highlights: components["schemas"]["AssistantHighlightOut"][];
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Page */
+            page: number;
+            /** Page Count */
+            page_count: number;
+            /** Page Text */
+            page_text: string;
+            /** Text Changed */
+            text_changed: boolean;
+        };
+        /**
+         * AssistantQuoteOut
+         * @description A quote of the answer matched in the stored text: `src` offsets, the page, and whether the words were found
+         *     exactly (`exact` false: the whole passage is marked).
+         */
+        AssistantQuoteOut: {
+            /** Exact */
+            exact: boolean;
+            /** Page */
+            page?: number | null;
+            /** Src */
+            src: number[];
+        };
+        /**
+         * AssistantResearchStateOut
+         * @description `off` (switched off or not the local model), `building` (under 99% of current chunks embedded under the live
+         *     model key), `ready`, or `unavailable` (the embedding model is not ready).
+         */
+        AssistantResearchStateOut: {
+            /** Coverage */
+            coverage?: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "off" | "building" | "ready" | "unavailable";
+        };
+        /**
+         * AssistantRetrievalOut
+         * @description Design research-index, decision 29: how the sources were found, counts only. `kind` `hybrid` (words and
+         *     meaning), `words_only` (the index without the question's vector; `reason`) or `words` (today's word search).
+         */
+        AssistantRetrievalOut: {
+            /** Embed Ms */
+            embed_ms?: number | null;
+            /** Fused */
+            fused?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "hybrid" | "words_only" | "words";
+            /** Lists */
+            lists?: {
+                [key: string]: number;
+            } | null;
+            /** Model Key */
+            model_key?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Stale Dropped */
+            stale_dropped?: number | null;
+        };
+        /**
          * AssistantStatusOut
          * @description `GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
          *     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design
@@ -6039,6 +6234,8 @@ export interface components {
              * @enum {string}
              */
             mode: "off" | "preview" | "sourcetrace" | "ollama";
+            /** @description design research-index, decision 32: the meaning search's state and coverage */
+            research?: components["schemas"]["AssistantResearchStateOut"];
             /** Scopes */
             scopes: ("case" | "my_cases" | "research" | "my_work")[];
             /**
@@ -8759,6 +8956,7 @@ export interface components {
             napix: components["schemas"]["NapixHealthOut"];
             order_sections?: components["schemas"]["OrderSectionsStatusOut"] | null;
             queue: components["schemas"]["QueueDepthsOut"];
+            research_index?: components["schemas"]["ResearchIndexStatusOut"] | null;
             retention?: components["schemas"]["RetentionOut"] | null;
             sourcetrace: components["schemas"]["SourcetraceStatusOut"];
             status_batches: components["schemas"]["StatusBatchesOut"] | null;
@@ -13911,6 +14109,81 @@ export interface components {
             } | null;
             /** Truncated */
             truncated: boolean;
+        };
+        /** ResearchChunkCountsOut */
+        ResearchChunkCountsOut: {
+            /**
+             * Case Sheet
+             * @default 0
+             */
+            case_sheet: number;
+            /**
+             * Order Body
+             * @default 0
+             */
+            order_body: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * ResearchIndexStatusOut
+         * @description Design research-index, decision 32: the research index, counts only. `readiness` `off`, `ready` (held and
+         *     loaded), `held` (held, not loaded) or `unavailable`; a part that ran out of time is named in `timed_out` and its
+         *     fields are null.
+         */
+        ResearchIndexStatusOut: {
+            chunks?: components["schemas"]["ResearchChunkCountsOut"] | null;
+            /** Coverage */
+            coverage?: number | null;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Failures Open
+             * @default 0
+             */
+            failures_open: number;
+            last_reconcile?: components["schemas"]["ResearchRunOut"] | null;
+            last_run?: components["schemas"]["ResearchRunOut"] | null;
+            /** Live Model Key */
+            live_model_key?: string | null;
+            /** Other Keys */
+            other_keys?: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Readiness
+             * @enum {string}
+             */
+            readiness: "off" | "ready" | "held" | "unavailable";
+            /** Table Sizes */
+            table_sizes?: {
+                [key: string]: number;
+            } | null;
+            /** Timed Out */
+            timed_out?: ("counts" | "sizes")[];
+            /** Vectors Live */
+            vectors_live?: number | null;
+            /** Waiting */
+            waiting?: number | null;
+        };
+        /** ResearchRunOut */
+        ResearchRunOut: {
+            /** Counters */
+            counters?: {
+                [key: string]: unknown;
+            };
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
         };
         /** ResetConfirmIn */
         ResetConfirmIn: {
@@ -23380,6 +23653,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantInternalOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    source_passage_assistant_messages__message_id__sources__label__passage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantPassageOut"];
                 };
             };
             /** @description Forbidden */

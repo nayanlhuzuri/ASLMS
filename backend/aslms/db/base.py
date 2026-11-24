@@ -6,6 +6,7 @@
 - `pg_enum()`      a native Postgres enum for machine states           (§7)
 - mixins           created_at / updated_at, actor snapshot, created_by / updated_by, ref_no, master lifecycle
 - `TableClass`     every model declares `__table_class__`; the class is written as COMMENT ON TABLE (§0)
+- `HalfVec`       pgvector's `halfvec`, bound as a text literal (§13; no vector library in the backend)
 """
 
 from __future__ import annotations
@@ -15,9 +16,10 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, MetaData, String, text
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, MetaData, String, cast, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
+from sqlalchemy.types import UserDefinedType
 from uuid6 import uuid7
 
 NAMING_CONVENTION = {
@@ -203,3 +205,38 @@ class MasterMixin(DeactivateMixin):
 
     valid_from: Mapped[date] = mapped_column(Date, nullable=False, server_default=text("current_date"))
     valid_to: Mapped[date | None] = mapped_column(Date)
+
+
+class HalfVec(UserDefinedType):
+    """pgvector's `halfvec` (DB_STANDARD §13; design `research-index`, decision 15). A list of floats is bound as the
+    text literal `[x,y,...]` and cast to `halfvec` in SQL, so the backend needs no `pgvector` package and no `numpy`.
+    Vectors are written, never read back: a query selects distances only. `dims` None renders the column without a
+    typmod (the stored column); a number renders `halfvec(n)` (a cast for the index of that dimension)."""
+
+    cache_ok = True
+
+    def __init__(self, dims: int | None = None):
+        self.dims = dims
+
+    def get_col_spec(self, **kw: Any) -> str:
+        return "halfvec" if self.dims is None else f"halfvec({int(self.dims)})"
+
+    def bind_processor(self, dialect: Any):
+        def process(value: Any) -> str | None:
+            return None if value is None else vector_literal(value)
+
+        return process
+
+    def bind_expression(self, bindvalue: Any) -> Any:
+        return cast(bindvalue, self)
+
+
+def vector_literal(values: Any) -> str:
+    """`[x,y,...]` for pgvector, each value as a finite float with 7 significant digits (a halfvec keeps about 3)."""
+    out = []
+    for v in values:
+        f = float(v)
+        if f != f or f in (float("inf"), float("-inf")):
+            raise ValueError("a vector holds only finite numbers")
+        out.append(format(f, ".7g"))
+    return "[" + ",".join(out) + "]"

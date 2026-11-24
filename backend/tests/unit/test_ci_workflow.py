@@ -112,8 +112,13 @@ def test_node_version_matches_the_portal_image(ci):
 
 
 def test_postgres_service_matches_compose(ci):
+    """Design research-index, decision 14: Compose builds `infra/postgres/Dockerfile` (the same server plus pinned
+    pgvector); CI keeps that Dockerfile's base image and installs the same pin (`test_pgvector_pin_same...`)."""
     compose = yaml.safe_load((ROOT / "compose.yml").read_text(encoding="utf-8"))
-    assert ci["jobs"]["backend"]["services"]["postgres"]["image"] == compose["services"]["postgres"]["image"]
+    postgres = compose["services"]["postgres"]
+    assert postgres["build"]["context"] == "./infra/postgres"
+    base = _dockerfile_from(ROOT / "infra" / "postgres" / "Dockerfile")
+    assert ci["jobs"]["backend"]["services"]["postgres"]["image"] == base == "postgres:16.15"
 
 
 def test_backend_requires_the_database(ci):

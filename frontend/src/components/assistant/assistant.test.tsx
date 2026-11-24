@@ -95,6 +95,8 @@ function cite(extra: Partial<AssistantCitation> = {}): AssistantCitation {
     internal: false,
     what: null,
     visibility: null,
+    quotes: [],
+    text_changed: false,
     ...extra,
   };
 }

@@ -53,7 +53,7 @@ from aslms.core import clock
 from aslms.core.config import Settings, get_settings
 from aslms.domain.assistant import AssistantConversation, AssistantMessage, AssistantScope, MessageRole
 from aslms.domain.cases import Case
-from aslms.domain.documents import Document, Order, SourcetraceStatus
+from aslms.domain.documents import Document, DocumentText, Order, SourcetraceStatus
 from aslms.domain.org import User
 from aslms.domain.reference import Permission, RefDocType, RefNoteKind
 from aslms.domain.workflow import CaseNote
@@ -78,6 +78,7 @@ from aslms.services import assistant_internal as internal_records
 from aslms.services import assistant_ollama as ollama
 from aslms.services import assistant_sources as src
 from aslms.services import assistant_work as work
+from aslms.services import research_search as rsearch
 from aslms.services.assistant_preview import PreviewConnector, PreviewTooBroad
 from aslms.services.audit import Actor, write_audit
 from aslms.services.documents import ServedFile, serve_stored
@@ -222,6 +223,27 @@ class InternalNotPermitted(AssistantError):
 
 class NoInternalRecords(AssistantError):
     code, http_status = "no_internal_records", 422
+
+
+class FiltersNotAllowed(AssistantError):
+    """Design `research-index`, decision 20: filters only for My Cases and All Court Orders."""
+
+    code, http_status = "filters_not_allowed", 400
+
+
+class FiltersUnavailable(AssistantError):
+    """Design `research-index`, decision 20 (review fix, deviation 18): the filters are applied by the research index
+    only, so they are refused when the index will not serve the question (`RESEARCH_INDEX_ENABLED` off, or preview
+    mode) rather than stored and silently ignored by the words search."""
+
+    code, http_status = "filters_unavailable", 400
+
+
+class BadFilter(AssistantError):
+    """Design `research-index`, decision 20: an unknown outcome, form or act key, a citation too long, or `from` after
+    `to`."""
+
+    code, http_status = "bad_filter", 400
 
 
 class ConversationNotFound(LookupError):
@@ -386,7 +408,48 @@ def status(
             if work_on
             else []
         ),
+        "research": research_status(session, settings, connector),
     }
+
+
+RESEARCH_READY = 0.99
+RESEARCH_CACHE_SECONDS = 60.0
+RESEARCH_STATUS_SECONDS = 2
+_research_coverage: dict[str, tuple[float, float | None]] = {}
+
+
+def research_status(
+    session: Session, settings: Settings, connector: AssistantConnector | None
+) -> dict[str, Any]:
+    """Design `research-index`, decision 32: `off` (switched off, or not the local model), `unavailable` (the embedding
+    model is not ready; a held model that is not loaded starts one background load), `building` (under 99% of current
+    chunks embedded under the live key) or `ready`; `coverage` cached 60 s per process and read under 2 s."""
+    if not bool(getattr(settings, "research_index_enabled", False)) or not isinstance(
+        connector, ollama.OllamaConnector
+    ):
+        return {"state": "off", "coverage": None}
+    from aslms.services import research_index
+    from aslms.services.reporting_common import isolated
+
+    key, _reason = connector.embed_key()
+    if key is None:
+        return {"state": "unavailable", "coverage": None}
+    now = time.monotonic()
+    hit = _research_coverage.get(key)
+    if hit is None or now - hit[0] > RESEARCH_CACHE_SECONDS:
+        got, _late = isolated(
+            session,
+            RESEARCH_STATUS_SECONDS,
+            int(getattr(settings, "assistant_preview_sql_ms", 8000)) // 1000 or 8,
+            lambda: research_index.counts(session, key),
+            part="research coverage",
+        )
+        hit = (now, float(got["coverage"]) if got else None)
+        _research_coverage[key] = hit
+    coverage = hit[1]
+    if coverage is None:
+        return {"state": "building", "coverage": None}
+    return {"state": "ready" if coverage >= RESEARCH_READY else "building", "coverage": coverage}
 
 
 # ------------------------------------------------------------------------------------------------ asking
@@ -411,6 +474,7 @@ class _Prepared:
     facts: tuple[str, ...] | None = (
         None  # design assistant-polish: a quick fact answered from the case record
     )
+    filters: rsearch.Filters = field(default_factory=rsearch.Filters)  # design research-index, decision 20
 
 
 @dataclass
@@ -611,6 +675,7 @@ def _prepare(
     config: AssistantConfig,
     via: str | None,
     facts: tuple[str, ...] | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> _Prepared:
     """Transaction A (decision 9). Design `assistant-polish`, decision 14: for a quick fact (`facts`) unchanged apart
     from the audit's `quick_fact`, and nothing gathered for a model (no case details, internal records or history)."""
@@ -621,6 +686,7 @@ def _prepare(
             raise BadQuestion("scope is one of case, my_cases, research, my_work")
         if scope != "case" and case is not None:
             raise ScopeMismatch("only a case-scope question names a case")  # before any lookup (finding 6)
+        chosen = _filters(s, scope, filters)
         case_row: Case | None = None
         if scope == "case":
             if case is None:
@@ -694,6 +760,8 @@ def _prepare(
             "filings_passed": len(filings),
             "truncated": truncated,
         }
+        if chosen.any:
+            scope_info["filters"] = chosen.stored()
         msg = AssistantMessage(
             conversation_id=conv.id,
             role=MessageRole.USER,
@@ -715,6 +783,8 @@ def _prepare(
             "filings_passed": scope_info["filings_passed"],
             "truncated": truncated,
         }
+        if chosen.any:
+            after["filters"] = chosen.stored()
         if facts:
             after["quick_fact"] = list(facts)
         elif mode == "ollama":
@@ -762,9 +832,36 @@ def _prepare(
             internal=internal,
             question=q,
             facts=facts,
+            filters=chosen,
         )
         s.commit()
     return prepared
+
+
+def _has_filters(raw: dict[str, Any] | None) -> bool:
+    return bool(raw) and any(v not in (None, False, "", [], ()) for v in raw.values())
+
+
+def _filters_served(connector: AssistantConnector) -> bool:
+    """True only when the connector searches My Cases and All Court Orders through the research index, the one path
+    that applies the filters (ollama mode with `RESEARCH_INDEX_ENABLED`)."""
+    return isinstance(connector, ollama.OllamaConnector) and bool(getattr(connector, "research_on", False))
+
+
+def _filters(s: Session, scope: str, raw: dict[str, Any] | None) -> rsearch.Filters:
+    """Design `research-index`, decision 20: filters only for `my_cases` and `research` (400 `filters_not_allowed`),
+    checked (400 `bad_filter`), before anything is stored."""
+    if not _has_filters(raw):
+        return rsearch.Filters()
+    if scope not in ("my_cases", "research"):
+        raise FiltersNotAllowed("filters are for My Cases and All Court Orders only")
+    try:
+        parsed = rsearch.parse_filters(raw)
+        if parsed.act and not rsearch.act_known(s, parsed.act):
+            raise rsearch.BadFilter("no such act key")
+    except rsearch.BadFilter as exc:
+        raise BadFilter(str(exc)) from exc
+    return parsed
 
 
 def _valid(answer: Any) -> bool:
@@ -987,6 +1084,7 @@ def _map_ollama(
     it was switched on before this question's transaction A, the record belongs to the conversation's case and was in
     the set gathered there. Otherwise `NotCitable` (the whole answer is withheld). References only, never text."""
     gathered = _internal_set(prepared)
+    sheets: set[str] = set()
     court: list[dict[str, Any]] = []
     rest: list[tuple[int, dict[str, Any]]] = []
     for pos, c in enumerate(citations):
@@ -1002,12 +1100,16 @@ def _map_ollama(
             item["source_kind"] = verified
             if c.context:
                 item["context"] = c.context[:MAX_CONTEXT]
+            if verified == "court_order" and c.record:
+                item.update(_research_fields(session, item, dict(c.record)))
             court.append(item)
             rest.append((pos, item))
             continue
         record = dict(c.record or {})
         if kind == "case_details":
             rest.append((pos, {**base, "case_id": record.get("case_id"), **_details_ref(record)}))
+            if record.get("sheet"):
+                sheets.add(str(record.get("case_id")))
             continue
         if not (
             prepared.mode == "ollama"
@@ -1059,10 +1161,62 @@ def _map_ollama(
             )
     court_cases = {str(i.get("case_id")) for i in court if i.get("case_id")}
     allowed_cases = court_cases | {str(f) for f in (prepared.focus_ids or [])}
+    if prepared.scope == "research":
+        # design research-index, decision 18: a matching case sheet's Case Details, court-public in research
+        allowed_cases |= sheets
     for _pos, item in rest:
         if item["source_kind"] == "case_details" and str(item.get("case_id")) not in allowed_cases:
             raise src.NotCitable("case details of a case outside the sources")
     return [item for _pos, item in sorted(rest, key=lambda t: t[0])]
+
+
+RESEARCH_FIELDS = (
+    "chunk_id",
+    "reading_id",
+    "paragraphs",
+    "src",
+    "pdf_sha256",
+    "text_sha256",
+    "parser_version",
+    "chunker_version",
+    "model_key",
+    "match",
+    "same_words_in",
+)
+
+
+def _research_fields(session: Session, item: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Design `research-index`, decisions 13 and 29: a court-order citation from the index keeps its traceability
+    fields; its order is the one the passage was read through when that order holds the cited document. A matched
+    quote is found in the stored text inside the passage's `src` span by its words joined by any whitespace
+    (`exact: true`), else the passage is marked (`exact: false`)."""
+    out = {k: record.get(k) for k in RESEARCH_FIELDS if k in record}
+    oid = _uuid(record.get("order_id"))
+    if oid is not None:
+        held = session.scalar(
+            select(Order.case_id).where(Order.id == oid, Order.document_id == _uuid(item.get("document_id")))
+        )
+        if held is not None:
+            out["order_id"] = str(oid)
+            out["case_id"] = str(held)
+    texts = [t for t in record.get("quote_texts") or [] if isinstance(t, str) and t.strip()]
+    span = record.get("src")
+    if texts and span and item.get("document_id"):
+        full = session.scalar(
+            select(DocumentText.full_text).where(DocumentText.document_id == _uuid(item["document_id"]))
+        )
+        out["quotes"] = [_locate_quote(full or "", t, span, item.get("page")) for t in texts]
+    return out
+
+
+def _locate_quote(full: str, quote: str, span: list[int], page: int | None) -> dict[str, Any]:
+    words = [re.escape(w) for w in re.split(r"\s+", quote.strip().strip('"“”')) if w]
+    s0, e0 = int(span[0]), int(span[1])
+    m = re.search(r"\s+".join(words), full[s0:e0]) if words else None
+    if m is not None:
+        a, b = s0 + m.start(), s0 + m.end()
+        return {"src": [a, b], "page": full.count("\f", 0, a) + 1, "exact": True}
+    return {"src": [s0, e0], "page": page, "exact": False}
 
 
 def _details_ref(record: dict[str, Any]) -> dict[str, Any]:
@@ -1200,6 +1354,9 @@ def _ollama_audit(info: dict[str, Any], citations: list[dict[str, Any]] | None) 
         "cited": cited,
         "invalid_markers": int(info.get("invalid_markers") or 0),
         "overlap_prev": info.get("overlap_prev"),  # design assistant-polish, decision 8: a number, never text
+        # design research-index, decision 33: counts only, never text
+        "retrieval": info.get("retrieval"),
+        "checks": info.get("checks"),
     }
 
 
@@ -1216,6 +1373,7 @@ async def ask(
     connector: AssistantConnector | None,
     config: AssistantConfig,
     via: str | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> AskResult:
     """Decisions 5, 6, 9, 10 and 12: refusals before storing raise (`AssistantOff`, `BadQuestion`, `ScopeMismatch`,
     `ConversationFull`, `QuestionInFlight`, `AssistantLimit`, `NotVisibleCase`, `ConversationNotFound`); a
@@ -1226,6 +1384,10 @@ async def ask(
     from the case's court record in a read-only session, and is stored by transaction B with the connector `facts`."""
     if connector is None:
         raise AssistantOff("the Case Assistant is off")
+    if _has_filters(filters) and scope not in ("my_cases", "research"):
+        raise FiltersNotAllowed("filters are for My Cases and All Court Orders only")
+    if _has_filters(filters) and not _filters_served(connector):
+        raise FiltersUnavailable("filters need the research index, which is not serving questions")
     if scope == "my_work":
         return await _ask_work(
             Session,
@@ -1276,6 +1438,7 @@ async def ask(
             connector=connector,
             config=config,
             via=via,
+            filters=filters,
         )
         invoke = None
         if isinstance(connector, ollama.OllamaConnector):
@@ -1287,7 +1450,7 @@ async def ask(
             else:
 
                 def invoke():
-                    return connector.ask(prepared.request, details=prepared.details)
+                    return connector.ask(prepared.request, details=prepared.details, filters=prepared.filters)
 
         result = await _call(
             connector, prepared.request, config, conversation_id=prepared.conversation_id, invoke=invoke
@@ -1865,6 +2028,10 @@ def _unavailable(kind: str) -> dict[str, Any]:
         "what": None,
         "visibility": None,
         "work": None,  # design assistant-ollama-work: a My Work row's fields, never on another kind
+        # design research-index: a court-order citation's index fields, naming nothing either
+        **dict.fromkeys(RESEARCH_FIELDS),
+        "quotes": [],
+        "text_changed": False,
     }
 
 
@@ -2159,6 +2326,9 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
     )
     labels = {r.code: r.label for r in session.scalars(select(RefDocType)).all()}
     openable = _document_openable_cases(session, user, visible)
+    # design research-index, decision 13: a citation whose order now has another text hash is flagged on read
+    hashed = {d for _, c in cits if c.get("text_sha256") and (d := _uuid(c.get("document_id")))}
+    text_hashes = current_text_hashes(session, hashed)
     details_cache: dict[
         tuple, str | None
     ] = {}  # design assistant-polish-followups, decision 4: this call only
@@ -2237,6 +2407,7 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
             "unavailable_reason": None,
             "open": open_,
             **extra,
+            **_research_out(c, text_hashes.get(doc_id) if kind == "court_order" else None),
         }
 
     out = []
@@ -2266,10 +2437,14 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
                     {
                         "invalid_markers": int(info.get("invalid_markers") or 0),
                         "cut_short": bool(info.get("cut_short")),
+                        **_sentence_checks(info.get("checks")),
                     }
                     if is_ollama
                     else None
                 ),
+                "retrieval": info.get("retrieval")
+                if is_ollama and isinstance(info.get("retrieval"), dict)
+                else None,
                 "internal_used": any(
                     i["source_kind"] in INTERNAL_KINDS and i.get("cited", True) for i in items
                 ),
@@ -2286,6 +2461,111 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
             }
         )
     return out
+
+
+def current_text_hashes(session: Session, document_ids: set[uuid.UUID]) -> dict[uuid.UUID, str | None]:
+    """The SHA-256 of each document's stored text today (as `order_sections.text_sha256` is computed)."""
+    if not document_ids:
+        return {}
+    rows = session.execute(
+        text(
+            "SELECT document_id, encode(sha256(convert_to(full_text, 'UTF8')), 'hex') FROM document_text "
+            "WHERE document_id = ANY(:ids)"
+        ),
+        {"ids": list(document_ids)},
+    ).all()
+    out: dict[uuid.UUID, str | None] = dict.fromkeys(document_ids)
+    out.update({d: h for d, h in rows})
+    return out
+
+
+def _research_out(c: dict[str, Any], current_hash: str | None) -> dict[str, Any]:
+    """Design `research-index`, decisions 13 and 29: a court-order citation's traceability fields, its quotes, and
+    `text_changed` computed on read."""
+    if not c.get("text_sha256"):
+        return {}
+    out = {k: c.get(k) for k in RESEARCH_FIELDS}
+    out["quotes"] = list(c.get("quotes") or [])
+    out["text_changed"] = current_hash != c.get("text_sha256")
+    return out
+
+
+def _sentence_checks(checks: Any) -> dict[str, Any]:
+    """Decision 29's `model_info.checks`, counts only, for the message (absent on answers before the checks)."""
+    if not isinstance(checks, dict):
+        return {}
+    return {
+        "sentences": checks.get("sentences"),
+        "kept": checks.get("kept"),
+        "removed": checks.get("removed"),
+        "withheld": checks.get("withheld"),
+    }
+
+
+# ------------------------------------------------------------------------------------------------ the passage view
+
+
+def passage_for(session: Session, user: User, message_id: uuid.UUID, label: str) -> dict[str, Any]:
+    """`GET /assistant/messages/{id}/sources/{label}/passage` (design `research-index`, API): only for a court-order
+    citation with `src` in an answer of the reader's own conversation (`CourtOrderNotFound` otherwise). The stored text
+    of the cited page (`document_text.full_text` split at form feeds) with the passage and the matched quotes as
+    offsets relative to that page. When the order's text has changed since the answer, `text_changed` is true and no
+    offset is given. Court-public text; not audited."""
+    msg = session.get(AssistantMessage, message_id)
+    if msg is None or _value(msg.role) != "assistant":
+        raise CourtOrderNotFound("no such source")
+    try:
+        own_conversation(session, user, msg.conversation_id)
+    except ConversationNotFound as exc:
+        raise CourtOrderNotFound("no such source") from exc
+    cit = next(
+        (
+            c
+            for c in (msg.citations or [])
+            if c.get("label") == label and c.get("source_kind") == "court_order" and c.get("src")
+        ),
+        None,
+    )
+    doc_id = _uuid(cit.get("document_id")) if cit else None
+    order_id = _uuid(cit.get("order_id")) if cit else None
+    if cit is None or doc_id is None or order_id is None:
+        raise CourtOrderNotFound("no such source")
+    if not session.scalar(select(exists(src.court_order_documents({doc_id})))):
+        raise CourtOrderNotFound("no such source")
+    full = session.scalar(select(DocumentText.full_text).where(DocumentText.document_id == doc_id)) or ""
+    current = current_text_hashes(session, {doc_id}).get(doc_id)
+    changed = current != cit.get("text_sha256")
+    pages = full.split("\f")
+    s0, e0 = int(cit["src"][0]), int(cit["src"][1])
+    page = full.count("\f", 0, s0) + 1 if not changed else int(cit.get("page") or 1)
+    page = max(1, min(page, len(pages)))
+    start = sum(len(p) + 1 for p in pages[: page - 1])
+    page_text = pages[page - 1]
+    highlights: list[dict[str, Any]] = []
+    if not changed:
+
+        def clip(a: int, b: int) -> tuple[int, int] | None:
+            a2, b2 = max(a, start) - start, min(b, start + len(page_text)) - start
+            return (a2, b2) if b2 > a2 else None
+
+        span = clip(s0, e0)
+        if span:
+            highlights.append({"start": span[0], "end": span[1], "kind": "passage", "exact": True})
+        for q in cit.get("quotes") or []:
+            got = clip(int(q["src"][0]), int(q["src"][1]))
+            if got:
+                highlights.append(
+                    {"start": got[0], "end": got[1], "kind": "quote", "exact": bool(q.get("exact"))}
+                )
+    return {
+        "order_id": order_id,
+        "document_id": doc_id,
+        "page": page,
+        "page_count": len(pages),
+        "page_text": page_text,
+        "highlights": highlights,
+        "text_changed": changed,
+    }
 
 
 def conversation(

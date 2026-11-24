@@ -1123,3 +1123,93 @@ holds `embeddinggemma:300m` and `qwen3.5:4b`.
   "research index held in SourceTrace", then sent to SourceTrace when row 36 arrives.
 - **`against_state` by rule confirmed:** `allowed` or `partly_allowed` with the State as a current respondent, or
   `dismissed` with the State as a current petitioner; disposed of, withdrawn and closed count neither way.
+
+## Deviations
+
+Round 1 (row 251, backend), recorded by the developer on 23 Nov 2026. Each is the smallest choice where the note is
+silent or where a literal reading could not be built; none changes a business rule.
+
+1. **No second split at embedding time (decision 9).** A chunk set is fixed once it is cut (the retire-once trigger),
+   so a chunk cannot be split again after Ollama refuses it. An input still refused as too long (400 or 413) is retried
+   alone, then recorded in `source_failures` (kind `research_embed`, family `too_long`) and retried by the 01:45
+   reconcile; it is never cut short. With the cap at 2.5 characters a token (about 1,200 of the 2,048 tokens) the model
+   test refused no input.
+2. **The backfill writes one `job_runs` row per phase**, with that phase's counters and `backfill: 1`, not one per
+   batch (about 26,000 rows for the first backfill). It still commits every batch and resumes where it stopped.
+3. **The job's first run looks back one day.** With no watermark yet, the 5-minute job cuts sets for readings of the
+   last 24 hours only; older readings come from the backfill and the 01:45 reconcile, so the job never scans the whole
+   table every 5 minutes. After `aslms research-index rebuild --chunks` the runbook step is the backfill (or the next
+   reconcile), which cuts every set again.
+4. **The research modules read the Case Assistant contract's types** (`AskRequest`, `AskScope`, `CaseContext` and the
+   error classes) from `integration/sourcetrace/connector.py`; the connector-import guard of `test_sourcetrace.py`
+   lists `services/research_embed.py`, `services/research_search.py` and `cli/research.py` beside today's modules.
+   They call nothing in that package.
+5. **A matching case sheet's Case Details** is marked `sheet` in its citation record and accepted as a citation in All
+   Court Orders (court-public, `assistant` decision 3), as a court source's case already is; in My Cases a sheet is
+   always one of the asker's own cases. Without the case page's read guard (`details` false) a sheet hit brings no
+   source of its own, as today's compact Case Details.
+6. **Readiness values.** The data-health block's `readiness` is `off`, `ready` (held and loaded), `held` (held, not
+   loaded) or `unavailable`; `GET /assistant/status` keeps the design's four states. `coverage` there is cached 60 s
+   per process and read under 2 s.
+7. **API additions beyond the table, read-only.** The message's `checks` gains the counts of decision 29 (`sentences`,
+   `kept`, `removed`, `withheld`) and the message gains `retrieval` (decision 29, counts only); the data-health block
+   is `ResearchIndexStatusOut`. Filters are sent as `filters.from` and `filters.to` (aliases of `date_from` and
+   `date_to`).
+8. **`aslms research-index search` gains `--login`** to name the login whose cases My Cases searches.
+9. **Quote location (decision 29).** A matched quote is looked for inside the passage's matched paragraphs (`src` span),
+   words joined by any whitespace; failing that the passage is marked with `exact: false`. The connector hands the
+   quoted words to transaction B in the citation record; only the offsets are stored.
+10. **The asking flag (decision 22)** is set when a slot is taken (also for My Work), renewed just before the chat
+    call and deleted at release. Without `REDIS_URL` nothing is set and the job never waits.
+11. **`against_state`** reads the State in a current party's name with a SQL pattern equal to
+    `insights_rules.STATE_PARTY_RE`, on the fused candidates only.
+12. **Frontend touched only for text the audit screen needs**: the new audit action `research_index.rebuilt` has a
+    name ("Research Index Rebuilt") and its group a label ("Research Index") in `messages.ts`, `enumCodes.json` is
+    re-exported, and `openapi.json` and `src/lib/api/schema.d.ts` are regenerated. No screen changes (round 2).
+13. **Tests need pgvector on the test server.** The Compose `postgres` service runs `postgres:16.15` until the deploy
+    recreates it from `infra/postgres/Dockerfile`, so the database suite was run against a private server built from
+    that image (`aslms/postgres:16.15-pgvector0.8.7` on 127.0.0.1:7445, `ASLMS_TEST_DATABASE_URL`), as CI installs the
+    same pin in its service container. The dev database was not touched.
+14. **The pgvector build is `0.8.7-1.pgdg13+1`, not `+2`.** Decision 14 names `0.8.7-1.pgdg13+2` and also says the
+    server binary stays the same 16.15 package. Both cannot hold: `+2` depends on `postgresql-16 (>> 16.16)`, so
+    installing it replaced the server with 16.16 in the image (and would do so in CI's running service container).
+    `+1` is the same pgvector 0.8.7 and depends on `postgresql-16` with no version, so the server stays
+    `16.15-1.pgdg13+2`. The pin moves to `+1` in `infra/postgres/Dockerfile` and CI (the guard test reads both), and
+    both now check that the installed `postgresql-16` package still equals the base image's `PG_VERSION`, so a later
+    pin that changes the server fails the build. The full suite, migration up/down/up included, was run against a
+    private server from this image (`aslms/postgres:16.15-pgvector0.8.7` rebuilt with `--no-cache`, 127.0.0.1:7445).
+
+Round 1 review fixes (recorded by the developer on 24 Nov 2026). Three blocking findings of the review; none changes a
+business rule.
+
+15. **The index query orders by the distance alone (decision 15).** The large-set meaning query (All Court Orders,
+    related orders) is ordered by `(embedding::halfvec(768)) <=> :v` and nothing else; the extra key `c.id` that made
+    PostgreSQL scan and sort every live vector is gone (`research_search.meaning_sql`). Rows at exactly the same
+    distance come in index order. The exact scan (My Cases, small filtered sets) keeps `c.id` as its tie-break. A
+    database test reads the plan with the sequential scan priced out and requires `ix_research_embeddings_hnsw_768`.
+16. **The 5-minute job keeps two cursors (decision 30).** The note names one watermark. `watermark` (chunk sets and
+    orphan sets) still moves only once every set since it is cut; each run cuts new keys only, so a backlog shrinks.
+    Case sheets move on their own keyset cursor, `sheet_watermark` with `sheet_after` (the time of a case's latest
+    change and its id): after a full page of 500 changed cases the cursor sits on the page's last case, so the next
+    run reads the next page and never the same one again; after a short page it moves to the run's start minus the
+    60 s slack. A full page's cursor is never placed later than that slack, so a change still being committed is not
+    missed. The job takes its cursors from the latest run that has a watermark, so a backfill phase row or a failed run
+    no longer sends it back to the first day's look-back.
+17. **The job retires an orphan set only once its orders' new sets are cut (decisions 12 and 13).** In the job,
+    `retire_orphans` leaves an old set while any order that held it has a current reading (with a body) whose set is
+    not cut yet, and `retire_unused` then looks only at the embedding inputs of the chunks just retired. So a parser
+    version bump that re-reads every order keeps every vector while the job cuts the new sets 500 a run, and the new
+    sets find the same vectors by hash with no model call. A current reading whose body gives no chunk keeps the old
+    set until the 01:45 reconcile, which cuts before it retires vectors and is unchanged. A database test bumps the
+    parser version over three orders and cuts one set a run.
+
+Round 1 second review fix (recorded by the developer on 24 Nov 2026). One blocking finding; no business rule changes.
+
+18. **Filters are refused when the index will not serve the question (decision 20).** The filters are applied by the
+    research index only; today's words search (`RESEARCH_INDEX_ENABLED` off, the default after deploy, or preview
+    mode) cannot apply them. So `POST /assistant/ask` with filters on My Cases or All Court Orders now answers 400
+    `filters_unavailable` unless the connector is the local model with the switch on, checked with the other
+    refusals before anything is stored or audited; a filtered question is never recorded as filtered and answered
+    unfiltered. With the switch on, a question that cannot be embedded still goes through the index (words over the
+    index) and keeps its filters. `AssistantFiltersIn`'s description names the new code; `openapi.json` and
+    `schema.d.ts` are regenerated.

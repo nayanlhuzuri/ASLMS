@@ -165,6 +165,16 @@ jobs:
             docker exec "$PG" psql -U aslms -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET $setting"
           done
           docker exec "$PG" psql -U aslms -d postgres -v ON_ERROR_STOP=1 -c "SELECT pg_reload_conf()"
+      - name: pgvector in the service container (the pin of infra/postgres/Dockerfile)
+        # design research-index, decision 14: the same PGDG build as the image; a guard test compares the two pins.
+        # When PGDG withdraws the build this step fails loudly: move the pin here and in the Dockerfile in one commit.
+        env:
+          PG: ${{ job.services.postgres.id }}
+          PGVECTOR_VERSION: 0.8.7-1.pgdg13+1
+        run: |
+          docker exec -u root "$PG" sh -c "apt-get update && apt-get install -y --no-install-recommends postgresql-16-pgvector=$PGVECTOR_VERSION"
+          docker exec "$PG" test -f /usr/share/postgresql/16/extension/vector.control
+          docker exec "$PG" sh -c 'test "$(dpkg-query -W -f="\${Version}" postgresql-16)" = "$PG_VERSION"'
       - name: Install
         # exactly the lock (design dependency-locks, decision 5): requirements/dev.txt holds the image's
         # requirements/image.txt at the same versions, hash-checked, wheels only; the project adds nothing

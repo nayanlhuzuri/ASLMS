@@ -87,6 +87,8 @@ def test_status_and_me_assistant_mode(world, api, tmp_path):
             for q in work.WORK_QUESTIONS
             if q.key != "awaiting_claim"
         ],
+        # design research-index, decision 32: the meaning search is off outside the local model
+        "research": {"state": "off", "coverage": None},
     }
     # preview with APP_ENV=prod answers off too: a unit test (a prod app refuses the test database superuser)
     for mode, extra, me_mode, state in (
@@ -145,6 +147,20 @@ def test_ask_and_read_back_shapes(world, api, case_ids):
         "visibility",
         # design assistant-ollama-work: a My Work row's fields, null on a court citation
         "work",
+        # design research-index: a court-order citation's index fields, null or empty on a preview answer
+        "chunk_id",
+        "reading_id",
+        "paragraphs",
+        "src",
+        "pdf_sha256",
+        "text_sha256",
+        "parser_version",
+        "chunker_version",
+        "model_key",
+        "match",
+        "same_words_in",
+        "quotes",
+        "text_changed",
     }
     assert cit["case"]["visible"] is True and cit["available"] is True
     kinds = {c["source_kind"] for c in a["citations"]}

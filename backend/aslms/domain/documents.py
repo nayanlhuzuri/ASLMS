@@ -320,6 +320,19 @@ class OrderSection(TimestampMixin, Base):
         ),
         Index("ix_order_sections_order_created", "order_id", "created_at"),
         Index("ix_order_sections_body_sha256", "body_sha256", postgresql_where=text("replaced_at IS NULL")),
+        # the research index's filters on cited judgments and acts (design research-index, decision 20; migration 0042)
+        Index(
+            "ix_order_sections_facts_judgments",
+            text("(facts -> 'judgments') jsonb_path_ops"),
+            postgresql_using="gin",
+            postgresql_where=text("replaced_at IS NULL"),
+        ),
+        Index(
+            "ix_order_sections_facts_acts",
+            text("(facts -> 'acts') jsonb_path_ops"),
+            postgresql_using="gin",
+            postgresql_where=text("replaced_at IS NULL"),
+        ),
         CheckConstraint("(replaced_at IS NULL) = (replace_reason IS NULL)", name="replaced"),
         CheckConstraint(
             "(replaced_by_id IS NULL OR replaced_at IS NOT NULL) AND (replace_reason IS NULL OR "

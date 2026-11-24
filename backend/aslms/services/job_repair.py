@@ -40,6 +40,8 @@ SCHEDULER_JOBS = frozenset(
         "order_sections",  # design order-sections, decision 22
         "insights-refresh",  # design state-insights, decision 30
         "insights-rebuild",
+        "research_index",  # design research-index, decision 30
+        "research_index_reconcile",
     }
 )
 # `aslms ops backup-scheduler` (services/backups.py)

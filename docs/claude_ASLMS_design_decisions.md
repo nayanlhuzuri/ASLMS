@@ -4354,3 +4354,79 @@ runbook section 27.
   `embeddinggemma:300m` (fused recall@10 86.4 against 83.4 for the next); the local index (a recorded deviation from the
   plan's SourceTrace index) and `against_state` by rule confirmed; pgvector 0.8.7 in the project's PostgreSQL image and
   migration 0042; round 2 added as row 275 `research-index-portal`.
+
+## Research index, round 1: meaning search and checked answers (2026-11-23)
+Backlog row 251 `research-index`, branch `feature/research-index`, design `docs/design/research-index.md` (approved by the
+owner 23 Nov 2026), tested and reviewed. Backend only; the portal side is row 275. Migration 0042. **Not yet deployed.**
+
+**What was built.**
+- **Tables (migration 0042, derived and re-buildable):** `research_chunks` (order-body chunks cut from row 250's readings,
+  one set per key `body_sha256` + `form` + `parser_version` + `chunker_version`, shared by every order with that body, and
+  one case sheet per case) and `research_embeddings` (one `halfvec` per exact input and model key, never deleted, only
+  retired). Both are retire-once by trigger and have no DELETE grant for `aslms_app`. The extension `vector` (pgvector
+  0.8.7) is created by `migrate` as the cluster superuser. Two partial GIN indexes on `order_sections` (`facts->judgments`,
+  `facts->acts`) serve the `cites` and `act` filters. One HNSW partial expression index at 768 dimensions.
+- **The server image:** `infra/postgres/Dockerfile` (`postgres:16.15` plus the pinned pgvector); Compose `postgres` builds
+  `aslms/postgres:16.15-pgvector0.8.7`; CI installs the same pin in its service container; a guard test compares both.
+  `scheduler` gains `extra_hosts` for the host's Ollama. `DB_STANDARD.md` is v1.4 (new section 13, vector data).
+- **Embedding:** `OllamaClient.embed` / `embed_sync` (`POST /api/embed`, `truncate: false`, `num_ctx` and `num_batch` both
+  at the profile's input limit) in `integration/ollama/`; `services/research_chunks.py` (pure chunker, context line, case
+  sheet, `EMBED_PROFILES`), `research_index.py` (sets, orphans, sheets, reconcile, status, rebuild), `research_embed.py`
+  (model key, batches, the 5-minute job, backfill, the asking-flag wait). Jobs `research-index` (every 5 minutes, minute 4
+  onward) and `research-index-reconcile` (01:45 IST); both skip Ollama when `RESEARCH_INDEX_ENABLED` is false or the model
+  is not ready, and neither touches `fetch_queue` or NAPIX.
+- **Retrieval:** `services/research_search.py`, hybrid retrieval for All Court Orders, My Cases and the related orders of
+  This Case: a words list and a meaning list merged by reciprocal rank fusion (k = 60), weights (procedural x 0.5, final or
+  judgment x 1.2), shared bodies as one item with `same_words_in`, at most 2 passages per order, small-to-big reading
+  inside one part, orders not yet indexed still found by page word search, a changed text never cited (`stale_dropped`).
+  A question's vector is made in the api within 5 s or the answer is words only (`retrieval.kind = words_only`).
+- **Answer checks:** `services/answer_checks.py` and `answer_check_rules.py` (pure, no switch): every local-model answer in
+  the scopes `case`, `my_cases` and `research` is checked sentence by sentence (quotes character for character, a citation
+  on every factual sentence, dates, numbers, case numbers, names and outcomes found in the cited text). A failing sentence
+  is removed with one visible line; the answer is withheld when the first sentence, more than half, or every cited
+  sentence fails. `PROMPT_VERSION` 3 (rules 9 and 10), `CHECKS_VERSION` 1. My Work and quick facts are not checked.
+- **API (read-only additions, no new function):** `filters` on `POST /assistant/ask` (forms, substantive only, outcomes,
+  `against_state`, `cites`, `act`, `from`, `to`; 400 `filters_not_allowed`, `bad_filter`, `filters_unavailable`);
+  `retrieval` and `checks` on a message; the citation fields (`chunk_id`, `reading_id`, `paragraphs`, `src`, hashes,
+  versions, `model_key`, `match`, `quotes`, `text_changed`); `GET /assistant/messages/{id}/sources/{label}/passage`;
+  `research` on `GET /assistant/status`; the `research_index` block on data-health; the `research_model` System Health
+  check; audit action `research_index.rebuilt`.
+- **Commands and settings:** `aslms research-index status | run [--backfill] [--chunks-only] [--limit] [--pause-ms] |
+  rebuild (--chunks | --embeddings) --yes | search [--scope] [--explain] [--login]`; nine `RESEARCH_*` settings in
+  `.env.example`, `RESEARCH_INDEX_ENABLED` false by default; runbook `docs/operations.md` section 28.
+
+**Decisions and reasons.**
+- **Local first, a recorded deviation from the plan** (which holds the research index in SourceTrace): owner's case research
+  plan of 12 Nov 2026, confirmed 23 Nov. Local Ollama only, court information only, `no_local_model` stays fatal. When row 36
+  arrives its design decides whether chunks and case sheets move there. `docs/design/assistant-ollama.md` is amended.
+- **The model is `embeddinggemma:300m`,** chosen by the rule on the model test of 23 Nov 2026 (fused recall@10 86.4 against
+  83.4 qwen3-embedding, 77.4 bge-m3, 64.3 nomic-embed-text; 768 dimensions, cap 5,120 characters). The key is name plus the
+  first 12 digits of the digest, so a re-pull or a new model makes a new key and old vectors stop being used at once, with the
+  words list carrying the search until the new vectors exist. The AI-written judgment context sentence was tested and not
+  adopted (no gain).
+- **Chunks follow row 250's structure** (an interim body whole; runs of whole paragraphs inside one part for finals and
+  judgments; split only above the cap, at a sentence end; no overlap). The embedded context line holds only what every order
+  with that body shares, so identical bodies are embedded once; the full line (date, case number, judge, part, pages) is built
+  when a chunk is read.
+- **`against_state` is read by rule** (allowed or partly allowed with the State a respondent; dismissed with the State a
+  petitioner), labelled "Outcome Against the State (Read by Rule)".
+- **Rules cannot catch a wrong reading of correctly quoted text:** answers stay labelled as AI and every source stays shown.
+
+**Deviations from the design note** (the note's Deviations 1 to 18 are the record). Those that matter to a reader:
+- The pgvector pin is `0.8.7-1.pgdg13+1`, not `+2`: `+2` depends on `postgresql-16 (>> 16.16)` and would have replaced the
+  server with 16.16. The Dockerfile and CI both check the server package still equals the base image.
+- A chunk set is fixed once cut, so a refused input is retried alone then recorded in `source_failures` (kind
+  `research_embed`), never split again or cut short.
+- Review fixes: the large-set meaning query orders by distance alone so HNSW is used (a plan test guards it); the 5-minute job
+  keeps two cursors (sets, and case sheets on a keyset cursor); an orphan set is retired only once its orders' new sets are
+  cut, so a parser-version bump keeps every vector; filters answer 400 `filters_unavailable` when the index will not serve
+  the question, so a filtered question is never answered unfiltered.
+- The test database needs pgvector: the database suite was run on a private server built from the new image.
+
+**Left for later.**
+- Deploy: build the `postgres` image from a clean worktree of `main`, `pre-migrate` backup, recreate `postgres` on the same
+  volume, `migrate`, `docker compose build`, `ollama pull embeddinggemma:300m`, then `aslms research-index run --chunks-only
+  --backfill` with the switch off, then the switch on and the backfill. Record counts, sizes, GPU rate and the 20-question
+  search check (design Verification 3 to 6, 8).
+- Row 275 `research-index-portal` (round 2). Row 276 `research-index-docs` (new): the Word guides and the Annexure E worked
+  example (Verification 7).

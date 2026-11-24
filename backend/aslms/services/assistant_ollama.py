@@ -34,7 +34,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, aliased, sessionmaker
 
@@ -49,8 +49,10 @@ from aslms.integration.sourcetrace.connector import (
     SourceTraceProtocolError,
     SourceTraceUnavailable,
 )
+from aslms.services import answer_checks, next_hearing
 from aslms.services import assistant_sources as src
-from aslms.services import next_hearing
+from aslms.services import research_embed as remb
+from aslms.services import research_search as rsearch
 from aslms.services.assistant_internal import InternalRecords
 from aslms.services.assistant_preview import (
     NO_MATCH_LINE,
@@ -67,7 +69,9 @@ log = logging.getLogger(__name__)
 
 NAME = "ollama"
 ENGINE = "ollama"
-PROMPT_VERSION = 2  # design assistant-polish, decision 3: rules 7 and 8
+PROMPT_VERSION = (
+    3  # design assistant-polish, decision 3: rules 7 and 8; design research-index, decision 28: 9 and 10
+)
 SYSTEM_PROMPT = "\n".join(
     [
         "You answer questions from officers of the Government of Assam about cases before the Gauhati High Court.",
@@ -86,6 +90,8 @@ SYSTEM_PROMPT = "\n".join(
         "8. When the question asks for one fact (a date, a name, a number or a status), answer in one sentence.",
         "Otherwise answer in as few sentences as the question needs, in plain text without headings or tables, and",
         "never in more than 200 words.",
+        "9. Put the direct answer in the first sentence.",
+        "10. When you quote, copy the words exactly and put them in double quotes.",
     ]
 )
 EARLIER_HEADER = "Earlier questions in this conversation (context only; they have been answered already):"
@@ -141,16 +147,20 @@ class Readiness:
 
 
 class Slot:
-    """One taken slot; `release` is idempotent."""
+    """One taken slot; `release` is idempotent. `on_release` (design research-index, decision 22: the asking flag
+    cleared) runs once at release."""
 
-    def __init__(self, sem: threading.BoundedSemaphore):
+    def __init__(self, sem: threading.BoundedSemaphore, on_release: Any = None):
         self._sem = sem
         self._held = True
+        self._on_release = on_release
 
     def release(self) -> None:
         if self._held:
             self._held = False
             self._sem.release()
+            if self._on_release is not None:
+                self._on_release()
 
 
 # ------------------------------------------------------------------------------------------------ sources
@@ -168,6 +178,7 @@ class Source:
     case_id: uuid.UUID | None = None
     focus: bool = False
     internal: bool = False
+    outcome: str | None = None  # a court order's rule-read outcome (row 250), for the sentence checks
 
     def rendered(self, label: str) -> str:
         return f"[{label}] {self.header}\n{self.body}"
@@ -185,6 +196,9 @@ class Gathered:
     stop_words: bool = False
     related_dropped: bool = False
     internal_dropped: dict[str, int] = field(default_factory=dict)
+    # design research-index: the case sheets that matched (their Case Details join the sources) and the retrieval
+    sheet_cases: list[uuid.UUID] = field(default_factory=list)
+    retrieval: dict[str, Any] = field(default_factory=lambda: {"kind": "words"})
 
 
 def _date(value: Any) -> str:
@@ -308,10 +322,10 @@ def ordered(g: Gathered) -> list[Source]:
     related = [c for c in g.court if c.citation.related]
     out.extend(focus + related)
     seen = {g.focus_details.case_id} if g.focus_details is not None else set()
-    for c in focus + related:
-        if c.case_id is not None and c.case_id not in seen and c.case_id in g.details:
-            seen.add(c.case_id)
-            out.append(g.details[c.case_id])
+    for case_id in [c.case_id for c in focus + related] + list(g.sheet_cases):
+        if case_id is not None and case_id not in seen and case_id in g.details:
+            seen.add(case_id)
+            out.append(g.details[case_id])
     if g.movement is not None:
         out.append(g.movement)
     out.extend(g.notes)
@@ -483,6 +497,14 @@ class OllamaConnector:
         self._loading = False
         self._last_load = -LOAD_EVERY_SECONDS
         self.load_thread: threading.Thread | None = None
+        # design research-index, decisions 3, 21 and 22: the meaning search's embedding model on the same server
+        self.research_on = bool(getattr(settings, "research_index_enabled", False))
+        self.embed_model = str(getattr(settings, "research_embed_model", "") or "")
+        self.redis = remb.redis_client(settings) if self.research_on else None
+        self._embed_cache: tuple[float, ModelState] | None = None
+        self._embed_loading = False
+        self._embed_last_load = -LOAD_EVERY_SECONDS
+        self.embed_load_thread: threading.Thread | None = None
 
     # ---------------------------------------------------------------------------------------------- readiness
 
@@ -558,7 +580,7 @@ class OllamaConnector:
         got = await asyncio.to_thread(self._slots.acquire, True, self.slot_wait)
         if not got:
             raise ModelBusy("the Case Assistant is busy")
-        return Slot(self._slots)
+        return self._slot()
 
     async def try_admission(self, wait: float) -> tuple[Slot | None, str | None]:
         """Design `assistant-ollama-work`, decision 8.1: the slot within `wait` seconds, or None with the reason
@@ -576,7 +598,86 @@ class OllamaConnector:
         got = await asyncio.to_thread(self._slots.acquire, True, max(0.0, float(wait)))
         if not got:
             return None, "busy"
-        return Slot(self._slots), None
+        return self._slot(), None
+
+    def _slot(self) -> Slot:
+        """A taken slot; with the research index on, the asking flag is set until it is released (decision 22)."""
+        if self.redis is None:
+            return Slot(self._slots)
+        remb.set_asking(self.redis)
+        return Slot(self._slots, on_release=lambda: remb.clear_asking(self.redis))
+
+    # ---------------------------------------------------------------------------------------------- the index
+
+    def embed_state(self, *, fresh: bool = False) -> ModelState:
+        """The embedding model's state from `/api/tags` and `/api/ps` (never embeds, never loads), cached 5 s."""
+        now = time.monotonic()
+        with self._lock:
+            if (
+                not fresh
+                and self._embed_cache is not None
+                and now - self._embed_cache[0] < STATE_CACHE_SECONDS
+            ):
+                return self._embed_cache[1]
+        state = self.client.state_sync(self.embed_model)
+        with self._lock:
+            self._embed_cache = (time.monotonic(), state)
+        return state
+
+    def embed_key(self) -> tuple[str | None, str | None]:
+        """Decision 21: the live model key when the embedding model is held locally and loaded, else None with the
+        reason (`model_unready`, `not_loaded`); a held model that is not loaded starts one background load, at most
+        every 150 s."""
+        try:
+            st = self.embed_state()
+        except Exception:  # noqa: BLE001 - words only, never a refusal
+            return None, "model_unready"
+        if not (st.reachable and st.held and st.local and st.digest):
+            return None, "model_unready"
+        if not st.loaded:
+            self.start_embed_load()
+            return None, "not_loaded"
+        return remb.model_key(self.embed_model, st.digest), None
+
+    def start_embed_load(self) -> bool:
+        with self._lock:
+            now = time.monotonic()
+            if self._embed_loading or now - self._embed_last_load < LOAD_EVERY_SECONDS:
+                return False
+            self._embed_loading = True
+            self._embed_last_load = now
+        self.embed_load_thread = threading.Thread(
+            target=self._embed_load, name="ollama-embed-load", daemon=True
+        )
+        self.embed_load_thread.start()
+        return True
+
+    def _embed_load(self) -> None:
+        try:
+            profile = rsearch.rc.profile_for(self.embed_model)
+            if profile is not None:
+                self.client.load_embed_sync(
+                    self.embed_model,
+                    remb.keep_alive(self.settings),
+                    options=remb.options(profile, self.settings),
+                    timeout=LOAD_TIMEOUT_SECONDS,
+                )
+        except Exception as exc:  # noqa: BLE001 - logged by class, retried later
+            log.warning("loading the research index model failed: %s", type(exc).__name__)
+        finally:
+            with self._lock:
+                self._embed_loading = False
+                self._embed_cache = None
+
+    def uses_index(self, request: AskRequest) -> bool:
+        """Decision 3: ollama mode with `RESEARCH_INDEX_ENABLED`, for All Court Orders, My Cases and the related
+        orders of This Case. This Case's own orders are searched as today."""
+        if not self.research_on:
+            return False
+        kind = request.scope.kind
+        return kind in ("my_cases", "research") or (
+            kind == "case" and request.scope.orders == "focus_and_related"
+        )
 
     async def choose_work(
         self, question: str, today: Any, *, timeout: float
@@ -611,10 +712,12 @@ class OllamaConnector:
 
     # ---------------------------------------------------------------------------------------------- asking
 
-    async def ask(self, request: AskRequest, *, details: bool = False) -> Answer:
+    async def ask(
+        self, request: AskRequest, *, details: bool = False, filters: rsearch.Filters | None = None
+    ) -> Answer:
         """The court-only path (My cases, All court orders, and a court-only case tab). Never reads internal
-        records."""
-        return await self._answer(request, None, details=details)
+        records. `filters` (design research-index, decision 20) apply to My Cases and All Court Orders."""
+        return await self._answer(request, None, details=details, filters=filters)
 
     async def ask_case(
         self, request: AskRequest, internal: InternalRecords | None, *, details: bool = False
@@ -624,12 +727,37 @@ class OllamaConnector:
         return await self._answer(request, internal, details=details, focus=True)
 
     async def _answer(
-        self, request: AskRequest, internal: InternalRecords | None, *, details: bool, focus: bool = False
+        self,
+        request: AskRequest,
+        internal: InternalRecords | None,
+        *,
+        details: bool,
+        focus: bool = False,
+        filters: rsearch.Filters | None = None,
     ) -> Answer:
         cancel = threading.Event()
         started = time.monotonic()
+        query: rsearch.QueryVector | None = None
+        if self.uses_index(request):
+            # decision 21: the question's vector before the search, within RESEARCH_QUERY_EMBED_SECONDS, else words
+            key, reason = await asyncio.to_thread(self.embed_key)
+            if key is None:
+                query = rsearch.QueryVector(None, reason)
+            else:
+                query = await rsearch.embed_question(self.client, self.settings, request.question, key)
+        spent = time.monotonic() - started
         try:
-            g = await asyncio.to_thread(self._gather, request, internal, details, focus, cancel)
+            g = await asyncio.to_thread(
+                self._gather,
+                request,
+                internal,
+                details,
+                focus,
+                cancel,
+                query,
+                filters or rsearch.Filters(),
+                spent,
+            )
         finally:
             cancel.set()
         info: dict[str, Any] = {
@@ -641,6 +769,7 @@ class OllamaConnector:
         info["match"] = g.match
         if g.related_dropped:
             info["related"] = "dropped"
+        info["retrieval"] = g.retrieval
         if g.stop_words:
             return Answer(
                 text=STOP_WORDS_LINE,
@@ -661,6 +790,7 @@ class OllamaConnector:
             "options": self.options(),
             "keep_alive": self.keep_alive(),
         }
+        remb.set_asking(self.redis)  # renewed for the model's share (decision 22)
         reply = await self.client.chat(body, timeout=self.model_seconds)
         return self._result(request, reply, sources, dropped, g, info, started, internal)
 
@@ -681,12 +811,25 @@ class OllamaConnector:
             raise SourceTraceProtocolError("the prompt did not fit the model's context", response=reply.raw)
         clean, cited, invalid = check_citations(reply.content, len(sources))
         cut_short = reply.done_reason == "length"
+        # design research-index, decisions 23 to 29: every sentence checked against the text of the sources it cites
+        texts = {i: f"{s.header}\n{s.body}" for i, s in enumerate(sources, start=1)}
+        checked = answer_checks.check(
+            clean,
+            texts,
+            rule_outcomes={i: s.outcome for i, s in enumerate(sources, start=1) if s.outcome},
+        )
+        cited = set() if checked.withheld else checked.cited
         citations = []
         for i, s in enumerate(sources, start=1):
-            citations.append(replace(s.citation, label=f"S{i}", cited=i in cited))
+            cit = replace(s.citation, label=f"S{i}", cited=i in cited)
+            spans = checked.quotes.get(f"S{i}") or []
+            if spans and s.kind == "court_order" and cit.record is not None:
+                cit = replace(cit, record={**cit.record, "quote_texts": [texts[i][a:b] for a, b in spans]})
+            citations.append(cit)
         supplied = Counter(s.kind for s in sources)
         cited_kinds = Counter(s.kind for i, s in enumerate(sources, start=1) if i in cited)
         if cited:
+            clean = checked.text
             text_ = clean + (f"\n{CUT_SHORT_LINE}" if cut_short else "")
             outcome = "answered"
         else:
@@ -706,6 +849,7 @@ class OllamaConnector:
                 "load_ms": (reply.load_duration or 0) // 1_000_000 if reply.load_duration else None,
                 "eval_ms": (reply.eval_duration or 0) // 1_000_000 if reply.eval_duration else None,
                 "model_called": True,
+                "checks": checked.counts,
                 # design assistant-polish, decision 8: how much of the previous answered turn this answer repeats
                 "overlap_prev": (
                     round(overlap(request.history[-1].answer, text_), 2) if request.history else None
@@ -747,12 +891,18 @@ class OllamaConnector:
         details: bool,
         focus: bool,
         cancel: threading.Event,
+        query: rsearch.QueryVector | None = None,
+        filters: rsearch.Filters | None = None,
+        spent: float = 0.0,
     ) -> Gathered:
-        budget = Budget(self.search_seconds, self.sql_ms, cancel)
+        # decision 21: the question's embedding came out of the search's share
+        budget = Budget(max(0.5, self.search_seconds - spent), self.sql_ms, cancel)
         with self.session_factory() as s:
             try:
                 s.execute(text("SET TRANSACTION READ ONLY"))
-                return self._gather_in(s, budget, request, internal, details, focus)
+                return self._gather_in(
+                    s, budget, request, internal, details, focus, query, filters or rsearch.Filters()
+                )
             except OperationalError as exc:
                 words = str(exc).lower()
                 if "statement timeout" in words or "canceling statement" in words:
@@ -771,20 +921,36 @@ class OllamaConnector:
         internal: InternalRecords | None,
         details: bool,
         focus: bool,
+        query: rsearch.QueryVector | None = None,
+        filters: rsearch.Filters | None = None,
     ) -> Gathered:
         g = Gathered()
-        found = search_passages(s, request, budget, limit=self.sources, text_chars=self.source_chars)
-        if found.reason == "stop_words":
-            g.stop_words = True
-            return g
-        g.match = found.match
-        g.related_dropped = found.related_dropped
         focus_ids = [c.case_id for c in request.scope.focus]
-        g.court = self._court_sources(s, budget, found.passages, focus_ids)
+        if query is not None and request.scope.kind in ("my_cases", "research"):
+            if not self._research(s, budget, request, query, filters or rsearch.Filters(), g, focus_ids):
+                return g
+        else:
+            own = request
+            if query is not None:  # This Case: its own orders as today, the related orders through the index
+                own = replace(request, scope=replace(request.scope, orders="focus"))
+            found = search_passages(s, own, budget, limit=self.sources, text_chars=self.source_chars)
+            if found.reason == "stop_words" and query is None:
+                g.stop_words = True
+                return g
+            g.match = found.match
+            g.related_dropped = found.related_dropped
+            g.court = self._court_sources(s, budget, found.passages, focus_ids)
+            if query is not None:
+                res = self._search(s, budget, request, query, rsearch.Filters(), related=True)
+                if res is None:
+                    g.related_dropped = True
+                else:
+                    g.court += self._research_sources(s, budget, res.passages, focus_ids)
+                    g.retrieval = self._retrieval_info(res, query)
         if details:
             budget.arm(s)
             own = [focus_ids[0]] if focus and focus_ids else []
-            want = own + [c.case_id for c in g.court if c.case_id]
+            want = own + [c.case_id for c in g.court if c.case_id] + list(g.sheet_cases)
             # design next-date-direct-followups, decision 6: the confirmed tier only for the focus case (the asker's
             # own scope); every compact case from court passages gets the court-public next hearing
             rows = {
@@ -802,9 +968,151 @@ class OllamaConnector:
             for cid, d in rows.items():
                 if g.focus_details is None or cid != g.focus_details.case_id:
                     g.details[cid] = _details_source(d, compact=True, focus=False)
+            for cid in g.sheet_cases:  # design research-index, decision 18: a matching case sheet brings them
+                if cid in g.details:
+                    src_ = g.details[cid]
+                    src_.citation = replace(
+                        src_.citation, record={**(src_.citation.record or {}), "sheet": True}
+                    )
         if internal is not None and not internal.empty:
             self._internal_sources(s, budget, request, internal, g)
         return g
+
+    # ---------------------------------------------------------------------------------------------- the index search
+
+    def _search(
+        self,
+        s: Session,
+        budget: Budget,
+        request: AskRequest,
+        query: rsearch.QueryVector,
+        filters: rsearch.Filters,
+        *,
+        related: bool = False,
+    ) -> rsearch.SearchResult | None:
+        """The hybrid search; for the related orders of This Case in a savepoint of its own, so its failure drops the
+        related section and never the focus answer (None)."""
+        profile = rsearch.rc.profile_for(self.embed_model)
+        kw: dict[str, Any] = {
+            "query": query,
+            "dims": profile.dims if profile else 768,
+            "filters": filters,
+            "limit": 3 if related else self.sources,
+            "source_chars": self.source_chars,
+            "candidates": int(getattr(self.settings, "research_candidates", 100)),
+            "exact_max": int(getattr(self.settings, "research_exact_max", 20_000)),
+            "ef_search": int(getattr(self.settings, "research_ef_search", 100)),
+            "related_only": related,
+        }
+        if not related:
+            return rsearch.passages(s, request, budget, **kw)
+        try:
+            with s.begin_nested():
+                return rsearch.passages(s, request, budget, **kw)
+        except (OperationalError, PreviewTooBroad):
+            budget.armed = None  # the savepoint's rollback also undid a `SET LOCAL` made inside it
+            return None
+
+    @staticmethod
+    def _retrieval_info(res: rsearch.SearchResult, query: rsearch.QueryVector) -> dict[str, Any]:
+        """Decision 29: `model_info.retrieval`, counts only."""
+        out: dict[str, Any] = {
+            "kind": res.kind,
+            "lists": {k: int(res.counts.get(k, 0)) for k in ("words", "meaning", "filings", "unindexed")},
+            "fused": res.fused,
+            "stale_dropped": res.stale_dropped,
+        }
+        if res.kind == "hybrid":
+            out["model_key"] = query.model_key
+            out["embed_ms"] = query.ms
+        elif query.reason:
+            out["reason"] = query.reason
+        return out
+
+    def _research(
+        self,
+        s: Session,
+        budget: Budget,
+        request: AskRequest,
+        query: rsearch.QueryVector,
+        filters: rsearch.Filters,
+        g: Gathered,
+        focus_ids: list[uuid.UUID],
+    ) -> bool:
+        """All Court Orders and My Cases through the index (decisions 17 to 20). False when every word is too common
+        and there is no question vector (the stop-words line)."""
+        if query.vector is None:
+            budget.arm(s)
+            nodes = s.scalar(select(func.numnode(func.websearch_to_tsquery("english", request.question))))
+            if not nodes:
+                g.stop_words = True
+                return False
+        res = self._search(s, budget, request, query, filters)
+        g.court = self._research_sources(s, budget, res.passages, focus_ids)
+        g.sheet_cases = list(dict.fromkeys(res.sheet_cases))
+        g.retrieval = self._retrieval_info(res, query)
+        log.info(
+            "research search: words %d, meaning %d, filings %d, unindexed %d, fused %d, kind %s",
+            res.counts.get("words", 0),
+            res.counts.get("meaning", 0),
+            res.counts.get("filings", 0),
+            res.counts.get("unindexed", 0),
+            res.fused,
+            res.kind,
+        )
+        return True
+
+    def _research_sources(
+        self, s: Session, budget: Budget, passages: list[rsearch.ResearchPassage], focus_ids: list[uuid.UUID]
+    ) -> list[Source]:
+        """Decisions 13 and 19: an order passage's source names the kind and the full context line; its citation
+        carries the traceability fields in `record`. Pages of today's search keep today's sources."""
+        out: list[Source] = []
+        for pos, p in enumerate(passages):
+            if p.kind == "page" and p.page_passage is not None:
+                out.extend(self._court_sources(s, budget, (p.page_passage,), focus_ids))
+                continue
+            if p.kind != "order" or p.holder is None:
+                continue
+            h = p.holder
+            body = p.text[: self.source_chars]
+            record = {
+                "chunk_id": str(p.chunk_ids[0]),
+                "chunk_ids": [str(c) for c in p.chunk_ids],
+                "reading_id": str(h.reading_id),
+                "order_id": str(h.order_id),
+                "paragraphs": [p.para_first, p.para_last],
+                "src": list(p.src) if p.src else None,
+                "pdf_sha256": p.pdf_sha256,
+                "text_sha256": p.text_sha256,
+                "parser_version": p.parser_version,
+                "chunker_version": p.chunker_version,
+                "model_key": p.model_key,
+                "match": p.match,
+                "same_words_in": h.same_words_in,
+            }
+            out.append(
+                Source(
+                    kind="court_order",
+                    header=f"Court Order (Court Record): {p.context_line}",
+                    body=body,
+                    citation=Citation(
+                        reference=str(h.document_id),
+                        document_id=h.document_id,
+                        page=p.page,
+                        passage=p.excerpt or None,
+                        related=p.related,
+                        rank=round(p.score, 6),
+                        context=body,
+                        source_kind="court_order",
+                        record=record,
+                    ),
+                    drop=(0 if p.related else 1, -pos),
+                    case_id=h.case_id,
+                    outcome=h.outcome,
+                )
+            )
+        return out
 
     def _court_sources(
         self, s: Session, budget: Budget, passages: tuple[Passage, ...], focus_ids: list[uuid.UUID]

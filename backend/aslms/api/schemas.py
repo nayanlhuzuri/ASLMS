@@ -3429,6 +3429,39 @@ class OrderSectionsStatusOut(BaseModel):
     last_run: OrderSectionsRunOut | None = None
 
 
+class ResearchChunkCountsOut(BaseModel):
+    order_body: int = 0
+    case_sheet: int = 0
+    total: int = 0
+
+
+class ResearchRunOut(BaseModel):
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str
+    counters: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchIndexStatusOut(BaseModel):
+    """Design research-index, decision 32: the research index, counts only. `readiness` `off`, `ready` (held and
+    loaded), `held` (held, not loaded) or `unavailable`; a part that ran out of time is named in `timed_out` and its
+    fields are null."""
+
+    enabled: bool
+    live_model_key: str | None = None
+    readiness: Literal["off", "ready", "held", "unavailable"]
+    chunks: ResearchChunkCountsOut | None = None
+    vectors_live: int | None = None
+    waiting: int | None = None
+    coverage: float | None = None
+    other_keys: dict[str, int] | None = None
+    failures_open: int = 0
+    last_run: ResearchRunOut | None = None
+    last_reconcile: ResearchRunOut | None = None
+    table_sizes: dict[str, int] | None = None
+    timed_out: list[Literal["counts", "sizes"]] = Field(default_factory=list)
+
+
 class DataHealthOut(BaseModel):
     as_of: datetime
     napix: NapixHealthOut
@@ -3443,6 +3476,7 @@ class DataHealthOut(BaseModel):
     documents_text: DocumentsTextOut
     order_sections: OrderSectionsStatusOut | None = None
     insights: InsightsStatusOut | None = None
+    research_index: ResearchIndexStatusOut | None = None
     retention: RetentionOut | None = None
 
 
@@ -5108,6 +5142,14 @@ class AssistantWorkQuestionOut(BaseModel):
     example: str
 
 
+class AssistantResearchStateOut(BaseModel):
+    """`off` (switched off or not the local model), `building` (under 99% of current chunks embedded under the live
+    model key), `ready`, or `unavailable` (the embedding model is not ready)."""
+
+    state: Literal["off", "building", "ready", "unavailable"]
+    coverage: float | None = None
+
+
 class AssistantStatusOut(BaseModel):
     """`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design
@@ -5126,6 +5168,41 @@ class AssistantStatusOut(BaseModel):
         description="design assistant-ollama-work: the My Work questions the caller may ask, in ollama and preview modes "
         "only (empty otherwise)",
     )
+    research: AssistantResearchStateOut = Field(
+        default_factory=lambda: AssistantResearchStateOut(state="off"),
+        description="design research-index, decision 32: the meaning search's state and coverage",
+    )
+
+
+class AssistantFiltersIn(BaseModel):
+    """Design research-index, decision 20: court-public filters for My Cases and All Court Orders, applied on the
+    server (400 `filters_not_allowed` for another scope, 400 `filters_unavailable` when the research index does not
+    serve the question (switch off or preview mode), 400 `bad_filter` for an unknown outcome or act key or `from` after
+    `to`). `against_state` is read by rule: allowed or partly allowed with the State as a current respondent, or
+    dismissed with the State as a current petitioner."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    forms: list[Literal["judgment", "final", "interim"]] | None = None
+    substantive_only: bool | None = None
+    outcomes: list[str] | None = Field(None, max_length=10)
+    against_state: bool | None = None
+    cites: str | None = Field(None, max_length=200)
+    act: str | None = Field(None, max_length=200)
+    date_from: date | None = Field(None, alias="from")
+    date_to: date | None = Field(None, alias="to")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "forms": self.forms,
+            "substantive_only": self.substantive_only,
+            "outcomes": self.outcomes,
+            "against_state": self.against_state,
+            "cites": self.cites,
+            "act": self.act,
+            "from": self.date_from,
+            "to": self.date_to,
+        }
 
 
 class AssistantAskIn(BaseModel):
@@ -5142,6 +5219,9 @@ class AssistantAskIn(BaseModel):
     case: str | None = Field(None, max_length=100, description="case id, ref_no or CNR; only for scope case")
     conversation_id: uuid.UUID | None = None
     include_related: bool = True
+    filters: AssistantFiltersIn | None = Field(
+        None, description="design research-index: only for my_cases and research"
+    )
 
 
 class AssistantCaseBriefOut(BaseModel):
@@ -5206,6 +5286,15 @@ class AssistantWorkRowOut(BaseModel):
     fields: dict[str, Any] = Field(default_factory=dict)
 
 
+class AssistantQuoteOut(BaseModel):
+    """A quote of the answer matched in the stored text: `src` offsets, the page, and whether the words were found
+    exactly (`exact` false: the whole passage is marked)."""
+
+    src: list[int]
+    page: int | None = None
+    exact: bool
+
+
 class AssistantCitationOut(BaseModel):
     """Design assistant-ollama, decisions 8 and 9: `label` (`S1`..) and `cited` on local-model answers (every source
     given is listed; `cited` false under "Other Sources Given"); `context` the text given to the model (court kinds as
@@ -5248,6 +5337,20 @@ class AssistantCitationOut(BaseModel):
         "the portal presets Copy to note to the narrowest of the cited records",
     )
     work: AssistantWorkRowOut | None = Field(None, description="a My Work row (`work_row`) only")
+    # design research-index, decisions 13 and 29: a court-order citation found through the research index
+    chunk_id: uuid.UUID | None = None
+    reading_id: uuid.UUID | None = None
+    paragraphs: list[int] | None = None
+    src: list[int] | None = Field(None, description="the passage's offsets in the order's stored text")
+    pdf_sha256: str | None = None
+    text_sha256: str | None = None
+    parser_version: int | None = None
+    chunker_version: int | None = None
+    model_key: str | None = None
+    match: Literal["words", "meaning", "both"] | None = None
+    same_words_in: int | None = Field(None, description="other orders in scope holding the same words")
+    quotes: list[AssistantQuoteOut] = Field(default_factory=list)
+    text_changed: bool = Field(False, description="the order's stored text has changed since the answer")
 
 
 class AssistantEngineBriefOut(BaseModel):
@@ -5256,8 +5359,27 @@ class AssistantEngineBriefOut(BaseModel):
 
 
 class AssistantChecksOut(BaseModel):
+    """Design research-index, decision 29: the sentence checks, counts only (absent on answers before them)."""
+
     invalid_markers: int = 0
     cut_short: bool = False
+    sentences: int | None = None
+    kept: int | None = None
+    removed: dict[str, int] | None = None
+    withheld: Literal["first_sentence", "majority", "none_cited"] | None = None
+
+
+class AssistantRetrievalOut(BaseModel):
+    """Design research-index, decision 29: how the sources were found, counts only. `kind` `hybrid` (words and
+    meaning), `words_only` (the index without the question's vector; `reason`) or `words` (today's word search)."""
+
+    kind: Literal["hybrid", "words_only", "words"]
+    reason: str | None = None
+    model_key: str | None = None
+    embed_ms: int | None = None
+    lists: dict[str, int] | None = None
+    fused: int | None = None
+    stale_dropped: int | None = None
 
 
 class AssistantErrorOut(BaseModel):
@@ -5290,6 +5412,7 @@ class AssistantMessageOut(BaseModel):
     hidden_reason: str | None = None
     engine: AssistantEngineBriefOut | None = None
     checks: AssistantChecksOut | None = None
+    retrieval: AssistantRetrievalOut | None = None
     internal_used: bool = False
     suggest_internal: bool = False
     suggest_work: bool = Field(
@@ -5363,6 +5486,26 @@ class AssistantCourtOrderViewOut(BaseModel):
     order: AssistantCourtOrderOut
     case: AssistantCourtCaseOut
     case_visible: bool
+
+
+class AssistantHighlightOut(BaseModel):
+    start: int
+    end: int
+    kind: Literal["passage", "quote"]
+    exact: bool
+
+
+class AssistantPassageOut(BaseModel):
+    """Design research-index, API: the stored text of a cited order's page, with the passage and quotes as offsets
+    relative to the page (none when `text_changed`)."""
+
+    order_id: uuid.UUID
+    document_id: uuid.UUID
+    page: int
+    page_count: int
+    page_text: str
+    highlights: list[AssistantHighlightOut]
+    text_changed: bool
 
 
 # ------------------------------------------------------------------------------------------------ State Insights

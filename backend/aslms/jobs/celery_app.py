@@ -102,6 +102,13 @@ app.conf.update(
         # the readings of State Insights by rules (design state-insights, decisions 12 and 30); no NAPIX call
         "insights-refresh": {"task": "aslms.insights_refresh", "schedule": crontab(minute="4-59/10")},
         "insights-rebuild": {"task": "aslms.insights_rebuild", "schedule": crontab(hour=4, minute=45)},
+        # the research index (design research-index, decision 30): new chunk sets, sheets and vectors after
+        # `order-sections`; the daily reconcile after its 01:30 full check. No NAPIX call; nothing queued
+        "research-index": {"task": "aslms.research_index", "schedule": crontab(minute="4-59/5")},
+        "research-index-reconcile": {
+            "task": "aslms.research_index_reconcile",
+            "schedule": crontab(hour=1, minute=45),
+        },
         "alerts-scan-events": {"task": "aslms.alerts_scan_events", "schedule": crontab(minute="*/5")},
         "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
@@ -321,6 +328,27 @@ def insights_refresh() -> dict | None:
         return None
     report.rescored = rescored
     return report.as_dict()
+
+
+@app.task(name="aslms.research_index")
+def research_index_job() -> dict:
+    """The research index (design research-index, "Jobs"): chunk sets for new readings, orphan sets retired, changed
+    case sheets, then embedding newest first through the local model within RESEARCH_JOB_SECONDS; returns at once when
+    RESEARCH_INDEX_ENABLED is false. One `job_runs` row `research_index`. No NAPIX call, no `fetch_queue` row, no audit
+    row."""
+    from aslms.services import research_embed
+
+    return research_embed.scheduled_run(settings, get_sessionmaker())
+
+
+@app.task(name="aslms.research_index_reconcile")
+def research_index_reconcile() -> dict:
+    """01:45 IST: every current key and case sheet compared, vectors no chunk uses retired, and the open
+    `research_embed` failures retried (design research-index, decisions 30 and 34). One `job_runs` row
+    `research_index_reconcile`."""
+    from aslms.services import research_embed
+
+    return research_embed.scheduled_reconcile(settings, get_sessionmaker())
 
 
 @app.task(name="aslms.insights_rebuild")

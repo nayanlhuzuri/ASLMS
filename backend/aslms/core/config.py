@@ -198,6 +198,21 @@ class Settings(BaseSettings):
     # design assistant-ollama-work, decision 4: the rows stored and shown per My Work answer (the owner's 25 the bound)
     assistant_work_rows: int = Field(25, ge=5, le=25)
 
+    # --- the research index (design research-index, decisions 5 to 7, 15, 17, 21, 22 and 30 to 31; no secret) ------
+    # the master switch of the 5-minute job, the CLI's embedding and the Assistant's meaning list; with it false chunks
+    # can still be cut (`aslms research-index run --chunks-only`) and nothing calls Ollama
+    research_index_enabled: bool = False
+    # the local embedding model on the same Ollama server as ASSISTANT_OLLAMA_URL (never a cloud model)
+    research_embed_model: str = "embeddinggemma:300m"
+    research_embed_keep_alive: str = Field("-1", pattern=r"^-?\d+(s|m|h)?$")
+    research_embed_on_cpu: bool = False  # adds num_gpu 0 for a GPU that cannot hold both models
+    research_embed_batch: int = Field(16, ge=1, le=256)  # inputs per embedding call (halved on CPU)
+    research_job_seconds: int = Field(60, ge=5, le=280)  # wall time of one 5-minute job run
+    research_query_embed_seconds: float = Field(5.0, ge=0.5, le=30)  # a question's vector, else words only
+    research_candidates: int = Field(100, ge=10, le=1000)  # items per ranked list
+    research_exact_max: int = Field(20_000, ge=0, le=200_000)  # chunks at or under this are scanned exactly
+    research_ef_search: int = Field(100, ge=10, le=1000)  # SET LOCAL hnsw.ef_search
+
     # --- dashboards and reports (design reports-dashboards, decisions 2, 5, 12) ------------------
     report_max_range_days: int = Field(366, ge=1, le=1000)  # hearings-disposals period
     report_health_max_days: int = Field(92, ge=1, le=1000)  # data-health period

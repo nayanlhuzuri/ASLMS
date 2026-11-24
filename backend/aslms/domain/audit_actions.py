@@ -138,6 +138,7 @@ AUDIT_ACTIONS: tuple[str, ...] = (
     "recommendation.dismiss",
     "recommendation.suggest",
     "report.exported",
+    "research_index.rebuilt",
     "scoring_settings.update",
     "sourcetrace.retry_all_failed",
     "sourcetrace.retry_requested",

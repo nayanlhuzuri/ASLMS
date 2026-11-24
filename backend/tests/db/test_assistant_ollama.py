@@ -94,7 +94,7 @@ def test_ollama_case_scope_answer_cites_supplied_sources(world, scene):
     assert r.outcome == "answered", (msg.content, msg.model_info, conn.fake.chats)
     assert msg.mode == "ollama" and msg.connector == "ollama"
     assert msg.model_info["model"] == "qwen3.5:4b" and msg.model_info["engine"] == "ollama"
-    assert msg.model_info["prompt_version"] == 2
+    assert msg.model_info["prompt_version"] == 3  # design research-index: rules 9 and 10
     labels = [c["label"] for c in msg.citations]
     assert labels == [f"S{i}" for i in range(1, len(labels) + 1)]
     first = msg.citations[0]
@@ -109,7 +109,16 @@ def test_ollama_case_scope_answer_cites_supplied_sources(world, scene):
     assert msg.response["message"]["content"].endswith("[S1].")
     out = sup.read(world, "edu_admin", r)
     assert out["engine"] == {"kind": "ollama", "model": "qwen3.5:4b"}
-    assert out["checks"] == {"invalid_markers": 0, "cut_short": False} and out["internal_used"] is False
+    assert out["checks"] == {
+        "invalid_markers": 0,
+        "cut_short": False,
+        # design research-index, decision 29: the sentence checks, counts only
+        "sentences": 1,
+        "kept": 1,
+        "removed": {"uncited": 0, "quote": 0, "date": 0, "number": 0, "case_no": 0, "name": 0, "outcome": 0},
+        "withheld": None,
+    }
+    assert out["retrieval"] == {"kind": "words"} and out["internal_used"] is False
 
 
 def test_case_details_source_in_every_scope_court_public_only(world, scene):

@@ -851,6 +851,20 @@ GONE_FILING = {
     "visibility": None,
     # design assistant-ollama-work: the My Work row field, null on a court citation
     "work": None,
+    # design research-index: a court-order citation's index fields, null or empty unless found through the index
+    "chunk_id": None,
+    "reading_id": None,
+    "paragraphs": None,
+    "src": None,
+    "pdf_sha256": None,
+    "text_sha256": None,
+    "parser_version": None,
+    "chunker_version": None,
+    "model_key": None,
+    "match": None,
+    "same_words_in": None,
+    "quotes": [],
+    "text_changed": False,
 }
 
 

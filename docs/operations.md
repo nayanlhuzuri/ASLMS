@@ -1113,6 +1113,64 @@ To go back, deploy an image of the previous engine (version 2), downgrade 0041 (
 the index) before 0040 (it drops the column and its checks, keeps the inserted settings version and writes its own
 audit row); then `aslms rescore --all`.
 
+## 28. The research index: meaning search for the Case Assistant (row 251)
+
+Design `docs/design/research-index.md`, migration 0042. Court orders (as read by row 250) and court-public case facts are
+cut into chunks, turned into vectors by a local embedding model (`embeddinggemma:300m` on the same Ollama as the chat
+model) and stored in PostgreSQL by pgvector. The Assistant's All Court Orders, My Cases and related-orders searches merge a
+words list and a meaning list, and every local-model answer is checked sentence by sentence before it is shown. The index
+is derived data: it can be rebuilt, never holds notes, remarks, internal documents or drafts, and makes no court call and
+no `fetch_queue` row. `RESEARCH_INDEX_ENABLED` is `false` by default; with it false the Assistant answers as before.
+
+**The image.** `postgres` is built from `infra/postgres/Dockerfile` (`postgres:16.15` plus the pinned PGDG pgvector
+0.8.7, build `0.8.7-1.pgdg13+1`) as `aslms/postgres:16.15-pgvector0.8.7`. The data volume and the server version are
+unchanged, so the cluster starts on the same volume. CI installs the same pin; a test refuses a difference, and the build
+fails if the pin would change the server package. A dump of this database needs this image to restore elsewhere.
+`docker compose build postgres` after the merge.
+
+**After the merge** (the integrator; every `up` carries the court-data switch; the portal is down while `postgres` is
+recreated).
+1. Build from a clean worktree of `main`; the `pre-migrate` backup; stop the app services; recreate `postgres` on the same
+   volume; run the `migrate` step (0042 creates the extension as the cluster superuser). Check `SELECT extversion FROM
+   pg_extension WHERE extname = 'vector'` gives 0.8.7, `\d+ research_embeddings` shows `ix_research_embeddings_hnsw_768`,
+   and `aslms_app` cannot DELETE from either table.
+2. Pull the model on the Ollama host: `ollama pull embeddinggemma:300m`. Add the `RESEARCH_*` settings of
+   `.env.example`. Recreate `api worker worker2 scheduler web` with `--no-deps --force-recreate`.
+3. With the switch off, cut the chunks: `docker compose run -d --rm api aslms research-index run --chunks-only
+   --backfill`. About 336,000 order chunks and one sheet per case are expected; `aslms research-index status` shows 0
+   vectors. Record the time.
+4. Set `RESEARCH_INDEX_ENABLED=true` (and `ASSISTANT_MODE=ollama`; preflight warns otherwise), recreate the app services,
+   and start the backfill outside them: `docker compose run -d --rm api aslms research-index run --backfill`. It commits
+   every batch, can be stopped and started again where it stopped, pauses `--pause-ms` (200) between batches and waits
+   (up to 120 s a batch) while a person's question is being answered. Order: judgments, final orders, substantive interim
+   orders, case sheets, then procedural bodies. The design estimates about 29 hours on CPU at the model test's rate; record
+   the rate on the GPU. The 5-minute `research-index` job then keeps new orders embedded within minutes.
+5. Record the table and index sizes (`pg_total_relation_size`) and the coverage shown by `aslms research-index status`, the
+   data-health block `research_index` and the System Health check Research Index Model.
+
+**Commands.** `aslms research-index status`; `run [--backfill] [--chunks-only] [--limit N] [--pause-ms N]`;
+`rebuild --chunks --yes` or `rebuild --embeddings --yes` (audited as `research_index.rebuilt`; after `--chunks` run the
+backfill or wait for the 01:45 reconcile, which cuts every set again); `search "question" [--scope research|my_cases]
+[--explain] [--login]` (read-only, prints the two lists and the fused order, sends nothing to the chat model).
+
+**Settings** (`.env.example`): `RESEARCH_INDEX_ENABLED`, `RESEARCH_EMBED_MODEL`, `RESEARCH_EMBED_KEEP_ALIVE`,
+`RESEARCH_EMBED_ON_CPU` (true keeps the embedding model off a GPU that cannot hold both models), `RESEARCH_EMBED_BATCH`,
+`RESEARCH_JOB_SECONDS`, `RESEARCH_QUERY_EMBED_SECONDS`, `RESEARCH_CANDIDATES`, `RESEARCH_EXACT_MAX`, `RESEARCH_EF_SEARCH`.
+
+**Changing the model.** Pull the new tag, set `RESEARCH_EMBED_MODEL`, recreate the app services. The new name or a changed
+digest is a new key: the old vectors are ignored at once and questions are answered by the words list until the job (or a
+backfill) has written the new key's vectors; then `aslms research-index rebuild --embeddings --yes` retires the old
+key's vectors. A model of another dimension also needs a migration adding its HNSW index.
+
+**Failures and what to read.** An input the model refuses as too long is retried alone, then recorded in
+`source_failures` (kind `research_embed`) and retried by the 01:45 reconcile; an unreachable model stops the job with
+`model_unready` and is not a failure. Data-health `research_index` gives counts only, in isolated parts that report
+`timed_out`. Log lines carry counts and times, never text or the question.
+
+**Roll-back.** Set `RESEARCH_INDEX_ENABLED=false`: the Assistant is words only again. Downgrade 0042 drops the two
+tables, the two `order_sections` indexes and the extension; a re-upgrade means a new backfill. A question with filters is
+refused (400 `filters_unavailable`) while the switch is off.
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.

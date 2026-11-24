@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5); and, on branch `feature/order-sections` (row 250), the reading of every court order into its parts by rules and What the Order Says (4.9); and, on branch `feature/order-sections-review-advisories` (row 264), the daily full check, the version 2 rules and the reasons an order has no reading (4.9); and, on branch `feature/cause-title-signal` (row 260), the seventh scoring weight for a department named in the cause title (4.1); and, on branch `feature/cause-title-signal-review-advisories` (row 273), no double counting of a respondent and the lasting rescore mark (4.1) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, on branch `feature/assistant-ollama-work` (row 189), the case tab about its own case and the Assistant page's My Work, My Cases and All Court Orders tabs (4.9); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/rolling-case-refresh` (row 238), the nightly 22:00 refresh at least every 7 days with claimed cases first, the follow-ups after a hearing and the second worker slot (2.2, 2.4, 2.6); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5); and, on branch `feature/order-sections` (row 250), the reading of every court order into its parts by rules and What the Order Says (4.9); and, on branch `feature/order-sections-review-advisories` (row 264), the daily full check, the version 2 rules and the reasons an order has no reading (4.9); and, on branch `feature/cause-title-signal` (row 260), the seventh scoring weight for a department named in the cause title (4.1); and, on branch `feature/cause-title-signal-review-advisories` (row 273), no double counting of a respondent and the lasting rescore mark (4.1); and, on branch `feature/research-index` (row 251), meaning search over court orders and the sentence checks on Assistant answers (4.9) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -984,6 +984,30 @@ an hour. This is a difference from the plan's wording (answers written by the AI
 not generated. **Repeated answers.** The model is given the person's earlier questions as context but not its own
 earlier answers, because a small model copied them; each answer records how much it repeats the one before, and
 `aslms assistant repeat-check` measures it.
+
+**Meaning search and checked answers (23 November 2026, row 251, backend built; not yet in service).** When the research
+index is switched on (`RESEARCH_INDEX_ENABLED`), the Assistant's All Court Orders and My Cases questions, and the related
+orders of a case, are searched in two ways at once: by words (case numbers, citations, section numbers) and by meaning.
+Meaning search needs the court orders cut into passages that follow the order's own parts, and one short sheet per case
+written from the court's case details (case type, category, acts, parties, status and short orders; never the next hearing,
+owner or any internal record). A second local model, `embeddinggemma:300m` on the same Ollama server, turns each passage
+into a list of numbers, kept in the database, so a question worded differently from the order still finds it. The two
+result lists are merged; judgments and final orders rank above routine procedural orders, one order gives at most two
+passages, and the model is shown the surrounding part of the order. A person can narrow a question by form of order,
+outcome, an Act, a cited judgment and dates, and by an outcome read by rule as against the State; ASLMS refuses such a
+filter while the index is off rather than ignore it. If the question cannot be turned into numbers in a few seconds the
+answer is built from the word search alone. Nothing from notes, remarks, internal documents or drafts is ever read, and
+the index makes no call to the court.
+
+**Every local-model answer is checked on the server before it is shown** (cases, My Cases and All Court Orders; not My Work
+or the quick facts, which ASLMS writes itself). Each sentence must carry a citation if it states a fact; a quoted passage
+must match the cited text character for character; and every date, number, case number, citation, name and outcome in it
+must appear in the text it cites. A sentence that fails is removed and one line says how many were removed; if the first
+sentence, more than half, or every cited sentence fails, no answer is shown and the person is told no answer supported by
+the records was found. The checks cannot tell a wrong reading of correctly quoted text, so answers stay labelled as AI
+answers and every source stays open beside them. Cited orders keep the order's page, the PDF's and text's fingerprints and
+the version of the rules, and an order whose text has changed since is never cited. (Round 2, row 275, brings the filters,
+the passage view and the Data Collection section to the portal.)
 
 **The scopes** (the case tab has This case only; the page's tabs are the other three; a one-line note under the
 question box names what is searched):

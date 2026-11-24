@@ -219,6 +219,10 @@ ALLOWED = {
     # design assistant-ollama: the local model's connector, and its client mapping errors onto the contract's types
     ("services", "assistant_ollama.py"),
     ("ollama", "client.py"),
+    # design research-index: the embedding job and the hybrid search read the contract's error and request types
+    ("services", "research_embed.py"),
+    ("services", "research_search.py"),
+    ("cli", "research.py"),
 }
 
 

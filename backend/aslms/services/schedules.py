@@ -329,6 +329,8 @@ NOT_DATA_COLLECTION: frozenset[str] = frozenset(
         "order-sections",  # design order-sections: court orders read into their parts by rules
         "insights-refresh",  # design state-insights: the readings of Insights, by rules
         "insights-rebuild",
+        "research-index",  # design research-index: the meaning search's chunks and vectors, no court call
+        "research-index-reconcile",
         "alerts-scan-events",
         "alerts-sweep-dates",
         "notifications-send",

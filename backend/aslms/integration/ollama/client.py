@@ -5,6 +5,11 @@ Calls (field names from Ollama's published API documentation and the owner's tes
 - `chat` — `POST /api/chat` (non-streaming); `load` — `POST /api/generate` with only `model` and `keep_alive`
   (Ollama's documented way to load a model); `loaded` — `GET /api/ps`; `models` — `GET /api/tags`; `version` —
   `GET /api/version`; synchronous twins of the last three for the health card and the CLI.
+- `embed` — `POST /api/embed` with `model`, `input` (a list), `truncate: false`, `options` and `keep_alive` (design
+  `research-index`, decision 6; the fields confirmed on Ollama 0.40.11 by the model test of 23 Nov 2026), and its
+  synchronous twin `embed_sync` for the job and the CLI. The reply is read by `parse_embed`: `embeddings` (one list of
+  floats per input, in input order), `model`, `prompt_eval_count` and `total_duration`. An input too long for the
+  model is refused (400 past `num_ctx`, 413 past `num_batch`, both `SourceTraceRejected`; `too_long` says which).
 
 Errors map onto the Case Assistant contract's existing types: a connection failure, a connect timeout, a 5xx (Ollama's
 busy 503 included) and a 404 (model missing) are `SourceTraceUnavailable`; a 400 is `SourceTraceRejected`; a reply
@@ -167,6 +172,50 @@ def parse_chat(data: Any) -> OllamaReply:
     )
 
 
+@dataclass(frozen=True)
+class EmbedReply:
+    """One `/api/embed` reply: one vector per input, in input order; counts and the duration (ns)."""
+
+    embeddings: list[list[float]]
+    model: str | None
+    prompt_eval_count: int | None
+    total_duration: int | None
+
+
+TOO_LONG_WORDS = "input length exceeds the context length"
+
+
+def parse_embed(data: Any, inputs: int) -> EmbedReply:
+    """A `/api/embed` reply, or `SourceTraceProtocolError`: not an object, no `embeddings` list, a count other than the
+    inputs', or a value that is not a number."""
+    if not isinstance(data, dict):
+        raise SourceTraceProtocolError("the embedding reply is not a JSON object")
+    vectors = data.get("embeddings")
+    if not isinstance(vectors, list) or len(vectors) != inputs:
+        raise SourceTraceProtocolError("the embedding reply does not hold one vector per input")
+    out: list[list[float]] = []
+    for v in vectors:
+        if not isinstance(v, list) or not v:
+            raise SourceTraceProtocolError("the embedding reply holds a vector that is not a list of numbers")
+        for x in v:
+            if isinstance(x, bool) or not isinstance(x, int | float):
+                raise SourceTraceProtocolError("the embedding reply holds a value that is not a number")
+        out.append([float(x) for x in v])
+    return EmbedReply(
+        embeddings=out,
+        model=data.get("model") if isinstance(data.get("model"), str) else None,
+        prompt_eval_count=_int(data.get("prompt_eval_count")),
+        total_duration=_int(data.get("total_duration")),
+    )
+
+
+def too_long(exc: BaseException) -> bool:
+    """Decision 6: Ollama refused an input as longer than the model's input limit (400 past `num_ctx`, 413 past
+    `num_batch`, both with the body "the input length exceeds the context length")."""
+    details = getattr(exc, "details", None) or {}
+    return isinstance(exc, SourceTraceRejected) and details.get("status") in (400, 413)
+
+
 def _models(data: Any) -> list[dict[str, Any]]:
     models = data.get("models") if isinstance(data, dict) else None
     return [m for m in models if isinstance(m, dict)] if isinstance(models, list) else []
@@ -291,10 +340,10 @@ class OllamaClient:
         _raise_for(resp)
         return _json(resp)
 
-    def _request_sync(self, method: str, path: str, *, timeout: float) -> Any:
+    def _request_sync(self, method: str, path: str, *, timeout: float, body: dict | None = None) -> Any:
         try:
             with self._sync(timeout) as client:
-                resp = client.request(method, path)
+                resp = client.request(method, path, json=body)
         except httpx.TimeoutException as exc:
             raise SourceTraceUnavailable("the model server did not answer in time") from exc
         except httpx.HTTPError as exc:
@@ -320,6 +369,49 @@ class OllamaClient:
 
     async def version(self, *, timeout: float = INFO_SECONDS) -> Any:
         return await self._request("GET", "/api/version", timeout=timeout)
+
+    @staticmethod
+    def embed_body(
+        model: str, inputs: list[str], *, options: dict[str, Any] | None, keep_alive: str | int | None
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"model": model, "input": list(inputs), "truncate": False}
+        if options:
+            body["options"] = dict(options)
+        if keep_alive is not None:
+            body["keep_alive"] = keep_alive
+        return body
+
+    async def embed(
+        self,
+        model: str,
+        inputs: list[str],
+        *,
+        options: dict[str, Any] | None = None,
+        keep_alive: str | int | None = None,
+        timeout: float,
+    ) -> EmbedReply:
+        """`POST /api/embed` with `truncate: false` (decision 6): a text is never cut short in silence."""
+        body = self.embed_body(model, inputs, options=options, keep_alive=keep_alive)
+        return parse_embed(await self._request("POST", "/api/embed", timeout=timeout, body=body), len(inputs))
+
+    def embed_sync(
+        self,
+        model: str,
+        inputs: list[str],
+        *,
+        options: dict[str, Any] | None = None,
+        keep_alive: str | int | None = None,
+        timeout: float,
+    ) -> EmbedReply:
+        body = self.embed_body(model, inputs, options=options, keep_alive=keep_alive)
+        return parse_embed(self._request_sync("POST", "/api/embed", timeout=timeout, body=body), len(inputs))
+
+    def load_embed_sync(
+        self, model: str, keep_alive: str | int, *, options: dict[str, Any] | None = None, timeout: float
+    ) -> None:
+        """Loads an embedding model (design `research-index`, decision 21) by embedding one character with the same
+        options as every other call, so the model is never reloaded for a different setting; the vector is dropped."""
+        self.embed_sync(model, ["."], options=options, keep_alive=keep_alive, timeout=timeout)
 
     def loaded_sync(self, *, timeout: float = INFO_SECONDS) -> Any:
         return self._request_sync("GET", "/api/ps", timeout=timeout)

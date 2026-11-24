@@ -128,6 +128,17 @@ export const SERVER_LABELLED: Record<string, string> = {
 
 /** Never shown to a reader as a word of its own (the reason). */
 export const NOT_SHOWN: Record<string, string> = {
+  // design research-index, round 1 (backend): the portal shows none of these until round 2 (research-index-portal)
+  "AssistantChecksOut.withheld": "Counts of the sentence checks; the answer's own text says what was removed",
+  "AssistantCitationOut.match": "How a passage was found; round 2 may show it, never as a word of its own",
+  "AssistantFiltersIn.forms": "A request field; round 2's filters word the choices themselves",
+  "AssistantHighlightOut.kind": "Chooses how round 2's passage view marks the text, never printed",
+  "AssistantResearchStateOut.state": "Chooses round 2's research index notice, a sentence of its own",
+  "AssistantRetrievalOut.kind": "Counts of how the sources were found; never printed as a word",
+  "ResearchIndexStatusOut.readiness": "Chooses round 2's Research Index sentence on Data Collection",
+  "ResearchIndexStatusOut.timed_out": "Chooses the muted line that some counts took too long",
+  ResearchChunkKind: "Stored with the research index's chunks; no screen shows it",
+  ResearchRetireReason: "Kept with retired chunks and vectors for the record; no screen shows it",
   // design order-sections: values that choose a badge, a notice or a sentence, never printed as a word of their own
   "OrderReadingBrief.form": "Chooses the Judgment or Final Order badge of What the Order Says",
   "OrderSectionsOut.form": "Chooses the Judgment or Final Order badge of What the Order Says",

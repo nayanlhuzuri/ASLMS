@@ -1,4 +1,4 @@
-# ASLMS Database Standard (v1.3, 25 Oct 2026 — approved for execution)
+# ASLMS Database Standard (v1.4, 23 Nov 2026 — approved for execution)
 
 Binding standard for every table, column, key and identifier in ASLMS v2 (`backend/`). It is written against
 the database that exists today: migrations `0001_phase1_core`, `0002_ownership_unit`, `0003_phase2_workflow`,
@@ -11,6 +11,8 @@ Version history: v1.0/v1.1 (29 Sep) were drafted against the September prototype
 superseded; v1.2 maps the same decisions onto the real inventory. v1.3 (25 Oct 2026) amends §3: a case number carries
 the court's code (`courts.ref_code`) instead of `GOA`, and records the owner's one-time renumbering of the
 existing case numbers (design `case-ref-court-prefix`); §3a is new.
+v1.4 (23 Nov 2026) adds §13, vector data (pgvector), and the derived tables `research_chunks` and
+`research_embeddings` to §0 (design `research-index`, approved by the owner on 23 Nov 2026).
 
 Sources: PostgreSQL community conventions; RFC 9562 (UUID v7); RFC 3339 / ISO 8601; MeitY *Metadata and
 Data Standards* (MDDS); Local Government Directory (LGD) codes; the eCourts CNR; eOffice file numbering as
@@ -31,7 +33,7 @@ decision closed with the owner, 29 Sep).
 | **Reference** (`ref_*`) | new in this milestone (§7) | `aslms seed` (upsert on `code`); administrators edit labels only |
 | **Master** | `offices`, `users`, `courts`, `benches`, `case_types`, `counsel_codes`, `office_name_patterns`, `office_keywords`, `office_watchlist`, `user_notification_preferences`; new: `designations`, `states`, `districts`, `acts`, `advocates` | administration screens (organisation masters) or the `master_sync` job (court masters) |
 | **Transaction** | `cases`, `case_parties`, `case_advocates`, `case_hearings`, `case_acts`, `case_links`, `causelists`, `causelist_entries`, `causelist_reconciliations`, `recommendations`, `case_ownership`, `ownership_transfers`, `documents`, `document_text`, `orders`, `next_dates`, `alerts`, `requests`, `request_messages`, `case_stages`, `case_notes`, `case_note_attachments`, `custody`, `assistant_conversations`, `assistant_messages`; new: `case_applications`, `case_lower_courts`, `case_objections` | users, the daily cycle, the scoring engine |
-| **Derived / log** | `events`, `audit_log`, `custody_history`, `case_snapshots`, `case_office_scores`, `notifications`, `digests`, `otp_codes`, `refresh_tokens`, `job_runs`, `napix_call_log`, `source_failures`, `master_sync_runs`, `sourcetrace_ingestions`, `order_sections`, `insight_case_facts` | system only; logs are INSERT-only, derived rows are regenerable |
+| **Derived / log** | `events`, `audit_log`, `custody_history`, `case_snapshots`, `case_office_scores`, `notifications`, `digests`, `otp_codes`, `refresh_tokens`, `job_runs`, `napix_call_log`, `source_failures`, `master_sync_runs`, `sourcetrace_ingestions`, `order_sections`, `insight_case_facts`, `research_chunks`, `research_embeddings` | system only; logs are INSERT-only, derived rows are regenerable |
 
 Rules that follow from the class:
 1. A transaction never stores a master value as free text once a master exists (`users.designation` →
@@ -274,6 +276,23 @@ than regenerating once. `docs/schema/phase1.md` is renamed `docs/schema/schema.m
 10. `\dt+` shows a `class=` comment on every table; `psql` as `aslms_app` cannot `DELETE FROM cases`.
 
 Only after 1–10: tag `v0.3.0-db-standard`, append the decisions log, resume the Plan's build order.
+
+## 13. Vector data (pgvector)
+
+Added by v1.4 (design `research-index`, migration 0042).
+
+- Vectors are derived data only. They are made from court information only (court orders as read by
+  `order_sections`, and court-public case fields), never from notes, file remarks, internal documents or drafts.
+- They are made by the local Ollama model through `backend/aslms/integration/ollama/` and stored by PostgreSQL's
+  `vector` extension (pgvector, pinned in `infra/postgres/Dockerfile` and in CI, the same build).
+- The column is `halfvec` without typmod, with a `dims` column and CHECK `vector_dims(embedding) = dims`. One HNSW
+  partial expression index exists per dimension in use (`halfvec_cosine_ops`, `m = 16`, `ef_construction = 64`).
+- Every vector records the model's name, digest and key, and the SHA-256 of the exact input. A changed model is a new
+  key, never an overwrite. Vectors are never deleted; they are retired.
+- Vectors are bound as text literals. The backend holds no vector or model library.
+- Search settings are `SET LOCAL` only (PgBouncer).
+- A table keyed by a content hash may join another by that hash without a foreign key, when it also carries a
+  RESTRICT foreign key to the row it was first made for (`research_embeddings.first_chunk_id`).
 
 ---
 

@@ -399,11 +399,30 @@ def ollama_rules(settings: Any, resolve: Any = None) -> list[Finding]:
     warning (the model's share is cut). Lines name the variables, never their values."""
     from urllib.parse import urlsplit
 
-    from aslms.services.assistant_ollama import cloud_problems
+    from aslms.services.assistant_ollama import cloud_problems, model_name_ok
 
     findings = [Finding(FATAL, "no_cloud_model", f"{var} {why}") for var, why in cloud_problems(settings)]
+    # design research-index, decision 6: the embedding model's name is held to the same rule
+    if not model_name_ok(getattr(settings, "research_embed_model", "")):
+        findings.append(
+            Finding(
+                FATAL,
+                "no_cloud_model",
+                "RESEARCH_EMBED_MODEL is not a local Ollama model name (a name or tag holding 'cloud', or not a "
+                "model name)",
+            )
+        )
     mode = (getattr(settings, "assistant_mode", "off") or "off").strip().lower()
-    if mode != "ollama" or findings:
+    if getattr(settings, "research_index_enabled", False) and mode != "ollama":
+        findings.append(
+            Finding(
+                WARNING,
+                "research_index_mode",
+                "RESEARCH_INDEX_ENABLED is true but ASSISTANT_MODE is not ollama; the meaning search is used only by "
+                "the local model",
+            )
+        )
+    if mode != "ollama" or any(f.level == FATAL for f in findings):
         return findings
     level = ERROR if getattr(settings, "app_env", "dev") == "prod" else WARNING
     host = urlsplit(settings.assistant_ollama_url).hostname or ""

@@ -44,7 +44,12 @@ x-hardening: &hardening
 
 services:
   postgres:
-    image: postgres:16.15
+    # design research-index, decision 14: the same postgres:16.15 server with PGDG's pgvector 0.8.7 pinned
+    # (infra/postgres/Dockerfile); the data volume and the server major version are unchanged. A dump needs this image
+    # to restore elsewhere.
+    build:
+      context: ./infra/postgres
+    image: aslms/postgres:16.15-pgvector0.8.7
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-aslms}
@@ -363,6 +368,9 @@ services:
     # The image runs as uid 10001 and /app is root-owned, so beat keeps its schedule file in /tmp (lost on recreate,
     # which only means each crontab entry next fires at its next due time).
     command: celery -A aslms.jobs.celery_app worker -B -s /tmp/celerybeat-schedule --concurrency 1 -l info
+    # the research index job reaches the host's Ollama like the api (design research-index, decision 30)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     <<: *hardening
     logging: *logging

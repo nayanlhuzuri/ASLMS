@@ -166,7 +166,9 @@ The build comes right after row 172 (`data-collection-redesign`), by the owner's
 **Not covered** (stated so nobody widens it):
 - next-date reading of orders, which stays rule-based (row 26);
 - OCR (rows 23 and 96);
-- any other use of the model: alerts, reports, matching, summaries, embeddings or vector search;
+- any other use of the model: alerts, reports, matching, summaries, embeddings or vector search
+  (*Amended by `research-index`, 23 Nov 2026: embeddings and vector search for court information only, through
+  `integration/ollama/`, are covered by `docs/design/research-index.md`; every other use stays out*);
 - Acts, rules and policies;
 - streaming;
 - model management from the portal;

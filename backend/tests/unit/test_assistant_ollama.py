@@ -194,6 +194,10 @@ ALLOWED_CLIENT = {
     ("services", "assistant_ollama.py"),
     ("services", "service_checks.py"),
     ("cli", "assistant.py"),
+    # design research-index, decision 6: the embedding job, the hybrid search and its CLI
+    ("services", "research_embed.py"),
+    ("services", "research_search.py"),
+    ("cli", "research.py"),
 }
 
 
@@ -486,7 +490,8 @@ RULES_1_TO_6 = [
 
 
 def test_prompt_v2_rules():
-    assert ol.PROMPT_VERSION == 2
+    """Rules 1 to 8 unchanged; design research-index (prompt version 3) adds rules 9 and 10."""
+    assert ol.PROMPT_VERSION == 3
     lines = ol.SYSTEM_PROMPT.split("\n")
     start = lines.index(RULES_1_TO_6[0])
     assert lines[start : start + len(RULES_1_TO_6)] == RULES_1_TO_6
@@ -496,7 +501,9 @@ def test_prompt_v2_rules():
         "what the officer means; do not answer them again and do not repeat an earlier answer. "
         "8. When the question asks for one fact (a date, a name, a number or a status), answer in one sentence. "
         "Otherwise answer in as few sentences as the question needs, in plain text without headings or tables, "
-        "and never in more than 200 words."
+        "and never in more than 200 words. "
+        "9. Put the direct answer in the first sentence. "
+        "10. When you quote, copy the words exactly and put them in double quotes."
     )
     assert "Earlier questions and answers are context only" not in ol.SYSTEM_PROMPT
 

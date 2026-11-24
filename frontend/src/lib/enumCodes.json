@@ -123,6 +123,7 @@
     "recommendation.dismiss",
     "recommendation.suggest",
     "report.exported",
+    "research_index.rebuilt",
     "scoring_settings.update",
     "sourcetrace.retry_all_failed",
     "sourcetrace.retry_requested",
@@ -729,6 +730,19 @@
       "NXT",
       "ALR",
       "TKT"
+    ],
+    "ResearchChunkKind": [
+      "order_body",
+      "case_sheet"
+    ],
+    "ResearchRetireReason": [
+      "reading_gone",
+      "sheet_changed",
+      "chunker_version",
+      "case_merged",
+      "model_changed",
+      "chunk_retired",
+      "rebuilt"
     ],
     "ResolutionStatus": [
       "resolved",

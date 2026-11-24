@@ -142,6 +142,7 @@ def ask(
                 include_related=body.include_related,
                 connector=connector,
                 config=config,
+                filters=body.filters.as_dict() if body.filters else None,
             )
         )
         conv = session.get(AssistantConversation, result.conversation_id)
@@ -239,6 +240,27 @@ def read_conversation(
         return schemas.AssistantThreadOut(
             **svc.conversation(session, user, conversation_id, before=before, limit=limit)
         )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+
+
+@router.get(
+    "/messages/{message_id}/sources/{label}/passage",
+    response_model=schemas.AssistantPassageOut,
+    responses=ERRORS,
+)
+def source_passage(
+    message_id: uuid.UUID,
+    label: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(use),
+) -> schemas.AssistantPassageOut:
+    """The passage of a court-order source of the caller's own answer (design research-index, API): the stored text of
+    its page with the passage and matched quotes as page-relative offsets, and `text_changed`. 404 for another user's
+    message, a source that is not a court order found through the research index, or an order no longer in the
+    court-order corpus. Court-public text; not audited."""
+    try:
+        return schemas.AssistantPassageOut(**svc.passage_for(session, user, message_id, label))
     except HANDLED as exc:
         raise _http(exc) from exc
 

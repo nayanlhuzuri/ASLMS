@@ -61,6 +61,7 @@ LABELS = {
     "store": "Document store",
     "web": "Web portal",
     "assistant_model": "Case Assistant Model",
+    "research_model": "Research Index Model",
 }
 # the Prometheus rules' numbers (decision 10)
 CONNECTIONS_WARN = 0.8  # PostgresConnectionsHigh
@@ -133,6 +134,8 @@ class Probes:
     disk: Callable[[str], Any]
     db_head: Callable[[Settings], str | None]
     assistant_model: Callable[[Settings], ModelState] | None = None
+    research_model: Callable[[Settings], ModelState] | None = None
+    research_coverage: Callable[[Settings, str], float | None] | None = None
 
 
 def redis_probe(settings: Settings) -> dict[str, Any]:
@@ -207,6 +210,13 @@ def assistant_model_probe(settings: Settings) -> ModelState:
     return client.state_sync(settings.assistant_ollama_model, timeout=settings.ops_probe_timeout_seconds)
 
 
+def research_model_probe(settings: Settings) -> ModelState:
+    """The embedding model's state from the same Ollama server (design `research-index`, decision 32): `/api/version`,
+    `/api/tags` and `/api/ps` only; never embeds, never loads."""
+    client = OllamaClient(settings.assistant_ollama_url)
+    return client.state_sync(settings.research_embed_model, timeout=settings.ops_probe_timeout_seconds)
+
+
 def default_probes() -> Probes:
     return Probes(
         redis=redis_probe,
@@ -217,6 +227,7 @@ def default_probes() -> Probes:
         disk=shutil.disk_usage,
         db_head=db_head,
         assistant_model=assistant_model_probe,
+        research_model=research_model_probe,
     )
 
 
@@ -549,6 +560,60 @@ def check_assistant_model(settings: Settings, state: ModelState | None, error: s
     return Check("assistant_model", "ok", "Loaded and ready", facts, ms)
 
 
+def check_research_model(
+    settings: Settings, state: ModelState | None, error: str | None, ms: int, coverage: float | None
+) -> Check:
+    """Design `research-index`, decision 32: `ok` held locally and loaded with the index at least 99% built; `warn`
+    held but not loaded, or the index still building; `down` unreachable, missing, not local or a cloud name. Facts:
+    Model, Loaded, On GPU and Coverage — never the address."""
+    from aslms.integration.ollama import model_name_ok
+
+    model = settings.research_embed_model
+    if not model_name_ok(model):
+        return Check(
+            "research_model",
+            "down",
+            "The research model setting is not a local model name",
+            [_f("Model", "refused")],
+            ms,
+        )
+    if state is None or error is not None or not state.reachable:
+        return Check("research_model", "down", "Cannot reach the model server", [_f("Model", model)], ms)
+    facts = [
+        _f("Model", model),
+        _f("Loaded", "Yes" if state.loaded else "No"),
+        _f("On GPU", GPU_WORDS.get(state.on_gpu or "", "—")),
+        _f("Coverage", f"{coverage * 100:.1f}%" if coverage is not None else "—"),
+    ]
+    if state.reason == "missing":
+        return Check("research_model", "down", "The research model is not on the model server", facts, ms)
+    if not state.local:
+        return Check(
+            "research_model", "down", "The research model is not held on the model server itself", facts, ms
+        )
+    if not state.loaded:
+        return Check(
+            "research_model", "warn", "The research model is on the server but not loaded yet", facts, ms
+        )
+    if coverage is not None and coverage < 0.99:
+        return Check("research_model", "warn", "Loaded; the research index is still being built", facts, ms)
+    return Check("research_model", "ok", "Loaded and ready", facts, ms)
+
+
+def research_coverage(session: Session, settings: Settings, state: ModelState | None) -> float | None:
+    """The share of current chunks embedded under the live key, read under a short timeout (None when unknown)."""
+    from aslms.services import research_embed, research_index
+    from aslms.services.reporting_common import isolated
+
+    if state is None or not state.digest:
+        return None
+    key = research_embed.model_key(settings.research_embed_model, state.digest)
+    got, _late = isolated(
+        session, 3, 30, lambda: research_index.counts(session, key), part="research coverage"
+    )
+    return float(got["coverage"]) if got else None
+
+
 def _timed(fn: Callable[[], Any]) -> tuple[Any, str | None, int]:
     started = time.perf_counter()
     try:
@@ -594,6 +659,9 @@ def run_all(
     ollama_mode = (getattr(settings, "assistant_mode", "off") or "off") == "ollama"
     if ollama_mode and probes.assistant_model is not None:
         jobs["assistant_model"] = lambda: probes.assistant_model(settings)
+    research_on = bool(getattr(settings, "research_index_enabled", False))
+    if research_on and probes.research_model is not None:
+        jobs["research_model"] = lambda: probes.research_model(settings)
     pool = ThreadPoolExecutor(max_workers=7, thread_name_prefix="service-check")
     futures = {k: pool.submit(_timed, fn) for k, fn in jobs.items() if fn is not None}
     deadline = time.monotonic() + timeout + 1
@@ -639,4 +707,18 @@ def run_all(
             "assistant_model", lambda: check_assistant_model(settings, state, err, ms)
         )
         order.append("assistant_model")
+    if research_on:
+        state, err, ms = res("research_model")
+        coverage = _safe_value(lambda: research_coverage(session, settings, state))
+        checks["research_model"] = _safe(
+            "research_model", lambda: check_research_model(settings, state, err, ms, coverage)
+        )
+        order.append("research_model")
     return [checks[k].to_dict() for k in order]
+
+
+def _safe_value(fn: Callable[[], Any]) -> Any:
+    try:
+        return fn()
+    except Exception:  # noqa: BLE001 — an unknown coverage is shown as unknown
+        return None

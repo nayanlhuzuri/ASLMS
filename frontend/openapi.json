@@ -1519,6 +1519,17 @@
             ],
             "title": "Conversation Id"
           },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantFiltersIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "design research-index: only for my_cases and research"
+          },
           "include_related": {
             "default": true,
             "title": "Include Related",
@@ -1600,6 +1611,7 @@
         "type": "object"
       },
       "AssistantChecksOut": {
+        "description": "Design research-index, decision 29: the sentence checks, counts only (absent on answers before them).",
         "properties": {
           "cut_short": {
             "default": false,
@@ -1610,6 +1622,58 @@
             "default": 0,
             "title": "Invalid Markers",
             "type": "integer"
+          },
+          "kept": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept"
+          },
+          "removed": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed"
+          },
+          "sentences": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentences"
+          },
+          "withheld": {
+            "anyOf": [
+              {
+                "enum": [
+                  "first_sentence",
+                  "majority",
+                  "none_cited"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withheld"
           }
         },
         "title": "AssistantChecksOut",
@@ -1675,6 +1739,29 @@
           },
           "case": {
             "$ref": "#/components/schemas/AssistantCitationCaseOut"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "chunker_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunker Version"
           },
           "cited": {
             "default": true,
@@ -1743,6 +1830,33 @@
             ],
             "title": "Label"
           },
+          "match": {
+            "anyOf": [
+              {
+                "enum": [
+                  "words",
+                  "meaning",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match"
+          },
+          "model_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Key"
+          },
           "note": {
             "anyOf": [
               {
@@ -1797,6 +1911,31 @@
             ],
             "title": "Page"
           },
+          "paragraphs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paragraphs"
+          },
+          "parser_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parser Version"
+          },
           "passage": {
             "anyOf": [
               {
@@ -1808,9 +1947,51 @@
             ],
             "title": "Passage"
           },
+          "pdf_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Sha256"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantQuoteOut"
+            },
+            "title": "Quotes",
+            "type": "array"
+          },
+          "reading_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Id"
+          },
           "related": {
             "title": "Related",
             "type": "boolean"
+          },
+          "same_words_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "other orders in scope holding the same words",
+            "title": "Same Words In"
           },
           "source_kind": {
             "enum": [
@@ -1824,6 +2005,38 @@
             ],
             "title": "Source Kind",
             "type": "string"
+          },
+          "src": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the passage's offsets in the order's stored text",
+            "title": "Src"
+          },
+          "text_changed": {
+            "default": false,
+            "description": "the order's stored text has changed since the answer",
+            "title": "Text Changed",
+            "type": "boolean"
+          },
+          "text_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Sha256"
           },
           "unavailable_reason": {
             "anyOf": [
@@ -2358,6 +2571,150 @@
         "title": "AssistantErrorOut",
         "type": "object"
       },
+      "AssistantFiltersIn": {
+        "additionalProperties": false,
+        "description": "Design research-index, decision 20: court-public filters for My Cases and All Court Orders, applied on the\nserver (400 `filters_not_allowed` for another scope, 400 `filters_unavailable` when the research index does not\nserve the question (switch off or preview mode), 400 `bad_filter` for an unknown outcome or act key or `from` after\n`to`). `against_state` is read by rule: allowed or partly allowed with the State as a current respondent, or\ndismissed with the State as a current petitioner.",
+        "properties": {
+          "act": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Act"
+          },
+          "against_state": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Against State"
+          },
+          "cites": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cites"
+          },
+          "forms": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "judgment",
+                    "final",
+                    "interim"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forms"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "outcomes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomes"
+          },
+          "substantive_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substantive Only"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "AssistantFiltersIn",
+        "type": "object"
+      },
+      "AssistantHighlightOut": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "exact": {
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "passage",
+              "quote"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "kind",
+          "exact"
+        ],
+        "title": "AssistantHighlightOut",
+        "type": "object"
+      },
       "AssistantInternalIn": {
         "additionalProperties": false,
         "description": "`POST /assistant/internal-records` (design assistant-ollama, decision 4).",
@@ -2567,6 +2924,16 @@
             ],
             "title": "Reply To Id"
           },
+          "retrieval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantRetrievalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "role": {
             "enum": [
               "user",
@@ -2633,6 +3000,207 @@
         "title": "AssistantOpenOut",
         "type": "object"
       },
+      "AssistantPassageOut": {
+        "description": "Design research-index, API: the stored text of a cited order's page, with the passage and quotes as offsets\nrelative to the page (none when `text_changed`).",
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "highlights": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantHighlightOut"
+            },
+            "title": "Highlights",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "page_text": {
+            "title": "Page Text",
+            "type": "string"
+          },
+          "text_changed": {
+            "title": "Text Changed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "order_id",
+          "document_id",
+          "page",
+          "page_count",
+          "page_text",
+          "highlights",
+          "text_changed"
+        ],
+        "title": "AssistantPassageOut",
+        "type": "object"
+      },
+      "AssistantQuoteOut": {
+        "description": "A quote of the answer matched in the stored text: `src` offsets, the page, and whether the words were found\nexactly (`exact` false: the whole passage is marked).",
+        "properties": {
+          "exact": {
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "src": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Src",
+            "type": "array"
+          }
+        },
+        "required": [
+          "src",
+          "exact"
+        ],
+        "title": "AssistantQuoteOut",
+        "type": "object"
+      },
+      "AssistantResearchStateOut": {
+        "description": "`off` (switched off or not the local model), `building` (under 99% of current chunks embedded under the live\nmodel key), `ready`, or `unavailable` (the embedding model is not ready).",
+        "properties": {
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "state": {
+            "enum": [
+              "off",
+              "building",
+              "ready",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "AssistantResearchStateOut",
+        "type": "object"
+      },
+      "AssistantRetrievalOut": {
+        "description": "Design research-index, decision 29: how the sources were found, counts only. `kind` `hybrid` (words and\nmeaning), `words_only` (the index without the question's vector; `reason`) or `words` (today's word search).",
+        "properties": {
+          "embed_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embed Ms"
+          },
+          "fused": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fused"
+          },
+          "kind": {
+            "enum": [
+              "hybrid",
+              "words_only",
+              "words"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lists": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lists"
+          },
+          "model_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "stale_dropped": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Dropped"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "AssistantRetrievalOut",
+        "type": "object"
+      },
       "AssistantStatusOut": {
         "description": "`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is\nchosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design\nassistant-ollama: `engine` the local model's readiness (reading it may start a load), `internal_records` `switch`\nin ollama mode (the case tab's \"Include This Case's Internal Records\") and `never` otherwise.",
         "properties": {
@@ -2678,6 +3246,10 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "research": {
+            "$ref": "#/components/schemas/AssistantResearchStateOut",
+            "description": "design research-index, decision 32: the meaning search's state and coverage"
           },
           "scopes": {
             "items": {
@@ -11250,6 +11822,16 @@
           },
           "queue": {
             "$ref": "#/components/schemas/QueueDepthsOut"
+          },
+          "research_index": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchIndexStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "retention": {
             "anyOf": [
@@ -26893,6 +27475,206 @@
           "truncated"
         ],
         "title": "ReportSectionOut",
+        "type": "object"
+      },
+      "ResearchChunkCountsOut": {
+        "properties": {
+          "case_sheet": {
+            "default": 0,
+            "title": "Case Sheet",
+            "type": "integer"
+          },
+          "order_body": {
+            "default": 0,
+            "title": "Order Body",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "ResearchChunkCountsOut",
+        "type": "object"
+      },
+      "ResearchIndexStatusOut": {
+        "description": "Design research-index, decision 32: the research index, counts only. `readiness` `off`, `ready` (held and\nloaded), `held` (held, not loaded) or `unavailable`; a part that ran out of time is named in `timed_out` and its\nfields are null.",
+        "properties": {
+          "chunks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchChunkCountsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "failures_open": {
+            "default": 0,
+            "title": "Failures Open",
+            "type": "integer"
+          },
+          "last_reconcile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live_model_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Model Key"
+          },
+          "other_keys": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Keys"
+          },
+          "readiness": {
+            "enum": [
+              "off",
+              "ready",
+              "held",
+              "unavailable"
+            ],
+            "title": "Readiness",
+            "type": "string"
+          },
+          "table_sizes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Sizes"
+          },
+          "timed_out": {
+            "items": {
+              "enum": [
+                "counts",
+                "sizes"
+              ],
+              "type": "string"
+            },
+            "title": "Timed Out",
+            "type": "array"
+          },
+          "vectors_live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vectors Live"
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting"
+          }
+        },
+        "required": [
+          "enabled",
+          "readiness"
+        ],
+        "title": "ResearchIndexStatusOut",
+        "type": "object"
+      },
+      "ResearchRunOut": {
+        "properties": {
+          "counters": {
+            "additionalProperties": true,
+            "title": "Counters",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "started_at",
+          "status"
+        ],
+        "title": "ResearchRunOut",
         "type": "object"
       },
       "ResetConfirmIn": {
@@ -43995,6 +44777,114 @@
           }
         ],
         "summary": "Include Internal",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/messages/{message_id}/sources/{label}/passage": {
+      "get": {
+        "description": "The passage of a court-order source of the caller's own answer (design research-index, API): the stored text of\nits page with the passage and matched quotes as page-relative offsets, and `text_changed`. 404 for another user's\nmessage, a source that is not a court order found through the research index, or an order no longer in the\ncourt-order corpus. Court-public text; not audited.",
+        "operationId": "source_passage_assistant_messages__message_id__sources__label__passage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "title": "Label",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantPassageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Source Passage",
         "tags": [
           "assistant"
         ]

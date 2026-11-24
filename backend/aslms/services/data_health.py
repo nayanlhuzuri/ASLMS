@@ -543,8 +543,27 @@ def snapshot(
         ),
         # design state-insights, decision 29: the readings of Insights, isolated in the same way
         "insights": insights_block(session, settings),
+        # design research-index, decision 32: the research index, counts only, isolated in the same way
+        "research_index": research_block(session, settings),
         "retention": retention(session, settings, now),
     }
+
+
+def research_block(session: Session, settings: Settings, *, client: Any = None) -> dict[str, Any]:
+    """Decision 32 of `research-index`: `research_index.status` with the live model key and readiness read from the
+    model server (`/api/tags` and `/api/ps` only; never embeds, never loads) when the index is switched on."""
+    from aslms.services import research_embed, research_index
+
+    enabled = bool(getattr(settings, "research_index_enabled", False))
+    key, readiness = research_embed.readiness(settings, client=client)
+    return research_index.status(
+        session,
+        enabled=enabled,
+        live_key=key,
+        readiness=readiness,
+        timeout_s=settings.order_sections_status_timeout_seconds,
+        restore_s=settings.report_statement_timeout_seconds,
+    )
 
 
 def insights_block(session: Session, settings: Settings) -> dict[str, Any] | None:
