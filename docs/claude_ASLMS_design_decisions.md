@@ -4462,3 +4462,24 @@ junction).
 
 **Left for later.** The browser checks of the note's Verification step 3 after deploy (no migration, `docker compose
 build`, `up` carrying the court-data switch).
+- 2026-11-23 — next-security-upgrade-2: approved by the owner (docs/design/next-security-upgrade-2.md); `next` and `eslint-config-next` pinned at 16.4.6; built beside row 251 at the owner's request to save time
+
+## Next.js security release 16.4.6 (2026-11-23)
+Row 269 `next-security-upgrade-2` (design `docs/design/next-security-upgrade-2.md`, approved by the owner 23 Nov 2026).
+
+What was built: `next` and `eslint-config-next` pinned exactly at 16.4.6 in `frontend/package.json` (no caret); the lock
+file changes only those two, `@next/env`, `@next/eslint-plugin-next` and the `@next/swc-*` binaries. Frontend only; no
+migration, no backend change, no source change.
+
+Decisions and reasons: the same pattern as row 205 (exact pins, no other bump) so the advisory fix is one reviewable
+lock change.
+
+Deviation: the design's context names two advisories; on 23 Nov 2026 `npm audit --omit=dev` on 16.4.3 listed seven
+(GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8, GHSA-7qx7-33qx-rqx2, GHSA-f3mh-rxg3-f5g2, GHSA-pc58-hwjq-p385,
+GHSA-rhh4-g77r-r9qj, GHSA-vvgp-ww4w-46vf), all fixed by 16.4.6; after the pin the audit reports 0 vulnerabilities.
+
+Verification (from the design note): lint and type check clean; vitest 112 files and 2823 tests passed; `next build`
+succeeded; uicheck on a private network, 195 routes and states, 0 findings; backend `pytest -q` 3871 passed, 3 skipped
+(Windows-only or sample-only), no database test skipped.
+
+Left for later: the deploy is a `web` rebuild from `main` with the build ID checked (integrator). No follow-up rows.

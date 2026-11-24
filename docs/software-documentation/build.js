@@ -768,7 +768,7 @@ function s13() {
     ["State Insights", "An Insights page under Oversight: the State's or a department's cases counted by kind, age, next hearing, subject, department (claimed, recommended and named, never added together) and post named, every chart narrowing the others, an accountability section and the case list with audited Excel and PDF export. The readings, counts and export (backlog row 258) and the page with Insights Groups and Names in Cause Titles (row 259) are in service; the recommendation signal from the cause title (row 260) is built, awaiting deployment"],
     ["Case research", "Court orders read into their parts by rules (built, awaiting deployment: section 6.5); then a meaning search over the orders, similar cases and summaries, and precedent notes, by the local model first and SourceTrace later"],
     ["SourceTrace connector", "The real connection for the Case Assistant and the ingestion of court orders and filings, when the API documentation is received"],
-    ["Portal framework upgrade", "The web framework upgraded to its latest security release, Next.js 16.4.3 (in service)"],
+    ["Portal framework upgrade", "The web framework upgraded to its latest security release, Next.js 16.4.3 (in service); the next security release, Next.js 16.4.6, is built and awaiting deployment"],
     ["Text recognition of scanned orders", "Reading scanned orders through SourceTrace"],
     ["District courts", "District court cases through the NAPIX District Court API (plan phase 3)"],
     ["SMS", "High-priority alerts by SMS when a gateway is provided"],
