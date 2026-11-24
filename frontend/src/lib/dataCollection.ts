@@ -193,6 +193,8 @@ export function estimateInputs(e: DataOverview["estimate"]): string[] {
       e.all.calls_needed === null ? T.dc.notMeasured : n(e.all.calls_needed),
     ),
     T.dc.howLines.window(b.window_days),
+    // the corrected-list rechecks, left out of a cause-list day's cost (design data-collection-redesign-advisories, decision 6)
+    ...(b.recheck_calls > 0 ? [T.dc.howLines.rechecks(n(b.recheck_calls), b.window_days)] : []),
   ];
 }
 

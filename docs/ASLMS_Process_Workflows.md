@@ -323,10 +323,10 @@ Duplicates tabs are retired; their old addresses lead to Overview or Problems an
 
 - **Overview** counts honestly across every queue lane (people's requests, the daily cycle and the historical load):
   cause-list days, cases and order PDFs held, what is left in each lane, problems, and an estimate in **two dates**
-  (when every case's details will be held, and when every order PDF will be as well). **Month by Month** shows how far
+  (when every case's details will be held, and when every order PDF will be as well; calls that only re-check cause lists for corrections are not counted in the cost of a cause-list day, so they do not push the dates later). **Month by Month** shows how far
   the past-months collection has reached. It refreshes itself while the tab is visible; that refreshing does not count
   as the person's activity for the session timeout (section 3.3).
-- **Automatic Collection** holds Load Control (Start, Pause, Resume), What Goes First, the Court Allowance, the daily
+- **Automatic Collection** holds Load Control (Start, Pause, Resume; its Status reads the same Running, Paused, Finished or Not Started as the Overview), What Goes First, the Court Allowance, the daily
   schedule in plain words with the last run of each job, the daily updates of the last 7 days, and **Search by
   Department Names** (department discovery).
 - **Collect Now** carries requests out **at once**, ahead of all other work, and they keep going if the person leaves

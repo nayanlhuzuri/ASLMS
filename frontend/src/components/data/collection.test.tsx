@@ -4,9 +4,9 @@
  * Start, Pause and What Goes First dialogs and forms, Calls by Person only when sent, the schedule) and Collect Now
  * (today's forms moved unchanged, each card by its function), and the frame (`/data` opens Overview; a `stack`).
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Coverage, DataLoad, Permission } from "@/lib/api/types";
 import { DC_KEYS, notAskedLine, POLL, type DataOverview, type DataPulse, type DataSchedule } from "@/lib/dataCollection";
@@ -71,6 +71,7 @@ function progress(): DataLoad {
       search_floor: 50,
     },
     estimate: { finish_at: null, hours: null, calls_needed: null, reason: null, basis: { calls_per_hour: 500 } },
+    collection: "running",
   } as DataLoad;
 }
 
@@ -112,6 +113,7 @@ const OVERVIEW = {
       history_hours: 400,
       calls_last_hour: 870,
       hourly_limit: 1000,
+      recheck_calls: 0,
     },
   },
   bulk: null,
@@ -414,6 +416,87 @@ describe("Overview (data-collection-redesign, decisions 14-21)", () => {
     expect(card.textContent).not.toMatch(/[{}]/);
   });
 
+  it("How This Is Worked Out names the recheck calls left out, only when there are any (advisories, decision 6)", async () => {
+    const sentence = "Calls that check lists already held for corrections (42 in the last 7 days) are not counted in the cost of a cause-list day.";
+    const withRechecks = { ...OVERVIEW, estimate: { ...OVERVIEW.estimate, basis: { ...OVERVIEW.estimate.basis, recheck_calls: 42 } } };
+    overviewRoutes(READER, { "GET /admin/data-load/overview": withRechecks });
+    const first = renderWithClient(<Overview />);
+    let card = await screen.findByRole("region", { name: "When Will It Finish" });
+    await userEvent.click(within(card).getByRole("button", { name: "How This Is Worked Out" }));
+    expect(within(card).getByText(sentence)).toBeInTheDocument();
+    first.unmount();
+    overviewRoutes(READER);
+    renderWithClient(<Overview />);
+    card = await screen.findByRole("region", { name: "When Will It Finish" });
+    await userEvent.click(within(card).getByRole("button", { name: "How This Is Worked Out" }));
+    expect(within(card).getByText(/3\.1 per cause-list day/)).toBeInTheDocument();
+    expect(within(card).queryByText(/check lists already held for corrections/)).toBeNull();
+  });
+
+  it("a slow overview says so in words for every screen that shares the code (advisories, decision 3)", async () => {
+    overviewRoutes(READER, {
+      "GET /admin/data-load/overview": json(503, {
+        detail: { code: "search_timeout", message: "the overview took too long; try again shortly" },
+      }),
+    });
+    renderWithClient(<Overview />);
+    expect(await screen.findByText("That took too long. Try again in a moment, or ask for a shorter period.")).toBeInTheDocument();
+    expect(screen.queryByText(/fewer months/)).toBeNull();
+  });
+
+  it("a second poll with new totals moves each figure from its old value, never through 0 (advisories, decision 5)", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    const queued = new Map<number, FrameRequestCallback>();
+    let next = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      next += 1;
+      queued.set(next, cb);
+      return next;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => queued.delete(id));
+    const seen: string[] = [];
+    const bigs = () => [...screen.getByRole("region", { name: "What Is Held" }).querySelectorAll("article > p:first-of-type")];
+    const record = () => seen.push(...bigs().map((p) => p.textContent ?? ""));
+    const flush = () => {
+      for (let i = 0; i < 100 && queued.size; i += 1) {
+        const [id, cb] = queued.entries().next().value!;
+        queued.delete(id);
+        act(() => cb(0));
+        record();
+      }
+    };
+    let current: DataOverview = OVERVIEW;
+    overviewRoutes(READER, { "GET /admin/data-load/overview": () => current });
+    const { client } = renderWithClient(<Overview />);
+    await screen.findByRole("region", { name: "What Is Held" });
+    flush();
+    expect(screen.getByText(`${f(59033)} found`)).toBeInTheDocument();
+    current = {
+      ...OVERVIEW,
+      days: { ...OVERVIEW.days!, collected: 310, with_lists: 284 },
+      cases: { ...OVERVIEW.cases, found: 59100 },
+      orders: { ...OVERVIEW.orders, stored: 138000 },
+      left: { ...OVERVIEW.left, total: 183100 },
+    };
+    seen.length = 0;
+    // every change of the tiles is recorded, the renders between frames included
+    const observer = new MutationObserver(record);
+    observer.observe(screen.getByRole("region", { name: "What Is Held" }), { subtree: true, childList: true, characterData: true });
+    await act(() => client.refetchQueries({ queryKey: DC_KEYS.overview }));
+    await waitFor(() => expect(queued.size).toBeGreaterThan(0));
+    expect(screen.getByText(`${f(59033)} found`)).toBeInTheDocument(); // the old value on the first render
+    flush();
+    observer.disconnect();
+    expect(screen.getByText(`${f(59100)} found`)).toBeInTheDocument();
+    expect(screen.getByText(`310 of 664 days`)).toBeInTheDocument();
+    expect(screen.getByText(f(183100))).toBeInTheDocument();
+    expect(seen.length).toBeGreaterThan(4);
+    for (const text of seen) expect(text).not.toMatch(/^0(\D|$)/);
+  });
+
   it("says why there is no date", async () => {
     const paused = {
       ...OVERVIEW,
@@ -476,6 +559,31 @@ describe("Automatic Collection (data-collection-redesign, decisions 34-41)", () 
     expect(await screen.findByRole("button", { name: "Start a Load" })).toBeInTheDocument();
     expect(primaryActions(container)).toEqual(["Start a Load"]);
     expect(screen.getByText(`Waiting: 101 cause-list days · ${f(5000)} case details · ${f(14900)} order PDFs`, { exact: false })).toBeInTheDocument();
+  });
+
+  it("Load Control's Status reads the collection state with the Overview's words (advisories, decision 4)", async () => {
+    const cases = [
+      ["running", "Running"],
+      ["paused", "Paused"],
+      ["finished", "Finished"],
+      ["not_started", "Not Started"],
+    ] as const;
+    for (const [state, words] of cases) {
+      const settings = { ...progress().settings, paused: state === "paused", reason: state === "paused" ? "court maintenance" : "resumed" };
+      automaticRoutes(READER, { "GET /admin/data-load": { ...progress(), settings, collection: state } });
+      const auto = renderWithClient(<AutomaticCollection />);
+      const control = await screen.findByRole("region", { name: /Load Control/ });
+      const badge = within(control).getByText(words);
+      if (state === "paused") expect(badge.closest("[data-ui='badge']")).toHaveAttribute("title", "court maintenance");
+      else expect(badge.closest("[data-ui='badge']")).not.toHaveAttribute("title", "court maintenance");
+      for (const other of cases) if (other[0] !== state) expect(within(control).queryByText(other[1])).toBeNull();
+      auto.unmount();
+      overviewRoutes(READER, { "GET /admin/data-load/overview": { ...OVERVIEW, settings, collection: state } });
+      const ov = renderWithClient(<Overview />);
+      const status = await screen.findByRole("list", { name: "Collection Status" });
+      expect(within(status).getByText(words)).toBeInTheDocument();
+      ov.unmount();
+    }
   });
 
   it("the Start dialog offers Start Load only when something would be fetched", async () => {

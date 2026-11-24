@@ -51,29 +51,54 @@ export function usePresence(open: boolean, ms: number): { mounted: boolean; clos
   return { mounted: open || closing, closing: closing && !open };
 }
 
+/** Where a count stands: from `from` to `to` (null before any number), `frame` of the frames done. */
+interface Count {
+  from: number;
+  to: number | null;
+  frame: number;
+}
+
+function countValue(c: Count, frames: number): number {
+  if (c.to === null) return 0;
+  return c.frame >= frames ? c.to : Math.round(c.from + ((c.to - c.from) * c.frame) / frames);
+}
+
 /**
- * A number counting up to `target` over about `frames` animation frames (the dashboard headline). Under reduced
- * motion, or without a number, the final value is returned at once.
+ * A number counting to `target` over about `frames` animation frames (the dashboard headline, the Data Collection
+ * figures). On first mount it counts up from 0 (the entry motion); when the target changes it counts from the value
+ * shown at that moment, up or down, never through 0, and a change in the middle of a count starts from the value then
+ * shown (design data-collection-redesign-advisories, decision 5). Under reduced motion, or without a number or with 0,
+ * the final value is returned at once.
  */
 export function useCountUp(target: number | null | undefined, frames = 12): number | null | undefined {
   const reduced = usePrefersReducedMotion();
-  const [anim, setAnim] = useState<{ target: number | null; frame: number }>({ target: null, frame: 0 });
-  const animate = !reduced && typeof target === "number" && target !== 0 && typeof requestAnimationFrame === "function";
+  const [count, setCount] = useState<Count>({ from: 0, to: null, frame: 0 });
+  // a NaN or infinite target is treated as no number: shown as given, never counted (NaN !== NaN would re-render forever)
+  const finite = typeof target === "number" && Number.isFinite(target);
+  const animate = !reduced && finite && target !== 0 && typeof requestAnimationFrame === "function";
+  if (animate && count.to !== target) {
+    // derived from the change of `target` during render (React's documented pattern, as `usePresence`), so the first
+    // render after a new target shows the value already on screen, never 0
+    setCount({ from: countValue(count, frames), to: target, frame: 0 });
+  } else if (!animate && finite && (count.to !== target || count.frame < frames)) {
+    setCount({ from: target, to: target, frame: frames });
+  } else if (!finite && count.to !== null) {
+    setCount({ from: 0, to: null, frame: 0 });
+  }
   useEffect(() => {
-    if (!animate || typeof target !== "number") return;
+    if (!animate || !finite) return;
     let frame = 0;
     let id = 0;
     const step = () => {
       frame += 1;
-      setAnim({ target, frame });
+      setCount((prev) => (prev.to === target ? { ...prev, frame } : prev));
       if (frame < frames) id = requestAnimationFrame(step);
     };
     id = requestAnimationFrame(step);
     return () => cancelAnimationFrame(id);
-  }, [animate, target, frames]);
-  if (!animate || typeof target !== "number") return target;
-  const frame = anim.target === target ? anim.frame : 0;
-  return frame >= frames ? target : Math.round((target * frame) / frames);
+  }, [animate, finite, target, frames]);
+  if (!animate || !finite) return target;
+  return countValue(count, frames);
 }
 
 // a layout effect in the browser (the mark is placed before paint), a plain effect on the server

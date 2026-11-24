@@ -63,6 +63,8 @@ export const LABELLED: Record<string, { map: LabelMap; sentence?: true; extra?: 
   "PoolCaseOut.best_band": { map: T.inbox.strengths },
   "DashboardMeAttentionOut.kind": { map: T.dash.leads },
   "DataLoadOverviewOut.collection": { map: T.dc.states },
+  // design data-collection-redesign-advisories, decision 4: Load Control's Status, the same words as the Overview
+  "DataLoadOut.collection": { map: T.dc.states },
   DocGroup: { map: T.case.docGroups },
   "FetchDetailItemOut.state": { map: T.data.detailStates, sentence: true },
   FetchKind: { map: T.dc.kinds },

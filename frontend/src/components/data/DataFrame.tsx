@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * "Data Collection" (design data-collection-redesign, decisions 1, 2 and 7): the tabs Overview, Collect Now and
- * Automatic Collection, then, until round 2, the old Health, Queue and Calls and Duplicates. Each tab shows by its own
+ * "Data Collection" (design data-collection-redesign, decisions 1, 2 and 7): the tabs Overview, Collect Now,
+ * Automatic Collection and Problems and Fixes (round 2 retired the old Health, Queue and Calls and Duplicates, whose
+ * addresses redirect; design data-collection-redesign-tabs). Each tab shows by its own
  * functions and every button by its own function; showing is convenience only: the API decides every figure and
  * action. The frame is a `stack` like `AdminFrame`, so the page keeps its gutter whatever the content (decision 7).
  */

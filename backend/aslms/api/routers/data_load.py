@@ -90,8 +90,13 @@ def get_progress(
     request: Request, session: Session = Depends(get_session), user: User = Depends(load_reader)
 ) -> schemas.DataLoadOut:
     """Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the
-    estimated finish with its basis (or why there is none). Never calls NAPIX."""
-    return schemas.DataLoadOut(**data_load.progress(session, request.app.state.settings))
+    estimated finish with its basis (or why there is none), and the collection's state as the Overview reads it;
+    503 `search_timeout` when the query takes too long. Never calls NAPIX."""
+    try:
+        out = data_load.progress(session, request.app.state.settings)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.DataLoadOut(**out)
 
 
 @router.get("/coverage", response_model=schemas.CoverageOut, responses=ERRORS)
@@ -117,8 +122,13 @@ def get_overview(
 ) -> schemas.DataLoadOverviewOut:
     """The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state
     and position, cause-list days of the period up to today, every case and order held, what is still to fetch in
-    every lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing."""
-    return schemas.DataLoadOverviewOut(**data_load.overview(session, request.app.state.settings))
+    every lane, the problem counts and the two-date estimate; 503 `search_timeout` when the query takes too long.
+    Never calls NAPIX; writes nothing."""
+    try:
+        out = data_load.overview(session, request.app.state.settings)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.DataLoadOverviewOut(**out)
 
 
 @router.get("/pulse", response_model=schemas.DataLoadPulseOut, responses=ERRORS)

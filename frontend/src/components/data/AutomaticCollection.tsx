@@ -42,6 +42,7 @@ import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 import { labelFor } from "@/lib/displayLabels";
 
+import { CollectionStateBadge } from "./CollectionStateBadge";
 import ds from "./data.module.css";
 import { usePulse } from "./Overview";
 
@@ -108,9 +109,7 @@ function LoadControl({ data, manage }: { data: DataLoad; manage: boolean }) {
           items={[
             [
               T.dc.facts.status,
-              <Badge key="s" tone={st.paused ? "warning" : "info"}>
-                {st.paused ? T.dc.states.paused : T.dc.states.running}
-              </Badge>,
+              <CollectionStateBadge key="s" state={data.collection} reason={st.reason} />,
             ],
             [T.dc.facts.since, st.version > 0 ? formatDateTime(st.changed_at) : null],
             [T.dc.facts.reason, st.version > 0 ? st.reason : null],

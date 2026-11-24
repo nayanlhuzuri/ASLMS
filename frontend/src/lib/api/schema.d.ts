@@ -271,7 +271,8 @@ export interface paths {
         /**
          * Get Progress
          * @description Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the
-         *     estimated finish with its basis (or why there is none). Never calls NAPIX.
+         *     estimated finish with its basis (or why there is none), and the collection's state as the Overview reads it;
+         *     503 `search_timeout` when the query takes too long. Never calls NAPIX.
          */
         get: operations["get_progress_admin_data_load_get"];
         put?: never;
@@ -511,7 +512,8 @@ export interface paths {
          * Get Overview
          * @description The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state
          *     and position, cause-list days of the period up to today, every case and order held, what is still to fetch in
-         *     every lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing.
+         *     every lane, the problem counts and the two-date estimate; 503 `search_timeout` when the query takes too long.
+         *     Never calls NAPIX; writes nothing.
          */
         get: operations["get_overview_admin_data_load_overview_get"];
         put?: never;
@@ -9019,6 +9021,12 @@ export interface components {
              * Format: date-time
              */
             as_of: string;
+            /**
+             * Collection
+             * @description the collection's state, the same as the Overview's (design data-collection-redesign-advisories)
+             * @enum {string}
+             */
+            collection: "running" | "paused" | "finished" | "not_started";
             estimate: components["schemas"]["EstimateOut"];
             failures: components["schemas"]["LoadFailuresOut"];
             /** Napix Enabled */
@@ -9956,6 +9964,11 @@ export interface components {
             pending: {
                 [key: string]: number;
             };
+            /**
+             * Recheck Calls
+             * @description Show Cause List calls of the corrected-list rechecks in the window, left out of the cause-list day's calls
+             */
+            recheck_calls: number;
             /** Window Days */
             window_days: number;
         };

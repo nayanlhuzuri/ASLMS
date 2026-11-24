@@ -12004,6 +12004,17 @@
             "title": "As Of",
             "type": "string"
           },
+          "collection": {
+            "description": "the collection's state, the same as the Overview's (design data-collection-redesign-advisories)",
+            "enum": [
+              "running",
+              "paused",
+              "finished",
+              "not_started"
+            ],
+            "title": "Collection",
+            "type": "string"
+          },
           "estimate": {
             "$ref": "#/components/schemas/EstimateOut"
           },
@@ -12054,7 +12065,8 @@
           "work_left",
           "failures",
           "allowance",
-          "estimate"
+          "estimate",
+          "collection"
         ],
         "title": "DataLoadOut",
         "type": "object"
@@ -14791,6 +14803,11 @@
             "title": "Pending",
             "type": "object"
           },
+          "recheck_calls": {
+            "description": "Show Cause List calls of the corrected-list rechecks in the window, left out of the cause-list day's calls",
+            "title": "Recheck Calls",
+            "type": "integer"
+          },
           "window_days": {
             "title": "Window Days",
             "type": "integer"
@@ -14807,7 +14824,8 @@
           "pending",
           "history_hours",
           "calls_last_hour",
-          "hourly_limit"
+          "hourly_limit",
+          "recheck_calls"
         ],
         "title": "EstimateAllBasisOut",
         "type": "object"
@@ -32974,7 +32992,7 @@
     },
     "/admin/data-load": {
       "get": {
-        "description": "Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the\nestimated finish with its basis (or why there is none). Never calls NAPIX.",
+        "description": "Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the\nestimated finish with its basis (or why there is none), and the collection's state as the Overview reads it;\n503 `search_timeout` when the query takes too long. Never calls NAPIX.",
         "operationId": "get_progress_admin_data_load_get",
         "responses": {
           "200": {
@@ -34458,7 +34476,7 @@
     },
     "/admin/data-load/overview": {
       "get": {
-        "description": "The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state\nand position, cause-list days of the period up to today, every case and order held, what is still to fetch in\nevery lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing.",
+        "description": "The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state\nand position, cause-list days of the period up to today, every case and order held, what is still to fetch in\nevery lane, the problem counts and the two-date estimate; 503 `search_timeout` when the query takes too long.\nNever calls NAPIX; writes nothing.",
         "operationId": "get_overview_admin_data_load_overview_get",
         "responses": {
           "200": {

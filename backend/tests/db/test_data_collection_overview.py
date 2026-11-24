@@ -734,3 +734,196 @@ def test_status_lines_name_both_estimates():
     assert "Cause lists and case details: no date: the automatic collection is paused" in lines
     assert "Every order PDF as well: about Sun 08 Nov 2026 10:00 IST (1,000 calls)" in lines
     assert lines[-1] == "Pace: about 820 court calls an hour of the 1,000 the court allows"
+
+
+# ------------------------------------------------------------------------------------------------ round 1 advisories
+# design `data-collection-redesign-advisories`: the Overview and the old progress read answer 503 on a cancelled
+# statement (decision 2), Load Control reads the Overview's collection state (decision 4) and the corrected-list
+# rechecks are left out of the cost of a cause-list day (decision 6).
+
+SHOW = "hc-show-causelist-api/showcauselist"
+BENCH = data_load.FAMILY[FetchKind.CAUSELIST_DAY][0]
+
+
+def _cancelled(mp, reader: str) -> None:
+    """One inner reader of the read first drops the statement timeout to 1 ms on the request's own session and then
+    sleeps, so Postgres cancels the statement (`QUERY_CANCELED`) and the real error passes through `_timed` and the
+    router. Everything else stays as built."""
+    real = getattr(data_load, reader)
+
+    def slow(session, *args, **kwargs):
+        session.execute(sa.text("SET LOCAL statement_timeout = 1"))
+        session.execute(sa.text("SELECT pg_sleep(0.2)"))
+        return real(session, *args, **kwargs)  # pragma: no cover - never reached
+
+    mp.setattr(data_load, reader, slow)
+
+
+def _cancelled_answers_503(world, tmp_path, monkeypatch, path: str, reader: str) -> None:
+    with world.Session() as s:
+        _day(s, date(2025, 1, 3), FetchStatus.PENDING)
+        s.commit()
+    api = ds.make_api(world, tmp_path)
+    try:
+        h = ds.login(api, "root")
+        before = _counts(world)
+        with monkeypatch.context() as mp:
+            _cancelled(mp, reader)
+            r = api.get(path, headers=h)
+        assert r.status_code == 503, r.text
+        assert r.json()["detail"]["code"] == "search_timeout"
+        assert _counts(world) == before  # nothing written, no NAPIX call
+        r = api.get(path, headers=h)  # a new session, without the patch
+        assert r.status_code == 200, r.text
+        assert r.json()["collection"] == "running"
+    finally:
+        api.__exit__(None, None, None)
+    with world.Session() as s:
+        s.execute(sa.delete(FetchQueueItem))
+        s.commit()
+
+
+def test_overview_cancelled_query_answers_503_search_timeout(world, tmp_path, monkeypatch):
+    _cancelled_answers_503(world, tmp_path, monkeypatch, "/admin/data-load/overview", "waiting_work")
+
+
+def test_progress_cancelled_query_answers_503_search_timeout(world, tmp_path, monkeypatch):
+    _cancelled_answers_503(world, tmp_path, monkeypatch, "/admin/data-load", "failures")
+
+
+def test_overview_and_progress_name_their_own_timeout(world, monkeypatch):
+    for fn, reader, message in (
+        (data_load.overview, "waiting_work", "the overview took too long; try again shortly"),
+        (data_load.progress, "failures", "the progress took too long; try again shortly"),
+    ):
+        with monkeypatch.context() as mp, world.Session() as s:
+            _cancelled(mp, reader)
+            try:
+                fn(s, CFG, NOW)
+            except data_load.SearchTimeout as exc:
+                assert str(exc) == message
+                assert getattr(getattr(exc.__cause__, "orig", None), "sqlstate", None) == "57014"
+            else:  # pragma: no cover
+                raise AssertionError("a cancelled query must raise SearchTimeout")
+            s.rollback()
+
+
+def test_progress_collection_state_matches_overview(world, tmp_path):
+    def both(s) -> tuple[str, str]:
+        return data_load.overview(s, CFG, NOW)["collection"], data_load.progress(s, CFG, NOW)["collection"]
+
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        assert both(s) == ("not_started", "not_started")
+        row = _day(s, date(2025, 1, 3), FetchStatus.PENDING)
+        assert both(s) == ("running", "running")
+        data_load.pause(s, actor, root, "verification")
+        assert both(s) == ("paused", "paused")
+        data_load.resume(s, actor, root)
+        row.status = FetchStatus.DONE
+        s.flush()
+        assert both(s) == ("finished", "finished")
+        # work in another lane does not keep the past-months collection running, on either answer
+        _put(s, FetchKind.DOSSIER, "GAHC010000012025", FetchStatus.PENDING, lane=FetchLane.DAILY)
+        assert both(s) == ("finished", "finished")
+        s.commit()
+    api = ds.make_api(world, tmp_path)
+    try:
+        h = ds.login(api, "root")
+        progress = api.get("/admin/data-load", headers=h).json()
+        overview = api.get("/admin/data-load/overview", headers=h).json()
+        assert progress["collection"] == overview["collection"] == "finished"
+        assert overview["estimate"]["basis"]["recheck_calls"] == 0
+    finally:
+        api.__exit__(None, None, None)
+    with world.Session() as s:
+        s.execute(sa.delete(FetchQueueItem))
+        s.commit()
+
+
+def _recheck(s, d: date, status: FetchStatus, finished_at: datetime, called, *, lane=FetchLane.DAILY):
+    result = None if called is ... else {"list_date": d.isoformat(), "called": called}
+    return _put(
+        s,
+        FetchKind.CAUSELIST_RECHECK,
+        d.isoformat(),
+        status,
+        lane=lane,
+        priority=30,
+        list_date=d,
+        finished_at=finished_at,
+        result=result,
+    )
+
+
+def test_measure_all_leaves_recheck_calls_out_of_cause_list_days(world):
+    with world.Session() as s:
+        # two finished cause-list days and their six calls
+        for i, d in enumerate((date(2025, 1, 3), date(2025, 1, 4))):
+            _day(s, d, FetchStatus.DONE, finished_at=NOW - timedelta(hours=20 + i))
+            for api in (BENCH, SHOW, SHOW):
+                _call(s, NOW - timedelta(hours=20 + i), lane="load", api=api)
+        s.flush()
+        base = data_load.measure_all(s, CFG, NOW)
+        assert base.calls["causelist_day"] == 6 and base.calls_per_item["causelist_day"] == 3.0
+        assert base.recheck_calls == 0
+        # an evening recheck in the daily lane called Show Cause List four times; a skipped one once
+        _recheck(s, date(2025, 1, 9), FetchStatus.DONE, NOW - timedelta(hours=2), 4)
+        _recheck(
+            s, date(2025, 1, 8), FetchStatus.SKIPPED, NOW - timedelta(hours=3), 1, lane=FetchLane.REQUEST
+        )
+        for i in range(4):
+            _call(s, NOW - timedelta(hours=2, minutes=i), lane="daily", api=SHOW)
+        _call(s, NOW - timedelta(hours=3), lane="request", api=SHOW)
+        # not subtracted: a recheck finished before the window, a failed one, one with no result or a null count
+        _recheck(s, date(2024, 12, 20), FetchStatus.DONE, NOW - timedelta(days=8), 5)
+        _recheck(s, date(2025, 1, 7), FetchStatus.FAILED, NOW - timedelta(hours=1), 2)
+        _recheck(s, date(2025, 1, 6), FetchStatus.DONE, NOW - timedelta(hours=4), ...)
+        _recheck(s, date(2025, 1, 5), FetchStatus.DONE, NOW - timedelta(hours=5), None)
+        s.flush()
+        b = data_load.measure_all(s, CFG, NOW)
+        assert b.recheck_calls == 5
+        assert b.calls["causelist_day"] == base.calls["causelist_day"] == 6
+        assert b.calls_per_item["causelist_day"] == base.calls_per_item["causelist_day"] == 3.0
+        assert b.finished["causelist_day"] == 2  # the recheck rows are not days
+        assert b.as_dict()["recheck_calls"] == 5
+        s.rollback()
+    with world.Session() as s:
+        # the count never goes below 0
+        _recheck(s, date(2025, 1, 9), FetchStatus.DONE, NOW - timedelta(hours=2), 100)
+        _call(s, NOW - timedelta(hours=2), lane="daily", api=SHOW)
+        s.flush()
+        b = data_load.measure_all(s, CFG, NOW)
+        assert b.recheck_calls == 100 and b.calls["causelist_day"] == 0
+        s.rollback()
+
+
+def test_estimate_dates_not_delayed_by_rechecks(world):
+    def lines(s) -> tuple[datetime | None, datetime | None]:
+        b = data_load.measure_all(s, CFG, NOW)
+        out = data_load.compute_two(b, paused=False, gateway_on=True, now=NOW)
+        assert out["details"]["reason"] is None and out["all"]["reason"] is None, out
+        return out["details"]["finish_at"], out["all"]["finish_at"]
+
+    with world.Session() as s:
+        _call(s, NOW - timedelta(days=3), lane="load", api="hc-masters-api/x")  # history beyond a day
+        for i, d in enumerate((date(2025, 1, 3), date(2025, 1, 4))):
+            _day(s, d, FetchStatus.DONE, finished_at=NOW - timedelta(minutes=50 + i))
+            for api in (BENCH, SHOW, SHOW):
+                _call(s, NOW - timedelta(minutes=30 + i), lane="load", api=api)
+        for i in range(4):
+            no = f"GAHC0100000{i + 1}2025"
+            _put(s, FetchKind.DOSSIER, no, FetchStatus.DONE, finished_at=NOW - timedelta(minutes=45))
+            _call(s, NOW - timedelta(minutes=40 + i), lane="load")
+        for d in (date(2025, 1, 6), date(2025, 1, 7), date(2025, 1, 8)):
+            _day(s, d, FetchStatus.PENDING)
+        s.flush()
+        without = lines(s)
+        assert without[0] is not None
+        # rechecks three days ago, inside the measuring window and outside the day's pace
+        _recheck(s, date(2025, 1, 2), FetchStatus.DONE, NOW - timedelta(days=3), 6)
+        for i in range(6):
+            _call(s, NOW - timedelta(days=3, minutes=i), lane="daily", api=SHOW)
+        s.flush()
+        assert lines(s) == without
+        s.rollback()

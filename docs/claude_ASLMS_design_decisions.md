@@ -4430,3 +4430,35 @@ owner 23 Nov 2026), tested and reviewed. Backend only; the portal side is row 27
   search check (design Verification 3 to 6, 8).
 - Row 275 `research-index-portal` (round 2). Row 276 `research-index-docs` (new): the Word guides and the Annexure E worked
   example (Verification 7).
+
+## Data Collection redesign advisories, row 191 `data-collection-redesign-advisories` (2026-11-23)
+Built on `feature/data-collection-redesign-advisories` from the design note `docs/design/data-collection-redesign-advisories.md`
+(approved 30 Oct 2026; the owner asked on 23 Nov 2026 for it to be built beside row 251). No migration; `schema.md` unchanged.
+
+**Built.**
+- Advisory 2: `data_load.overview()` and `progress()` run their reads inside `_timed`, and `get_overview` and
+  `get_progress` catch `HANDLED`, so a cancelled statement answers 503 `search_timeout` and no longer 500. The portal's
+  `search_timeout` words are now "That took too long. Try again in a moment, or ask for a shorter period."
+- Advisory 3: `GET /admin/data-load` gains `collection` (`running`, `paused`, `finished`, `not_started`) from
+  `collection_state`; one `CollectionStateBadge` gives Load Control and the Overview status line the same words and tones.
+- Advisory 4: `useCountUp` counts from the value on screen to the new value (up or down, mid-count included), counting
+  from 0 only on first mount; every Overview figure and every `Kpi` gets the fix.
+- Advisory 5: `measure_all` subtracts the Show Cause List calls of finished `causelist_recheck` rows from the
+  cause-list day family (clamped at 0); `recheck_calls` added to `BasisAll` and `EstimateAllBasisOut`; "How This Is
+  Worked Out" says so in one sentence.
+- Leftovers: unused `T.data` keys removed; `DataFrame.tsx` comment corrected.
+- Tests: `backend/tests/db/test_data_collection_overview.py` (503 on cancel for both reads, matching collection state,
+  recheck calls left out, estimate dates not delayed), `motion.test.tsx`, `collection.test.tsx`.
+
+**Decisions.** Advisory 1 closed with no code: row 173 already repointed the Problems links to `/data/problems#...`.
+A handler for `OperationalError` across routers rejected (it would hide other database errors); the data-load module's
+existing pattern kept. Load Control reads `collection` from its own answer rather than polling the Overview. Known
+limit kept: a token renewal inside a recheck and the calls of a failed, retried recheck stay in the family's count.
+
+**Deviations from the note** (written in it): the uicheck fixtures needed no edit (answers are synthesised from
+`openapi.json`); `DataLoadOut.collection` placed in `lib/enumLabels.ts` for the enum-label guard; the `T.data`
+leftovers removed as listed; `npm run build` in the worktree ran as `next build --webpack` (Turbopack refuses the
+junction).
+
+**Left for later.** The browser checks of the note's Verification step 3 after deploy (no migration, `docker compose
+build`, `up` carrying the court-data switch).

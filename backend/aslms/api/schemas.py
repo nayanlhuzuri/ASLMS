@@ -3725,6 +3725,9 @@ class DataLoadOut(BaseModel):
     failures: LoadFailuresOut
     allowance: AllowanceOut
     estimate: EstimateOut
+    collection: Literal["running", "paused", "finished", "not_started"] = Field(
+        description="the collection's state, the same as the Overview's (design data-collection-redesign-advisories)"
+    )
 
 
 class KindCountsOut(BaseModel):
@@ -3838,6 +3841,10 @@ class EstimateAllBasisOut(BaseModel):
     history_hours: float
     calls_last_hour: int
     hourly_limit: int | None
+    recheck_calls: int = Field(
+        description="Show Cause List calls of the corrected-list rechecks in the window, left out of the cause-list "
+        "day's calls"
+    )
 
 
 class EstimateAllOut(BaseModel):

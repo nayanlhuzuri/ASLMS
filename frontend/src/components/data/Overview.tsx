@@ -54,6 +54,7 @@ import { T } from "@/lib/messages";
 import { COLLECT_FUNCTIONS } from "@/lib/routes";
 import { labelFor } from "@/lib/displayLabels";
 
+import { CollectionStateBadge } from "./CollectionStateBadge";
 import ds from "./data.module.css";
 
 const n = (v: number | null | undefined) => formatNumber(v ?? 0);
@@ -133,14 +134,7 @@ function StatusLine({ data }: { data: DataOverview }) {
       </li>
       <li>
         <b>{T.dc.automaticLabel}</b>
-        <span className={state === "running" ? ds.pulse : undefined}>
-          <Badge
-            tone={state === "running" ? "info" : state === "paused" ? "warning" : state === "finished" ? "success" : undefined}
-            title={state === "paused" && st.reason ? st.reason : undefined}
-          >
-            {labelFor(T.dc.states, state)}
-          </Badge>
-        </span>
+        <CollectionStateBadge state={state} reason={st.reason} />
       </li>
       {data.bulk ? (
         <li>

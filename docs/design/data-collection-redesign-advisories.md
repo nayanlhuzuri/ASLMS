@@ -200,3 +200,18 @@ None.
 ## Open questions
 
 None.
+
+## Deviations
+
+1. **uicheck fixtures.** `frontend/e2e/fixtures/index.ts` needed no edit: `/admin/data-load` and the Overview answers
+   are synthesised from `openapi.json` (`synthFor`), so `collection` and `estimate.basis.recheck_calls` appear in them
+   from the regenerated schema, and no hand-typed literal of either answer exists for `tsc` to refuse.
+2. **`DataLoadOut.collection` in `lib/enumLabels.ts`.** The enum-label guard (`enumLabels.test.ts`) requires every
+   API enum to be placed; the new field is placed beside `DataLoadOverviewOut.collection` with the same map,
+   `T.dc.states`.
+3. **The `T.data` leftovers (decision 7).** Removed the keys of the retired Health, Queue and Calls and Duplicates
+   tabs and the old load console that no source file reads (checked by `tsc`, by a search of `src/` and `e2e/`, and
+   by the full `npm test`); the keys Collect Now, the Documents text block and the presets still read stay.
+4. **`npm run build` in the worktree.** Turbopack refuses the worktree's `node_modules` junction (a path outside its
+   root), so the developer's build check ran as `next build --webpack`, which passed; the integrator's
+   `docker compose build web` builds with the default bundler from a clean tree.

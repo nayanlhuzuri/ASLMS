@@ -39,6 +39,8 @@ describe("reduced motion (design portal-ui-redesign, decision 13)", () => {
     expect(result.current).toBe(42);
     rerender({ n: 128400 });
     expect(result.current).toBe(128400);
+    rerender({ n: 90 });
+    expect(result.current).toBe(90);
   });
 
   it("usePresence unmounts with no delay", () => {
@@ -90,6 +92,20 @@ describe("with motion", () => {
     expect(result.current).toEqual({ mounted: true, closing: false });
   });
 
+  it("useCountUp shows a NaN or infinite target as given and never loops (review of row 191, advisory 1)", () => {
+    stubMotion(false);
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { result, rerender } = renderHook(({ n }) => useCountUp(n, 12), { initialProps: { n: Number.NaN } });
+    expect(result.current).toBeNaN();
+    expect(frames).toHaveLength(0);
+    rerender({ n: Number.POSITIVE_INFINITY });
+    expect(result.current).toBe(Number.POSITIVE_INFINITY);
+    rerender({ n: 30 });
+    expect(result.current).toBe(0);
+  });
+
   it("useCountUp counts up over the frames to the final value", () => {
     stubMotion(false);
     const frames: FrameRequestCallback[] = [];
@@ -102,6 +118,97 @@ describe("with motion", () => {
     for (let i = 0; i < 11; i += 1) act(() => frames.shift()!(0));
     expect(result.current).toBe(120);
     expect(frames).toHaveLength(0);
+  });
+
+  describe("useCountUp on a new target (design data-collection-redesign-advisories, decision 5)", () => {
+    function counting() {
+      stubMotion(false);
+      // a cancelled frame is dropped, as in the browser, so a restarted count runs alone
+      const queued = new Map<number, FrameRequestCallback>();
+      let next = 0;
+      vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+        next += 1;
+        queued.set(next, cb);
+        return next;
+      });
+      vi.stubGlobal("cancelAnimationFrame", (id: number) => queued.delete(id));
+      const seen: (number | null | undefined)[] = [];
+      const hook = renderHook(
+        ({ n }) => {
+          const v = useCountUp(n, 12);
+          seen.push(v);
+          return v;
+        },
+        { initialProps: { n: 120 as number | null } },
+      );
+      const run = (k: number) => {
+        for (let i = 0; i < k; i += 1) {
+          const first = queued.keys().next();
+          if (first.done) return;
+          const cb = queued.get(first.value)!;
+          queued.delete(first.value);
+          act(() => cb(0));
+        }
+      };
+      run(12);
+      expect(queued.size).toBe(0);
+      return { ...hook, run, seen };
+    }
+
+    it("keeps the shown value on the first render after a new target, then climbs", () => {
+      const { result, rerender, run } = counting();
+      expect(result.current).toBe(120);
+      rerender({ n: 180 });
+      expect(result.current).toBe(120);
+      run(1);
+      expect(result.current).toBe(125);
+      run(11);
+      expect(result.current).toBe(180);
+    });
+
+    it("counts down", () => {
+      const { result, rerender, run } = counting();
+      rerender({ n: 90 });
+      expect(result.current).toBe(120);
+      run(6);
+      expect(result.current).toBe(105);
+      run(6);
+      expect(result.current).toBe(90);
+    });
+
+    it("a change in the middle of a count starts from the value shown", () => {
+      const { result, rerender, run } = counting();
+      rerender({ n: 240 });
+      run(6);
+      expect(result.current).toBe(180);
+      rerender({ n: 60 });
+      expect(result.current).toBe(180);
+      run(12);
+      expect(result.current).toBe(60);
+    });
+
+    it("never renders 0 after the first mount for a non-zero target", () => {
+      const { rerender, run, seen } = counting();
+      seen.length = 0;
+      rerender({ n: 180 });
+      run(3);
+      rerender({ n: 150 });
+      run(12);
+      rerender({ n: 151 });
+      run(12);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen).not.toContain(0);
+    });
+
+    it("a count after no number starts from 0 again, as on first mount", () => {
+      const { result, rerender, run } = counting();
+      rerender({ n: null });
+      expect(result.current).toBeNull();
+      rerender({ n: 60 });
+      expect(result.current).toBe(0);
+      run(12);
+      expect(result.current).toBe(60);
+    });
   });
 
   it("a dialog stays for its exit animation, then unmounts", async () => {

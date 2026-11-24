@@ -1084,29 +1084,36 @@ def allowance(session: Session, cfg: Settings, now: datetime | None = None) -> d
 
 
 def progress(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
-    """Decision 7: the whole progress block in one snapshot."""
+    """Decision 7: the whole progress block in one snapshot, with the collection's state as the Overview reads it
+    (design `data-collection-redesign-advisories`, decision 4). A cancelled query raises `SearchTimeout`."""
     now = _now(now)
     with_timeout(session, cfg.report_statement_timeout_seconds)
-    settings = current_settings(session)
-    period = load_period(session)
-    totals = None
-    if period is not None:
-        totals = {
-            "days": _day_totals(session, *period),
-            "cases": _case_totals(session, *period),
-            "orders": _order_totals(session, *period),
+
+    def read() -> dict[str, Any]:
+        settings = current_settings(session)
+        period = load_period(session)
+        totals = None
+        if period is not None:
+            totals = {
+                "days": _day_totals(session, *period),
+                "cases": _case_totals(session, *period),
+                "orders": _order_totals(session, *period),
+            }
+        return {
+            "as_of": to_ist(now),
+            "napix_enabled": bool(cfg.napix_configured),
+            "settings": settings_dict(settings),
+            "collection": collection_state(session, settings, period),
+            "period": {"from": period[0], "to": period[1]} if period else None,
+            "totals": totals,
+            "work_left": work_left(session, now),
+            "failures": failures(session),
+            "allowance": allowance(session, cfg, now),
+            "estimate": estimate(session, settings, cfg, now).as_dict(),
         }
-    return {
-        "as_of": to_ist(now),
-        "napix_enabled": bool(cfg.napix_configured),
-        "settings": settings_dict(settings),
-        "period": {"from": period[0], "to": period[1]} if period else None,
-        "totals": totals,
-        "work_left": work_left(session, now),
-        "failures": failures(session),
-        "allowance": allowance(session, cfg, now),
-        "estimate": estimate(session, settings, cfg, now).as_dict(),
-    }
+
+    # design `data-collection-redesign-advisories`, decision 2: a cancelled statement answers 503, never 500
+    return _timed(read, "the progress took too long; try again shortly")
 
 
 # ------------------------------------------------------------------------------------------------ overview, pulse
@@ -1249,16 +1256,40 @@ class BasisAll:
     history_hours: float
     calls_last_hour: int
     hourly_limit: int | None
+    # Show Cause List calls of the corrected-list rechecks in the window, left out of `calls["causelist_day"]`
+    # (design `data-collection-redesign-advisories`, decision 6)
+    recheck_calls: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
+
+
+def recheck_calls(session: Session, since: datetime) -> int:
+    """The Show Cause List calls made by `causelist_recheck` rows finished (`done` or `skipped`) at or after `since`:
+    the sum of their stored `result.called`, a missing or null value counting 0 (design
+    `data-collection-redesign-advisories`, decision 6)."""
+    q = FetchQueueItem
+    called = func.coalesce(q.result["called"].as_integer(), 0)
+    return int(
+        session.scalar(
+            select(func.coalesce(func.sum(called), 0)).where(
+                q.kind == FetchKind.CAUSELIST_RECHECK,
+                q.status.in_([FetchStatus.DONE, FetchStatus.SKIPPED]),
+                q.finished_at >= since,
+            )
+        )
+        or 0
+    )
 
 
 def measure_all(session: Session, cfg: Settings, now: datetime | None = None) -> BasisAll:
     """Decision 21: decision 8's rates widened to every queue lane (a call with a lane). Calls per item and PDFs per
     case come from every lane; dossiers per cause-list day from the load lane (a daily or weekly dossier is not spawned
     by a day), falling back to every lane; the pace is the queue calls of the last 24 hours. `pending` counts the
-    pending and running rows of the three kinds in every lane."""
+    pending and running rows of the three kinds in every lane. The Show Cause List calls of the corrected-list rechecks
+    finished in the window are left out of the cause-list day's calls, clamped at 0 (design
+    `data-collection-redesign-advisories`, decision 6; a token renewal inside a recheck, and the calls of a failed
+    recheck attempt, stay in: a known limit)."""
     now = _now(now)
     window = cfg.data_load_estimate_window_days
     since = now - timedelta(days=window)
@@ -1273,6 +1304,10 @@ def measure_all(session: Session, cfg: Settings, now: datetime | None = None) ->
             )
             or 0
         )
+    # the corrected-list rechecks call Show Cause List for lists already held: not the cost of a cause-list day
+    rechecks = recheck_calls(session, since)
+    day = FetchKind.CAUSELIST_DAY.value
+    calls[day] = max(0, calls[day] - rechecks)
     q = FetchQueueItem
     done = q.status.in_([FetchStatus.DONE, FetchStatus.SKIPPED])
     finished_rows = dict(
@@ -1340,6 +1375,7 @@ def measure_all(session: Session, cfg: Settings, now: datetime | None = None) ->
         history_hours=round((now - first_call).total_seconds() / 3600, 2) if first_call else 0.0,
         calls_last_hour=calls_1h,
         hourly_limit=hourly_limit(session, now),
+        recheck_calls=rechecks,
     )
 
 
@@ -1425,41 +1461,47 @@ def overview(session: Session, cfg: Settings, now: datetime | None = None) -> di
     cycle collects the recent ones); `cases` every case held; `orders` every order known, and `in_period` those dated
     inside the period; `left` the work in every lane; `bulk` is the bulk request using the whole allowance, or None
     (round 3, `services/collect.py`); `not_asked` the days of the collection period to yesterday that no collection
-    has asked for, exactly what the next gap sweep queues (design `causelist-day-gap-sweep`, decision 6)."""
+    has asked for, exactly what the next gap sweep queues (design `causelist-day-gap-sweep`, decision 6). A cancelled
+    query raises `SearchTimeout` (design `data-collection-redesign-advisories`, decision 2)."""
     from aslms.services import causelist_gaps
 
     now = _now(now)
     today = today_ist(now)
     with_timeout(session, cfg.report_statement_timeout_seconds)
-    settings = current_settings(session)
-    period = load_period(session)
-    days = None
-    in_period = None
-    if period is not None:
-        end = max(period[1], today)
-        t = _day_totals(session, period[0], end)
-        days = {**t, "collected": t["with_lists"] + t["no_list"], "to": end}
-        in_period = _order_totals(session, period[0], period[1])
-    cases = _all_cases(session)
-    orders = {**_order_totals(session, None, None), "in_period": in_period}
-    work = waiting_work(session)
-    return {
-        "as_of": to_ist(now),
-        "napix_enabled": bool(cfg.napix_configured),
-        "settings": settings_dict(settings),
-        "collection": collection_state(session, settings, period),
-        "period": {"from": period[0], "to": period[1]} if period else None,
-        "position": position(session),
-        "days": days,
-        "cases": cases,
-        "orders": orders,
-        "left": still_to_fetch(work),
-        "waiting_work": work,
-        "problems": problem_counts(session, work, cases, orders),
-        "estimate": estimate_all(session, settings, cfg, now),
-        "bulk": collect.active_bulk_summary(session, cfg, now),
-        "not_asked": causelist_gaps.not_asked(session, today=today),
-    }
+
+    def read() -> dict[str, Any]:
+        settings = current_settings(session)
+        period = load_period(session)
+        days = None
+        in_period = None
+        if period is not None:
+            end = max(period[1], today)
+            t = _day_totals(session, period[0], end)
+            days = {**t, "collected": t["with_lists"] + t["no_list"], "to": end}
+            in_period = _order_totals(session, period[0], period[1])
+        cases = _all_cases(session)
+        orders = {**_order_totals(session, None, None), "in_period": in_period}
+        work = waiting_work(session)
+        return {
+            "as_of": to_ist(now),
+            "napix_enabled": bool(cfg.napix_configured),
+            "settings": settings_dict(settings),
+            "collection": collection_state(session, settings, period),
+            "period": {"from": period[0], "to": period[1]} if period else None,
+            "position": position(session),
+            "days": days,
+            "cases": cases,
+            "orders": orders,
+            "left": still_to_fetch(work),
+            "waiting_work": work,
+            "problems": problem_counts(session, work, cases, orders),
+            "estimate": estimate_all(session, settings, cfg, now),
+            "bulk": collect.active_bulk_summary(session, cfg, now),
+            "not_asked": causelist_gaps.not_asked(session, today=today),
+        }
+
+    # design `data-collection-redesign-advisories`, decision 2: a cancelled statement answers 503, never 500
+    return _timed(read, "the overview took too long; try again shortly")
 
 
 def pulse(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
