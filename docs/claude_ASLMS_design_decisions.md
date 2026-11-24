@@ -4502,3 +4502,32 @@ Left for later: the deploy is a `web` rebuild from `main` with the build ID chec
 - Left for later: step 2, the owner's signed-in browser check on `/data/overview`, `/data/collect` and `/data/automatic`
   at 375, 768 and 1280 px with the snippet; step 3, the developer's work on whatever step 2 finds. Design defect D1 stays
   open until then.
+
+## Deploy of rows 251, 191, 269 and 187 step 1 (2026-11-24)
+
+The owner asked for the deploy "tonight at 10, or now if everything is ready"; the four merges were in `main` by 14:32,
+so it ran in the afternoon from `main` at 9281c5c.
+- 14:34 the app services and PgBouncer stopped; `postgres` recreated on `aslms/postgres:16.15-pgvector0.8.7` on the same
+  volume (PostgreSQL 16.15, `vector` 0.8.7 available, 84,933 cases present).
+- The `migrate` step: preflight passed (dev warnings only), backup `20261124-1434-pre-migrate` written and listed by
+  `pg_restore`, 0041 → 0042, seed unchanged, audit row `system.migrated` (15:14).
+- Checks: `extversion` 0.8.7; `ix_research_embeddings_hnsw_768` present; `aslms_app` has INSERT and no DELETE on
+  `research_chunks` and `research_embeddings`.
+- 15:16 PgBouncer, then `api worker worker2 scheduler web` recreated with `--no-deps --force-recreate` and the court-data
+  switch on; `NAPIX_ENABLED=true` in api, worker and worker2; `RESEARCH_INDEX_ENABLED=true` (added by the owner to
+  `.env`; nobody else opens it); health 200, `/` 307; the running web build ID equals the image's; Next.js 16.4.6; both
+  workers started with NAPIX on. Portal down 42 minutes.
+- The chunk cut ran beside the scheduler, not with it stopped as runbook section 28 step 3 suggests: the partial unique
+  index `ix_research_chunks_set_current` refuses a duplicate set and `research_index` handles the refusal, so the
+  5-minute job and the CLI cannot write a set twice, and the daily court jobs kept running.
+- `research-index run --chunks-only --backfill` (15:15 to 15:28): 2,758 judgment sets (40,587 chunks), 21,431 final
+  (79,846), 65,456 substantive interim (66,780), 167,496 procedural (167,500), 84,398 case sheets; 0 failed;
+  `research_chunks` 962 MB.
+- `research-index run --backfill` started 15:28 on the GPU (RTX 4070 Laptop GPU, about 55% busy): batches of 16 in
+  about 0.4 s with the 200 ms pause, about 27 chunks a second, so the whole index in about 4 to 5 hours instead of the
+  29 h CPU estimate of the model test.
+- Court collection caught up after the stop, reached the hourly budget with the live reserve of 100 kept, and waited
+  for the reset at 15:53 as designed.
+- A throwaway test container `aslms-research-testpg` left by row 251's build (port 7445, no volume) and the image
+  `aslms-postgres-test:251` were removed.
+
