@@ -239,8 +239,10 @@ def test_query_embed_failure_words_only(world, scene):
 def test_meaning_query_walks_the_hnsw_index(world, scene, kind):
     """Decision 15: the large-set meaning query is ordered by the index expression alone, so PostgreSQL walks
     `ix_research_embeddings_hnsw_768` (a second sort key such as `c.id` forces a scan and sort of every vector). The
-    seq scan is priced out so the small test tables cannot hide which plan is possible; the exact scan keeps its
-    tie-break and uses no index."""
+    seq scan, the bitmap scan and the sort are priced out so the small test tables and whatever statistics earlier
+    tests left behind cannot hide which plan is possible (with only the seq scan off, the planner chose a bitmap scan
+    of `research_chunks` and a sort after a full suite run, 24 Nov 2026); the exact scan keeps its tie-break and uses
+    no index."""
     from aslms.db.base import vector_literal
 
     scope = rsearch.Scope(kind=kind, focus=(scene["a"],) if kind == "related" else ())
@@ -248,6 +250,8 @@ def test_meaning_query_walks_the_hnsw_index(world, scene, kind):
     where = rsearch._chunk_scope(scope, params)
     with world.Session() as s:
         s.execute(sa.text("SET LOCAL enable_seqscan = off"))
+        s.execute(sa.text("SET LOCAL enable_bitmapscan = off"))
+        s.execute(sa.text("SET LOCAL enable_sort = off"))
         s.execute(sa.text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
         plan = "\n".join(
             r[0]
