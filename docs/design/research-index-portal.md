@@ -2,10 +2,10 @@
 
 ```
 slug: research-index-portal
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-11-24
-approved_by:
+approved_by: owner on 2026-11-24
 ```
 
 ## Context
@@ -584,3 +584,5 @@ approval:
 - the two read-only API additions (decision 1), a deviation from the row's "frontend only";
 - filters dropped when the tab changes (decision 8);
 - the Research Index section shown only to the readers of data health (decision 18).
+
+Approved by the owner on 24 Nov 2026 ("approve both designs as recommended"), including the three choices above: the two read-only API additions of decision 1, filters dropped when the tab changes (decision 8), and the Research Index section shown only to the readers of data health (decision 18).

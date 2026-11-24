@@ -4548,3 +4548,8 @@ so it ran in the afternoon from `main` at 9281c5c.
   System Health shows Research Index Model "Working, Loaded and ready". A live `research-index search "regularisation
   of contractual teachers" --scope research` answered `hybrid` in 2.6 s (15 word hits, 100 meaning hits, 110 fused,
   6 passages).
+
+## Design approvals (24 Nov 2026)
+
+- 2026-11-24 — home-page: approved by the owner as recommended: no figure on the page and no help contact (open questions 1(a) and 2(a)) (docs/design/home-page.md)
+- 2026-11-24 — research-index-portal: approved by the owner as recommended, with the two read-only API additions (decision 1), filters dropped on a tab change (decision 8) and the Research Index section for data-health readers only (decision 18) (docs/design/research-index-portal.md)

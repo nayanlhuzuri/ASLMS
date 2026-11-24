@@ -2,10 +2,10 @@
 
 ```
 slug: home-page
-status: draft
+status: approved
 author: architect
 date: 2026-11-24
-approved_by:
+approved_by: owner on 2026-11-24
 ```
 
 ## Context
@@ -483,20 +483,9 @@ The integrator:
 
 ## Open questions
 
-1. **A figure on the home page?** The row leaves this to the owner. The options:
-   - **(a) No figure.** Recommended: it keeps to "general terms only", and nothing goes out of date.
-   - **(b) One fixed, rounded sentence the owner supplies,** for example "Following more than 80,000 court cases". It
-     would live in `messages.ts`, be changed by hand, and appear as a small line above the headline.
+Answered by the owner on 24 Nov 2026 ("approve both designs as recommended"):
 
-   A live count is not offered, because it would need a public API endpoint, which the row rules out. If the owner
-   chooses (b), the owner gives the exact sentence; the team does not invent the number.
-2. **A help contact for people who cannot sign in?** The page says only "Your department's administrator gives you a
-   login". The options:
-   - **(a) Nothing more.** Recommended, because no contact has been given.
-   - **(b) One line with an official e-mail address or telephone number of the State's ASLMS help desk,** which the
-     owner supplies.
+1. **A figure on the home page:** (a) no figure. Nothing in `messages.ts` names a count, and no figure is shown.
+2. **A help contact:** (a) nothing more. The page says only "Your department's administrator gives you a login".
 
-   The team does not make up an address or number.
-
-Both questions have a recommended answer. The owner can approve the note with "as recommended", and the developer
-then builds decision 6 and the footer as written.
+The developer builds decision 6 and the footer as written. None remain open.
