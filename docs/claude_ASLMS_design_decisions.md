@@ -4531,3 +4531,20 @@ so it ran in the afternoon from `main` at 9281c5c.
 - A throwaway test container `aslms-research-testpg` left by row 251's build (port 7445, no volume) and the image
   `aslms-postgres-test:251` were removed.
 
+- The embedding backfill ended at 20:51 (5 h 23 min): 351,907 vectors written, 0 reused, 58 failed. `research-index
+  status`: `readiness` ready, model key `embeddinggemma:300m@85462619ee72`, 446,349 current chunks (361,451 order
+  passages, 84,898 case sheets; the 5-minute job had added the newer readings meanwhile), 446,291 live vectors,
+  coverage 0.9999, 58 waiting.
+- Sizes (`pg_total_relation_size`): `research_chunks` 931 MB (heap 505 MB, GIN on `search_vector` 82 MB, other
+  indexes about 170 MB); `research_embeddings` 1,822 MB (heap 856 MB, HNSW `ix_research_embeddings_hnsw_768` 856 MB,
+  other indexes about 110 MB). About 2.7 GB in all, inside the design's 2 to 4 GB.
+- The 58 failures are all `research_embed`, family `too_long` (Ollama 400 past `num_ctx`), each tried once: 50 interim
+  order bodies, 4 judgment and 1 final order "facts" parts and 3 judgment "petitioner_submissions" parts, 3,751 to
+  5,117 characters, nearly all split chunks. They are the cause titles of mass petitions (for example "and 143 ORS"),
+  where names, initials, PINs and numbered addresses run at fewer than 2.5 characters a token, so the cap of deviation 1
+  is too high for them. Word search still finds them; the 01:45 reconcile will refuse them again, since a fixed set is
+  never split again. Recorded as point (20) of row 277.
+- Data-health `research_index` reports the same figures, with `research_embed` open 58 among the source failures;
+  System Health shows Research Index Model "Working, Loaded and ready". A live `research-index search "regularisation
+  of contractual teachers" --scope research` answered `hybrid` in 2.6 s (15 word hits, 100 meaning hits, 110 fused,
+  6 passages).
