@@ -2458,6 +2458,8 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
                 ),
                 "reply_to_id": m.reply_to_id,
                 "citations": items,
+                # design research-index-portal, decision 9: the filters the question was asked with
+                "filters": ((m.scope_info or {}).get("filters") or None) if role == "user" else None,
             }
         )
     return out

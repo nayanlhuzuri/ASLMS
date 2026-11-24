@@ -59,9 +59,12 @@ export function sourceLink(c: AssistantCitation, messageId: string, inlinePdf: b
   if (c.open.kind === "case_tab") return { kind: "case_tab", href: c.open.href, newTab: false };
   if (c.open.kind === "court_order") {
     if (!c.order_id) return null;
+    // design research-index-portal, decision 13: a citation found through the index names its source, so the view
+    // can show the cited passage
+    const passage = c.src && c.label ? `&s=${encodeURIComponent(c.label)}` : "";
     return {
       kind: "court_order",
-      href: `/assistant/orders/${encodeURIComponent(c.order_id)}?m=${encodeURIComponent(messageId)}`,
+      href: `/assistant/orders/${encodeURIComponent(c.order_id)}?m=${encodeURIComponent(messageId)}${passage}`,
       newTab: false,
     };
   }
@@ -162,7 +165,15 @@ export function markerName(c: AssistantCitation): string {
   const label = c.label ?? "";
   if (!c.available) return T.assistant.markerAria(label, T.assistant.markerGone);
   const internal = isInternal(c) ? ` (${T.assistant.internalBadge})` : "";
-  return T.assistant.markerAria(label, `${sourceWords(c)}${internal}`);
+  // design research-index-portal, decision 15: a citation whose order's text has changed says so in its name
+  const changed = c.text_changed ? ` (${T.assistant.textChanged})` : "";
+  return T.assistant.markerAria(label, `${sourceWords(c)}${internal}${changed}`);
+}
+
+/** Whether a source is a court order found through the research index, whose passage the API can show (design
+ * research-index-portal, decision 12). */
+export function hasPassage(c: AssistantCitation): boolean {
+  return c.source_kind === "court_order" && c.available && !!c.src && !!c.label;
 }
 
 /** The words of a source's open link in its dialog (decision 16), by where it opens. */

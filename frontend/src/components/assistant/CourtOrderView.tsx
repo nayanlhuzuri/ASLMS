@@ -7,6 +7,8 @@
  * documents or `ref_no`, and says "This is the court's public record. You cannot open this case in ASLMS." The order
  * opens from the assistant's file route (the API checks the citation again and records each opening). Without a
  * citation of the order in the reader's own answer the API answers 404 and the page says so.
+ * Design research-index-portal, decision 13: with `s` (the cited source's label) the card "The Cited Passage" follows
+ * the Order card, the same passage view as the Source dialog; without `s`, or on a 404, there is no card.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -20,6 +22,7 @@ import { casePath } from "@/lib/refs";
 import { labelFor } from "@/lib/displayLabels";
 
 import s from "./assistant.module.css";
+import { CitedPassage } from "./PassageView";
 
 const A = T.assistant;
 const F = A.facts;
@@ -28,7 +31,15 @@ function list(values: string[]): string {
   return values.length ? values.join("; ") : "—";
 }
 
-export function CourtOrderView({ orderId, messageId }: { orderId: string; messageId: string | null }) {
+export function CourtOrderView({
+  orderId,
+  messageId,
+  sourceLabel = null,
+}: {
+  orderId: string;
+  messageId: string | null;
+  sourceLabel?: string | null;
+}) {
   const query = useQuery({
     queryKey: ["assistant", "court-order", orderId, messageId ?? ""],
     queryFn: () =>
@@ -106,6 +117,7 @@ export function CourtOrderView({ orderId, messageId }: { orderId: string; messag
           />
         </Card>
       </div>
+      {sourceLabel ? <CitedPassage messageId={messageId} label={sourceLabel} card orderId={orderId} /> : null}
     </div>
   );
 }

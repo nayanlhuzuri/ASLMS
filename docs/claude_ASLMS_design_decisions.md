@@ -4553,3 +4553,22 @@ so it ran in the afternoon from `main` at 9281c5c.
 
 - 2026-11-24 — home-page: approved by the owner as recommended: no figure on the page and no help contact (open questions 1(a) and 2(a)) (docs/design/home-page.md)
 - 2026-11-24 — research-index-portal: approved by the owner as recommended, with the two read-only API additions (decision 1), filters dropped on a tab change (decision 8) and the Research Index section for data-health readers only (decision 18) (docs/design/research-index-portal.md)
+
+## Research index portal, round 2 of row 251 (2026-11-24)
+
+Row 275 `research-index-portal` (branch `feature/research-index-portal`, in review; design `docs/design/research-index-portal.md`, approved by the owner on 24 Nov 2026 with its three flagged choices). No migration, so `docs/schema/schema.md` is unchanged.
+
+**What was built**
+- API, two read-only additions (a recorded deviation from the row's "frontend only"): each question message of `GET` conversations carries the `filters` it was asked with, and `GET /assistant/filter-choices` (`kind` act or cites, `q`, `limit` default 20, maximum 50) lists the acts and cited judgments from current `order_sections` readings, cached 6 hours, one build at a time, 15 s statement limit, answering `ready: false` while building or after a timeout (`services/research_search.py`).
+- Portal: the filters panel on All Court Orders and My Cases (order forms, substantive only, outcomes, Outcome Against the State (Read by Rule), cites a judgment, act, from and to dates), the chips "Asked with These Filters", the passage view of a cited order with the exact passage highlighted, the "Text Has Changed" note on an old citation, the removed-sentence notes, and the Research Index section on Data Collection (coverage bar, model state, waiting and failed chunks, space of both tables, own Refresh button).
+- Tests: `backend/tests/db/test_research_portal.py`, `frontend/src/components/assistant/research.test.tsx`, and nine uicheck states at 375, 768, 1024 and 1280 px with per-state fixture answers (`frontend/e2e/fixtures/research.ts`).
+
+**Decisions the owner approved**
+- The two read-only API additions, because the filters a question used and the act and cited-judgment pickers cannot be built from held data.
+- Filters are dropped when the tab changes, so a filter never silently applies to another scope.
+- The Research Index section shows only to readers of data health.
+
+**Deviations recorded by the developer** (none changes a business rule or an API field; the full list of 13 is in the design note): the passage card sits after the facts grid; the layout signature regenerated; uicheck states choose answers by a `variant`; the choice field reuses the kit picker styles; label-registry entries for the new enums; "From must be on or before To" on the To field; the Model badge reads "Not Loaded" for `held`; Space shows "Not Known Right Now" when sizes time out; the coverage bar turns "done" from 99%; the hidden-filters notice also shows after a `filters_unavailable` refusal. Measured early, read-only on the dev database: the act statement 0.73 s over 1,991 act keys, the citation statement 0.33 s over 6,587 citations.
+
+**Left for later:** the owner's signed-in browser check and the integrator's `EXPLAIN (ANALYZE, BUFFERS)` (row 279); the Word guides (row 276, after Verification 7); the review advisories of row 251 (row 277).
+

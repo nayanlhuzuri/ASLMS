@@ -2915,6 +2915,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/filter-choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Filter Choices
+         * @description The acts and cited judgments the filters of My Cases and All Court Orders pick from (design
+         *     research-index-portal, decision 10): court-public values from current court-order readings (row 250's facts),
+         *     the same for every assistant user; never notes, remarks, internal documents or drafts. For an act `value` is the
+         *     key the filter takes and `label` its most common printed name; for a citation `value` is the citation as stored
+         *     and `detail` its most common printed case name. Matched on `q` as a folded substring, most named first. `ready`
+         *     false with no items while the list is being built (one build at a time, kept 6 hours per process) or after its
+         *     statement ran out of time. Not audited.
+         */
+        get: operations["filter_choices_assistant_filter_choices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assistant/internal-records": {
         parameters: {
             query?: never;
@@ -5978,6 +6004,45 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** AssistantFilterChoiceOut */
+        AssistantFilterChoiceOut: {
+            /**
+             * Detail
+             * @description a citation's most common printed case name
+             */
+            detail?: string | null;
+            /**
+             * Label
+             * @description the act's most common printed name, or the citation
+             */
+            label: string;
+            /**
+             * Orders
+             * @description current court-order readings that name the value
+             */
+            orders: number;
+            /**
+             * Value
+             * @description the act key, or the citation as stored
+             */
+            value: string;
+        };
+        /**
+         * AssistantFilterChoicesOut
+         * @description `GET /assistant/filter-choices` (design research-index-portal, decision 10): court-public values from current
+         *     court-order readings; `ready` false (no items) while the list is being built or after it ran out of time.
+         */
+        AssistantFilterChoicesOut: {
+            /** Items */
+            items: components["schemas"]["AssistantFilterChoiceOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "act" | "cites";
+            /** Ready */
+            ready: boolean;
+        };
         /**
          * AssistantFiltersIn
          * @description Design research-index, decision 20: court-public filters for My Cases and All Court Orders, applied on the
@@ -5987,6 +6052,29 @@ export interface components {
          *     dismissed with the State as a current petitioner.
          */
         AssistantFiltersIn: {
+            /** Act */
+            act?: string | null;
+            /** Against State */
+            against_state?: boolean | null;
+            /** Cites */
+            cites?: string | null;
+            /** Forms */
+            forms?: ("judgment" | "final" | "interim")[] | null;
+            /** From */
+            from?: string | null;
+            /** Outcomes */
+            outcomes?: string[] | null;
+            /** Substantive Only */
+            substantive_only?: boolean | null;
+            /** To */
+            to?: string | null;
+        };
+        /**
+         * AssistantFiltersOut
+         * @description Design research-index-portal, decision 9: the filters a question was asked with, as stored in
+         *     `scope_info.filters` (only the keys that were set; dates as `YYYY-MM-DD`).
+         */
+        AssistantFiltersOut: {
             /** Act */
             act?: string | null;
             /** Against State */
@@ -6080,6 +6168,8 @@ export interface components {
             created_at: string;
             engine?: components["schemas"]["AssistantEngineBriefOut"] | null;
             error?: components["schemas"]["AssistantErrorOut"] | null;
+            /** @description design research-index-portal: the filters a question was asked with (question messages only; null otherwise and when none was set) */
+            filters?: components["schemas"]["AssistantFiltersOut"] | null;
             /** Hidden Reason */
             hidden_reason?: string | null;
             /**
@@ -23588,6 +23678,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    filter_choices_assistant_filter_choices_get: {
+        parameters: {
+            query: {
+                kind: string;
+                q?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantFilterChoicesOut"];
                 };
             };
             /** @description Forbidden */

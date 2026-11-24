@@ -11,5 +11,6 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 export default async function Page({ params, searchParams }: { params: Promise<{ orderId: string }>; searchParams: SP }) {
   const { orderId } = await params;
   const query = plainParams(await searchParams);
-  return <CourtOrderView orderId={decodeURIComponent(orderId)} messageId={query.m ?? null} />;
+  // design research-index-portal, decision 13: `s` names the cited source whose passage the view shows
+  return <CourtOrderView orderId={decodeURIComponent(orderId)} messageId={query.m ?? null} sourceLabel={query.s ?? null} />;
 }

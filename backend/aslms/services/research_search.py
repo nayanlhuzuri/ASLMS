@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -160,6 +161,109 @@ def act_known(session: Session, act: str) -> bool:
             {"j": json.dumps([{"act_key": act}])},
         )
     )
+
+
+# ------------------------------------------------------------------------------------------------ filter choices
+# design research-index-portal, "Services": the lists the portal's Act and Cites a Judgment fields pick from, built
+# from current court-order readings only (row 250's `facts.acts` and `facts.judgments`), the same for every user.
+
+CHOICES_SQL_SECONDS = 15
+CHOICES_CACHE_SECONDS = 21600  # 6 hours: acts and citations change slowly
+CHOICES_LIMIT = 20
+CHOICES_LIMIT_MAX = 50
+CHOICE_KINDS = ("act", "cites")
+_CHOICES_SQL = {
+    "act": (
+        "SELECT a.item ->> 'act_key' AS value, mode() WITHIN GROUP (ORDER BY a.item ->> 'act') AS label, "
+        "NULL AS detail, count(DISTINCT s.id) AS orders FROM order_sections s "
+        "CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.facts -> 'acts') = 'array' "
+        "THEN s.facts -> 'acts' ELSE '[]'::jsonb END) AS a(item) "
+        "WHERE s.replaced_at IS NULL AND coalesce(a.item ->> 'act_key', '') <> '' GROUP BY 1"
+    ),
+    "cites": (
+        "SELECT j.item ->> 'citation' AS value, j.item ->> 'citation' AS label, "
+        "mode() WITHIN GROUP (ORDER BY j.item ->> 'case_name') AS detail, count(DISTINCT s.id) AS orders "
+        "FROM order_sections s "
+        "CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.facts -> 'judgments') = 'array' "
+        "THEN s.facts -> 'judgments' ELSE '[]'::jsonb END) AS j(item) "
+        "WHERE s.replaced_at IS NULL AND coalesce(j.item ->> 'citation', '') <> '' GROUP BY 1"
+    ),
+}
+_choices_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_choices_locks = {k: threading.Lock() for k in CHOICE_KINDS}
+
+
+def _fold(value: str | None) -> str:
+    """Lower case, every non-letter or digit a space, whitespace collapsed (the `q` match)."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).split())
+
+
+def _choices_list(session: Session, kind: str, restore_seconds: int) -> list[dict[str, Any]] | None:
+    """The cached full list of `kind`, or None while another request builds it or after a timeout."""
+    from aslms.services.reporting_common import isolated
+
+    hit = _choices_cache.get(kind)
+    if hit is not None and time.monotonic() - hit[0] <= CHOICES_CACHE_SECONDS:
+        return hit[1]
+    lock = _choices_locks[kind]
+    if not lock.acquire(blocking=False):
+        return None  # one build at a time; this request answers not ready
+    try:
+        rows, late = isolated(
+            session,
+            CHOICES_SQL_SECONDS,
+            restore_seconds,
+            lambda: session.execute(text(_CHOICES_SQL[kind])).all(),
+            part=f"filter choices ({kind})",
+        )
+        if late or rows is None:
+            return None
+        items = [
+            {
+                "value": r.value,
+                "label": r.label or r.value,
+                "detail": r.detail or None,
+                "orders": int(r.orders),
+                "_fold": " ".join((_fold(r.value), _fold(r.label), _fold(r.detail))),
+            }
+            for r in rows
+        ]
+        items.sort(key=lambda i: (-i["orders"], i["label"].lower(), i["value"]))
+        _choices_cache[kind] = (time.monotonic(), items)
+        return items
+    finally:
+        lock.release()
+
+
+def filter_choices(
+    session: Session,
+    kind: str,
+    q: str | None = None,
+    limit: int = CHOICES_LIMIT,
+    *,
+    restore_seconds: int = 30,
+) -> dict[str, Any]:
+    """`GET /assistant/filter-choices`: `{kind, ready, items: [{value, label, detail, orders}]}`, matched on a folded
+    substring of the value, label or detail, by `orders` descending then label; `ready` false (no items) while the
+    list is being built or after its statement ran out of time, so the next request tries again."""
+    if kind not in CHOICE_KINDS:
+        raise ValueError(f"kind is one of {', '.join(CHOICE_KINDS)}")
+    limit = max(1, min(int(limit or CHOICES_LIMIT), CHOICES_LIMIT_MAX))
+    items = _choices_list(session, kind, restore_seconds)
+    if items is None:
+        return {"kind": kind, "ready": False, "items": []}
+    needle = _fold(q)
+    picked = [i for i in items if not needle or needle in i["_fold"]][:limit]
+    return {
+        "kind": kind,
+        "ready": True,
+        "items": [{k: v for k, v in i.items() if k != "_fold"} for i in picked],
+    }
+
+
+def reset_filter_choices() -> None:
+    """Tests: forget the cached lists."""
+    _choices_cache.clear()
 
 
 # ------------------------------------------------------------------------------------------------ the question

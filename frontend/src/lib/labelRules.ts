@@ -67,6 +67,22 @@ export function looksLikeLabel(text: string): boolean {
  * must either be Title Case or declare itself here.
  */
 export const SENTENCE_EXCEPTIONS: Record<string, string> = {
+  // design research-index-portal: a field error, a list note, and the removal reasons read after a number
+  "assistant.filters.tooLong": "a field error, read as a sentence",
+  "assistant.filters.minimum": "a note in the suggestions list, read as a sentence",
+  "assistant.removedReasons.uncited": "words read after a number in the removal block",
+  "assistant.removedReasons.quote": "words read after a number in the removal block",
+  "assistant.removedReasons.date": "words read after a number in the removal block",
+  "assistant.removedReasons.number": "words read after a number in the removal block",
+  "assistant.removedReasons.case_no": "words read after a number in the removal block",
+  "assistant.removedReasons.name": "words read after a number in the removal block",
+  "assistant.removedReasons.outcome": "words read after a number in the removal block",
+  "assistant.removedPlurals.quote": "a noun read after a number in the removal block",
+  "assistant.removedPlurals.date": "a noun read after a number in the removal block",
+  "assistant.removedPlurals.number": "a noun read after a number in the removal block",
+  "assistant.removedPlurals.case_no": "a noun read after a number in the removal block",
+  "assistant.removedPlurals.name": "a noun read after a number in the removal block",
+  "assistant.removedPlurals.outcome": "a noun read after a number in the removal block",
   // design list-search: nouns read after a number in a count ("12 of 340 codes"), and order names read after "Order:"
   "mapping.codesNoun": "a noun read after a number in a count",
   "mapping.codesNotMapped": "words read after a number in a count",

@@ -2571,6 +2571,75 @@
         "title": "AssistantErrorOut",
         "type": "object"
       },
+      "AssistantFilterChoiceOut": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a citation's most common printed case name",
+            "title": "Detail"
+          },
+          "label": {
+            "description": "the act's most common printed name, or the citation",
+            "title": "Label",
+            "type": "string"
+          },
+          "orders": {
+            "description": "current court-order readings that name the value",
+            "title": "Orders",
+            "type": "integer"
+          },
+          "value": {
+            "description": "the act key, or the citation as stored",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "orders"
+        ],
+        "title": "AssistantFilterChoiceOut",
+        "type": "object"
+      },
+      "AssistantFilterChoicesOut": {
+        "description": "`GET /assistant/filter-choices` (design research-index-portal, decision 10): court-public values from current\ncourt-order readings; `ready` false (no items) while the list is being built or after it ran out of time.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantFilterChoiceOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "act",
+              "cites"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "ready",
+          "items"
+        ],
+        "title": "AssistantFilterChoicesOut",
+        "type": "object"
+      },
       "AssistantFiltersIn": {
         "additionalProperties": false,
         "description": "Design research-index, decision 20: court-public filters for My Cases and All Court Orders, applied on the\nserver (400 `filters_not_allowed` for another scope, 400 `filters_unavailable` when the research index does not\nserve the question (switch off or preview mode), 400 `bad_filter` for an unknown outcome or act key or `from` after\n`to`). `against_state` is read by rule: allowed or partly allowed with the State as a current respondent, or\ndismissed with the State as a current petitioner.",
@@ -2681,6 +2750,114 @@
           }
         },
         "title": "AssistantFiltersIn",
+        "type": "object"
+      },
+      "AssistantFiltersOut": {
+        "description": "Design research-index-portal, decision 9: the filters a question was asked with, as stored in\n`scope_info.filters` (only the keys that were set; dates as `YYYY-MM-DD`).",
+        "properties": {
+          "act": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Act"
+          },
+          "against_state": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Against State"
+          },
+          "cites": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cites"
+          },
+          "forms": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "judgment",
+                    "final",
+                    "interim"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forms"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "outcomes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomes"
+          },
+          "substantive_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substantive Only"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "AssistantFiltersOut",
         "type": "object"
       },
       "AssistantHighlightOut": {
@@ -2858,6 +3035,17 @@
                 "type": "null"
               }
             ]
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantFiltersOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "design research-index-portal: the filters a question was asked with (question messages only; null otherwise and when none was set)"
           },
           "hidden_reason": {
             "anyOf": [
@@ -44698,6 +44886,134 @@
           }
         ],
         "summary": "Court Order File",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/filter-choices": {
+      "get": {
+        "description": "The acts and cited judgments the filters of My Cases and All Court Orders pick from (design\nresearch-index-portal, decision 10): court-public values from current court-order readings (row 250's facts),\nthe same for every assistant user; never notes, remarks, internal documents or drafts. For an act `value` is the\nkey the filter takes and `label` its most common printed name; for a citation `value` is the citation as stored\nand `detail` its most common printed case name. Matched on `q` as a folded substring, most named first. `ready`\nfalse with no items while the list is being built (one build at a time, kept 6 hours per process) or after its\nstatement ran out of time. Not audited.",
+        "operationId": "filter_choices_assistant_filter_choices_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "pattern": "^(act|cites)$",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantFilterChoicesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Filter Choices",
         "tags": [
           "assistant"
         ]

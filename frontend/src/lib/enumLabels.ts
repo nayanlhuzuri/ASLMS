@@ -42,6 +42,11 @@ export const LABELLED: Record<string, { map: LabelMap; sentence?: true; extra?: 
   "AssistantCitationOut.visibility": { map: T.case.visibilities },
   // design assistant-ollama-work: how a My Work question was chosen (the answer's muted line)
   "AssistantWorkOut.chosen_by": { map: T.assistant.chosenBy },
+  // design research-index-portal, decision 21
+  "AssistantFiltersIn.forms": { map: T.assistant.filters.forms },
+  "AssistantFiltersOut.forms": { map: T.assistant.filters.forms },
+  "AssistantChecksOut.withheld": { map: T.assistant.withheld, sentence: true },
+  "ResearchIndexStatusOut.readiness": { map: T.dc.research.readiness },
   "CallOut.by": { map: T.system.by },
   "LastSendOut.by": { map: T.system.by },
   "LatestAnswerOut.by": { map: T.system.by },
@@ -130,14 +135,12 @@ export const SERVER_LABELLED: Record<string, string> = {
 
 /** Never shown to a reader as a word of its own (the reason). */
 export const NOT_SHOWN: Record<string, string> = {
-  // design research-index, round 1 (backend): the portal shows none of these until round 2 (research-index-portal)
-  "AssistantChecksOut.withheld": "Counts of the sentence checks; the answer's own text says what was removed",
-  "AssistantCitationOut.match": "How a passage was found; round 2 may show it, never as a word of its own",
-  "AssistantFiltersIn.forms": "A request field; round 2's filters word the choices themselves",
-  "AssistantHighlightOut.kind": "Chooses how round 2's passage view marks the text, never printed",
-  "AssistantResearchStateOut.state": "Chooses round 2's research index notice, a sentence of its own",
-  "AssistantRetrievalOut.kind": "Counts of how the sources were found; never printed as a word",
-  "ResearchIndexStatusOut.readiness": "Chooses round 2's Research Index sentence on Data Collection",
+  // design research-index (row 251) and research-index-portal (row 275, decision 21)
+  "AssistantFilterChoicesOut.kind": "Names which list the choice field asked for (acts or cited judgments); never printed",
+  "AssistantCitationOut.match": "How a passage was found (words, meaning or both); a verification detail the CLI's --explain prints",
+  "AssistantHighlightOut.kind": "Chooses how the passage view marks the text (shaded or underlined); never printed",
+  "AssistantResearchStateOut.state": "Chooses the research notice of My Cases and All Court Orders, a sentence of its own",
+  "AssistantRetrievalOut.kind": "Chooses the Found by Words Only hint under an answer; never printed as a word",
   "ResearchIndexStatusOut.timed_out": "Chooses the muted line that some counts took too long",
   ResearchChunkKind: "Stored with the research index's chunks; no screen shows it",
   ResearchRetireReason: "Kept with retired chunks and vectors for the record; no screen shows it",

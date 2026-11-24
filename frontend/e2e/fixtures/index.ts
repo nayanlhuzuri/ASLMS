@@ -39,6 +39,7 @@ import type {
   UserOut,
 } from "@/lib/api/types";
 
+import { researchAnswer } from "./research";
 import { SAMPLE, STRESS, synth, synthFor } from "./synth";
 import {
   insightCaseTypes,
@@ -1963,6 +1964,7 @@ export function answer(
   apiPath: string,
   body: string | null = null,
   activity?: Partial<ActivityOut>,
+  variant?: string,
 ): Answer {
   if (method === "POST" && apiPath === "/me/activity") return { status: 200, body: { ...ACTIVITY_DEFAULT, ...activity } };
   if (method === "POST" && apiPath === "/admin/data-load/preview") return { status: 200, body: loadPreview(body) };
@@ -1976,6 +1978,11 @@ export function answer(
   // design office-head-picker-followups, decision 5: the User Picker's search for "fail" answers 500 (the error state)
   if (apiPath === "/admin/users" && url.searchParams.get("q") === "fail") {
     return { status: 500, body: { detail: { code: "internal", message: "the browser check's failed search" } } };
+  }
+  // design research-index-portal, decision 22: a state's own answers (the research index states)
+  if (variant) {
+    const own = researchAnswer(variant, apiPath, url);
+    if (own !== undefined) return { status: 200, body: own };
   }
   for (const [pattern, make] of OVERRIDES) if (pattern.test(apiPath)) return { status: 200, body: make(url) };
   const synthetic = synthFor(apiPath);

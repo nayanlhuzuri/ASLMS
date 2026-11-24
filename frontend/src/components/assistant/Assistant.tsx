@@ -43,11 +43,19 @@
  * rows in a `DataTable` with case links, "as of", "Open the Full List" and the badge "From Your Lists"; it carries no
  * markers, Sources or Copy to Note (decision 4). A My Cases or All Court Orders answer flagged `suggest_work` offers "Ask
  * in My Work", which asks the same question there in a new conversation, only on the click (decision 11).
+ *
+ * Design research-index-portal: on My Cases and All Court Orders, while the research index serves the question
+ * (decision 3), the research notice (decision 4) and the Search Filters panel above the question box with its chips
+ * (decisions 6 to 8), the filters in the address for that tab only and sent exactly as shown (decision 9), each question
+ * showing the filters it was asked with; on every answer that carries them the "Found by words only" hint and the
+ * "same words" line (decision 5), the cited passage in the Source dialog with "Show the Passage" in the lists
+ * (decision 12), "Text Has Changed" (decision 15), the removal block built from the counts (decision 16) and the
+ * withheld reason (decision 17). The server applies every filter and every check; nothing here widens what is read.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   Badge,
@@ -89,6 +97,7 @@ import type {
 import {
   groupSources,
   hasLabels,
+  hasPassage,
   highlights,
   isCaseRecord,
   isInternal,
@@ -118,13 +127,36 @@ import { formatDateTime } from "@/lib/format";
 import { ASSISTANT_ERRORS, ASSISTANT_FAILURES, T } from "@/lib/messages";
 import { CASE_READERS, showsAssistant } from "@/lib/routes";
 import { labelFor, serverLabel } from "@/lib/displayLabels";
+import { ApiError } from "@/lib/api/client";
+import {
+  addressHasFilters,
+  checkFilters,
+  filterChips,
+  filtersBody,
+  filtersHref,
+  filtersServed,
+  hasErrors,
+  NO_FILTERS,
+  readFilters,
+  researchNotice,
+  splitRemoved,
+  storedFilters,
+  withheldLine,
+  type RemovedNote,
+  type ResearchFilters as Filters,
+} from "@/lib/research";
 
 import s from "./assistant.module.css";
+import { CitedPassage, PassageView, TextChangedNote } from "./PassageView";
+import { ResearchFilters } from "./ResearchFilters";
 
 const A = T.assistant;
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export const STATUS_KEY = ["assistant", "status"] as const;
+/** Typing in Cites a Judgment or Act writes the address once the typing pauses, not on every keystroke (each
+ * `router.replace` is a server round trip); every other filter change is written at once. */
+export const FILTER_ADDRESS_DEBOUNCE_MS = 400;
 
 export function useAssistantStatus(enabled = true) {
   return useQuery({
@@ -166,6 +198,43 @@ function ReadinessNotice({ status }: { status: AssistantStatus | undefined }) {
   return null;
 }
 
+/** Design research-index-portal, decision 4: the research notice of My Cases and All Court Orders (none when ready). */
+function ResearchNotice({ status, scope }: { status: AssistantStatus | undefined; scope: AssistantScope }) {
+  const notice = researchNotice(status, scope);
+  if (!notice) return null;
+  if (notice.tone === "warning") return <Notice tone="warning">{notice.text}</Notice>;
+  return (
+    <p className={s.hint} data-ui="research-notice">
+      {notice.text}
+    </p>
+  );
+}
+
+/** Decision 16: the server's removal line drawn as a block under the answer, its reasons in words from the counts. */
+function RemovedBlock({ note }: { note: RemovedNote }) {
+  return (
+    <div className={s.removed} role="note" data-ui="removed-sentences">
+      <svg className={s.removedIcon} aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M8 7.2v4M8 4.6v.2" strokeLinecap="round" />
+      </svg>
+      <div>
+        {note.reasons ? (
+          <>
+            <b>{A.removedTitle(note.count)}</b>
+            {note.reasons.map((r) => (
+              <p key={r}>{r}</p>
+            ))}
+            <p>{A.removedFixed}</p>
+          </>
+        ) : (
+          <p>{note.line}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** "Text Given to the Model" under a local-model source (decision 9: re-rendered by the server at read time). Under a
  * quick fact (`record`) no model was called: the block reads "Facts From the Case Record" and is shown open, the
  * evidence of every value the answer states (design assistant-polish-followups, decision 2). */
@@ -190,18 +259,27 @@ function Passage({ text }: { text: string | null | undefined }) {
   );
 }
 
+/** Decision 5: "The same words are in n other orders." */
+function SameWords({ c }: { c: AssistantCitation }) {
+  if (!c.same_words_in || c.same_words_in <= 0) return null;
+  return <p className={s.hint}>{A.research.sameWords(c.same_words_in)}</p>;
+}
+
 function SourceItem({
   c,
   n,
   messageId,
   currentCaseId,
   record = false,
+  onShow,
 }: {
   c: AssistantCitation;
   n: number;
   messageId: string;
   currentCaseId?: string | null;
   record?: boolean;
+  /** design research-index-portal, decision 12: "Show the Passage" opens this source's dialog */
+  onShow?: (c: AssistantCitation) => void;
 }) {
   const id = sourceId(messageId, c.label, n);
   const num = c.label ?? String(n);
@@ -247,47 +325,68 @@ function SourceItem({
           <span className={s.sourceTitle}>{title}</span>
         )}
         {other ? <span className="cno muted">{other}</span> : null}
+        {c.text_changed ? <TextChangedNote /> : null}
         <Passage text={c.passage} />
+        <SameWords c={c} />
+        {onShow && hasPassage(c) ? (
+          <div>
+            <Button variant="ghost" size="sm" onClick={() => onShow(c)}>
+              {A.passage.show}
+            </Button>
+          </div>
+        ) : null}
         <TextGiven c={c} record={record} />
       </div>
     </li>
   );
 }
 
+type OnShow = ((c: AssistantCitation) => void) | undefined;
+
 function Items({
   items,
   m,
   currentCaseId,
   label,
+  onShow,
 }: {
   items: { c: AssistantCitation; n: number }[];
   m: AssistantMessage;
   currentCaseId?: string | null;
   label?: string;
+  onShow?: OnShow;
 }) {
   if (!items.length) return null;
   return (
     <ul className={s.sources} aria-label={label}>
       {items.map(({ c, n }) => (
-        <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} record={isCaseRecord(m)} />
+        <SourceItem
+          key={`${m.id}-${n}`}
+          c={c}
+          n={n}
+          messageId={m.id}
+          currentCaseId={currentCaseId}
+          record={isCaseRecord(m)}
+          onShow={onShow}
+        />
       ))}
     </ul>
   );
 }
 
 /** A local model's sources (decision 8): cited ones grouped Court Record and Internal Records, the rest collapsed. */
-function LocalSourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?: string | null }) {
+function LocalSourceList({ m, currentCaseId, onShow }: { m: AssistantMessage; currentCaseId?: string | null; onShow?: OnShow }) {
   const g = groupSources(m.citations.map((c, i) => ({ c, n: i + 1 })));
   return (
     <>
       {g.court.length ? <p className={s.group}>{A.courtGroup}</p> : null}
-      <Items items={g.court} m={m} currentCaseId={currentCaseId} label={A.courtGroup} />
+      <Items items={g.court} m={m} currentCaseId={currentCaseId} label={A.courtGroup} onShow={onShow} />
       {g.internal.length ? <p className={s.group}>{A.internalGroup}</p> : null}
-      <Items items={g.internal} m={m} currentCaseId={currentCaseId} label={A.internalGroup} />
+      <Items items={g.internal} m={m} currentCaseId={currentCaseId} label={A.internalGroup} onShow={onShow} />
       {g.uncited.length ? (
         <details className={s.uncited}>
           <summary>{A.uncited}</summary>
-          <Items items={g.uncited} m={m} currentCaseId={currentCaseId} label={A.uncited} />
+          <Items items={g.uncited} m={m} currentCaseId={currentCaseId} label={A.uncited} onShow={onShow} />
         </details>
       ) : null}
     </>
@@ -295,8 +394,8 @@ function LocalSourceList({ m, currentCaseId }: { m: AssistantMessage; currentCas
 }
 
 /** The sources of one answer, the related orders of other cases apart (decision 14). */
-function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?: string | null }) {
-  if (m.mode === "ollama") return <LocalSourceList m={m} currentCaseId={currentCaseId} />;
+function SourceList({ m, currentCaseId, onShow }: { m: AssistantMessage; currentCaseId?: string | null; onShow?: OnShow }) {
+  if (m.mode === "ollama") return <LocalSourceList m={m} currentCaseId={currentCaseId} onShow={onShow} />;
   const own = m.citations.map((c, i) => ({ c, n: i + 1 })).filter((x) => !x.c.related);
   const related = m.citations.map((c, i) => ({ c, n: i + 1 })).filter((x) => x.c.related);
   return (
@@ -324,11 +423,11 @@ function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?:
 
 /** An answer with labelled citations, each `[S#]` marker a button opening that one source (design assistant-polish,
  * decision 16); a marker without a matching citation stays plain text. */
-function MarkedText({ m, onOpen }: { m: AssistantMessage; onOpen: (c: AssistantCitation) => void }) {
+function MarkedText({ m, text, onOpen }: { m: AssistantMessage; text: string; onOpen: (c: AssistantCitation) => void }) {
   const byLabel = new Map(m.citations.filter((c) => c.label).map((c) => [c.label as string, c]));
   return (
     <p className={s.text}>
-      {markers(m.content ?? "").map((seg, i) => {
+      {markers(text).map((seg, i) => {
         const c = seg.label ? byLabel.get(seg.label) : undefined;
         return c ? (
           <button key={i} type="button" className={s.marker} aria-label={markerName(c)} onClick={() => onOpen(c)}>
@@ -342,14 +441,17 @@ function MarkedText({ m, onOpen }: { m: AssistantMessage; onOpen: (c: AssistantC
   );
 }
 
-function answerBody(m: AssistantMessage, onOpen: (c: AssistantCitation) => void) {
+/** The answer's text; `removed` (decision 16): the server's removal line is taken off first and never read for
+ * markers. */
+function answerBody(m: AssistantMessage, onOpen: (c: AssistantCitation) => void, removed: RemovedNote | null = null) {
   if (m.content === null) return <p className={s.text}>{m.hidden_reason ?? A.hidden}</p>;
   if (m.outcome === "failed") {
     const family = m.error?.family ?? "error";
     return <p className={s.text}>{ASSISTANT_FAILURES[family] ?? m.error?.message ?? m.content}</p>;
   }
-  if (hasLabels(m)) return <MarkedText m={m} onOpen={onOpen} />;
-  return <p className={s.text}>{m.content}</p>;
+  const text = removed ? removed.body : m.content;
+  if (hasLabels(m)) return <MarkedText m={m} text={text} onOpen={onOpen} />;
+  return <p className={s.text}>{text}</p>;
 }
 
 /** Who answered, in words: a quick fact from the case record, the local model, SourceTrace or the preview. */
@@ -456,6 +558,9 @@ function AnswerCard({
   const local = m.mode === "ollama" && !record;
   const labelled = hasLabels(m);
   const shown = m.content !== null && m.outcome !== "failed";
+  // design research-index-portal, decisions 5, 16 and 17
+  const removed = local && shown ? splitRemoved(m.content, m.checks) : null;
+  const withheld = local && m.content !== null ? withheldLine(m.outcome, m.checks) : null;
   return (
     <div className={s.answer} aria-label={`${answeredBy(m)} ${n}`} role="group">
       <div className={s.answerHead}>
@@ -467,7 +572,10 @@ function AnswerCard({
         <span>· {formatDateTime(m.created_at)}</span>
         {local && m.checks?.cut_short ? <Badge tone="warning">{A.cutShort}</Badge> : null}
       </div>
-      {answerBody(m, onOpen)}
+      {answerBody(m, onOpen, removed)}
+      {removed ? <RemovedBlock note={removed} /> : null}
+      {withheld ? <p className={s.hint}>{withheld}</p> : null}
+      {local && shown && m.retrieval?.kind === "words_only" ? <p className={s.hint}>{A.research.wordsOnly}</p> : null}
       {record && shown ? <p className={s.hint}>{A.caseRecordLine}</p> : null}
       {local && shown ? <p className={s.hint}>{A.localLine}</p> : null}
       {local && m.internal_used && m.content !== null ? <p className={s.hint}>{A.usesInternal}</p> : null}
@@ -513,6 +621,19 @@ function AnswerCard({
   );
 }
 
+/** Decision 9: the filters a question was asked with, as small read-only chips under its text. */
+function QuestionChips({ m, actLabels }: { m: AssistantMessage; actLabels?: ReadonlyMap<string, string> }) {
+  const f = storedFilters(m.filters);
+  if (!f) return null;
+  return (
+    <ul className={s.qChips} aria-label={A.filters.askedWith}>
+      {filterChips(f, actLabels).map((chip) => (
+        <li key={chip.keys.join(",")}>{chip.label}</li>
+      ))}
+    </ul>
+  );
+}
+
 function Thread({
   messages,
   pending,
@@ -526,6 +647,7 @@ function Thread({
   currentCaseId,
   scrollRef,
   onAskWork = null,
+  actLabels,
 }: {
   messages: AssistantMessage[];
   pending: string | null;
@@ -540,6 +662,8 @@ function Thread({
   currentCaseId?: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onAskWork?: ((m: AssistantMessage) => void) | null;
+  /** the labels of acts picked in this session, by key (a question's chip shows them) */
+  actLabels?: ReadonlyMap<string, string>;
 }) {
   const answers = messages.filter((m) => m.role === "assistant");
   const answered = new Set(answers.map((m) => m.reply_to_id));
@@ -565,6 +689,7 @@ function Thread({
               <div className={s.who}>{A.you}</div>
               <div className={s.bubble}>
                 <div className={s.question}>{m.content}</div>
+                <QuestionChips m={m} actLabels={actLabels} />
                 {/* a question whose answer was never recorded (the process stopped between the two steps) */}
                 {!answered.has(m.id) ? <p className={s.hint}>{A.noAnswer}</p> : null}
               </div>
@@ -663,7 +788,15 @@ function SourceDialog({
             {isInternal(c) ? <Badge tone="warning">{A.internalBadge}</Badge> : null}
           </span>
           <p className={s.sourceTitle}>{sourceWords(c)}</p>
+          {c.text_changed && !hasPassage(c) ? <TextChangedNote /> : null}
           {court ? <Passage text={c.passage} /> : null}
+          <SameWords c={c} />
+          {/* design research-index-portal, decisions 12 and 15: the cited passage on its page, or only the notice */}
+          {hasPassage(c) && c.text_changed ? (
+            <PassageView passage={{ page: c.page ?? 1, page_count: 1, page_text: "", highlights: [], text_changed: true }} />
+          ) : hasPassage(c) && open ? (
+            <CitedPassage messageId={m.id} label={c.label!} />
+          ) : null}
           <TextGiven c={c} record={isCaseRecord(m)} />
         </div>
       ) : (
@@ -680,11 +813,13 @@ function SourcesDialog({
   m,
   onClose,
   currentCaseId,
+  onShow,
 }: {
   open: boolean;
   m: AssistantMessage | null;
   onClose: () => void;
   currentCaseId?: string | null;
+  onShow?: OnShow;
 }) {
   if (!m) return null;
   return (
@@ -698,7 +833,7 @@ function SourcesDialog({
         </Button>
       }
     >
-      <SourceList m={m} currentCaseId={currentCaseId} />
+      <SourceList m={m} currentCaseId={currentCaseId} onShow={onShow} />
     </Dialog>
   );
 }
@@ -712,6 +847,7 @@ function Composer({
   primary,
   scope,
   extra,
+  blocked = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -722,11 +858,13 @@ function Composer({
   scope: AssistantScope;
   /** beside the scope note: the case tab's "Include This Case's Internal Records" (decision 14) */
   extra?: React.ReactNode;
+  /** design research-index-portal, decision 7: a filter field in error keeps Ask disabled */
+  blocked?: boolean;
 }) {
   const local = status?.mode === "ollama";
   const max = status?.limits.question_max_chars ?? 2000;
   const left = questionsLeft(status);
-  const canSend = !busy && value.trim().length >= 3 && value.length <= max;
+  const canSend = !busy && !blocked && value.trim().length >= 3 && value.length <= max;
   function submit(e: FormEvent) {
     e.preventDefault();
     onSubmit();
@@ -789,6 +927,7 @@ function Workspace({
   caseId = null,
   noteMode = null,
   tab = null,
+  params,
 }: {
   screen: "case" | "page";
   caseRef?: string;
@@ -796,6 +935,8 @@ function Workspace({
   noteMode?: NoteMode | null;
   /** the page's `?tab=` (design assistant-ollama-work, decision 2) */
   tab?: string | null;
+  /** the page's whole address query (design research-index-portal, decision 8: the filters of the tab) */
+  params?: Record<string, string | undefined>;
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -830,6 +971,60 @@ function Workspace({
   const toEnd = useRef(true);
   const scopeCase = scope === "case" ? (caseRef ?? null) : null;
 
+  // design research-index-portal, decisions 3 and 8: the filters of this tab, read from the address once per tab and
+  // written back on every change; another tab starts with none (its address has none)
+  const served = screen === "page" && filtersServed(status.data, scope);
+  const paramsKey = JSON.stringify(params ?? {});
+  const fromAddress = useMemo(() => readFilters(params ?? {}), [paramsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const addressScope = screen === "page" && status.data ? scopeForTab(tab, scopes) : null;
+  const [filterState, setFilterState] = useState<{ scope: AssistantScope | null; f: Filters }>({ scope: null, f: NO_FILTERS });
+  const filterScope = screen === "page" && status.data ? scope : null;
+  if (filterState.scope !== filterScope) {
+    setFilterState({ scope: filterScope, f: filterScope && filterScope === addressScope ? fromAddress : NO_FILTERS });
+  }
+  const filters = filterState.f;
+  const filterErrors = checkFilters(filters);
+  const [actLabels, setActLabels] = useState<ReadonlyMap<string, string>>(new Map());
+  const [actError, setActError] = useState<string | null>(null);
+  const [clearedAddress, setClearedAddress] = useState<string | null>(null);
+  const tabKey = PAGE_TABS.find((t) => t.scope === scope)?.key ?? "my-cases";
+  const addressWrite = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function cancelAddressWrite() {
+    if (addressWrite.current !== null) clearTimeout(addressWrite.current);
+    addressWrite.current = null;
+  }
+  // a pending write never lands on another tab's address, nor after the page is gone
+  useEffect(() => cancelAddressWrite, [filterScope]);
+  function changeFilters(next: Filters) {
+    setFilterState({ scope: filterScope, f: next });
+    setActError(null);
+    const href = filtersHref(tabKey, next);
+    const typing = next.cites !== filters.cites || next.act !== filters.act;
+    cancelAddressWrite();
+    if (!typing) {
+      router.replace(href, { scroll: false });
+      return;
+    }
+    addressWrite.current = setTimeout(() => {
+      addressWrite.current = null;
+      router.replace(href, { scroll: false });
+    }, FILTER_ADDRESS_DEBOUNCE_MS);
+  }
+  function clearAddressFilters() {
+    cancelAddressWrite();
+    setFilterState({ scope: filterScope, f: NO_FILTERS });
+    setClearedAddress(paramsKey);
+    setError(null);
+    router.replace(tabHref(scope), { scroll: false });
+  }
+  // decision 8: filters in the address (or still held) while the panel is hidden are never sent
+  const hiddenFilters =
+    screen === "page" &&
+    !!status.data &&
+    !served &&
+    (scope === "my_cases" || scope === "research") &&
+    ((clearedAddress !== paramsKey && addressHasFilters(params ?? {})) || filtersBody(filters) !== undefined);
+
   const list = useQuery({
     queryKey: listKey(screen, scope, scopeCase),
     queryFn: () => fetchList(screen, scope, scopeCase),
@@ -859,6 +1054,8 @@ function Workspace({
     setError(null);
     setPending(q);
     toEnd.current = true;
+    // design research-index-portal, decision 9: exactly the filters in view, only on the tab they were set on
+    const sent = served && inScope === scope ? filtersBody(filters) : undefined;
     try {
       const out = await api<AssistantAsk>("/assistant/ask", {
         method: "POST",
@@ -868,6 +1065,7 @@ function Workspace({
           case: inScope === "case" ? caseRef : undefined,
           conversation_id: conversation ?? undefined,
           include_related: true,
+          filters: sent,
         },
       });
       const id = out.conversation.id;
@@ -886,6 +1084,9 @@ function Workspace({
     } catch (err) {
       setError(err);
       setQuestion((v) => v || q);
+      // decision 11: the panel hides once the status says the index no longer serves; a bad act says so in its field
+      if (err instanceof ApiError && err.code === "filters_unavailable") void queryClient.invalidateQueries({ queryKey: STATUS_KEY });
+      if (err instanceof ApiError && err.code === "bad_filter" && sent?.act) setActError(A.filters.actUnknown);
     } finally {
       setPending(null);
     }
@@ -955,6 +1156,7 @@ function Workspace({
     setError(null);
     setView("thread");
     toEnd.current = true;
+    cancelAddressWrite();
     router.replace(href);
   }
 
@@ -1027,6 +1229,7 @@ function Workspace({
         currentCaseId={currentCaseId}
         scrollRef={scrollRef}
         onAskWork={askInWork}
+        actLabels={actLabels}
       />
       <ErrorBanner error={list.error ?? thread.error} onRetry={() => (list.error ? list.refetch() : thread.refetch())} />
       {messages.length === 0 && pending === null && ready && !list.isPending && !(current && thread.isPending) && examples.length > 0 ? (
@@ -1047,6 +1250,25 @@ function Workspace({
       ) : null}
       <ErrorBanner error={error} messages={ASSISTANT_ERRORS} />
       {!confirming ? <ErrorBanner error={includeError} messages={ASSISTANT_ERRORS} /> : null}
+      {hiddenFilters ? (
+        <div className={s.hiddenFilters}>
+          <Notice tone="warning">{A.filters.hiddenNotice}</Notice>
+          <Button variant="secondary" onClick={clearAddressFilters}>
+            {A.filters.clearFilters}
+          </Button>
+        </div>
+      ) : null}
+      {served ? (
+        <ResearchFilters
+          key={scope}
+          filters={filters}
+          onChange={changeFilters}
+          errors={filterErrors}
+          actLabels={actLabels}
+          onActLabel={(key, label) => setActLabels((old) => new Map(old).set(key, label))}
+          actError={actError}
+        />
+      ) : null}
       <Composer
         value={question}
         onChange={setQuestion}
@@ -1056,6 +1278,7 @@ function Workspace({
         primary={screen === "page"}
         scope={scope}
         extra={includeButton}
+        blocked={served && hasErrors(filterErrors)}
       />
       {screen === "case" ? (
         <p className={s.hint}>
@@ -1082,6 +1305,7 @@ function Workspace({
       {tabs}
       <AssistantBanner status={status.data} />
       <ReadinessNotice status={status.data} />
+      {screen === "page" ? <ResearchNotice status={status.data} scope={scope} /> : null}
       {screen === "page" ? (
         <div className={s.pageGrid} data-view={view}>
           <aside className={cx(s.column, s.listColumn)} aria-label={A.conversations}>
@@ -1126,7 +1350,19 @@ function Workspace({
         onClose={() => setSourceOpen(false)}
         currentCaseId={currentCaseId}
       />
-      <SourcesDialog open={listOpen} m={listOf} onClose={() => setListOpen(false)} currentCaseId={currentCaseId} />
+      <SourcesDialog
+        open={listOpen}
+        m={listOf}
+        onClose={() => setListOpen(false)}
+        currentCaseId={currentCaseId}
+        onShow={(c) => {
+          // decision 12: "Show the Passage" opens that source's dialog in place of the list
+          if (!listOf) return;
+          setListOpen(false);
+          setSource({ m: listOf, c });
+          setSourceOpen(true);
+        }}
+      />
       {canCopy && caseRef && noteMode ? (
         <NoteDialog
           open={!!copyMessage}
@@ -1181,7 +1417,7 @@ export function CaseAssistant({ caseRef }: { caseRef: string }) {
 
 /** The Assistant page of the menu (`/assistant?tab=`): My Work, My Cases and All Court Orders (design
  * assistant-ollama-work, decision 2), the conversation list on the left. */
-export function AssistantPage({ tab = null }: { tab?: string | null } = {}) {
+export function AssistantPage({ tab = null, params }: { tab?: string | null; params?: Record<string, string | undefined> } = {}) {
   const me = useMe();
   if (me.isPending) return <Loading />;
   if (!showsAssistant(me.data)) {
@@ -1192,5 +1428,5 @@ export function AssistantPage({ tab = null }: { tab?: string | null } = {}) {
       </div>
     );
   }
-  return <Workspace screen="page" tab={tab} />;
+  return <Workspace screen="page" tab={tab} params={params} />;
 }

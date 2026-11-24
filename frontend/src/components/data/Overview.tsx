@@ -6,6 +6,7 @@
  * pulse, the two-date estimate in words and Month by Month in its own scrolling box. Live by polling only while the
  * tab is visible: the pulse every 5 s, the overview every 30 s, the months every 120 s. No button changes anything
  * here; the page has no primary.
+ * Design research-index-portal, decision 18: the Research Index section after Month by Month (`#research-index`).
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -55,6 +56,7 @@ import { COLLECT_FUNCTIONS } from "@/lib/routes";
 import { labelFor } from "@/lib/displayLabels";
 
 import { CollectionStateBadge } from "./CollectionStateBadge";
+import { ResearchIndexSection } from "./ResearchIndexSection";
 import ds from "./data.module.css";
 
 const n = (v: number | null | undefined) => formatNumber(v ?? 0);
@@ -117,6 +119,8 @@ export function Overview() {
         refetch={() => void months.refetch()}
         readsDays={canAny(me.data, ["reports.state", "admin.napix_refetch", "admin.masters_sync"])}
       />
+      {/* design research-index-portal, decision 18: after Month by Month, for the readers of data health */}
+      <ResearchIndexSection />
     </div>
   );
 }

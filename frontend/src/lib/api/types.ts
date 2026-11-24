@@ -271,6 +271,13 @@ export type AssistantInternal = S["AssistantInternalOut"];
 // design assistant-ollama-work: My Work
 export type AssistantWork = S["AssistantWorkOut"];
 export type AssistantWorkQuestion = S["AssistantWorkQuestionOut"];
+// design research-index-portal: the filters, their choices, the passage view and the Research Index section
+export type AssistantFilters = S["AssistantFiltersOut"];
+export type AssistantChecks = S["AssistantChecksOut"];
+export type AssistantFiltersBody = S["AssistantFiltersIn"];
+export type AssistantFilterChoices = S["AssistantFilterChoicesOut"];
+export type AssistantPassage = S["AssistantPassageOut"];
+export type ResearchIndexStatus = S["ResearchIndexStatusOut"];
 
 // State Insights (design state-insights, round 2 `state-insights-portal`)
 export type InsightsScopes = S["InsightsScopesOut"];

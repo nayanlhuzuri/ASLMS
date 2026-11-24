@@ -586,3 +586,51 @@ approval:
 - the Research Index section shown only to the readers of data health (decision 18).
 
 Approved by the owner on 24 Nov 2026 ("approve both designs as recommended"), including the three choices above: the two read-only API additions of decision 1, filters dropped when the tab changes (decision 8), and the Research Index section shown only to the readers of data health (decision 18).
+
+## Deviations
+Recorded by the developer on 24 Nov 2026; none changes a business rule or an API field.
+1. **The court-record passage card** sits after the facts grid (the Order and Court Record cards), not between the two
+   cards, so the page text has the full width. The view's primary is unchanged.
+2. **The layout signature** `frontend/src/components/ui/layout-signature.json` is regenerated, as
+   `layoutSignature.test.ts` asks of a row that adds layout: new rules in `assistant.module.css` (the filters panel,
+   question chips, passage view, removal block) and `data.module.css` (the Research Index status line).
+3. **uicheck states choose their answers by a `variant`.** The fixtures answered by API path only, and the nine states
+   need different answers on the same paths, so a state may name a `variant`, passed to `answer()`; the research answers
+   live in the new `frontend/e2e/fixtures/research.ts` (typed against `schema.d.ts`). Every answer is still a `GET`.
+4. **The choice field** reuses the kit pickers' list styles (`officePicker.module.css`) and `PickerRetry`; the active
+   option carries `aria-selected`.
+5. **Label registry:** besides decision 21's moves, the new response enum `AssistantFiltersOut.forms` is `LABELLED` with
+   the same map, and `AssistantFilterChoicesOut.kind` is `NOT_SHOWN` (it names which list was asked for).
+6. **"From must be on or before To"** is shown on the To field.
+7. **The Model badge** reads "Not Loaded" (info) for `held`, with the note "It loads at the next question"; decision
+   19's "Held, Not Loaded" is read as one value.
+8. **Space** lists both tables, each "Not Known Right Now" when the sizes timed out, with the muted line under it (the
+   empty-state guard refuses a muted paragraph standing in for a list).
+9. **The coverage bar:** below 99% the embedded part is the navy "active" segment and the waiting part the striped
+   segment; from 99% the embedded part is the success ("done") segment.
+10. **Wording guards:** the removal reason words and two field notes are declared in `SENTENCE_EXCEPTIONS`; the
+    question chips' list is named "Asked with These Filters".
+11. **The hidden-filters notice** (decision 8) also shows when filters are still held in the page after a
+    `filters_unavailable` refusal hid the panel, so Clear Filters is offered either way. Ask stays enabled while the
+    notice shows and sends no filters.
+12. **The choices statement's outer timeout** restored by `isolated` is `REPORT_STATEMENT_TIMEOUT_SECONDS`; the Research
+    Index section has its own Refresh button in its head (the tab's toolbar has none).
+13. **Verification 3, measured early** (read-only, `BEGIN READ ONLY`, dev database, 24 Nov 2026): the act statement 0.73 s
+    over 1,991 act keys, the citation statement 0.33 s over 6,587 citations; both far under the 15 s limit. The
+    integrator still records the full `EXPLAIN (ANALYZE, BUFFERS)`.
+14. **The filters grid and the checkbox alignment rule** (added 25 Nov 2026, after the integrator's screen check found 4
+    `alignment` findings on the grid). The two lone checks (Substantive Orders Only, Outcome Against the State (Read by
+    Rule)) are the kit's `CheckField inline`, and each group's first check is one control line high, so every first
+    check line sits on the 36 px control line beside the boxes. The kit's `inline` centres a check on its words, which
+    puts the checkbox off the line when the words wrap in a narrow column; inside this grid only, a lone check keeps
+    its checkbox and its first line on the control line (`align-items: flex-start`, the checkbox's box and the label's
+    `::first-line` both `var(--control-h)` high; Chromium paints the square centred in the box), its further lines
+    running below. Expressed with the control-height token alone, as `tokens.test.ts` allows no other spacing value.
+    The layout signature is regenerated again for these rules. Screen check `20261125-0149`: 204 routes and states,
+    0 findings.
+15. **Typed filters reach the address after a pause** (review advisory): typing in Cites a Judgment or Act writes the
+    address 400 ms after the typing pauses (`FILTER_ADDRESS_DEBOUNCE_MS`), every other filter change at once; a write
+    still waiting is dropped when the tab changes or the filters are cleared. The question always sends the filters in
+    view, whether or not the address has caught up.
+16. **The Cited Passage card** on the court-record view is drawn only when the passage's `order_id` is the page's order
+    (review advisory), so an edited `s` never shows another order's passage.

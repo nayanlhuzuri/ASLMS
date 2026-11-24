@@ -23,6 +23,7 @@ from aslms.domain.assistant import AssistantConversation
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import assistant as svc
+from aslms.services import research_search as rsearch
 from aslms.services import visibility
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.documents import DocumentError, FileMissing
@@ -88,6 +89,28 @@ def get_status(
     (`engine`; reading it may start loading the model) and `internal_records` `switch`."""
     return schemas.AssistantStatusOut(
         **svc.status(session, user, request.app.state.settings, connector=_connector(request))
+    )
+
+
+@router.get("/filter-choices", response_model=schemas.AssistantFilterChoicesOut, responses=ERRORS)
+def filter_choices(
+    request: Request,
+    kind: str = Query(..., pattern="^(act|cites)$"),
+    q: str | None = Query(None, max_length=100),
+    limit: int = Query(rsearch.CHOICES_LIMIT, ge=1, le=rsearch.CHOICES_LIMIT_MAX),
+    session: Session = Depends(get_session),
+    user: User = Depends(use),
+) -> schemas.AssistantFilterChoicesOut:
+    """The acts and cited judgments the filters of My Cases and All Court Orders pick from (design
+    research-index-portal, decision 10): court-public values from current court-order readings (row 250's facts),
+    the same for every assistant user; never notes, remarks, internal documents or drafts. For an act `value` is the
+    key the filter takes and `label` its most common printed name; for a citation `value` is the citation as stored
+    and `detail` its most common printed case name. Matched on `q` as a folded substring, most named first. `ready`
+    false with no items while the list is being built (one build at a time, kept 6 hours per process) or after its
+    statement ran out of time. Not audited."""
+    restore = int(getattr(request.app.state.settings, "report_statement_timeout_seconds", 30) or 30)
+    return schemas.AssistantFilterChoicesOut(
+        **rsearch.filter_choices(session, kind, q, limit, restore_seconds=restore)
     )
 
 

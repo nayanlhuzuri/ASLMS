@@ -95,6 +95,7 @@ async function watch(
   width: number,
   publicPage: boolean,
   activity?: Partial<typeof ACTIVITY_DEFAULT>,
+  variant?: string,
 ): Promise<(extra: () => Promise<void>) => Promise<Visit>> {
   const findings: Finding[] = [];
   const add = (kind: string, element: string, detail: string) => findings.push({ route: name, width, kind, element, detail });
@@ -112,7 +113,7 @@ async function watch(
     const apiPath = url.pathname.replace(/^\/api\/backend/, "");
     const reply = session
       ? { status: 405, body: { detail: "the browser check never signs in" }, problem: `${request.method()} ${url.pathname}` }
-      : answer(request.method(), url, apiPath, request.postData(), activity);
+      : answer(request.method(), url, apiPath, request.postData(), activity, variant);
     if (reply.problem) add(reply.status === 404 ? "missing-fixture" : "not-get", reply.problem, `answered ${reply.status}`);
     await route.fulfill({ status: reply.status, contentType: "application/json", body: JSON.stringify(reply.body) });
   });
@@ -205,6 +206,8 @@ interface State {
   widths?: number[];
   /** The session ping's answer for this state (design session-timeout). */
   activity?: Partial<typeof ACTIVITY_DEFAULT>;
+  /** The fixtures' own answers for this state (design research-index-portal, decision 22: `research-*`). */
+  variant?: string;
   /** A public page: no session cookies (design signin-gold-emblem). */
   public?: boolean;
   /** Before the first navigation (design portal-motion, decision 15: a flash written into sessionStorage). */
@@ -600,6 +603,104 @@ const STATES: State[] = [
     path: `/cases/${SAMPLE.caseRefPath}/assistant`,
     open: async (page) => {
       await page.getByRole("link", { name: "Open the Assistant" }).waitFor();
+    },
+  },
+  // design research-index-portal, decision 22: the Research Index section, the Search Filters, the act suggestions, an
+  // answer with removed sentences, the cited passage, a withheld answer, the meaning search unavailable and the
+  // court-record view with its passage
+  {
+    name: "/data/overview (research index building)",
+    path: "/data/overview#research-index",
+    variant: "research-building",
+    open: async (page) => {
+      const section = page.getByRole("region", { name: "Research Index" });
+      await section.getByRole("progressbar", { name: "Coverage" }).waitFor();
+      await section.getByRole("table", { name: "Earlier Models" }).waitFor();
+      await section.scrollIntoViewIfNeeded();
+    },
+  },
+  {
+    name: "/data/overview (research index counts timed out)",
+    path: "/data/overview#research-index",
+    variant: "research-timed-out",
+    open: async (page) => {
+      const section = page.getByRole("region", { name: "Research Index" });
+      await section.getByText("Some counts took too long to read and are left out; press Refresh to try again.").waitFor();
+      await expect(section.getByRole("progressbar")).toHaveCount(0);
+    },
+  },
+  {
+    name: "/assistant?tab=court-orders (search filters open)",
+    path: "/assistant?tab=court-orders&forms=judgment,final&against_state=1&cites=(2006)%204%20SCC%201&from=2024-01-01&to=2025-12-31",
+    variant: "research-filters",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Search Filters (4)" }).click();
+      await page.getByRole("group", { name: "Search Filters" }).getByRole("checkbox", { name: "Judgment" }).waitFor();
+      await page.getByRole("button", { name: "Clear All" }).waitFor();
+    },
+  },
+  {
+    name: "/assistant?tab=court-orders (act suggestions open)",
+    path: "/assistant?tab=court-orders",
+    variant: "research-filters",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Search Filters" }).click();
+      const act = page.getByRole("combobox", { name: "Act" });
+      await act.click();
+      await act.fill("assam");
+      await page.getByRole("option", { name: /Assam Land Revenue Regulation, 1886/ }).waitFor();
+    },
+  },
+  {
+    name: "/assistant?tab=court-orders (answer with removed sentences)",
+    path: "/assistant?tab=court-orders",
+    variant: "research-answer",
+    open: async (page) => {
+      await page.getByText("ASLMS Removed 2 Sentences").waitFor();
+      await page.getByText("Found by words only this time: the meaning search did not answer in time.").waitFor();
+      await page.getByRole("list", { name: "Asked with These Filters" }).waitFor();
+      await page.getByRole("button", { name: /^Sources \(\d+\)$/ }).first().click();
+      const list = page.getByRole("dialog", { name: "Sources of This Answer" });
+      await list.getByText("Text Has Changed").first().waitFor();
+      await list.getByText("The same words are in 3 other orders.").waitFor();
+    },
+  },
+  {
+    name: "/assistant?tab=court-orders (source dialog with passage)",
+    path: "/assistant?tab=court-orders",
+    variant: "research-answer",
+    open: async (page) => {
+      await page.getByRole("button", { name: /^Source S1:/ }).first().click();
+      const dialog = page.getByRole("dialog", { name: "Source S1" });
+      await dialog.getByText("Underlined: words the answer quotes.").waitFor();
+      await dialog.locator("mark[data-kind=quote]").first().waitFor();
+    },
+  },
+  {
+    name: "/assistant?tab=my-cases (withheld answer)",
+    path: "/assistant?tab=my-cases",
+    variant: "research-withheld",
+    open: async (page) => {
+      await page.getByText("ASLMS held back the model's answer: most of its sentences were not found in the records they cite.").waitFor();
+      await page.getByText(/How much of it is built could not be read just now/).waitFor();
+    },
+  },
+  {
+    name: "/assistant?tab=my-cases (meaning search unavailable)",
+    path: "/assistant?tab=my-cases",
+    variant: "research-unavailable",
+    open: async (page) => {
+      await page.getByText(/The meaning search is not available right now/).waitFor();
+      await page.getByRole("button", { name: "Search Filters" }).waitFor();
+    },
+  },
+  {
+    name: `/assistant/orders/${SAMPLE.orderId} (court record with passage)`,
+    path: `/assistant/orders/${SAMPLE.orderId}?m=${SAMPLE.messageId}&s=S1`,
+    variant: "research-answer",
+    open: async (page) => {
+      await page.getByRole("heading", { name: "The Cited Passage" }).waitFor();
+      await page.locator("mark[data-kind=passage]").first().waitFor();
     },
   },
   {
@@ -1295,7 +1396,7 @@ test.describe("interaction states", () => {
     test(state.name, async ({ page }) => {
       const width = widthOf(page);
       test.skip(!!state.widths && !state.widths.includes(width), "not at this width");
-      const run = await watch(page, state.name, width, !!state.public, state.activity);
+      const run = await watch(page, state.name, width, !!state.public, state.activity, state.variant);
       await state.init?.(page);
       const visit = await run(async () => {
         await page.goto(state.path);

@@ -5212,6 +5212,38 @@ class AssistantFiltersIn(BaseModel):
         }
 
 
+class AssistantFiltersOut(BaseModel):
+    """Design research-index-portal, decision 9: the filters a question was asked with, as stored in
+    `scope_info.filters` (only the keys that were set; dates as `YYYY-MM-DD`)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    forms: list[Literal["judgment", "final", "interim"]] | None = None
+    substantive_only: bool | None = None
+    outcomes: list[str] | None = None
+    against_state: bool | None = None
+    cites: str | None = None
+    act: str | None = None
+    date_from: date | None = Field(None, alias="from", serialization_alias="from")
+    date_to: date | None = Field(None, alias="to", serialization_alias="to")
+
+
+class AssistantFilterChoiceOut(BaseModel):
+    value: str = Field(description="the act key, or the citation as stored")
+    label: str = Field(description="the act's most common printed name, or the citation")
+    detail: str | None = Field(None, description="a citation's most common printed case name")
+    orders: int = Field(description="current court-order readings that name the value")
+
+
+class AssistantFilterChoicesOut(BaseModel):
+    """`GET /assistant/filter-choices` (design research-index-portal, decision 10): court-public values from current
+    court-order readings; `ready` false (no items) while the list is being built or after it ran out of time."""
+
+    kind: Literal["act", "cites"]
+    ready: bool
+    items: list[AssistantFilterChoiceOut]
+
+
 class AssistantAskIn(BaseModel):
     """Extra fields are refused (422): no client flag can ask for internal records (design assistant-ollama,
     decision 4); the server decides from the stored conversation alone."""
@@ -5431,6 +5463,11 @@ class AssistantMessageOut(BaseModel):
     error: AssistantErrorOut | None = None
     reply_to_id: uuid.UUID | None = None
     citations: list[AssistantCitationOut]
+    filters: AssistantFiltersOut | None = Field(
+        None,
+        description="design research-index-portal: the filters a question was asked with (question messages only; "
+        "null otherwise and when none was set)",
+    )
 
 
 class AssistantAskOut(BaseModel):
