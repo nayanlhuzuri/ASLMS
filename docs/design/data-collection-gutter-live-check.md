@@ -163,3 +163,56 @@ None.
 ## Open questions
 
 None. Step 2 is an owner step (ten minutes, signed in), not a question.
+
+## Build record
+
+### Step 1, the developer (24 Nov 2026, branch `feature/data-collection-gutter-live-check`): done
+
+- `frontend/e2e/global-setup.ts` exports `layoutProbe()` and `PROBE_FILE` and writes `layout-probe.js` into every run
+  folder beside `results/`: a header comment (what it is, that it only measures, the pages and states of decision 3,
+  the widths, what to send back), then `pageChecks.toString()` wrapped as decision 1 shows. It prints with
+  `console.table` and returns the count. 39,598 bytes; `node --check` parses it.
+- `frontend/e2e/checks.ts`: the comment on `pageChecks` names the second serialisation, so it stays self-contained and
+  only measures. The rule itself is unchanged.
+- `frontend/e2e/uicheck-self.spec.ts`, four new tests, each run at all four widths:
+  - the probe, evaluated as a string the way it is pasted, prints exactly what `page.evaluate(pageChecks, …)` finds and
+    returns that count: two `gutter` findings on the 3 px page, none on the kept page;
+  - after it runs, `page.content()` is unchanged on both pages and no request is seen; its text names no network or
+    storage API;
+  - the run folder's `layout-probe.js` equals `layoutProbe()`.
+- Checks: `npx tsc --noEmit` in `frontend/e2e` clean; `npm run lint`, `npm run typecheck` and `npm test` pass in
+  `frontend/` (112 files, 2,823 tests); locally `npx playwright test uicheck-self.spec.ts` passes 160 of 160.
+- **Screen check on a private network** (runbook section 16; images `tmpgutter-web` and `tmpgutter-uicheck` built from
+  this branch, network `tmpgutter-net`, the shared stack untouched): run **`20261124-0223`**. 195 routes and states,
+  638 screenshots, **0 findings**, 463 s; 926 passed, 14 skipped (the existing width-gated states). Each width ran
+  `/data/overview`, `/data/collect`, `/data/automatic`, `/data/problems`, `/system` and `system-court-calls`, and the
+  16 layout-probe self-tests passed. **`layout-probe.js` was written** to the run folder. It is byte-for-byte the file
+  the local self-test run wrote. The container, the network and both images were then removed.
+- **Handing the snippet to the owner.** It is not committed: a copy in the repository would be the second copy that
+  decision 1 rules out. The owner session can take it from a run folder, or make one in seconds in `frontend/e2e`:
+  `UICHECK_OUT=<folder> npx playwright test uicheck-self.spec.ts --project laptop`, then open
+  `<folder>/<stamp>/layout-probe.js`.
+
+### Step 2, the owner's signed-in check: pending
+
+Not started. The table under Verification, step 2, is still to be filled in.
+
+Handing the snippet over (review advisory 1): run 20261124-0223's folder was the session scratchpad and may be cleared,
+so the snippet is made again just before step 2, in a few seconds and byte for byte the same: in `frontend/e2e`,
+`UICHECK_OUT=<folder> npx playwright test uicheck-self.spec.ts --project laptop`, then hand over
+`<folder>/<stamp>/layout-probe.js`. In DevTools' responsive mode keep the default mobile device type (overlay
+scrollbars), so the page's width equals the chosen width (review advisory 2: with a classic scrollbar `clientWidth`
+is the width less the scrollbar, and the phone-only kinds could fire just above 375 px).
+
+### Step 3, the developer: pending
+
+Waits for step 2. Until then D1 stays open.
+
+## Deviations
+
+1. The two gutter self pages are now shared constants (`GUTTER_BAD`, `GUTTER_KEPT`), used by the existing gutter tests
+   and the probe tests. This keeps "the existing self pages" literally the same pages.
+2. Two checks beyond the Tests section, both small: the "writes nothing" test also checks that the snippet's text
+   names no network or storage API (`fetch(`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `localStorage`,
+   `sessionStorage`, `indexedDB`, `document.cookie`); and a test checks that the run folder's file equals
+   `layoutProbe()`.

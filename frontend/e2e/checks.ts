@@ -103,7 +103,11 @@ export interface CheckArgs {
   width: number;
 }
 
-/** Runs in the browser. */
+/**
+ * Runs in the browser. It is serialised by `Function.prototype.toString` twice: by `page.evaluate`, and into the console
+ * snippet `layout-probe.js` the global setup writes (design data-collection-gutter-live-check, decision 1), so it must
+ * stay self-contained and only measure.
+ */
 export function pageChecks({ width }: CheckArgs): PageFinding[] {
   const out: PageFinding[] = [];
   const vw = document.documentElement.clientWidth;

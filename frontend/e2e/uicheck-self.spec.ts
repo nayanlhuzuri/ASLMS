@@ -2,17 +2,19 @@
  * The checker's own rules (design followups-oct, decision 22): on a redirect only the geometry kinds are dropped (no
  * page needed); and the field-row checkbox step on two small pages of its own (design portal-ui-polish-2, decision 26);
  * the four control-spacing kinds (design control-spacing-sweep, decision 11);
- * the box collector and boxdiff (design portal-navy-cream, decision 16).
+ * the box collector and boxdiff (design portal-navy-cream, decision 16);
+ * the console snippet `layout-probe.js` (design data-collection-gutter-live-check, decision 1).
  */
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { compareRuns, differences, main, report, type Boxes } from "./boxdiff";
 import { collectBoxes } from "./boxes";
-import { GEOMETRY_KINDS, pageChecks } from "./checks";
-import { kept, type Finding } from "./results";
+import { GEOMETRY_KINDS, pageChecks, type PageFinding } from "./checks";
+import { layoutProbe, PROBE_FILE } from "./global-setup";
+import { kept, runDir, type Finding } from "./results";
 
 function finding(kind: string): Finding {
   return { route: "/files", width: 375, kind, element: "x", detail: "y" };
@@ -79,29 +81,79 @@ function shell(mainStyle: string, body: string): string {
     <main id="main" style="${mainStyle}">${body}</main></body></html>`;
 }
 
+/** The gutter pages, one breaking the rule and one keeping it; the layout probe tests below reuse them. */
+const GUTTER_BAD = shell(
+  "padding:16px 3px;width:600px",
+  `<p>Data Collection</p><div style="width:900px">A long error that does not wrap</div>`,
+);
+const GUTTER_KEPT = shell(
+  "padding:16px 24px;width:600px",
+  `<p style="overflow-wrap:anywhere">A long value that wraps inside the page</p>
+   <div data-scroll-x style="overflow-x:auto"><div style="width:900px">A wide report table</div></div>
+   <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Hidden</span>`,
+);
+
 test("a 3 px page gutter and a value pushing past the content box are gutter findings", async ({ page }) => {
-  await page.setContent(
-    shell(
-      "padding:16px 3px;width:600px",
-      `<p>Data Collection</p><div style="width:900px">A long error that does not wrap</div>`,
-    ),
-  );
+  await page.setContent(GUTTER_BAD);
   const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "gutter");
   expect(findings.some((f) => f.detail.startsWith("left padding 3.0 px"))).toBe(true);
   expect(findings.some((f) => f.detail.startsWith("box "))).toBe(true);
 });
 
 test("a kept gutter, a sideways-scroll region and a visually hidden caption pass the gutter rule", async ({ page }) => {
-  await page.setContent(
-    shell(
-      "padding:16px 24px;width:600px",
-      `<p style="overflow-wrap:anywhere">A long value that wraps inside the page</p>
-       <div data-scroll-x style="overflow-x:auto"><div style="width:900px">A wide report table</div></div>
-       <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Hidden</span>`,
-    ),
-  );
+  await page.setContent(GUTTER_KEPT);
   const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "gutter");
   expect(findings).toEqual([]);
+});
+
+/**
+ * The console snippet (design data-collection-gutter-live-check, decisions 1 and 2): evaluated as a string, as the owner
+ * pastes it, on the two gutter pages above it prints with `console.table` exactly what `page.evaluate(pageChecks, …)`
+ * finds at the window's width, and returns the count; and it writes nothing.
+ */
+async function probeAndRule(page: Page, html: string): Promise<{ printed: PageFinding[]; count: number; rule: PageFinding[] }> {
+  await atLaptop(page);
+  await page.setContent(html);
+  const table = page.waitForEvent("console", { predicate: (msg) => msg.type() === "table" });
+  const count = (await page.evaluate(layoutProbe())) as number;
+  const printed = (await (await table).args()[0]!.jsonValue()) as PageFinding[];
+  const width = await page.evaluate(() => document.documentElement.clientWidth);
+  const rule = await page.evaluate(pageChecks, { width });
+  return { printed, count, rule };
+}
+
+test("the layout probe prints what pageChecks finds: two gutter findings on the 3 px page", async ({ page }) => {
+  const { printed, count, rule } = await probeAndRule(page, GUTTER_BAD);
+  expect(printed).toEqual(rule);
+  expect(count).toBe(rule.length);
+  expect(printed.filter((f) => f.kind === "gutter")).toHaveLength(2);
+});
+
+test("the layout probe prints what pageChecks finds: no gutter finding on the kept page", async ({ page }) => {
+  const { printed, count, rule } = await probeAndRule(page, GUTTER_KEPT);
+  expect(printed).toEqual(rule);
+  expect(count).toBe(rule.length);
+  expect(printed.filter((f) => f.kind === "gutter")).toEqual([]);
+});
+
+test("the layout probe changes nothing on the page and makes no request", async ({ page }) => {
+  for (const html of [GUTTER_BAD, GUTTER_KEPT]) {
+    await atLaptop(page);
+    await page.setContent(html);
+    const requests: string[] = [];
+    page.on("request", (request) => requests.push(request.url()));
+    const before = await page.content();
+    await page.evaluate(layoutProbe());
+    expect(await page.content()).toBe(before);
+    expect(requests).toEqual([]);
+    page.removeAllListeners("request");
+  }
+  // and nothing in its text reaches the network or storage
+  expect(layoutProbe()).not.toMatch(/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|localStorage|sessionStorage|indexedDB|document\.cookie/);
+});
+
+test("the global setup wrote the layout probe into the run folder", () => {
+  expect(readFileSync(join(runDir(), PROBE_FILE), "utf-8")).toBe(layoutProbe());
 });
 
 test("a caption repeating its panel heading is a doubled heading", async ({ page }) => {

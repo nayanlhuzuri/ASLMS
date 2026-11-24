@@ -4483,3 +4483,22 @@ succeeded; uicheck on a private network, 195 routes and states, 0 findings; back
 (Windows-only or sample-only), no database test skipped.
 
 Left for later: the deploy is a `web` rebuild from `main` with the build ID checked (integrator). No follow-up rows.
+
+## Data collection gutter live check, step 1 (2026-11-24)
+- Backlog row 187 `data-collection-gutter-live-check` (design `docs/design/data-collection-gutter-live-check.md`, approved by
+  the owner, built beside row 251 to save time). The row has three steps (decision 4); only step 1 is built.
+- Built (frontend/e2e only; no backend change, no migration, no `schema.md` change): `global-setup.ts` writes
+  `layout-probe.js` into each screen-check run folder, generated from the same `pageChecks` the check uses, so the
+  snippet the owner pastes into a signed-in browser finds what the check finds and there is no second copy to drift
+  (decision 1). The snippet writes nothing and names no network or storage API. `uicheck-self.spec.ts` has the self-tests
+  that the snippet finds what `pageChecks` finds on the existing gutter self pages (now shared constants `GUTTER_BAD` and
+  `GUTTER_KEPT`) and that the run folder's file equals `layoutProbe()`.
+- Checks: `npm run lint`, `npm run typecheck` and `npm test` pass in `frontend/` (112 files, 2,823 tests); locally the
+  self spec passed 160 of 160. Screen check on a private network (runbook section 16, temporary images, shared stack
+  untouched): run `20261124-0223`, 195 routes and states, 638 screenshots, 0 findings; `layout-probe.js` was written.
+- Deviations: the two gutter self pages became shared constants; two small checks beyond the design's Tests section (the
+  snippet's text is scanned for network and storage names; the file equals `layoutProbe()`). The snippet is not committed,
+  because a copy in the repository would be the second copy decision 1 rules out.
+- Left for later: step 2, the owner's signed-in browser check on `/data/overview`, `/data/collect` and `/data/automatic`
+  at 375, 768 and 1280 px with the snippet; step 3, the developer's work on whatever step 2 finds. Design defect D1 stays
+  open until then.
