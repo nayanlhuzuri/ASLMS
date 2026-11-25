@@ -25,14 +25,15 @@ no help contact).
 
 ## Decisions
 
-1. **The hero is the whole first screen.** The top bar and the hero together are exactly one screen tall at every
-   width where they fit (`min-height: 100svh` on the pair, with `100vh` as the fallback), and the hero's content is
+1. **The hero is the whole first screen.** The hero is exactly one screen tall at every width where it fits
+   (`min-height: 100svh`, with `100vh` as the fallback), and the hero's content is
    centred vertically in that height. When the content is taller than the screen (a phone with the card stacked under
    the heading, or a short laptop window) the hero simply grows; it never clips and never scrolls inside itself.
    Everything else (the sample screens, the strip of what ASLMS does, the footer) starts below the first screen and is
    reached by scrolling. No scroll hint, arrow or animation is added.
-2. **One sign-in, on the card.** The top bar keeps only the name ("ASLMS" and "Government of Assam") and loses its
-   Sign In link. The closing band, whose only purpose was a second Sign In link, is removed. The Sign In jump of row
+2. **One sign-in, on the card, and no top bar.** The top bar is removed entirely (owner, 25 Nov 2026, on the mock:
+   "you can remove the header. it is looking odd"); the hero's own lockup (the gold emblem, "Government of Assam"
+   and the full name) is the page's identity, and the page's `h1` stays the heading. The closing band, whose only purpose was a second Sign In link, is removed. The Sign In jump of row
    274 decision 11 (`jumpToSignIn.ts`, its test and its uicheck states) goes with them, since nothing links to the
    card any more. The card's own submit stays the page's one primary action.
 3. **The sample screens are the real screens with sample data.** In place of today's made-up window, the page shows
@@ -51,15 +52,18 @@ no help contact).
    department, officer or judge is named; dates are words ("Tomorrow", "In 5 Days") or dates in a fixed sample month,
    so the picture does not go out of date. This keeps CLAUDE.md's "never fabricate identifiers" rule: nothing on the
    page can be taken for, or confused with, a held case.
-5. **Layout below the first screen.** On a laptop the two pictures sit side by side (Case Inbox wider), and below
-   1024 px they stack, each scaled to the column, with no horizontal scroll. The strip of what ASLMS does and the
+5. **Layout below the first screen.** The two pictures stack one above the other at every width, each the full
+   width of a content column of at most about 1,100 px, so the Case Inbox shows all its columns on a laptop; on a
+   phone the table stacks as cards as the real `DataTable` does, with no horizontal scroll. The strip of what ASLMS does and the
    footer follow as built.
+
+The mock the owner reviewed on 25 Nov 2026 (a local page, not part of the build) shows decisions 1 to 5.
 
 ## Data, Services, API, Jobs
 None. Frontend only, no migration, no API change.
 
 ## Tests
-- `home.test.tsx`: the top bar holds no Sign In link; there is no closing band; the page has exactly one form and one
+- `home.test.tsx`: there is no top bar (no `header` before `main`) and no Sign In link outside the card; there is no closing band; the page has exactly one form and one
   primary button; both pictures are `role="img"` with a label and an `inert`, `aria-hidden` window; each shows
   "Sample Data"; no CNR pattern (`[A-Z]{4}\d{2}\d{6}\d{4}`) and no unmasked case number appear in the page text.
 - `home.css.test.ts`: the first-screen rule (`min-height: 100svh` with the `100vh` fallback) is present on the first
