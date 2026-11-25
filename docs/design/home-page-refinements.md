@@ -47,9 +47,14 @@ no help contact).
      questions and two answers about one sample case. Each question is typed into the ask box and then rises in as
      a bubble; the Assistant shows a three-dot typing indicator for about a second, then its answer writes out word
      by word with its source markers, and its Sources card fades in. Whole conversation about 15 to 20 seconds.
-     It starts once, when the picture is at least a third in view (IntersectionObserver), and does not loop. A
-     Pause / Play button in the picture's caption bar works while it plays and becomes Replay at the end (WCAG
-     2.2.2, as the emblem's button). Under `prefers-reduced-motion: reduce` the finished conversation shows at once
+     The picture keeps the size of the still Assistant picture (owner: "keep the assistant section size same as
+     before"): the message area has a fixed height, new messages enter at the bottom as in a chat window, and older
+     ones move up and fade out under a soft top edge; nothing scrolls inside it and the page never jumps.
+     It starts when the picture is at least a third in view (IntersectionObserver) and runs in a continuous loop
+     until paused (owner: "it should run in a continuous loop until it is paused"): after the last answer it waits
+     about 3.5 seconds, the messages fade out, and it begins again. It holds while the picture is out of view. A
+     Pause / Play button in the picture's caption bar stops and resumes it at any point (WCAG 2.2.2, as the
+     emblem's button). Under `prefers-reduced-motion: reduce` the finished conversation shows at once
      and the button is hidden. Only `opacity` and `transform` are animated, in the portal's motion tokens. The
      moving text is `aria-hidden`; the `role="img"` label describes the whole conversation.
    They are built from the portal's own kit components fed with static sample data, so they stay true when the kit
@@ -80,7 +85,7 @@ None. Frontend only, no migration, no API change.
   screen's wrapper.
 - `jump.test.ts` and `jumpToSignIn.ts` removed; any test that clicked a Sign In link updated.
 - `homeChat.test.tsx`: the conversation plays in order (question, typing, answer, sources), Pause stops it and Play
-  resumes it, Replay starts it again, and under reduced motion all four messages are present at once with no button.
+  resumes it, it starts again after the last answer, it holds while out of view, and under reduced motion all four messages are present at once with no button.
 - uicheck: the `/login` states (taken under reduced motion, so the conversation is in its finished state) at 375, 768, 1024 and 1280 px with 0 findings; the Sign In jump states removed; a check
   at 1280 px that the sample pictures start below the first screen (the hero's bottom is at or after the viewport's
   height).
