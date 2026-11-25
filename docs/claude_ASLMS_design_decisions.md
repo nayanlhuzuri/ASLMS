@@ -4630,3 +4630,13 @@ Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
   rerun; if it times out again, the limit or a split of the job is a follow-up.
 - CI follow-up (25 Nov 2026, 13:00): the rerun of the backend job for afb798e passed in 29 minutes (03:47 to 04:16 UTC)
   and the run for 7f53cb8 passed, so the two timeouts were slow runners, not the code; the 45-minute limit stays.
+
+## Home page refinements, row 281 (2026-11-25)
+
+- The owner's first look at the live home page (row 274) asked for three changes, which are the approval of
+  docs/design/home-page-refinements.md: the hero with the sign-in card fills the whole first screen and the rest
+  scrolls; the top bar's Sign In link and the closing band are removed, so the card is the only sign-in (the Sign In
+  jump of row 274 decision 11 goes); the sample pictures become the real Case Inbox and Case Assistant answer drawn
+  with the portal's kit and sample data. The owner allowed dummy data; it is kept from looking like a held record
+  (masked case numbers such as `WP(C)/XXXX/2026`, no CNR, no department, officer or judge named, a "Sample Data"
+  label), so the identifier rule holds.
