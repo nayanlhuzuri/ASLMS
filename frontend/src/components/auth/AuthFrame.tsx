@@ -7,12 +7,10 @@
  * (the brand row that stood above the form is gone, so the emblem appears once). On phones the panel shrinks to a
  * header above the form, with a small emblem beside the title, and the tiles are hidden. The sign-in, code, reset and
  * first-sign-in pages share it; only the right half changes. Every text comes from `messages.ts`, and the Gauhati High
- * Court is not named here. The two Noto fonts of the emblem's lines are imported here, so only the public and
- * first-sign-in routes load them (decision 15).
+ * Court is not named here. The two Noto fonts of the emblem's lines are imported by `GoldEmblem`, their only user, so
+ * only the public and first-sign-in routes load them (decision 15; design home-page, decision 14: the sign-in and code
+ * steps moved to the home page, which shows the emblem in its hero, and the reset and first-sign-in pages stay here).
  */
-import "@fontsource/noto-serif-bengali/bengali-600.css";
-import "@fontsource/noto-serif-devanagari/devanagari-500.css";
-
 import type { ReactNode } from "react";
 
 import { BellIcon, CalendarIcon, FilesIcon } from "@/components/shell/icons";

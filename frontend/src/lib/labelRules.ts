@@ -185,6 +185,7 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "assistant.suggested.research.0": "a suggested question typed for the person",
   "assistant.includedHere": "a line marking a point in the conversation (design assistant-ollama, decision 14)",
   "assistant.usesInternal": "a sentence under an answer (design assistant-ollama, decision 14)",
+  "home.preview.party": "a sample cause title on the home page's picture, with the court's lower-case v. (design home-page)",
 };
 
 /** Functions under label paths, with the sample arguments their result is checked with (path → args). */

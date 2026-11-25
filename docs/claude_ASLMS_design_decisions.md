@@ -4572,3 +4572,41 @@ Row 275 `research-index-portal` (branch `feature/research-index-portal`, in revi
 
 **Left for later:** the owner's signed-in browser check and the integrator's `EXPLAIN (ANALYZE, BUFFERS)` (row 279); the Word guides (row 276, after Verification 7); the review advisories of row 251 (row 277).
 
+## Home page with the sign-in form, row 274 `home-page` (2026-11-24)
+
+Built 24 to 25 Nov 2026 on `feature/home-page`, in review. Frontend only: no migration, no table, no API, no
+command, no setting. Design: `docs/design/home-page.md` (approved by the owner on 24 Nov 2026 as recommended).
+
+**What was built**
+- `/login` is now one public home page (`components/home/HomePage.tsx`): top bar, a navy hero with the gold emblem and
+  the sign-in card, a static sample picture of the Case Inbox and a cited Case Assistant answer (`HomePreview.tsx`,
+  plainly labelled as a sample), the what-it-does strip, a closing band and a footer. General words only: no case
+  numbers, no counts, no department names (texts in `T.home`).
+- The route moved from `(public)` to the group `(home)`; `/login?next=`, `?reason=`, `?expired=1` and `?reset=done`
+  work as before. `/login/code` stays only as an old address: a client redirect to `/login?step=code` keeping `next`.
+- The sign-in card (`SignInCard.tsx`) reads its step from the address (`?step=code`), changes step with `pushState`
+  (no remount, Back returns to the password step, a reload keeps the step) and cross-fades with the outgoing step
+  inert and focus moved after each change.
+- Transitions: both Sign In links scroll to the card over `--med` and focus its first field (`jumpToSignIn.ts`);
+  after the code the Dashboard fades in once (`shell/arrive.ts`, a flag set by `CodeForm` and taken by `PortalShell`).
+  Every change is instant under reduced motion.
+- The Noto fonts are imported by `GoldEmblem`, so the page and the other public pages share them.
+- Tests: the page, the card, the jump, the CSS, the arrival fade, the layout signature regenerated; new uicheck states
+  `/login?step=code`, `/login (first view)` and the Sign In jump with motion on and with reduced motion.
+
+**Decisions and reasons**
+- No figure on the page and no help contact (owner's answers to open questions 1 and 2): the page says only that the
+  department's administrator gives a login.
+- Signed-in visitors still see the home page at `/login`: only the API can tell a stale refresh cookie.
+- Step changes by `pushState`, not a router search-param navigation, because the App Router would remount the page
+  and it could not cross-fade.
+
+**Deviations from the design note** (also in its Deviations section): closing band heading "Sign in to ASLMS" (the
+Title Case guard keeps the joining word lower case); the bands' painted layer is a `::before` exactly the page's
+width, not a box-shadow with clip-path (uicheck's `clipped` kind refused `overflow-x: clip`); the Sign In links are the
+small client component `SignInLink`; the arrival fade is set by a ref callback; the card's heading is styled in
+`home.module.css`; `home.preview.party` is a sentence exception for "v."; uicheck's jump state is two states.
+
+**Left for later**: the integrator's checks (lint, typecheck, tests, build, `gen:api` no diff, `portal_smoke.py`, the
+Compose-free uicheck of runbook section 16) and the owner's browser check at 375, 768, 1024 and 1280 px (design note,
+Verification). Deploy is a `web` rebuild from `main` with the build ID checked.

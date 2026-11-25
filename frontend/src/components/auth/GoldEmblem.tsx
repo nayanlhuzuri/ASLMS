@@ -12,7 +12,12 @@
  *   (decisions 7 and 8), remembered on this browser in `localStorage` (decision 9);
  * - under reduced motion the emblem is still and there is no button (decision 14).
  * With no `capital` configured, nothing is rendered.
+ * The two Noto fonts of the gold lines are imported here, the only thing that uses them, so only the pages showing the
+ * emblem load them: the home page and the frame's reset and first-sign-in pages (design home-page, decision 14).
  */
+import "@fontsource/noto-serif-bengali/bengali-600.css";
+import "@fontsource/noto-serif-devanagari/devanagari-500.css";
+
 import { useState, useSyncExternalStore, type CSSProperties } from "react";
 
 import { PauseIcon, PlayIcon } from "@/components/shell/icons";

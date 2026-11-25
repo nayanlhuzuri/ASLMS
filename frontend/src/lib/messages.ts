@@ -359,6 +359,46 @@ export const T = {
       },
     },
   },
+  // the public home page with the sign-in form on it (design home-page, row 274, decision 4): general words only, no
+  // case number, count, department or court name; strip items 1, 2 and 4 are `auth.frame.tiles`
+  home: {
+    heading: "The State's Court Cases, Followed Day by Day",
+    lead:
+      "ASLMS reads the court's daily cause lists and orders, recommends the department each case concerns, and tells the officer who has the case what is coming up and what needs doing next.",
+    access:
+      "For officers of Government of Assam departments. Your department's administrator gives you a login, and a code comes to your e-mail each time you sign in.",
+    preview: {
+      heading: "What You See After Signing In",
+      intro: "Your cases with their next hearing, and answers from the court's orders that show the page they come from.",
+      windowLabel: "Sample Screen, Not Real Cases",
+      aria: "A sample of the Case Inbox and a Case Assistant answer with its source. The cases shown are not real.",
+      inboxTitle: "With Me",
+      assistantTitle: "Case Assistant",
+      party: "A Petitioner v. The State",
+      rows: [
+        { name: "Sample Case 1", hearing: "Tomorrow", status: "New Order" },
+        { name: "Sample Case 2", hearing: "In 3 Days", status: "Reply Due" },
+        { name: "Sample Case 3", hearing: "Next Week", status: "Listed" },
+      ],
+      question: "What did the court direct in the last order?",
+      answer: "The State is to file its reply within two weeks, and the case comes up again after that.",
+      marker: "[1]",
+      sourceChip: "[1] Sample Order, Page 2",
+    },
+    strip: {
+      heading: "What ASLMS Does",
+      claim: {
+        title: "Each Case Finds Its Department",
+        text: "ASLMS recommends the department a case concerns, and the department claims it. Nothing is assigned automatically.",
+      },
+    },
+    closing: {
+      // the portal's Title Case rule keeps "in" lower case mid-heading, as in "Sign in Now" (design home-page, deviation 1)
+      heading: "Sign in to ASLMS",
+      line: "Use your official e-mail and password. A code comes to your e-mail each time.",
+    },
+    footName: "Assam State Litigation Management System · Government of Assam",
+  },
   // the session watch (design session-timeout, decisions 17 and 18): the warning and the hard-limit notice
   session: {
     warnTitle: "Are You Still There?",

@@ -489,3 +489,36 @@ Answered by the owner on 24 Nov 2026 ("approve both designs as recommended"):
 2. **A help contact:** (a) nothing more. The page says only "Your department's administrator gives you a login".
 
 The developer builds decision 6 and the footer as written. None remain open.
+
+## Deviations
+
+Recorded by the developer while building (24 to 25 Nov 2026):
+
+1. **Closing band heading "Sign in to ASLMS"** in place of "Sign In to ASLMS". The portal's Title Case rule
+   (`titleCase.ts`, guarded by `labels.test.ts`) keeps a short joining word lower case in the middle of a heading, as in
+   the existing "Sign in Now"; the guard refused the capital "In". The two Sign In buttons keep "Sign In", where "In"
+   is the last word.
+2. **The bands' painted layer is a `::before` behind the band, exactly as wide as the page**
+   (`position: absolute; inset: 0 calc(50% - 50cqw); z-index: -1` inside a band with `isolation: isolate`, the page
+   wrapper being an inline-size container), in place of a `box-shadow` spread with `clip-path`. The hero and the closing
+   band carry the frame panel's gradient and the hero its dot pattern, which a box-shadow cannot paint. A first try
+   clipped wider layers with `overflow-x: clip` on the page wrapper, and uicheck's `clipped` kind refused it (the
+   wrapper's scroll width past its client width); a layer of exactly the page's width needs no clipping. As decided, no
+   box leaves `main`'s content box and nothing needs `data-bleed`.
+3. **The two Sign In links are a small client component, `SignInLink`, exported from `SignInCard.tsx`.** `buttonClass`
+   lives in the client kit, and a server component may take only components from a client module (the server-import
+   rule of `pages.test.tsx`), so `HomePage` cannot call it. The page's one click listener is installed by the card
+   (`listenForSignInLinks` in `jumpToSignIn.ts`), which is on the page exactly once.
+4. **The arrival fade is set on the frame element by a ref callback** (`arriveOnAttach` in `PortalShell.tsx`), not
+   through React state, so a Strict Mode re-attach or a re-render neither repeats nor clears it. Under reduced motion the
+   flag is still read and removed, and nothing is marked, since nothing would fade. The helper is
+   `components/shell/arrive.ts` (`markArrive`, `takeArrive`).
+5. **`/login/code` uses the existing `Redirect` of `components/inbox/Redirects.tsx`**, which keeps the query string,
+   so `?next=…` is kept and `step=code` added.
+6. **`home.preview.party` is in `SENTENCE_EXCEPTIONS`** (`labelRules.ts`): "A Petitioner v. The State" keeps the
+   court's lower-case "v.", which the Title Case guard would otherwise refuse. The answer's source marker "[1]" is its
+   own text (`T.home.preview.marker`) so it can be drawn as a marker.
+7. **The card's `h2` is styled in `home.module.css`** (`.card h2`), not by widening `auth.module.css`'s `.form h1`, so
+   the frame's stylesheet and its layout signature are unchanged.
+8. **uicheck's jump state is two states**, "/login (Sign In jump)" with the motion on and "/login (Sign In jump,
+   reduced motion)", both at 375 px only, so each is reported and screenshotted on its own.

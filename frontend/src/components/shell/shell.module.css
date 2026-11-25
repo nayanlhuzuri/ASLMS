@@ -5,6 +5,22 @@
   min-height: 100vh;
 }
 
+/* design home-page, decision 13: one short fade on arrival from the sign-in code; opacity only, so the sticky header
+   and the fixed bars never shift; the duration token is 0 ms under reduced motion */
+.frame[data-arrive] {
+  animation: portal-arrive var(--med) var(--ease) both;
+}
+
+@keyframes portal-arrive {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 .header {
   position: sticky;
   top: 0;

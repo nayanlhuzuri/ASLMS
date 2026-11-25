@@ -8,7 +8,7 @@
  * a request other than `GET`, or a console or page error. With `UICHECK_BOXES=1` each page and state also writes its
  * element boxes for `boxdiff.ts` (design portal-navy-cream, decision 16, `boxes.ts`).
  */
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
@@ -78,6 +78,8 @@ const OLD_FILES: Record<string, string> = {
   "/data/health": "/data/overview",
   "/data/queue": "/data/problems",
   "/data/duplicates": "/data/problems",
+  // design home-page, decision 2: the old code-step address lands on the home page's code step
+  "/login/code": "/login?step=code",
 };
 
 interface Visit {
@@ -259,6 +261,17 @@ function fontsOf(page: Page): string[] {
 
 const EMBLEM_ALT = "Emblem of the Government of Assam";
 
+/** The home page's heading, which names its hero region (design home-page). */
+const HOME_HEADING = "The State's Court Cases, Followed Day by Day";
+
+/** Whether an element's box lies wholly within the first view of the page (scrolled to the top). */
+async function inFirstView(page: Page, target: Locator): Promise<boolean> {
+  const scrolled = await page.evaluate(() => window.scrollY);
+  const box = await target.boundingBox();
+  const height = page.viewportSize()?.height ?? 0;
+  return !!box && scrolled === 0 && box.y >= 0 && box.y + box.height <= height;
+}
+
 /** Two boxes overlap when they share any area. */
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -266,8 +279,9 @@ function overlaps(a: { x: number; y: number; width: number; height: number }, b:
 
 const STATES: State[] = [
   {
-    // design signin-gold-emblem, decisions 7, 8 and 11: the motion on, the Pause button in the panel, icon only on
-    // phones and tablets; after Pause the spinner has no animation, so the screenshot shows the still front face
+    // design signin-gold-emblem, decisions 7, 8 and 11: the motion on, the Pause button beside the emblem, icon only on
+    // phones and tablets; after Pause the spinner has no animation, so the screenshot shows the still front face.
+    // Design home-page: the emblem is in the home page's hero, the region named by the page's heading
     name: "/login (motion on)",
     path: "/login",
     public: true,
@@ -277,7 +291,7 @@ const STATES: State[] = [
     },
     open: async (page) => {
       const width = widthOf(page);
-      const panel = page.getByRole("region", { name: "About the Portal" });
+      const panel = page.getByRole("region", { name: HOME_HEADING });
       const pause = panel.getByRole("button", { name: "Pause the Emblem's Movement" });
       await pause.waitFor({ state: "visible" });
       const button = (await pause.boundingBox())!;
@@ -296,6 +310,64 @@ const STATES: State[] = [
       expect(fontsOf(page).some((u) => /noto-serif/.test(u)) || width < 820, "the Noto fonts load on the sign-in page").toBe(true);
     },
   },
+  {
+    // design home-page, decision 2: the code step in place, read from the address; on a laptop the card is in the
+    // first view
+    name: "/login?step=code",
+    path: "/login?step=code",
+    public: true,
+    open: async (page) => {
+      const card = page.locator("#sign-in");
+      await card.getByRole("heading", { name: "Enter the Code" }).waitFor();
+      await expect(card.getByLabel("Code", { exact: true })).toBeVisible();
+      if (widthOf(page) >= 1024) expect(await inFirstView(page, card), "the card is in the first view").toBe(true);
+    },
+  },
+  {
+    // design home-page, decisions 7 and 8: from 1024 px the whole form is in the first view; on phones and tablets the
+    // e-mail field is
+    name: "/login (first view)",
+    path: "/login",
+    public: true,
+    open: async (page) => {
+      const card = page.locator("#sign-in");
+      const email = card.getByLabel("E-mail", { exact: true });
+      await email.waitFor();
+      expect(await inFirstView(page, email), "the e-mail field is in the first view").toBe(true);
+      if (widthOf(page) >= 1024) {
+        expect(await inFirstView(page, card.getByLabel("Password", { exact: true })), "the password field is in the first view").toBe(true);
+        expect(await inFirstView(page, card.getByRole("button", { name: "Sign In" })), "the submit is in the first view").toBe(true);
+      }
+    },
+  },
+  ...[false, true].map(
+    (reduced): State => ({
+      // design home-page, decision 11: the closing band's Sign In moves to the form and focuses the e-mail field,
+      // with the motion on and under reduced motion, and the address takes no hash
+      name: reduced ? "/login (Sign In jump, reduced motion)" : "/login (Sign In jump)",
+      path: "/login",
+      public: true,
+      widths: [375],
+      init: async (page) => {
+        if (!reduced) await page.emulateMedia({ reducedMotion: "no-preference" });
+      },
+      open: async (page) => {
+        const strip = page.getByRole("region", { name: "What ASLMS Does" });
+        await strip.scrollIntoViewIfNeeded();
+        await page.getByRole("region", { name: "Sign in to ASLMS" }).getByRole("link", { name: "Sign In" }).click();
+        const email = page.locator("#sign-in").getByLabel("E-mail", { exact: true });
+        await expect(email).toBeFocused();
+        // the scroll ends within a quarter of a second; the wait covers a slow frame
+        await page.waitForTimeout(400);
+        const box = (await email.boundingBox())!;
+        const height = page.viewportSize()!.height;
+        expect(box.y >= 0 && box.y + box.height <= height, "the e-mail field is wholly in the viewport").toBe(true);
+        expect(new URL(page.url()).hash).toBe("");
+        // the screenshot is taken from the top of the page
+        await page.evaluate(() => window.scrollTo(0, 0));
+      },
+    }),
+  ),
   {
     // design signin-gold-emblem, decision 15: a portal page never downloads the sign-in frame's Noto fonts
     name: "/ (no sign-in fonts)",

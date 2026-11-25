@@ -1,0 +1,565 @@
+/* The public home page (design home-page, row 274, decisions 5 and 7 to 12): navy top bar, navy hero with the gold
+   emblem and the sign-in card, the cream sample picture, the strip, the navy closing band and the navy footer. Tokens
+   only. `main` keeps a gutter of --s4; a band reaches the screen's edges by a painted layer behind it (`::before`),
+   exactly as wide as the page (`100cqw` of the page wrapper, its inline-size container), so no box leaves main's content
+   box, nothing is clipped and the page never scrolls sideways.
+   The step change of the sign-in card is a cross-fade on --med with --ease, instant under reduced motion. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  container-type: inline-size;
+}
+
+/* ---------- the top bar and the footer (outside main, full width) ---------- */
+
+.top,
+.foot {
+  color: var(--panel-text);
+  background: var(--panel-from);
+}
+
+.top {
+  border-bottom: 1px solid var(--panel-line);
+}
+
+.topInner,
+.footInner {
+  width: 100%;
+  max-width: 1232px;
+  margin: 0 auto;
+  padding: 0 var(--s4);
+}
+
+.topInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  height: var(--header-h);
+}
+
+.name {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.nameShort {
+  color: var(--panel-strong);
+  font-size: var(--t-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nameOwner {
+  color: var(--panel-muted);
+  font-size: var(--t-xs);
+}
+
+.foot {
+  margin-top: auto;
+  border-top: 1px solid var(--panel-line);
+}
+
+.footInner {
+  padding-top: var(--s5);
+  padding-bottom: var(--s5);
+}
+
+.footInner p {
+  margin: 0;
+  font-size: var(--t-xs);
+}
+
+.footInner p + p {
+  margin-top: var(--s1);
+  color: var(--panel-muted);
+}
+
+/* ---------- main and the bands ---------- */
+
+.main {
+  width: 100%;
+  max-width: 1232px;
+  margin: 0 auto;
+  padding: 0 var(--s4);
+}
+
+.band {
+  position: relative;
+  isolation: isolate;
+  padding: var(--s7) 0;
+}
+
+/* the painted layer: the band's background reaching the screen's edges, behind its content; the band is centred in the
+   page, so half the page's width either side of the band's middle is exactly the page */
+.band::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(50% - 50cqw);
+  z-index: -1;
+  background: var(--bg);
+}
+
+.band h2 {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-2xl);
+}
+
+.intro {
+  max-width: 640px;
+  margin: 0 0 var(--s5);
+  color: var(--text-2);
+}
+
+/* ---------- the hero ---------- */
+
+.hero {
+  display: grid;
+  grid-template-areas:
+    "top"
+    "title"
+    "card"
+    "text";
+  gap: var(--s5);
+  padding: var(--s5) 0 var(--s7);
+  color: var(--panel-text);
+}
+
+.hero::before {
+  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0 calc(50% - 50cqw);
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(var(--panel-dots) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.heroTop {
+  display: flex;
+  grid-area: top;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.heroHead {
+  min-width: 0;
+  padding-left: var(--s4);
+  border-left: 1px solid var(--gold-line);
+}
+
+.kicker {
+  margin: 0;
+  color: var(--panel-accent);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.big {
+  margin: var(--s1) 0 0;
+  color: var(--panel-strong);
+  font-size: var(--t-lg);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.heading {
+  grid-area: title;
+  max-width: 640px;
+  margin: 0;
+  color: var(--panel-strong);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.heroText {
+  grid-area: text;
+  max-width: 600px;
+}
+
+.lead {
+  margin: 0 0 var(--s3);
+  color: var(--panel-strong);
+  font-size: var(--t-lg);
+  line-height: 1.6;
+}
+
+.access {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+}
+
+/* ---------- the sign-in card ---------- */
+
+.cardCell {
+  grid-area: card;
+  justify-self: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+.card {
+  scroll-margin-top: var(--s4);
+  padding: var(--s5);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  color: var(--text);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: var(--t-2xl);
+}
+
+/* both steps in one grid cell: the card is as tall as the taller one only while they cross-fade */
+.stack {
+  display: grid;
+}
+
+.step {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.step[data-phase="enter"] {
+  animation: step-in-forward var(--med) var(--ease) both;
+}
+
+.step[data-phase="enter"][data-dir="back"] {
+  animation-name: step-in-back;
+}
+
+.step[data-phase="leave"] {
+  pointer-events: none;
+  animation: step-out-forward var(--med) var(--ease) both;
+}
+
+.step[data-phase="leave"][data-dir="back"] {
+  animation-name: step-out-back;
+}
+
+@keyframes step-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes step-out-forward {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes step-out-back {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* ---------- the sample picture ---------- */
+
+.preview {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.window {
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.windowBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--surface-2);
+}
+
+.windowDots {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+.windowDots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.windowLabel {
+  color: var(--mark-text);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.panes {
+  display: grid;
+}
+
+.inbox,
+.assistant {
+  min-width: 0;
+  padding: var(--s4);
+}
+
+.inbox {
+  border-bottom: 1px solid var(--border);
+}
+
+.paneTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.rows {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--field);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowText strong {
+  color: var(--heading);
+}
+
+.rowText span {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.rowBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.status {
+  color: var(--text-2);
+  font-size: var(--t-xs);
+  font-weight: 500;
+}
+
+.question {
+  margin: 0 0 var(--s3) auto;
+  max-width: 90%;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-lg);
+  background: var(--action-soft);
+  color: var(--text);
+}
+
+.answer {
+  margin: 0 0 var(--s3);
+  line-height: 1.6;
+}
+
+.marker {
+  color: var(--link);
+  font-weight: 600;
+}
+
+.source {
+  display: inline-block;
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--slate-soft);
+  color: var(--text-2);
+  font-size: var(--t-xs);
+}
+
+/* ---------- the strip ---------- */
+
+.strip::before {
+  background: var(--surface);
+}
+
+.items {
+  display: grid;
+  gap: var(--s5);
+  margin: var(--s5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item h3 {
+  margin: var(--s3) 0 var(--s1);
+  font-size: var(--t-lg);
+}
+
+.item p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.itemIcon {
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--r-lg);
+  background: var(--action-soft);
+  color: var(--action);
+}
+
+/* ---------- the closing band ---------- */
+
+.closing {
+  color: var(--panel-text);
+  text-align: center;
+}
+
+.closing::before {
+  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
+}
+
+.closing h2 {
+  color: var(--panel-strong);
+}
+
+.closing p {
+  margin: 0 0 var(--s5);
+}
+
+/* ---------- tablets and laptops ---------- */
+
+@media (min-width: 768px) {
+  .panes {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .inbox {
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heading {
+    font-size: var(--t-3xl);
+  }
+
+  .card {
+    padding: var(--s6);
+  }
+}
+
+@media (min-width: 820px) {
+  .heroTop {
+    gap: var(--s6);
+  }
+
+  .heroHead {
+    padding-left: var(--s6);
+  }
+
+  .big {
+    font-size: var(--t-xl);
+  }
+}
+
+/* from 1024 px (decision 7): two columns, the card on the right, its top level with the emblem block */
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-areas:
+      "top card"
+      "title card"
+      "text card"
+      ". card";
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: var(--s7);
+    row-gap: var(--s5);
+    padding: var(--s7) 0;
+  }
+
+  .cardCell {
+    align-self: start;
+    max-width: none;
+  }
+
+  .heading {
+    font-size: 40px;
+  }
+
+  .items {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

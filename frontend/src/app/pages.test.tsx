@@ -12,7 +12,8 @@ import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AuditRow, Permission, Report, ReportCatalogue } from "@/lib/api/types";
-import { resetNav } from "@/test/nav";
+import { T } from "@/lib/messages";
+import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 const APP = join(process.cwd(), "src", "app");
@@ -213,6 +214,30 @@ describe("every page has at most one primary action (decision 16)", () => {
       const file = PAGES.find((p) => routeOf(p) === route)!;
       expect(readFileSync(file, "utf8"), route).toContain(`<OldInboxRedirect from="${route}"`);
     }
+  });
+
+  it("/login is the home page: the hero heading, the form's Sign In, and no frame (design home-page, decision 1)", async () => {
+    const file = PAGES.find((p) => routeOf(p) === "/login")!;
+    expect(file).toContain("(home)");
+    expect(layoutsOf(file)).toEqual([]);
+    resetNav("/login");
+    fakeApi();
+    const { container } = renderWithClient((await element(file)) as ReactElement);
+    await settle();
+    expect(container.querySelector("h1")?.textContent).toBe(T.home.heading);
+    expect(primaryActions(container)).toEqual([T.auth.signIn]);
+    expect(container.querySelector("#sign-in")).not.toBeNull();
+  });
+
+  it("/login/code is a redirect to /login?step=code that keeps next (design home-page, decision 2)", async () => {
+    const file = PAGES.find((p) => routeOf(p) === "/login/code")!;
+    expect(readFileSync(file, "utf8")).toContain('<Redirect to="/login?step=code"');
+    resetNav("/login/code", "next=/alerts");
+    fakeApi();
+    const mod = (await import(/* @vite-ignore */ file)) as { default: (p: object) => Promise<ReactNode> };
+    renderWithClient((await mod.default({ searchParams: Promise.resolve({ next: "/alerts" }) })) as ReactElement);
+    await settle();
+    expect(nav.replace).toHaveBeenCalledWith("/login?next=%2Falerts&step=code");
   });
 
   it("the not-found page renders too", async () => {

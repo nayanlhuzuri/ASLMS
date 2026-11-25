@@ -1,6 +1,7 @@
 /**
  * The public pages' frame and the error pages (design portal-ui-redesign, round 5; decision 26 as amended on 20 Oct
- * 2026: template A, the split panel; amended by design signin-gold-emblem, row 249): the gold Lion Capital at the top
+ * 2026: template A, the split panel; amended by design signin-gold-emblem, row 249; since design home-page the frame
+ * holds the reset and first-sign-in pages, and the sign-in cases are in `home.test.tsx`): the gold Lion Capital at the top
  * of the panel with its two lines and its Pause / Play button, no brand row on the form side, the panel's texts, the
  * two-step indicator, the show-password button, and the error and not-found pages on the empty-state pattern with the
  * brand.
@@ -58,9 +59,8 @@ beforeEach(() => {
 });
 
 describe("the public pages' frame (template A with the gold emblem)", () => {
+  // design home-page: the sign-in and code steps moved to the home page; the reset pages stay on the frame
   it.each([
-    ["sign-in", <LoginForm key="l" />],
-    ["code", <CodeForm key="c" />],
     ["reset", <ForgotForm key="f" />],
     ["reset code", <ForgotCodeForm key="fc" />],
   ])("the %s page shows the gold emblem in the panel, the panel's texts and one primary", (_name, form) => {
@@ -83,7 +83,7 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   it("the brand row is gone: no auth-brand, no image in main, the emblem's label once on the page", () => {
     const { container } = renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
     expect(screen.queryByTestId("auth-brand")).toBeNull();
@@ -96,24 +96,24 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   it("the form keeps its heading and line", () => {
     const { unmount } = renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
-    expect(screen.getByRole("heading", { name: T.auth.signIn })).toBeInTheDocument();
-    expect(screen.getByText(T.auth.signInSub)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: T.auth.forgotTitle })).toBeInTheDocument();
+    expect(screen.getByText(T.auth.forgotText)).toBeInTheDocument();
     unmount();
     renderWithClient(
       <PublicLayout>
-        <CodeForm />
+        <ForgotCodeForm />
       </PublicLayout>,
     );
-    expect(screen.getByRole("heading", { name: T.auth.codeTitle })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: T.auth.forgotTitle })).toBeInTheDocument();
   });
 
   it("the two lines come from messages.ts with their languages, inside the emblem and hidden", () => {
     renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
     const img = emblem();
@@ -129,7 +129,7 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   it("Pause stops the motion and Play restarts it; the button has no aria-pressed and sits outside the emblem", async () => {
     renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
     const button = screen.getByRole("button", { name: E.pauseLabel });
@@ -151,7 +151,7 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   it("the pause is remembered on this browser, and the first-sign-in frame starts paused", async () => {
     const { unmount } = renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: E.pauseLabel }));
@@ -189,7 +189,7 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
     motion(true);
     renderWithClient(
       <PublicLayout>
-        <LoginForm />
+        <ForgotForm />
       </PublicLayout>,
     );
     expect(screen.queryByRole("button", { name: E.pauseLabel })).toBeNull();
@@ -203,7 +203,7 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   });
 
   it.each([
-    ["public", (form: React.ReactNode) => <PublicLayout>{form}</PublicLayout>, <LoginForm key="l" />],
+    ["public", (form: React.ReactNode) => <PublicLayout>{form}</PublicLayout>, <ForgotForm key="f" />],
     ["first-sign-in", (form: React.ReactNode) => <WelcomeLayout>{form}</WelcomeLayout>, <PasswordStepForm key="p" />],
   ])(
     "the %s frame has one main landmark, #main, holding the form and the foot line, with the panel outside it",
@@ -237,18 +237,18 @@ describe("the public pages' frame (template A with the gold emblem)", () => {
   });
 
   it("the sign-in shows step 1 of 2 with its line, the code page step 2", () => {
-    const { unmount } = renderWithClient(<LoginForm />);
+    const { unmount } = renderWithClient(<LoginForm onSent={vi.fn()} />);
     expect(screen.getByText(`${T.auth.stepOf(1, 2)}.`, { exact: false })).toBeInTheDocument();
     expect(screen.getByText(T.auth.steps)).toBeInTheDocument();
     expect(screen.getByText(T.auth.signInSub)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: T.auth.forgot })).toHaveAttribute("href", "/forgot");
     unmount();
-    renderWithClient(<CodeForm />);
+    renderWithClient(<CodeForm onStartAgain={vi.fn()} onExpired={vi.fn()} />);
     expect(screen.getByText(`${T.auth.stepOf(2, 2)}.`, { exact: false })).toBeInTheDocument();
   });
 
   it("the password field has the show / hide button", async () => {
-    renderWithClient(<LoginForm />);
+    renderWithClient(<LoginForm onSent={vi.fn()} />);
     const field = screen.getByLabelText(T.auth.password);
     expect(field).toHaveAttribute("type", "password");
     await userEvent.click(screen.getByRole("button", { name: T.showPassword }));

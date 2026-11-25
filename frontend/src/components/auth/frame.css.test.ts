@@ -2,7 +2,7 @@
 /**
  * The sign-in frame's stylesheet and fonts, read statically (design signin-gold-emblem, decisions 4, 8, 10, 13, 14 and
  * 15): the emblem's motion from the tokens, still under reduced motion and when paused, the gold only as tokens of
- * globals.css, the brand row gone, and the two Noto fonts imported only by the public pages' frame.
+ * globals.css, the brand row gone, and the two Noto fonts imported only by the emblem (design home-page, decision 14).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -111,16 +111,21 @@ function sources(dir: string): string[] {
   return out;
 }
 
-describe("the Noto fonts load only on the public pages (decision 15)", () => {
-  it("AuthFrame.tsx imports the two @fontsource/noto-serif-* stylesheets", () => {
-    const frame = read("components", "auth", "AuthFrame.tsx");
-    expect(frame).toContain('import "@fontsource/noto-serif-bengali/bengali-600.css";');
-    expect(frame).toContain('import "@fontsource/noto-serif-devanagari/devanagari-500.css";');
+describe("the Noto fonts load only on the public pages (decision 15; design home-page, decision 14)", () => {
+  it("GoldEmblem.tsx imports the two @fontsource/noto-serif-* stylesheets, and AuthFrame.tsx no longer does", () => {
+    const emblem = read("components", "auth", "GoldEmblem.tsx");
+    expect(emblem).toContain('import "@fontsource/noto-serif-bengali/bengali-600.css";');
+    expect(emblem).toContain('import "@fontsource/noto-serif-devanagari/devanagari-500.css";');
+    expect(read("components", "auth", "AuthFrame.tsx")).not.toMatch(/@fontsource\/noto-serif/);
   });
 
-  it("no portal page, nor the root layout, nor globals.css imports them", () => {
+  it("no portal page, nor the root layout, nor globals.css imports them or imports GoldEmblem", () => {
     const files = [...sources(join(SRC, "app", "(portal)")), join(SRC, "app", "layout.tsx"), join(SRC, "app", "globals.css")];
     expect(files.length).toBeGreaterThan(3);
-    for (const file of files) expect(readFileSync(file, "utf-8"), file).not.toMatch(/noto-serif/);
+    for (const file of files) {
+      const text = readFileSync(file, "utf-8");
+      expect(text, file).not.toMatch(/noto-serif/);
+      expect(text, file).not.toMatch(/GoldEmblem/);
+    }
   });
 });

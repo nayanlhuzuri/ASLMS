@@ -18,6 +18,7 @@ import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
 
 import { nav } from "@/test/nav";
 
+import { ARRIVE_KEY } from "./arrive";
 import { Brand } from "./Brand";
 import { AlertBell, Breadcrumb, HeaderSearch, PortalShell, Sidebar } from "./PortalShell";
 
@@ -870,5 +871,85 @@ describe("the one-level side menu (design portal-ui-polish-2, decisions 14-19)",
     renderWithClient(<Sidebar me={makeMe(["cases.view_scope"])} />);
     expect(await screen.findByRole("treeitem", { name: "Alerts, 4" })).toBeInTheDocument();
     expect(await screen.findByRole("treeitem", { name: "Case Inbox, 2" })).toBeInTheDocument();
+  });
+});
+
+describe("the arrival fade after the sign-in code (design home-page, decision 13)", () => {
+  function motionOn() {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+  }
+
+  function api() {
+    browserApi({
+      "GET /me": makeMe(OFFICER),
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 0, open: { critical: 0, high: 0, normal: 0 } },
+    });
+  }
+
+  async function frame(): Promise<HTMLElement> {
+    const main = await screen.findByRole("main");
+    return main.closest("[class*='frame']") as HTMLElement;
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    motionOn();
+  });
+
+  it("runs once: with the flag set the frame has data-arrive, the flag is removed and the fade's end clears it", async () => {
+    sessionStorage.setItem(ARRIVE_KEY, "1");
+    api();
+    const { unmount } = renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    const el = await frame();
+    expect(el).toHaveAttribute("data-arrive");
+    expect(sessionStorage.getItem(ARRIVE_KEY)).toBeNull();
+    // an animation of a child bubbling up does not end it
+    fireEvent.animationEnd(screen.getByText("page body"));
+    expect(el).toHaveAttribute("data-arrive");
+    fireEvent.animationEnd(el);
+    expect(el).not.toHaveAttribute("data-arrive");
+    unmount();
+    // a second mount (a reload, a new tab, a later page) finds no flag
+    api();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    expect(await frame()).not.toHaveAttribute("data-arrive");
+  });
+
+  it("without the flag there is no fade", async () => {
+    api();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    expect(await frame()).not.toHaveAttribute("data-arrive");
+  });
+
+  it("under reduced motion the flag is used up and nothing is marked", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query.includes("reduce"), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    sessionStorage.setItem(ARRIVE_KEY, "1");
+    api();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    expect(await frame()).not.toHaveAttribute("data-arrive");
+    expect(sessionStorage.getItem(ARRIVE_KEY)).toBeNull();
   });
 });

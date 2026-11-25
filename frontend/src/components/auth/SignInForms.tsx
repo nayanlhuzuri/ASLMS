@@ -4,11 +4,15 @@
  * The sign-in screens (design portal-shell, decision 8), following the API's steps exactly: e-mail and password →
  * the e-mailed code → by `next_step` the welcome pages or the page asked for. The forgotten-password pair gives the
  * same neutral answer whatever the account. No bypass and no "trust this device" box.
+ * Design home-page, decisions 12 and 13: the password and code steps live in the home page's sign-in card, which moves
+ * between them in place, so `LoginForm` and `CodeForm` hand their step changes to the card (`onSent`, `onStartAgain`,
+ * `onExpired`) instead of navigating; the code step marks the arrival fade before it opens the portal.
  */
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useId, useState, useSyncExternalStore, type FormEvent, type MouseEvent } from "react";
 
+import { markArrive } from "@/components/shell/arrive";
 import { Button, ErrorBanner, Notice, TextField } from "@/components/ui";
 import { ApiError, session } from "@/lib/api/client";
 import type { LoginStep, NextStep, ResetStep } from "@/lib/api/types";
@@ -34,10 +38,12 @@ function withNext(path: string, next: string): string {
   return next && next !== "/" ? `${path}?next=${encodeURIComponent(next)}` : path;
 }
 
-export function LoginForm() {
-  const router = useRouter();
+/** The step's heading: `h1` on a page of its own, `h2` in the home page's card under the page's `h1`. */
+export type HeadingLevel = "h1" | "h2";
+
+export function LoginForm({ onSent, headingLevel = "h1" }: { onSent: () => void; headingLevel?: HeadingLevel }) {
+  const Heading = headingLevel;
   const params = useSearchParams();
-  const next = useNext();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,7 +62,10 @@ export function LoginForm() {
     try {
       const step = await session<LoginStep>("login", { email, password });
       saveStep({ sent_to: step.sent_to, expires_in: step.expires_in, resend_after: step.resend_after });
-      router.push(withNext("/login/code", next));
+      onSent();
+      // the home page's card keeps this form mounted while it fades out and brings the same one back if the step
+      // returns within that time (Back, Start Again), so it must not stay busy (row 274 review advisory)
+      setBusy(false);
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -65,7 +74,7 @@ export function LoginForm() {
 
   return (
     <form className={s.form} onSubmit={submit} noValidate>
-      <h1>{T.auth.signIn}</h1>
+      <Heading>{T.auth.signIn}</Heading>
       <p>{T.auth.signInSub}</p>
       <SignInSteps step={1} />
       {params.get("reset") === "done" ? <Notice tone="success">{T.auth.passwordChanged}</Notice> : null}
@@ -110,9 +119,19 @@ function useCountdown(step: StoredStep | null): [number, (seconds: number) => vo
   return [left, setLeft];
 }
 
-export function CodeForm() {
+export function CodeForm({
+  onStartAgain,
+  onExpired,
+  headingLevel = "h1",
+}: {
+  onStartAgain: () => void;
+  onExpired: () => void;
+  headingLevel?: HeadingLevel;
+}) {
+  const Heading = headingLevel;
   const router = useRouter();
   const next = useNext();
+  const sentId = useId();
   const [step] = useState<StoredStep | null>(() => (typeof window === "undefined" ? null : loadStep()));
   const [left, setLeft] = useCountdown(step);
   const [code, setCode] = useState("");
@@ -130,18 +149,25 @@ export function CodeForm() {
       clearStep();
       // a new session: the previous one's limits (its hard end above all) must not show here (review finding 2)
       sessionStore().clearLimits();
-      router.replace(afterSignIn(out.next_step, next));
+      const target = afterSignIn(out.next_step, next);
+      // design home-page, decision 13: the portal fades in once; the first-sign-in pages have their own entry
+      if (!target.startsWith("/welcome/")) markArrive();
+      router.replace(target);
     } catch (err) {
       setBusy(false);
       if (err instanceof ApiError && err.code === "otp_expired") {
         clearStep();
-        const query = new URLSearchParams({ expired: "1" });
-        if (next !== "/") query.set("next", next);
-        router.replace(`/login?${query.toString()}`);
+        onExpired();
         return;
       }
       setError(err);
     }
+  }
+
+  function startAgain(e: MouseEvent<HTMLAnchorElement>) {
+    // without JavaScript the link's address still leads back to the password step
+    e.preventDefault();
+    onStartAgain();
   }
 
   async function resend() {
@@ -160,9 +186,9 @@ export function CodeForm() {
 
   return (
     <form className={s.form} onSubmit={submit} noValidate>
-      <h1>{T.auth.codeTitle}</h1>
+      <Heading>{T.auth.codeTitle}</Heading>
       <SignInSteps step={2} />
-      <p>{step?.sent_to ? T.auth.codeSent(step.sent_to) : T.auth.codeSentGeneric}</p>
+      <p id={sentId}>{step?.sent_to ? T.auth.codeSent(step.sent_to) : T.auth.codeSentGeneric}</p>
       {resent ? <Notice tone="success">{T.auth.resent}</Notice> : null}
       <ErrorBanner error={error} />
       <TextField
@@ -174,6 +200,7 @@ export function CodeForm() {
         pattern="[0-9]{6}"
         maxLength={6}
         required
+        aria-describedby={sentId}
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
       />
@@ -184,7 +211,9 @@ export function CodeForm() {
         <Button variant="link" onClick={resend} disabled={left > 0}>
           {left > 0 ? T.auth.resendIn(left) : T.auth.resend}
         </Button>
-        <Link href={withNext("/login", next)}>{T.auth.startAgain}</Link>
+        <Link href={withNext("/login", next)} onClick={startAgain}>
+          {T.auth.startAgain}
+        </Link>
       </div>
     </form>
   );

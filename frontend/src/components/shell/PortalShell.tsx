@@ -11,6 +11,8 @@
  * Design portal-ui-polish-2, decisions 14-19: the navigation is a one-level tree (`NavTree`), the same in the drawer.
  * Design session-timeout, decisions 17 and 19: the session watch is mounted last, so its dialog is the innermost
  * overlay; Sign Out tells every tab of the browser to leave.
+ * Design home-page, decision 13: right after the sign-in code the frame fades in once (`data-arrive`, opacity only),
+ * when the code step left the flag in sessionStorage; the flag is read and removed when the frame mounts.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -26,6 +28,7 @@ import { can, canAny } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { bottomBarFor, CASE_READERS, entryActive, navFor, navGroupsFor, type NavCount } from "@/lib/routes";
 
+import { takeArrive } from "./arrive";
 import { Brand } from "./Brand";
 import { BellIcon, MenuIcon, MoreIcon, NAV_ICONS, SearchIcon } from "./icons";
 import { NavTree } from "./NavTree";
@@ -35,6 +38,25 @@ import s from "./shell.module.css";
 export { Breadcrumb } from "@/components/ui";
 
 const SIDEBAR_ID = "portal-sidebar";
+
+/**
+ * The frame's ref (design home-page, decision 13): on the frame's first attach, a set arrival flag gives it
+ * `data-arrive` (one fade from the stylesheet), removed when that fade ends. The attribute is set on the element, not
+ * through React state, so a second attach (Strict Mode) or a re-render neither repeats nor clears it. Under reduced
+ * motion nothing is marked, as nothing would fade.
+ */
+function arriveOnAttach(el: HTMLDivElement | null): void {
+  if (!el || !takeArrive()) return;
+  const reduced = typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) return;
+  el.setAttribute("data-arrive", "");
+  const done = (e: AnimationEvent) => {
+    if (e.target !== el) return;
+    el.removeAttribute("data-arrive");
+    el.removeEventListener("animationend", done);
+  };
+  el.addEventListener("animationend", done);
+}
 
 function isActive(pathname: string, href: string): boolean {
   // an entry stays current across its section's tabs (`/data/load` → every `/data/...` page)
@@ -281,7 +303,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
     );
   }
   return (
-    <div className={s.frame}>
+    <div className={s.frame} ref={arriveOnAttach}>
       {/* design portal-motion, decision 1: the toast host is the frame's last element, after SessionWatch */}
       <ToastProvider>
       <a href="#main" className="skip-link">
