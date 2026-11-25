@@ -30,7 +30,15 @@ no help contact).
    centred vertically in that height. When the content is taller than the screen (a phone with the card stacked under
    the heading, or a short laptop window) the hero simply grows; it never clips and never scrolls inside itself.
    Everything else (the sample screens, the strip of what ASLMS does, the footer) starts below the first screen and is
-   reached by scrolling. No scroll hint, arrow or animation is added.
+   reached by scrolling.
+   With the top bar gone, the hero fills the height instead of floating in it (owner, on the mock: "the top empty
+   space looks weird"): the gold emblem, the full name and the heading grow with the screen's height within fixed
+   limits (`clamp()` on `vh`, the heading capped so it keeps two lines on a wide screen, about 68 px at most), the
+   content block sits a little above the centre (less space above than below), and the hero's content column is
+   up to about 1,520 px wide on a large screen. At the bottom of the first screen a quiet line "See What You Work
+   With" with a small down arrow scrolls to the sample screens (a link to `#samples`, never a button; the arrow's
+   gentle nudge stops under reduced motion). The gold emblem keeps turning exactly as on the live page, with its
+   Pause / Play button.
 2. **One sign-in, on the card, and no top bar.** The top bar is removed entirely (owner, 25 Nov 2026, on the mock:
    "you can remove the header. it is looking odd"); the hero's own lockup (the gold emblem, "Government of Assam"
    and the full name) is the page's identity, and the page's `h1` stays the heading. The closing band, whose only purpose was a second Sign In link, is removed. The Sign In jump of row
@@ -67,9 +75,12 @@ no help contact).
    so the picture does not go out of date. A cause-list item number in the conversation is a plain sample number with
    the masked case number beside it. This keeps CLAUDE.md's "never fabricate identifiers" rule: nothing on the
    page can be taken for, or confused with, a held case.
-5. **Layout below the first screen.** The two pictures stack one above the other at every width, each the full
-   width of a content column of at most about 1,100 px, so the Case Inbox shows all its columns on a laptop; on a
-   phone the table stacks as cards as the real `DataTable` does, with no horizontal scroll. The strip of what ASLMS does and the
+5. **Layout below the first screen.** From 1024 px the two pictures sit side by side, the Case Inbox wider (about
+   1.65 to 1) and the Assistant beside it (owner, on the mock: "exactly how it was before beside the sample
+   screens"). The Case Inbox sets the row's height and the Assistant fills exactly that height, so neither has an
+   empty band. To fit every column beside the Assistant, the picture's side menu is narrower than the live one and
+   the Sent By column is left out when the picture is narrower than about 860 px (a container query). Below 1024 px
+   they stack; on a phone the table stacks as cards as the real `DataTable` does, with no horizontal scroll. The strip of what ASLMS does and the
    footer follow as built.
 
 The mock the owner reviewed on 25 Nov 2026 (a local page, not part of the build) shows decisions 1 to 5.
@@ -88,7 +99,7 @@ None. Frontend only, no migration, no API change.
   resumes it, it starts again after the last answer, it holds while out of view, and under reduced motion all four messages are present at once with no button.
 - uicheck: the `/login` states (taken under reduced motion, so the conversation is in its finished state) at 375, 768, 1024 and 1280 px with 0 findings; the Sign In jump states removed; a check
   at 1280 px that the sample pictures start below the first screen (the hero's bottom is at or after the viewport's
-  height).
+  height), and that the two pictures' bottoms are level from 1024 px.
 
 ## Verification
 1. `npm run lint`, `npm run typecheck`, `npm test` and the production build are green; the uicheck run reports 0
