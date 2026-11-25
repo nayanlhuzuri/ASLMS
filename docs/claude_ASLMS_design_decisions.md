@@ -4628,3 +4628,5 @@ Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
   about 2.7 times slower from the first test than the 31-minute run of 24 Nov; the backend change between them is
   row 275's (469 lines) and explains no uniform slowdown, and the same tree passed 3,960 locally. The failed job was
   rerun; if it times out again, the limit or a split of the job is a follow-up.
+- CI follow-up (25 Nov 2026, 13:00): the rerun of the backend job for afb798e passed in 29 minutes (03:47 to 04:16 UTC)
+  and the run for 7f53cb8 passed, so the two timeouts were slow runners, not the code; the 45-minute limit stays.
