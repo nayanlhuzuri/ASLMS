@@ -4610,3 +4610,21 @@ small client component `SignInLink`; the arrival fade is set by a ref callback; 
 **Left for later**: the integrator's checks (lint, typecheck, tests, build, `gen:api` no diff, `portal_smoke.py`, the
 Compose-free uicheck of runbook section 16) and the owner's browser check at 375, 768, 1024 and 1280 px (design note,
 Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
+
+## Deploy of rows 275 and 274 (2026-11-25)
+
+- Row 275 `research-index-portal` merged as 526a834 (report b4cd0e0) after a second gate run: the first stopped at the
+  screen check with 4 alignment findings on the Research filters grid, fixed with the two review advisories (the
+  debounced address write in Cites a Judgment or Act; no Cited Passage card for another order's passage). pytest 3960
+  passed, 3 skipped; uicheck 204 routes and states, 0 findings.
+- Row 274 `home-page` built on the second track, its review advisory fixed (the password step left busy after Back
+  during the fade), main merged into the branch, then squash-merged as 8092c94 (report afb798e); vitest 2941 passed;
+  uicheck 208 routes and states, 0 findings; follow-up row 280 for the owner's browser check.
+- Deployed together at 09:18 from `main` at afb798e with no migration: `docker compose build`, then `api worker worker2
+  scheduler web` recreated with `--no-deps --force-recreate` and the court-data switch on. `NAPIX_ENABLED` and
+  `RESEARCH_INDEX_ENABLED` true in api, worker and worker2; web build ID equal to the image's; health 200, `/` 307,
+  `/login` and `/login/code` 200; `GET /assistant/filter-choices` in the served OpenAPI. Portal down about 18 s.
+- CI: the backend job was cancelled at its 45-minute limit on both merges (b4cd0e0 and afb798e), reaching only 50%,
+  about 2.7 times slower from the first test than the 31-minute run of 24 Nov; the backend change between them is
+  row 275's (469 lines) and explains no uniform slowdown, and the same tree passed 3,960 locally. The failed job was
+  rerun; if it times out again, the limit or a split of the job is a follow-up.
