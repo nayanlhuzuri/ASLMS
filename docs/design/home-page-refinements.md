@@ -43,6 +43,15 @@ no help contact).
      red, within a week in amber) and status badges, five or six rows.
    - **Case Assistant answer**: a question and the answer as the Assistant page draws it, with the AI label, the
      numbered source markers and the Sources list (order, date, page and excerpt).
+   - **The Assistant picture plays a short conversation** (owner, 25 Nov 2026, on the mock): four messages, two
+     questions and two answers about one sample case. Each question is typed into the ask box and then rises in as
+     a bubble; the Assistant shows a three-dot typing indicator for about a second, then its answer writes out word
+     by word with its source markers, and its Sources card fades in. Whole conversation about 15 to 20 seconds.
+     It starts once, when the picture is at least a third in view (IntersectionObserver), and does not loop. A
+     Pause / Play button in the picture's caption bar works while it plays and becomes Replay at the end (WCAG
+     2.2.2, as the emblem's button). Under `prefers-reduced-motion: reduce` the finished conversation shows at once
+     and the button is hidden. Only `opacity` and `transform` are animated, in the portal's motion tokens. The
+     moving text is `aria-hidden`; the `role="img"` label describes the whole conversation.
    They are built from the portal's own kit components fed with static sample data, so they stay true when the kit
    changes. They are inert (`inert`, `aria-hidden`), with one `role="img"` and a label that names what each shows, no
    link, no request, and no live data.
@@ -50,7 +59,8 @@ no help contact).
    "Sample Data" label. Case numbers keep the court's format with a masked number, for example `WP(C)/XXXX/2026`; no
    CNR is shown. Parties are plain role words or invented generic names with "vs State of Assam & Ors."; no
    department, officer or judge is named; dates are words ("Tomorrow", "In 5 Days") or dates in a fixed sample month,
-   so the picture does not go out of date. This keeps CLAUDE.md's "never fabricate identifiers" rule: nothing on the
+   so the picture does not go out of date. A cause-list item number in the conversation is a plain sample number with
+   the masked case number beside it. This keeps CLAUDE.md's "never fabricate identifiers" rule: nothing on the
    page can be taken for, or confused with, a held case.
 5. **Layout below the first screen.** The two pictures stack one above the other at every width, each the full
    width of a content column of at most about 1,100 px, so the Case Inbox shows all its columns on a laptop; on a
@@ -69,7 +79,9 @@ None. Frontend only, no migration, no API change.
 - `home.css.test.ts`: the first-screen rule (`min-height: 100svh` with the `100vh` fallback) is present on the first
   screen's wrapper.
 - `jump.test.ts` and `jumpToSignIn.ts` removed; any test that clicked a Sign In link updated.
-- uicheck: the `/login` states at 375, 768, 1024 and 1280 px with 0 findings; the Sign In jump states removed; a check
+- `homeChat.test.tsx`: the conversation plays in order (question, typing, answer, sources), Pause stops it and Play
+  resumes it, Replay starts it again, and under reduced motion all four messages are present at once with no button.
+- uicheck: the `/login` states (taken under reduced motion, so the conversation is in its finished state) at 375, 768, 1024 and 1280 px with 0 findings; the Sign In jump states removed; a check
   at 1280 px that the sample pictures start below the first screen (the hero's bottom is at or after the viewport's
   height).
 
