@@ -4640,3 +4640,7 @@ Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
   with the portal's kit and sample data. The owner allowed dummy data; it is kept from looking like a held record
   (masked case numbers such as `WP(C)/XXXX/2026`, no CNR, no department, officer or judge named, a "Sample Data"
   label), so the identifier rule holds.
+- 25 Nov 2026, later: the owner refined the design on a local mock (no top bar at all; the hero scaled to the screen
+  height with a "See What You Work With" line; the two sample pictures side by side at the same height; the Assistant
+  picture playing a four-message conversation in a loop until paused; the gold emblem turning as live) and said "build
+  it". The mock is kept at docs/design/mocks/home-page-refinements.html; the build starts after the owner's restart.

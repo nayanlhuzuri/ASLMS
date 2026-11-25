@@ -83,7 +83,10 @@ no help contact).
    they stack; on a phone the table stacks as cards as the real `DataTable` does, with no horizontal scroll. The strip of what ASLMS does and the
    footer follow as built.
 
-The mock the owner reviewed on 25 Nov 2026 (a local page, not part of the build) shows decisions 1 to 5.
+The mock the owner reviewed and approved on 25 Nov 2026 ("build it") is kept at
+`docs/design/mocks/home-page-refinements.html` (open it in a browser; a reference only, not part of the build). It
+shows decisions 1 to 5; where the mock and this note differ, this note wins, and the build uses the portal's own kit,
+tokens and the live `GoldEmblem`, never the mock's CSS.
 
 ## Data, Services, API, Jobs
 None. Frontend only, no migration, no API change.
