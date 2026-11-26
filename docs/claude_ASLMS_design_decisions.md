@@ -4667,3 +4667,19 @@ Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
   through `HearingDate`; Pause holds the frame on show; `main` is up to 1,520 px wide, the sections below 1,360 px.
 - Left for later: the owner's browser check at 375, 768, 1024 and 1280 px stays row 280 (now covering this row); the
   deploy is a `web` rebuild from `main` with the build ID checked.
+
+## Row 281 deployed; case research designs filed; API reference approved (2026-11-26)
+
+- Row 281 `home-page-refinements` deployed 26 Nov 2026 from `main` at 2826f93: no migration, `docker compose build web`,
+  `web` recreated with `--no-deps --force-recreate` and the court-data switch on (`NAPIX_ENABLED` and
+  `RESEARCH_INDEX_ENABLED` true in api, worker and worker2), web build ID equal to the image's, `/` 307, `/login` 200.
+  The owner's browser check stays row 280; the review advisories are row 282.
+- Rows 252 `similar-and-summaries` and 253 `precedent-notes`: designs approved by the owner on 26 Nov 2026 ("approve
+  both as recommended": questions 1 (a), 2 (a) and 3 (a) of each, built locally ahead of SourceTrace as recorded
+  deviations from the plan, each in two rounds), merged into `main` from their design branches. Their portal rounds
+  are rows 284 `similar-and-summaries-portal` and 285 `precedent-notes-portal`.
+- Row 283 `api-reference` (owner, 26 Nov 2026): an OpenAPI reference for ASLMS's own APIs only; the NAPIX APIs are
+  the e-Committee's and stay documented by `docs/specs/` and `docs/napix_integration_notes.md`. The owner chose the
+  recommended reference plus a Word copy, `/docs` staying development-only in production, and the build next, before
+  row 252. Design docs/design/api-reference.md (approved).
+- Build order now: 283, 252, 253, 284, 285, then the queue as before.
