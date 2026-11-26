@@ -2,10 +2,10 @@
 
 ```
 slug: similar-and-summaries
-status: blocked
+status: approved
 author: architect
 date: 2026-11-25
-approved_by: (awaiting the owner's answers to the three open questions)
+approved_by: owner on 2026-11-26
 ```
 
 ## Context
@@ -1006,3 +1006,5 @@ No `fetch_queue` row and no NAPIX call from any of them.
      is never refreshed in the background. A case that is later claimed joins the claimed cases' refreshes.
    - **(b)** Every case that has a summary is refreshed in the background on a new order, like claimed cases. Model time
      then grows with every summary ever opened.
+
+**Answered by the owner on 26 Nov 2026** ("approve both as recommended"): question 1 (a), question 2 (a) and question 3 (a). None remain open. The owner also confirmed decision 1 (built locally, ahead of SourceTrace, a recorded deviation from plan §5.9) and the two-round split of decision 3; the portal row `similar-and-summaries-portal` is added to the backlog when this note merges into main.
