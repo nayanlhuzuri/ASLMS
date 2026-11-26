@@ -2,10 +2,10 @@
 
 ```
 slug: precedent-notes
-status: blocked
+status: approved
 author: architect
 date: 2026-11-25
-approved_by: (awaiting the owner's answers to the open questions, then approval)
+approved_by: owner on 2026-11-26
 ```
 
 ## Context
@@ -702,3 +702,5 @@ No Celery task, no `job_runs` row (the version is the record), no `fetch_queue` 
      word is in some cited order) and still be a wrong generalisation, which the checks cannot catch.
    - (b) Yes: one more call after the entries, given only the checked entries, at most 4 sentences, each citing the
      entries' sources and checked against them, labelled as AI text. Adds about 10 s per note.
+
+**Answered by the owner on 26 Nov 2026** ("approve both as recommended"): question 1 (a), question 2 (a) and question 3 (a). None remain open. The owner also confirmed decision 1 (built locally, ahead of SourceTrace, a recorded deviation from plan §3.2 and §5.9) and the two-round split of decision 4; the portal row `precedent-notes-portal` is added to the backlog when this note merges into main. Row 252 is built first.
