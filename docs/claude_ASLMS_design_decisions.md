@@ -4644,3 +4644,26 @@ Verification). Deploy is a `web` rebuild from `main` with the build ID checked.
   height with a "See What You Work With" line; the two sample pictures side by side at the same height; the Assistant
   picture playing a four-message conversation in a loop until paused; the gold emblem turning as live) and said "build
   it". The mock is kept at docs/design/mocks/home-page-refinements.html; the build starts after the owner's restart.
+
+## Home page refinements, built (2026-11-26)
+
+- Built on `feature/home-page-refinements` (row 281, design docs/design/home-page-refinements.md); frontend only, no
+  migration, no API change. `/login` keeps the sign-in card, the code step in place and the gold emblem with Pause /
+  Play; the changes are the owner's three of 25 Nov 2026 and the refinements of the approved mock.
+- What was built: the hero is the whole first screen (`min-height: 100svh` with a `100vh` fallback), scaled to the
+  screen height, with the "See What You Work With" link to `#samples`; the top bar and the closing band are gone, so
+  the card is the only sign-in; `HomePreview.tsx` is replaced by `HomeSamples.tsx` (the real Case Inbox With Me
+  picture and the Case Assistant picture drawn from the portal's kit, inert, one `role="img"` each, a "Sample Data"
+  label, masked case numbers, no CNR); the Assistant picture plays a four-message conversation in a loop
+  (`homeChat.ts`) that starts when a third in view, holds out of view, has its own Pause / Play and shows the finished
+  conversation at once under reduced motion; sample rows and messages in `sampleData.ts`; the Sign In jump
+  (`jumpToSignIn.ts` and `jump.test.ts`) removed; tests `home.test.tsx`, `home.css.test.ts` and `homeChat.test.tsx`
+  updated or added; uicheck extended with the first-screen and level-pictures checks; layout signature regenerated.
+- Decisions and deviations (the design note's Deviations 1 to 7): the With Me sender column is From, not Sent By; the
+  second answer cites the order and the Case Details source because the live Assistant has no cause-list source kind;
+  the picture's side menu narrows to icons below 720 px of picture width; the hero's spacing is four grid rows so the
+  spacing guard holds, with four optional emblem custom properties in `auth.module.css` unset elsewhere; sample data
+  lives in `sampleData.ts` while every drawn label is the portal's own message, dates counted from a fixed sample day
+  through `HearingDate`; Pause holds the frame on show; `main` is up to 1,520 px wide, the sections below 1,360 px.
+- Left for later: the owner's browser check at 375, 768, 1024 and 1280 px stays row 280 (now covering this row); the
+  deploy is a `web` rebuild from `main` with the build ID checked.

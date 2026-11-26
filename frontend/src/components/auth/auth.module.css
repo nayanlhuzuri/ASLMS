@@ -60,6 +60,9 @@
 
 /* ---------- the gold Lion Capital (decisions 2 to 8) ---------- */
 
+/* the stage and the two gold lines read four optional sizes, so the home page's hero can grow them with the screen's
+   height (design home-page-refinements, decision 1); unset, they are the frame's own sizes */
+
 .emblemBlock {
   display: flex;
   flex: none;
@@ -84,7 +87,7 @@
 
 .assamese {
   font-family: "Noto Serif Bengali", "Nirmala UI", serif;
-  font-size: 22px;
+  font-size: var(--emblem-assamese, 22px);
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: 0.02em;
@@ -93,15 +96,15 @@
 .motto {
   margin-top: var(--s2);
   font-family: "Noto Serif Devanagari", "Nirmala UI", serif;
-  font-size: 15px;
+  font-size: var(--emblem-motto, 15px);
   font-weight: 500;
   line-height: 1.3;
 }
 
 .stage {
   position: relative;
-  width: 118px;
-  height: 176px;
+  width: var(--emblem-stage-w, 118px);
+  height: var(--emblem-stage-h, 176px);
   margin-top: var(--s2);
   perspective: 900px;
 }

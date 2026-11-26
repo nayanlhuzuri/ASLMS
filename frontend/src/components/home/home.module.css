@@ -1,9 +1,11 @@
-/* The public home page (design home-page, row 274, decisions 5 and 7 to 12): navy top bar, navy hero with the gold
-   emblem and the sign-in card, the cream sample picture, the strip, the navy closing band and the navy footer. Tokens
-   only. `main` keeps a gutter of --s4; a band reaches the screen's edges by a painted layer behind it (`::before`),
-   exactly as wide as the page (`100cqw` of the page wrapper, its inline-size container), so no box leaves main's content
-   box, nothing is clipped and the page never scrolls sideways.
-   The step change of the sign-in card is a cross-fade on --med with --ease, instant under reduced motion. */
+/* The public home page (design home-page, row 274, decisions 5 and 7 to 12; design home-page-refinements, row 281):
+   no top bar; the navy hero is the whole first screen with the gold emblem and the sign-in card; below it the cream
+   section of the two sample pictures, the strip and the navy footer. Tokens only. `main` keeps a gutter of --s4; a band
+   reaches the screen's edges by a painted layer behind it (`::before`), exactly as wide as the page (`100cqw` of the
+   page wrapper, its inline-size container), so no box leaves main's content box, nothing is clipped sideways and the
+   page never scrolls sideways.
+   The step change of the sign-in card is a cross-fade on --med with --ease; the pictures' motion runs on the motion
+   tokens too; all of it is instant or still under reduced motion (the tokens are 0 ms). */
 
 .page {
   display: flex;
@@ -12,61 +14,20 @@
   container-type: inline-size;
 }
 
-/* ---------- the top bar and the footer (outside main, full width) ---------- */
-
-.top,
-.foot {
-  color: var(--panel-text);
-  background: var(--panel-from);
-}
-
-.top {
-  border-bottom: 1px solid var(--panel-line);
-}
-
-.topInner,
-.footInner {
-  width: 100%;
-  max-width: 1232px;
-  margin: 0 auto;
-  padding: 0 var(--s4);
-}
-
-.topInner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4);
-  height: var(--header-h);
-}
-
-.name {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  line-height: 1.2;
-}
-
-.nameShort {
-  color: var(--panel-strong);
-  font-size: var(--t-lg);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.nameOwner {
-  color: var(--panel-muted);
-  font-size: var(--t-xs);
-}
+/* ---------- the footer (outside main, full width) ---------- */
 
 .foot {
   margin-top: auto;
+  color: var(--panel-text);
+  background: var(--panel-from);
   border-top: 1px solid var(--panel-line);
 }
 
 .footInner {
-  padding-top: var(--s5);
-  padding-bottom: var(--s5);
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: var(--s5) var(--s4);
 }
 
 .footInner p {
@@ -83,7 +44,7 @@
 
 .main {
   width: 100%;
-  max-width: 1232px;
+  max-width: 1520px;
   margin: 0 auto;
   padding: 0 var(--s4);
 }
@@ -109,23 +70,28 @@
   font-size: var(--t-2xl);
 }
 
+/* the sections below the first screen keep the narrower reading width */
+.inner {
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
 .intro {
-  max-width: 640px;
+  max-width: 70ch;
   margin: 0 0 var(--s5);
   color: var(--text-2);
 }
 
-/* ---------- the hero ---------- */
+/* ---------- the hero: the whole first screen (decision 1) ---------- */
 
+/* exactly one screen tall where it fits, growing when its content is taller; the content block sits a little above
+   the middle (the space below it is twice the space above), and the link to the samples sits at the foot */
 .hero {
   display: grid;
-  grid-template-areas:
-    "top"
-    "title"
-    "card"
-    "text";
-  gap: var(--s5);
-  padding: var(--s5) 0 var(--s7);
+  grid-template-rows: minmax(var(--s4), 1fr) auto minmax(var(--s5), 2fr) auto;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 0;
   color: var(--panel-text);
 }
 
@@ -143,11 +109,24 @@
   background-size: 22px 22px;
 }
 
+.heroGrid {
+  display: grid;
+  grid-row: 2;
+  grid-template-areas:
+    "top"
+    "title"
+    "card"
+    "text";
+  gap: var(--s5);
+  min-width: 0;
+}
+
 .heroTop {
   display: flex;
   grid-area: top;
   align-items: center;
   gap: var(--s4);
+  min-width: 0;
 }
 
 .heroHead {
@@ -173,18 +152,19 @@
 
 .heading {
   grid-area: title;
-  max-width: 640px;
+  max-width: 14em;
   margin: 0;
   color: var(--panel-strong);
   font-size: 28px;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.12;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .heroText {
   grid-area: text;
-  max-width: 600px;
+  max-width: 64ch;
 }
 
 .lead {
@@ -199,6 +179,45 @@
   color: var(--panel-muted);
   font-size: var(--t-sm);
   line-height: 1.6;
+}
+
+/* the quiet line at the foot of the first screen: a link to the samples, never a button */
+.cue {
+  display: inline-flex;
+  grid-row: 4;
+  flex-direction: column;
+  align-items: center;
+  justify-self: center;
+  gap: var(--s1);
+  padding: var(--s2) var(--s3) var(--s4);
+  color: var(--panel-muted);
+  font-size: var(--t-sm);
+  text-decoration: none;
+}
+
+.cue:hover {
+  color: var(--panel-accent);
+}
+
+.cue:focus-visible {
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
+
+/* the arrow's gentle nudge; still under reduced motion, where the token is 0 ms */
+.cueIcon {
+  animation: cue-nudge calc(var(--slow) * 7.5) var(--ease) infinite;
+}
+
+@keyframes cue-nudge {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  50% {
+    transform: translateY(4px);
+  }
 }
 
 /* ---------- the sign-in card ---------- */
@@ -299,148 +318,603 @@
   }
 }
 
-/* ---------- the sample picture ---------- */
+/* ---------- the sample pictures (decisions 3 to 5) ---------- */
 
-.preview {
-  max-width: 1120px;
-  margin: 0 auto;
+.shots {
+  display: grid;
+  gap: var(--s5);
 }
 
-.window {
+.shot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   background: var(--surface);
   box-shadow: var(--shadow-2);
+  container: shot / inline-size;
 }
 
-.windowBar {
+.shotCap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s3);
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
   padding: var(--s2) var(--s4);
   border-bottom: 1px solid var(--border);
   border-radius: var(--r-xl) var(--r-xl) 0 0;
   background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--t-sm);
 }
 
-.windowDots {
+.shotTitle {
+  font-weight: 600;
+}
+
+.shotTools {
   display: inline-flex;
-  gap: var(--s1);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
 }
 
-.windowDots span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--border-strong);
-}
-
-.windowLabel {
+.sampleLabel {
+  padding: 2px var(--s2);
+  border: 1px solid var(--mark-line);
+  border-radius: 999px;
+  background: var(--mark-soft);
   color: var(--mark-text);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* the conversation's Pause / Play (WCAG 2.2.2), the emblem button's shape on the cream caption bar */
+.playBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 28px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--action);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.playBtn:hover {
+  background: var(--action-soft);
+}
+
+.playBtn:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+.shotBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* the window: what the portal draws, on the page's cream ground */
+.window {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--t-md);
+}
+
+/* the Case Inbox picture: the header line, the side menu and the page */
+.app {
+  display: flex;
+  flex-direction: column;
+}
+
+.appTop {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  height: 48px;
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.appBrand {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.appGov {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-variant: small-caps;
+}
+
+.appName {
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.appSearch {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  max-width: 320px;
+  height: 30px;
+  margin-left: auto;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.appSearch svg {
+  flex: none;
+}
+
+/* deliberate truncation: the full words are the live header's placeholder */
+.appSearch span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appBell {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-2);
+}
+
+.appAvatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--action);
+}
+
+.appBody {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 172px minmax(0, 1fr);
+}
+
+/* the side menu, narrower than the live one (decision 5), in the live menu's navy and orange */
+.appSide {
+  padding: var(--s3) var(--s2);
+  border-radius: 0 0 0 var(--r-xl);
+  background: linear-gradient(180deg, var(--panel-from), var(--panel-to));
+  color: var(--panel-text);
+  font-size: var(--t-sm);
+}
+
+.sideGroup + .sideGroup {
+  margin-top: var(--s2);
+}
+
+.sideLabel {
+  display: block;
+  padding: var(--s2) var(--s2) var(--s1);
+  color: var(--panel-muted);
   font-size: var(--t-xs);
   font-weight: 600;
 }
 
-.panes {
-  display: grid;
-}
-
-.inbox,
-.assistant {
-  min-width: 0;
-  padding: var(--s4);
-}
-
-.inbox {
-  border-bottom: 1px solid var(--border);
-}
-
-.paneTitle {
+.sideRow {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  margin: 0 0 var(--s3);
-  color: var(--heading);
-  font-weight: 600;
-}
-
-.rows {
-  display: grid;
-  gap: var(--s2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s2) var(--s3);
-  padding: var(--s3);
-  border: 1px solid var(--border);
+  height: 30px;
+  padding: 0 var(--s2);
   border-radius: var(--r-md);
-  background: var(--field);
+  font-weight: 500;
 }
 
-.rowText {
+.sideRow[data-current] {
+  background: var(--panel-raised);
+  color: var(--panel-strong);
+  box-shadow: inset 3px 0 0 var(--mark);
+}
+
+.sideIcon {
+  display: inline-flex;
+  flex: none;
+  width: 18px;
+}
+
+.sideIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sideText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sideCount {
+  margin-left: auto;
+  padding: 1px var(--s2);
+  border-radius: 999px;
+  background: var(--mark);
+  color: var(--on-mark);
+  font-size: var(--t-xs);
+}
+
+.appMain {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  padding: var(--s4) var(--s5) var(--s5);
 }
 
-.rowText strong {
+.appCrumb {
+  margin-bottom: var(--s1);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.appTitle {
   color: var(--heading);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.rowText span {
+.appSubtitle {
+  margin: var(--s1) 0 var(--s4);
   color: var(--text-3);
   font-size: var(--t-sm);
 }
 
-.rowBadges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
+.appTabs {
+  flex: none;
+  margin-bottom: var(--s4);
 }
 
-.status {
+.appTabs > span {
+  padding: var(--s2) var(--s3);
+  cursor: default;
+}
+
+/* the open tab: the heading colour over the live row's deep orange underline */
+.appTabs > span[data-current] {
+  color: var(--heading);
+  box-shadow: inset 0 -2px 0 var(--mark-text);
+}
+
+.appToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s2) var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.appField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.appField:first-child {
+  flex: 1 1 140px;
+  max-width: 260px;
+}
+
+.appFieldLabel {
   color: var(--text-2);
   font-size: var(--t-xs);
   font-weight: 500;
 }
 
-.question {
-  margin: 0 0 var(--s3) auto;
-  max-width: 90%;
-  padding: var(--s2) var(--s3);
+.appInput {
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--field);
+}
+
+.appSwitch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--t-xs);
+}
+
+.appSwitch > span {
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.appSwitch > span[data-on] {
+  background: var(--field);
+  color: var(--heading);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+}
+
+.appCount {
+  align-self: center;
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.appTable {
+  min-width: 0;
+}
+
+/* a picture narrower than about 860 px leaves the From column out (decision 5); the class is repeated so the rule
+   outweighs the kit's card rules (`.dataWrap[data-stacked] .dataTable td`) */
+@container shot (max-width: 859px) {
+  .appTable.appTable.appTable th:nth-child(4),
+  .appTable.appTable.appTable td:nth-child(4) {
+    display: none;
+  }
+
+  .appTable.appTable th,
+  .appTable.appTable td {
+    padding-inline: var(--s3);
+  }
+}
+
+/* a picture beside the Assistant on a small laptop: the side menu narrows to its icons, so every column still fits as
+   a table */
+@container shot (max-width: 720px) {
+  .appBody {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .appSide {
+    padding: var(--s3) var(--s1);
+  }
+
+  .sideLabel {
+    height: var(--s3);
+    padding: 0;
+    font-size: 0;
+  }
+
+  .sideRow {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sideText,
+  .sideCount {
+    display: none;
+  }
+
+  .appMain {
+    padding: var(--s4);
+  }
+}
+
+@container shot (max-width: 560px) {
+  .appBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .appSide {
+    display: none;
+  }
+
+  .appMain {
+    padding: var(--s3) var(--s3) var(--s4);
+  }
+
+  .appSearch {
+    display: none;
+  }
+}
+
+/* the Case Assistant picture: a fixed message area; new messages enter at the bottom, older ones move up and fade out
+   under a soft top edge; nothing scrolls inside it and the page never jumps */
+.chat {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: 520px;
+  padding: var(--s4) var(--s5) var(--s5);
+}
+
+.chatThread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--s3);
+  min-height: 0;
+  padding-top: var(--s5);
+  overflow-x: visible;
+  overflow-y: clip;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--s7));
+  mask-image: linear-gradient(to bottom, transparent, black var(--s7));
+}
+
+.chatThread > * {
+  flex: none;
+}
+
+/* a message rises in; the Sources card fades in (opacity and transform only, on the motion tokens) */
+.chatMsg {
+  animation: chat-rise var(--slow) var(--ease) both;
+}
+
+.chatSources {
+  display: grid;
+  margin-top: var(--s1);
+  padding-top: var(--s1);
+  border-top: 1px solid var(--border);
+  animation: chat-fade var(--slow) var(--ease) both;
+}
+
+.chatThread[data-fading] > * {
+  opacity: 0;
+  transition: opacity var(--slow) var(--ease);
+}
+
+@keyframes chat-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chat-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* the three-dot typing indicator, the answer bubble's shape */
+.typing {
+  display: inline-flex;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  background: var(--action-soft);
+  background: var(--surface);
+}
+
+.typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  animation: chat-dot calc(var(--slow) * 3) var(--ease) infinite;
+}
+
+.typing span:nth-child(2) {
+  animation-delay: calc(var(--slow) / 2);
+}
+
+.typing span:nth-child(3) {
+  animation-delay: var(--slow);
+}
+
+@keyframes chat-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: none;
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.askBox {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  padding: var(--s1) var(--s1) var(--s1) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--field);
+}
+
+.askText {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-3);
+}
+
+.askText[data-typed] {
   color: var(--text);
 }
 
-.answer {
-  margin: 0 0 var(--s3);
-  line-height: 1.6;
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--text);
+  animation: chat-caret calc(var(--slow) * 3) steps(1) infinite;
 }
 
-.marker {
-  color: var(--link);
+@keyframes chat-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.askButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+  height: 30px;
+  padding: 0 var(--s3);
+  border-radius: var(--r-md);
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--t-sm);
   font-weight: 600;
 }
 
-.source {
-  display: inline-block;
-  margin: 0;
-  padding: var(--s1) var(--s3);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--slate-soft);
-  color: var(--text-2);
-  font-size: var(--t-xs);
+.askButton svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* a narrow picture stacks who over each message, as the Assistant does on a phone */
+@container shot (max-width: 520px) {
+  .chat {
+    padding: var(--s3) var(--s3) var(--s4);
+  }
+
+  .chatMsg {
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .chatMsg > :first-child {
+    width: auto;
+    line-height: 1.5;
+  }
 }
 
 /* ---------- the strip ---------- */
@@ -477,37 +951,9 @@
   color: var(--action);
 }
 
-/* ---------- the closing band ---------- */
-
-.closing {
-  color: var(--panel-text);
-  text-align: center;
-}
-
-.closing::before {
-  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
-}
-
-.closing h2 {
-  color: var(--panel-strong);
-}
-
-.closing p {
-  margin: 0 0 var(--s5);
-}
-
 /* ---------- tablets and laptops ---------- */
 
 @media (min-width: 768px) {
-  .panes {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  }
-
-  .inbox {
-    border-right: 1px solid var(--border);
-    border-bottom: 0;
-  }
-
   .items {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -521,8 +967,14 @@
   }
 }
 
+/* from 820 px the emblem, the names and the heading grow with the screen's height within fixed limits (decision 1) */
 @media (min-width: 820px) {
   .heroTop {
+    --emblem-stage-w: clamp(96px, 14vh, 170px);
+    --emblem-stage-h: clamp(132px, 19vh, 230px);
+    --emblem-assamese: clamp(20px, 2.6vh, 30px);
+    --emblem-motto: clamp(14px, 1.7vh, 19px);
+
     gap: var(--s6);
   }
 
@@ -530,36 +982,63 @@
     padding-left: var(--s6);
   }
 
+  .kicker {
+    font-size: clamp(var(--t-xs), 1.9vh, 15px);
+  }
+
   .big {
-    font-size: var(--t-xl);
+    font-size: clamp(var(--t-xl), 2.9vh, 32px);
   }
 }
 
-/* from 1024 px (decision 7): two columns, the card on the right, its top level with the emblem block */
+/* from 1024 px (row 274, decision 7): two columns, the card on the right, centred beside the text; the two pictures side
+   by side, the Case Inbox wider, the Assistant exactly as tall as it (decision 5) */
 @media (min-width: 1024px) {
-  .hero {
+  .heroGrid {
     grid-template-areas:
       "top card"
       "title card"
-      "text card"
-      ". card";
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-    grid-template-rows: auto auto auto 1fr;
+      "text card";
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 480px);
     column-gap: var(--s7);
     row-gap: var(--s5);
-    padding: var(--s7) 0;
   }
 
   .cardCell {
-    align-self: start;
+    align-self: center;
     max-width: none;
   }
 
   .heading {
-    font-size: 40px;
+    font-size: clamp(34px, min(3.7vw, 6.6vh), 68px);
+  }
+
+  .lead {
+    font-size: clamp(var(--t-lg), 1.4vw, 21px);
+  }
+
+  .access {
+    font-size: clamp(var(--t-sm), 1vw, 15px);
   }
 
   .items {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .shots {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  /* the Case Inbox sets the row's height; the Assistant fills exactly that height */
+  .chatShot {
+    height: 0;
+    min-height: 100%;
+  }
+
+  .chat {
+    flex: 1;
+    height: auto;
+    min-height: 0;
   }
 }

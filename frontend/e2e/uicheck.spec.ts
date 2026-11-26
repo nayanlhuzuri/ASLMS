@@ -340,34 +340,28 @@ const STATES: State[] = [
       }
     },
   },
-  ...[false, true].map(
-    (reduced): State => ({
-      // design home-page, decision 11: the closing band's Sign In moves to the form and focuses the e-mail field,
-      // with the motion on and under reduced motion, and the address takes no hash
-      name: reduced ? "/login (Sign In jump, reduced motion)" : "/login (Sign In jump)",
-      path: "/login",
-      public: true,
-      widths: [375],
-      init: async (page) => {
-        if (!reduced) await page.emulateMedia({ reducedMotion: "no-preference" });
-      },
-      open: async (page) => {
-        const strip = page.getByRole("region", { name: "What ASLMS Does" });
-        await strip.scrollIntoViewIfNeeded();
-        await page.getByRole("region", { name: "Sign in to ASLMS" }).getByRole("link", { name: "Sign In" }).click();
-        const email = page.locator("#sign-in").getByLabel("E-mail", { exact: true });
-        await expect(email).toBeFocused();
-        // the scroll ends within a quarter of a second; the wait covers a slow frame
-        await page.waitForTimeout(400);
-        const box = (await email.boundingBox())!;
-        const height = page.viewportSize()!.height;
-        expect(box.y >= 0 && box.y + box.height <= height, "the e-mail field is wholly in the viewport").toBe(true);
-        expect(new URL(page.url()).hash).toBe("");
-        // the screenshot is taken from the top of the page
-        await page.evaluate(() => window.scrollTo(0, 0));
-      },
-    }),
-  ),
+  {
+    // design home-page-refinements, decisions 1 and 5: the hero is the whole first screen, so the sample pictures start
+    // below it; from 1024 px the two pictures sit side by side with their bottoms level; no Sign In outside the card
+    name: "/login (first screen and pictures)",
+    path: "/login",
+    public: true,
+    widths: [1024, 1280],
+    open: async (page) => {
+      const hero = page.getByRole("region", { name: HOME_HEADING });
+      await hero.waitFor();
+      const height = page.viewportSize()!.height;
+      const heroBox = (await hero.boundingBox())!;
+      expect(heroBox.y + heroBox.height >= height - 0.5, "the hero reaches the foot of the first screen").toBe(true);
+      const inbox = (await page.locator("[data-shot='inbox']").boundingBox())!;
+      const assistant = (await page.locator("[data-shot='assistant']").boundingBox())!;
+      expect(inbox.y >= height - 0.5 && assistant.y >= height - 0.5, "the pictures start below the first screen").toBe(true);
+      expect(Math.abs(inbox.y + inbox.height - (assistant.y + assistant.height)) <= 1, "the pictures' bottoms are level").toBe(true);
+      expect(Math.abs(inbox.y - assistant.y) <= 1, "the pictures' tops are level").toBe(true);
+      await expect(page.getByRole("link", { name: "Sign In" })).toHaveCount(0);
+      await expect(page.locator("header")).toHaveCount(0);
+    },
+  },
   {
     // design signin-gold-emblem, decision 15: a portal page never downloads the sign-in frame's Noto fonts
     name: "/ (no sign-in fonts)",

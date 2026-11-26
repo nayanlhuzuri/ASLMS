@@ -367,23 +367,25 @@ export const T = {
       "ASLMS reads the court's daily cause lists and orders, recommends the department each case concerns, and tells the officer who has the case what is coming up and what needs doing next.",
     access:
       "For officers of Government of Assam departments. Your department's administrator gives you a login, and a code comes to your e-mail each time you sign in.",
-    preview: {
+    // design home-page-refinements, decision 1: the quiet line at the foot of the first screen, a link to the samples
+    cue: "See What You Work With",
+    // design home-page-refinements, decisions 3 and 4: the two sample pictures; their rows and conversation are sample
+    // data in components/home/sampleData.ts, the labels drawn around them are the portal's own (`nav`, `tabs`, `files`)
+    samples: {
       heading: "What You See After Signing In",
-      intro: "Your cases with their next hearing, and answers from the court's orders that show the page they come from.",
-      windowLabel: "Sample Screen, Not Real Cases",
-      aria: "A sample of the Case Inbox and a Case Assistant answer with its source. The cases shown are not real.",
-      inboxTitle: "With Me",
-      assistantTitle: "Case Assistant",
-      party: "A Petitioner v. The State",
-      rows: [
-        { name: "Sample Case 1", hearing: "Tomorrow", status: "New Order" },
-        { name: "Sample Case 2", hearing: "In 3 Days", status: "Reply Due" },
-        { name: "Sample Case 3", hearing: "Next Week", status: "Listed" },
-      ],
-      question: "What did the court direct in the last order?",
-      answer: "The State is to file its reply within two weeks, and the case comes up again after that.",
-      marker: "[1]",
-      sourceChip: "[1] Sample Order, Page 2",
+      intro:
+        "Your cases with their next hearing and the action waiting on you, and answers from the court's orders that show the page they come from.",
+      sampleLabel: "Sample Data",
+      inboxTitle: "Case Inbox · With Me",
+      assistantTitle: "Assistant · This Case",
+      inboxAria:
+        "A sample of the Case Inbox, With Me tab: six cases with their next hearing, the action needed and who sent each. The cases shown are not real.",
+      assistantAria:
+        "A sample Case Assistant conversation about one case: two questions and two answers, each citing the court order or cause list and the page it comes from. The case is not real.",
+      pause: "Pause",
+      play: "Play",
+      pauseLabel: "Pause the Sample Conversation",
+      playLabel: "Play the Sample Conversation",
     },
     strip: {
       heading: "What ASLMS Does",
@@ -391,11 +393,6 @@ export const T = {
         title: "Each Case Finds Its Department",
         text: "ASLMS recommends the department a case concerns, and the department claims it. Nothing is assigned automatically.",
       },
-    },
-    closing: {
-      // the portal's Title Case rule keeps "in" lower case mid-heading, as in "Sign in Now" (design home-page, deviation 1)
-      heading: "Sign in to ASLMS",
-      line: "Use your official e-mail and password. A code comes to your e-mail each time.",
     },
     footName: "Assam State Litigation Management System · Government of Assam",
   },

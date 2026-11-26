@@ -112,3 +112,32 @@ None. Frontend only, no migration, no API change.
 
 ## Open questions
 None. The owner's three instructions settle the scope; decision 4 records how "dummy data" keeps the identifier rule.
+
+## Deviations
+Recorded by the developer while building (26 Nov 2026); each is the smallest choice where the note was silent.
+
+1. **The With Me column is "From".** The live With Me table has no "Sent By" column; its sender column is headed
+   From (`T.cases.from`). The picture uses the live header, and it is that column that is left out when the picture is
+   narrower than about 860 px.
+2. **The listing answer cites the case details.** The live Assistant has no cause-list source kind, so the second
+   answer cites the order (S1) and the Case Details source (S2), whose excerpt holds the sample item number beside the
+   masked case number ("Item 14 · WP(C)/XXXX/2026 · For Orders"). Both answers are drawn as the local model's answers
+   are today (the "Local Model" badge, "Assistant (Local Model)"), and their Sources are drawn under the answer, as
+   the note asks, where the live page opens them from "Sources (n)".
+3. **An icon-only side menu on the small laptop.** At 1024 px the Case Inbox picture is about 600 px wide; to keep the
+   table a table there (not cards) the picture's side menu narrows to its icons below 720 px of picture width, and
+   below 860 px the table cells use `--s3` side padding. From 1280 px the side menu shows its words (172 px).
+4. **The hero's space by grid rows.** The spacing guard (`tokens.test.ts`) allows only tokens in padding and gaps, so
+   "a little above the centre" is a grid of four rows (space `1fr`, the content, space `2fr`, the link) rather than
+   `vh` paddings. The emblem's sizes grow by four optional custom properties added to `auth.module.css`
+   (`--emblem-stage-w`, `--emblem-stage-h`, `--emblem-assamese`, `--emblem-motto`), unset elsewhere, so the frame's
+   emblem is unchanged; the layout signature is regenerated for this.
+5. **Sample data outside the messages.** The rows and the conversation are sample case data, kept in
+   `components/home/sampleData.ts`; every label drawn around them is the portal's own message (`nav`, `tabs`, `files`,
+   `assistant`), and the home page's own words are in `T.home.samples` and `T.home.cue`. Dates are counted from a fixed
+   sample day (`SAMPLE_NOW`, 11 Jan 2027) through the kit's `HearingDate`.
+6. **Pause holds the frame.** Pause (and leaving the view) stops on the frame on show; Play (or coming back into view)
+   shows that frame again for its full time. The conversation's thread is the one box that clips, vertically only
+   (`overflow-y: clip`, `overflow-x: visible`), so uicheck's sideways clip rule is untouched.
+7. **Wider hero.** `main` is up to 1,520 px wide so the hero can use the width; the sections below keep a 1,360 px
+   column, as in the approved mock.

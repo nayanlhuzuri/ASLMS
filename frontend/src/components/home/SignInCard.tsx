@@ -11,19 +11,24 @@
  * reverses the directions. After a change the step's first field takes the focus. Under reduced motion the swap is
  * instant and only one step is ever mounted. The forms keep their fields, checks, errors, resend countdown and calls.
  *
- * The card also installs the page's one click listener for the Sign In links (`jumpToSignIn.ts`).
+ * The card is the page's only sign-in (design home-page-refinements, decision 2): no other Sign In link points to it.
  */
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CodeForm, LoginForm } from "@/components/auth/SignInForms";
-import { buttonClass } from "@/components/ui";
 import { DURATION, usePresence } from "@/components/ui/motion";
-import { T } from "@/lib/messages";
 import { safeNext } from "@/lib/safeNext";
 
 import s from "./home.module.css";
-import { activeField, listenForSignInLinks, SIGN_IN_ID } from "./jumpToSignIn";
+
+/** The card's id (the browser check and the tests find the card by it). */
+export const SIGN_IN_ID = "sign-in";
+
+/** The first field of the step on show: the e-mail on the password step, the code on the code step. */
+export function activeField(card: HTMLElement): HTMLInputElement | null {
+  return card.querySelector<HTMLInputElement>("[data-step]:not([inert]) input:not([type=hidden])");
+}
 
 type Step = "password" | "code";
 type Direction = "forward" | "back";
@@ -68,8 +73,6 @@ export function SignInCard() {
 
   const password = usePresence(step === "password", DURATION.med);
   const code = usePresence(step === "code", DURATION.med);
-
-  useEffect(() => listenForSignInLinks(), []);
 
   useEffect(() => {
     if (moves === 0 || !cardRef.current) return;
@@ -123,14 +126,5 @@ export function SignInCard() {
         ) : null}
       </div>
     </div>
-  );
-}
-
-/** A Sign In link of the top bar or the closing band: a secondary button-styled link to the card. */
-export function SignInLink() {
-  return (
-    <a href={`#${SIGN_IN_ID}`} className={buttonClass("secondary")}>
-      {T.auth.signIn}
-    </a>
   );
 }
